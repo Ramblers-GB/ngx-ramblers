@@ -104,13 +104,16 @@ function bumpVersionString(versionString: string): string {
   }
 }
 
-export async function resolveStoreVersion(configuration: AppleStoreReleaseConfiguration): Promise<string> {
+function listedAppStoreVersionsPath(configuration: AppleStoreReleaseConfiguration, extras: Record<string, string> = {}): string {
   const filters = new URLSearchParams({
-    "filter[app]": configuration.appId,
     "filter[platform]": ApplePlatform.IOS,
-    limit: "50"
+    ...extras
   });
-  const listed: AppleAppStoreVersionResponse = await (await request(configuration, `appStoreVersions?${filters}`)).json();
+  return `apps/${configuration.appId}/appStoreVersions?${filters}`;
+}
+
+export async function resolveStoreVersion(configuration: AppleStoreReleaseConfiguration): Promise<string> {
+  const listed: AppleAppStoreVersionResponse = await (await request(configuration, listedAppStoreVersionsPath(configuration, {limit: "50"}))).json();
   const withApple = listed.data.find(candidate => versionAlreadyWithApple(candidate.attributes.appStoreState));
   const editable = listed.data
     .filter(candidate => versionEditable(candidate.attributes.appStoreState))
@@ -130,12 +133,9 @@ export async function resolveStoreVersion(configuration: AppleStoreReleaseConfig
 }
 
 async function storeVersion(configuration: AppleStoreReleaseConfiguration): Promise<AppleAppStoreVersion> {
-  const filters = new URLSearchParams({
-    "filter[app]": configuration.appId,
-    "filter[platform]": ApplePlatform.IOS,
+  const listed: AppleAppStoreVersionResponse = await (await request(configuration, listedAppStoreVersionsPath(configuration, {
     "filter[versionString]": configuration.versionString
-  });
-  const listed: AppleAppStoreVersionResponse = await (await request(configuration, `appStoreVersions?${filters}`)).json();
+  }))).json();
   const existing = listed.data.find(candidate => candidate.attributes.versionString === configuration.versionString);
   if (existing) {
     return existing;

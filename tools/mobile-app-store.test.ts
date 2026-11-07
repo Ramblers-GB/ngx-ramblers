@@ -63,7 +63,7 @@ test("creates version 1.1, attaches the build and submits it for App Review", as
   const mock = mockApple((url, method) => {
     if (url.pathname === "/v1/builds") {
       return jsonResponse({data: [{id: "example-build", attributes: {version: "4101", processingState: AppleBuildProcessingState.VALID}}]});
-    } else if (url.pathname === "/v1/appStoreVersions" && method === "GET") {
+    } else if (url.pathname === "/v1/apps/example-app/appStoreVersions" && method === "GET") {
       return jsonResponse({data: []});
     } else if (url.pathname === "/v1/appStoreVersions" && method === "POST") {
       return jsonResponse({data: {id: "version-11", attributes: {versionString: "1.1", appStoreState: AppleAppStoreState.PREPARE_FOR_SUBMISSION}}});
@@ -77,7 +77,7 @@ test("creates version 1.1, attaches the build and submits it for App Review", as
     assert.equal(await submitProcessedBuild(configuration), true);
     assert.deepEqual(mock.requests.map(request => `${request.method} ${new URL(request.url).pathname}`), [
       "GET /v1/builds",
-      "GET /v1/appStoreVersions",
+      "GET /v1/apps/example-app/appStoreVersions",
       "POST /v1/appStoreVersions",
       "PATCH /v1/appStoreVersions/version-11/relationships/build",
       "PATCH /v1/appStoreVersions/version-11",
@@ -104,7 +104,7 @@ test("leaves a version already with Apple Review alone", async () => {
   const mock = mockApple(url => {
     if (url.pathname === "/v1/builds") {
       return jsonResponse({data: [{id: "example-build", attributes: {version: "4101", processingState: AppleBuildProcessingState.VALID}}]});
-    } else if (url.pathname === "/v1/appStoreVersions") {
+    } else if (url.pathname === "/v1/apps/example-app/appStoreVersions") {
       return jsonResponse({data: [{id: "version-11", attributes: {versionString: "1.1", appStoreState: AppleAppStoreState.WAITING_FOR_REVIEW}}]});
     } else {
       return null;
@@ -114,7 +114,7 @@ test("leaves a version already with Apple Review alone", async () => {
     assert.equal(await submitProcessedBuild(configuration), true);
     assert.deepEqual(mock.requests.map(request => `${request.method} ${new URL(request.url).pathname}`), [
       "GET /v1/builds",
-      "GET /v1/appStoreVersions"
+      "GET /v1/apps/example-app/appStoreVersions"
     ]);
   } finally {
     mock.restore();
@@ -122,7 +122,7 @@ test("leaves a version already with Apple Review alone", async () => {
 });
 
 test("resolves 1.1 when 1.0 is already for sale", async () => {
-  const mock = mockApple(url => url.pathname === "/v1/appStoreVersions"
+  const mock = mockApple(url => url.pathname === "/v1/apps/example-app/appStoreVersions"
     ? jsonResponse({data: [{id: "version-10", attributes: {versionString: "1.0", appStoreState: AppleAppStoreState.READY_FOR_SALE}}]})
     : null);
   try {
@@ -133,7 +133,7 @@ test("resolves 1.1 when 1.0 is already for sale", async () => {
 });
 
 test("keeps a version already with Apple Review when resolving", async () => {
-  const mock = mockApple(url => url.pathname === "/v1/appStoreVersions"
+  const mock = mockApple(url => url.pathname === "/v1/apps/example-app/appStoreVersions"
     ? jsonResponse({data: [
       {id: "version-10", attributes: {versionString: "1.0", appStoreState: AppleAppStoreState.READY_FOR_SALE}},
       {id: "version-11", attributes: {versionString: "1.1", appStoreState: AppleAppStoreState.WAITING_FOR_REVIEW}}
