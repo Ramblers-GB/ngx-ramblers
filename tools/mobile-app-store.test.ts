@@ -67,6 +67,8 @@ test("creates version 1.1, attaches the build and submits it for App Review", as
       return jsonResponse({data: []});
     } else if (url.pathname === "/v1/appStoreVersions" && method === "POST") {
       return jsonResponse({data: {id: "version-11", attributes: {versionString: "1.1", appStoreState: AppleAppStoreState.PREPARE_FOR_SUBMISSION}}});
+    } else if (url.pathname === "/v1/appStoreVersions/version-11/appStoreVersionLocalizations") {
+      return jsonResponse({data: [{id: "loc-en", attributes: {locale: "en-GB", whatsNew: null}}]});
     } else if (url.pathname === "/v1/reviewSubmissions" && method === "POST") {
       return jsonResponse({data: {id: "review-1", attributes: {submitted: false}}});
     } else {
@@ -81,6 +83,8 @@ test("creates version 1.1, attaches the build and submits it for App Review", as
       "POST /v1/appStoreVersions",
       "PATCH /v1/appStoreVersions/version-11/relationships/build",
       "PATCH /v1/appStoreVersions/version-11",
+      "GET /v1/appStoreVersions/version-11/appStoreVersionLocalizations",
+      "PATCH /v1/appStoreVersionLocalizations/loc-en",
       "POST /v1/reviewSubmissions",
       "POST /v1/reviewSubmissionItems",
       "PATCH /v1/reviewSubmissions/review-1"
@@ -92,7 +96,14 @@ test("creates version 1.1, attaches the build and submits it for App Review", as
         relationships: {app: {data: {type: "apps", id: "example-app"}}}
       }
     });
-    assert.deepEqual(await mock.requests[7].json(), {
+    assert.deepEqual(await mock.requests[6].json(), {
+      data: {
+        type: "appStoreVersionLocalizations",
+        id: "loc-en",
+        attributes: {whatsNew: "Walking app updates from the latest NGX Ramblers website release, including map and route improvements."}
+      }
+    });
+    assert.deepEqual(await mock.requests[9].json(), {
       data: {type: "reviewSubmissions", id: "review-1", attributes: {submitted: true}}
     });
   } finally {

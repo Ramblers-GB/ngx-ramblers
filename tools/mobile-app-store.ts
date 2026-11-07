@@ -6,6 +6,7 @@ import {
   AppleAppStoreState,
   AppleAppStoreVersion,
   AppleAppStoreVersionCreateResponse,
+  AppleAppStoreVersionLocalizationResponse,
   AppleAppStoreVersionResponse,
   AppleBuildProcessingState,
   ApplePlatform,
@@ -151,6 +152,8 @@ async function storeVersion(configuration: AppleStoreReleaseConfiguration): Prom
   }
 }
 
+const APP_STORE_WHATS_NEW = "Walking app updates from the latest NGX Ramblers website release, including map and route improvements.";
+
 async function attachBuild(configuration: AppleStoreReleaseConfiguration, version: AppleAppStoreVersion, build: AppleReleaseBuild): Promise<void> {
   await request(configuration, `appStoreVersions/${version.id}/relationships/build`, {
     data: {type: "builds", id: build.id}
@@ -158,6 +161,22 @@ async function attachBuild(configuration: AppleStoreReleaseConfiguration, versio
   await request(configuration, `appStoreVersions/${version.id}`, {
     data: {type: "appStoreVersions", id: version.id, attributes: {releaseType: AppleReleaseType.AFTER_APPROVAL}}
   }, AppleRequestMethod.PATCH);
+}
+
+async function fillWhatsNew(configuration: AppleStoreReleaseConfiguration, version: AppleAppStoreVersion): Promise<void> {
+  const listed: AppleAppStoreVersionLocalizationResponse = await (await request(configuration, `appStoreVersions/${version.id}/appStoreVersionLocalizations`)).json();
+  const localization = listed.data[0];
+  if (!localization) {
+    throw new Error(`App Store version ${configuration.versionString} has no localisation to hold What's New.`);
+  } else if (!localization.attributes.whatsNew) {
+    await request(configuration, `appStoreVersionLocalizations/${localization.id}`, {
+      data: {
+        type: "appStoreVersionLocalizations",
+        id: localization.id,
+        attributes: {whatsNew: APP_STORE_WHATS_NEW}
+      }
+    }, AppleRequestMethod.PATCH);
+  }
 }
 
 async function submitForReview(configuration: AppleStoreReleaseConfiguration, version: AppleAppStoreVersion): Promise<void> {
@@ -192,6 +211,7 @@ async function submitValidatedBuild(configuration: AppleStoreReleaseConfiguratio
     logger("App Store version %s is already %s; leaving Apple to finish review", configuration.versionString, state);
   } else if (versionEditable(state)) {
     await attachBuild(configuration, version, build);
+    await fillWhatsNew(configuration, version);
     await submitForReview(configuration, version);
   } else {
     throw new Error(`App Store version ${configuration.versionString} is ${state} and cannot be submitted.`);

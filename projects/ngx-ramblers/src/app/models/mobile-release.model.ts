@@ -57,6 +57,18 @@ export interface AppleAppStoreVersionCreateResponse {
   data: AppleAppStoreVersion;
 }
 
+export interface AppleAppStoreVersionLocalization {
+  id: string;
+  attributes: {
+    locale?: string;
+    whatsNew?: string | null;
+  };
+}
+
+export interface AppleAppStoreVersionLocalizationResponse {
+  data: AppleAppStoreVersionLocalization[];
+}
+
 export interface AppleReviewSubmission {
   id: string;
   attributes: {
