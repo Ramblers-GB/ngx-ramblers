@@ -666,12 +666,6 @@ import { SystemConfigService } from "../../services/system/system-config.service
                     Edit
                   </button>
                 }
-                @if (canDeleteSavedRoute()) {
-                  <button class="btn btn-grey-danger follow-secondary-btn" type="button" (click)="onPeekDelete($event)" [disabled]="savingRoute">
-                    <fa-icon [icon]="faTrash"/>
-                    Delete
-                  </button>
-                }
                 <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="onPeekClose($event)" [disabled]="savingRoute">
                   <fa-icon [icon]="faHouse"/>
                   Back
@@ -743,7 +737,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
               <div><strong class="d-block">Head to the start</strong>{{ startLocationMessage }}</div>
             </div>
           }
-          @if (persistError) {
+          @if (persistError && !confirmingRouteDelete) {
             <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
               <fa-icon [icon]="faCircleExclamation"/>
               <div>
@@ -849,6 +843,12 @@ import { SystemConfigService } from "../../services/system/system-config.service
               </div>
             </div>
             @if (showFollowExtras()) {
+              @if (canDeleteSavedRoute() && !confirmingRouteDelete) {
+                <button class="btn btn-grey-danger follow-secondary-btn mt-3" type="button" (click)="requestRouteDelete()" [disabled]="savingRoute">
+                  <fa-icon [icon]="faTrash"/>
+                  Delete route
+                </button>
+              }
               @if (editingRouteDetails()) {
                 <app-route-directions-editor class="mt-3"
                                              [waypoints]="payload.waypoints" [points]="payload.points" [gpxFile]="payload.gpxFile"
@@ -875,7 +875,12 @@ import { SystemConfigService } from "../../services/system/system-config.service
               <div><strong class="d-block">Discard this recording?</strong>Discarding deletes this unsaved recording and cannot be undone.</div>
             </div>
           }
-          @if (confirmingRouteDelete) {
+          @if (confirmingRouteDelete && routeDeleteBlocked) {
+            <div class="alert alert-warning d-flex align-items-start" role="alert">
+              <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1"/>
+              <div><strong class="d-block">This route cannot be deleted</strong>{{ persistError }}</div>
+            </div>
+          } @else if (confirmingRouteDelete) {
             <div class="alert alert-warning d-flex align-items-start" role="alert">
               <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1"/>
               <div><strong class="d-block">Delete this route?</strong>This removes it from the group's Maps list and cannot be undone.</div>
@@ -886,11 +891,13 @@ import { SystemConfigService } from "../../services/system/system-config.service
               <button class="btn btn-primary follow-main-btn" type="button" (click)="confirmingRecordingDiscard = false">Back to recording</button>
               <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="confirmRecordingDiscard()">Confirm discard</button>
             } @else if (confirmingRouteDelete) {
-              <button class="btn btn-primary follow-main-btn" type="button" (click)="confirmingRouteDelete = false" [disabled]="deletingRoute">Keep route</button>
-              <button class="btn btn-danger follow-secondary-btn" type="button" (click)="confirmRouteDelete()" [disabled]="deletingRoute">
-                <fa-icon [icon]="faTrash"/>
-                {{ deletingRoute ? "Deleting" : "Confirm delete" }}
-              </button>
+              <button class="btn btn-primary follow-main-btn" type="button" (click)="cancelRouteDelete()" [disabled]="deletingRoute">Keep route</button>
+              @if (!routeDeleteBlocked) {
+                <button class="btn btn-danger follow-secondary-btn" type="button" (click)="confirmRouteDelete()" [disabled]="deletingRoute">
+                  <fa-icon [icon]="faTrash"/>
+                  {{ deletingRoute ? "Deleting" : "Confirm delete" }}
+                </button>
+              }
             } @else {
             @if (!followPanelWide && payload && hasLine && !recordingSession) {
               <button class="btn btn-primary follow-main-btn" [class.follow-actions-span]="progress?.mode === RouteFollowMode.EDITING" type="button" (click)="toggleFollowExtraSettings()" [attr.aria-expanded]="followExtraSettings">
@@ -1006,12 +1013,6 @@ import { SystemConfigService } from "../../services/system/system-config.service
                         [class.btn-primary]="creatingLine" [class.btn-quiet]="!creatingLine">
                   <fa-icon [icon]="faPencil"/>
                   {{ hasLine ? "Edit" : "Plot" }}
-                </button>
-              }
-              @if (canDeleteSavedRoute()) {
-                <button class="btn btn-grey-danger follow-secondary-btn" type="button" (click)="requestRouteDelete()" [disabled]="savingRoute">
-                  <fa-icon [icon]="faTrash"/>
-                  Delete
                 </button>
               }
               <button class="btn btn-primary follow-main-btn" type="button" (click)="onPeekAction($event)" [disabled]="startingFollow">
@@ -1268,6 +1269,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected sessionStorageError: string | null = null;
   protected confirmingRecordingDiscard = false;
   protected confirmingRouteDelete = false;
+  protected routeDeleteBlocked = false;
   protected deletingRoute = false;
   protected recordingDetailsOpen = false;
 
@@ -2011,11 +2013,6 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.editRoute();
   }
 
-  onPeekDelete(event: Event): void {
-    event.stopPropagation();
-    this.requestRouteDelete();
-  }
-
   onPeekClose(event: Event): void {
     event.stopPropagation();
     this.closeFollow();
@@ -2069,14 +2066,21 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
 
   requestRouteDelete(): void {
     if (this.canDeleteSavedRoute()) {
+      this.routeDeleteBlocked = false;
       this.confirmingRouteDelete = true;
       this.expandSheet();
     }
   }
 
+  cancelRouteDelete(): void {
+    this.confirmingRouteDelete = false;
+    this.routeDeleteBlocked = false;
+    this.persistError = null;
+  }
+
   async confirmRouteDelete(): Promise<void> {
     const routeId = this.payload?.osMapsRouteId;
-    if (!this.canDeleteSavedRoute() || !routeId) {
+    if (!this.canDeleteSavedRoute() || !routeId || this.routeDeleteBlocked) {
       this.confirmingRouteDelete = false;
     } else {
       this.deletingRoute = true;
@@ -2088,11 +2092,17 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       } catch (error) {
         this.logger.error("confirmRouteDelete failed:", error);
         this.persistError = this.deleteFailureMessage(error);
-        this.confirmingRouteDelete = false;
+        this.routeDeleteBlocked = this.deleteIsBlocked(error);
+        this.confirmingRouteDelete = true;
       } finally {
         this.deletingRoute = false;
       }
     }
+  }
+
+  private deleteIsBlocked(error: unknown): boolean {
+    const status = (error as {status?: number})?.status;
+    return status === 409;
   }
 
   private deleteFailureMessage(error: unknown): string {

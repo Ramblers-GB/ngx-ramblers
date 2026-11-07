@@ -18,7 +18,7 @@ import { failOsMapsExportResult, latestOsMapsExportResult, osMapsExportResultByJ
 import { dateTimeNowAsValue } from "../shared/dates";
 import { latestOsMapsRouteListing, listedImportedFrom, listedImportedOsMapsRoutes, listedRouteFromImportedRecord } from "./os-maps-route-listing-store";
 import { importedRecordsByRouteId, osMapsImportedRouteById, osMapsImportedRouteByNumber, saveOsMapsImportedRoute, withListingPreviewPoints } from "./os-maps-imported-route-store";
-import { syncImportedRoutePages } from "./os-maps-route-pages";
+import { pagesReferencingRoute, syncImportedRoutePages } from "./os-maps-route-pages";
 
 function actorNameFrom(req: Request): string {
   const user = req.user as Partial<MemberCookie> | undefined;
@@ -264,10 +264,13 @@ export async function deleteOsMapsRoute(req: Request, res: Response): Promise<vo
       res.status(404).json({error: "That route was not found"});
     } else {
       const [referencedRoute] = await routesWithWalkReferences([route]);
+      const pages = await pagesReferencingRoute(route.id, route.gpxFile?.awsFileName || null);
       if (!route.gpxFile?.awsFileName) {
         res.status(409).json({error: "This route has not been imported, so there is nothing to delete"});
       } else if (referencedRoute.walks.length > 0) {
         res.status(409).json({error: "This route cannot be deleted because it is linked to a walk", walks: referencedRoute.walks});
+      } else if (pages.length > 0) {
+        res.status(409).json({error: "This route cannot be deleted because a page still uses this file", pages});
       } else {
         await removeOsMapsRouteFromApp(route.id);
         res.json({deleted: true});

@@ -374,6 +374,27 @@ describe("saved route delete", () => {
     expect(view["confirmingRouteDelete"]).toBe(false);
   });
 
+  it("keeps the route and explains when a walk or page still uses the file", async () => {
+    const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
+    view["payload"] = {source: RouteFollowSource.OS_MAPS, osMapsRouteId: "recording-fictional"} as RouteFollowPayload;
+    view["canEditRoute"] = true;
+    view["progress"] = {mode: RouteFollowMode.IDLE} as typeof view["progress"];
+    view["followService"] = {recordingSession: () => false} as unknown as typeof view["followService"];
+    view["osMapsExport"] = {deleteRoute: vi.fn().mockRejectedValue({
+      status: 409,
+      error: {error: "This route cannot be deleted because it is linked to a walk"}
+    })} as unknown as typeof view["osMapsExport"];
+    view["logger"] = {error: vi.fn()} as unknown as typeof view["logger"];
+    view.expandSheet = vi.fn();
+    view.closeFollow = vi.fn();
+    view.requestRouteDelete();
+    await view.confirmRouteDelete();
+    expect(view["confirmingRouteDelete"]).toBe(true);
+    expect(view["routeDeleteBlocked"]).toBe(true);
+    expect(view["persistError"]).toContain("linked to a walk");
+    expect(view.closeFollow).not.toHaveBeenCalled();
+  });
+
   it("does not delete when the route is still an unsaved recording", () => {
     const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
     view["payload"] = {source: RouteFollowSource.RECORDING, osMapsRouteId: null} as RouteFollowPayload;

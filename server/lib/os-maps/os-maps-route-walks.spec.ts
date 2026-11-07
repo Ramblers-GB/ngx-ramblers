@@ -8,6 +8,7 @@ import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-ac
 import { walkReferencesRoute, withRouteWalks } from "./os-maps-route-walks";
 import * as references from "./os-maps-route-walks";
 import * as listingStore from "./os-maps-route-listing-store";
+import * as routePages from "./os-maps-route-pages";
 import { clearUnimportedOsMapsRoutes, deleteOsMapsRoute } from "./os-maps-export-controller";
 import { importedOsMapsListingRoutes } from "./os-maps-route-listing-store";
 
@@ -59,6 +60,7 @@ describe("delete route protection", () => {
     sandbox.stub(listingStore, "latestOsMapsRouteListing").resolves({listedAt: 1, routes: [route]});
     sandbox.stub(listingStore, "listedImportedOsMapsRoutes").resolves([route]);
     sandbox.stub(references, "routesWithWalkReferences").resolves(withRouteWalks([route], [walk(route.url)]));
+    sandbox.stub(routePages, "pagesReferencingRoute").resolves([]);
     const remove = sandbox.stub(listingStore, "removeOsMapsRouteFromApp").resolves();
     const response = {status: sinon.stub(), json: sinon.stub()};
     response.status.returns(response);
@@ -72,6 +74,20 @@ describe("delete route protection", () => {
     sandbox.stub(listingStore, "latestOsMapsRouteListing").resolves({listedAt: 1, routes: [unimported]});
     sandbox.stub(listingStore, "listedImportedOsMapsRoutes").resolves([]);
     sandbox.stub(references, "routesWithWalkReferences").resolves(withRouteWalks([unimported], []));
+    sandbox.stub(routePages, "pagesReferencingRoute").resolves([]);
+    const remove = sandbox.stub(listingStore, "removeOsMapsRouteFromApp").resolves();
+    const response = {status: sinon.stub(), json: sinon.stub()};
+    response.status.returns(response);
+    await deleteOsMapsRoute({params: {routeId: route.id}} as unknown as Request, response as unknown as Response);
+    expect(response.status.calledWith(409)).toBe(true);
+    expect(remove.called).toBe(false);
+  });
+
+  it("rejects deletion when a page still uses the file", async () => {
+    sandbox.stub(listingStore, "latestOsMapsRouteListing").resolves({listedAt: 1, routes: [route]});
+    sandbox.stub(listingStore, "listedImportedOsMapsRoutes").resolves([route]);
+    sandbox.stub(references, "routesWithWalkReferences").resolves(withRouteWalks([route], []));
+    sandbox.stub(routePages, "pagesReferencingRoute").resolves([{path: "walks/hillside"}]);
     const remove = sandbox.stub(listingStore, "removeOsMapsRouteFromApp").resolves();
     const response = {status: sinon.stub(), json: sinon.stub()};
     response.status.returns(response);
@@ -84,6 +100,7 @@ describe("delete route protection", () => {
     sandbox.stub(listingStore, "latestOsMapsRouteListing").resolves({listedAt: 1, routes: [route]});
     sandbox.stub(listingStore, "listedImportedOsMapsRoutes").resolves([route]);
     sandbox.stub(references, "routesWithWalkReferences").resolves(withRouteWalks([route], []));
+    sandbox.stub(routePages, "pagesReferencingRoute").resolves([]);
     const remove = sandbox.stub(listingStore, "removeOsMapsRouteFromApp").resolves();
     const response = {status: sinon.stub(), json: sinon.stub()};
     response.status.returns(response);

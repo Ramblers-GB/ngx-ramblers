@@ -43,21 +43,33 @@ export function applyLibraryGpxToTree(node: unknown, routeId: string, gpxFile: F
   }
 }
 
+function pageRouteMatchQuery(routeId: string, names: string[]) {
+  return {
+    $or: [
+      {"rows.map.routes.osMapsRouteId": routeId},
+      {"rows.columns.rows.map.routes.osMapsRouteId": routeId},
+      {"rows.columns.rows.columns.rows.map.routes.osMapsRouteId": routeId},
+      ...(names.length > 0 ? [
+        {"rows.map.routes.gpxFile.awsFileName": {$in: names}},
+        {"rows.columns.rows.map.routes.gpxFile.awsFileName": {$in: names}},
+        {"rows.columns.rows.columns.rows.map.routes.gpxFile.awsFileName": {$in: names}}
+      ] : [])
+    ]
+  };
+}
+
+export async function pagesReferencingRoute(routeId: string, awsFileName: string | null = null): Promise<{path: string}[]> {
+  const names = awsFileName ? [awsFileName] : [];
+  const pages = await mongooseClient.execute(() => pageContent.find(pageRouteMatchQuery(routeId, names)).select("path").lean()) as PageContent[];
+  return (pages || []).map(page => ({path: page.path || ""}));
+}
+
 export async function syncImportedRoutePages(routeId: string, gpxFile: FileNameData | null | undefined, previousAwsFileName: string | null = null): Promise<number> {
   if (!gpxFile?.awsFileName) {
     return 0;
   } else {
     const names = [gpxFile.awsFileName, previousAwsFileName].filter(Boolean) as string[];
-    const pages = await mongooseClient.execute(() => pageContent.find({
-      $or: [
-        {"rows.map.routes.osMapsRouteId": routeId},
-        {"rows.columns.rows.map.routes.osMapsRouteId": routeId},
-        {"rows.columns.rows.columns.rows.map.routes.osMapsRouteId": routeId},
-        {"rows.map.routes.gpxFile.awsFileName": {$in: names}},
-        {"rows.columns.rows.map.routes.gpxFile.awsFileName": {$in: names}},
-        {"rows.columns.rows.columns.rows.map.routes.gpxFile.awsFileName": {$in: names}}
-      ]
-    }).lean()) as PageContent[];
+    const pages = await mongooseClient.execute(() => pageContent.find(pageRouteMatchQuery(routeId, names)).lean()) as PageContent[];
     const written = await Promise.all((pages || []).map(async page => {
       const rows = applyLibraryGpxToTree(page.rows || [], routeId, gpxFile, previousAwsFileName);
       await mongooseClient.execute(() => pageContent.updateOne({_id: (page as { _id?: string })._id || page.id}, {$set: {rows}}));
