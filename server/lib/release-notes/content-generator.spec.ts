@@ -1,6 +1,6 @@
 import expect from "expect";
 import { describe, it } from "mocha";
-import { createReleaseNotesData, extractPlaintextBuildRef, generateMarkdown, generateTitle, linkPlaintextBuildLine, refreshIndexPageContent, releaseNoteSlug, stripRedundantIssueRefs, updateIndexPageContent } from "./content-generator";
+import { createReleaseNotesData, extractPlaintextBuildRef, generateMarkdown, generateTitle, linkPlaintextBuildLine, refreshIndexPageContent, releaseNoteSlug, stripRedundantIssueRefs, updateIndexPageContent, whatsNewFromCommitBodies } from "./content-generator";
 import {
   PageContent,
   PageContentType
@@ -267,6 +267,24 @@ describe("content-generator updateIndexPageContent", () => {
     expect(content).toContain("](/how-to/committee/release-notes/2024-12-19) 📸");
   });
 
+  it("refreshIndexPageContent can omit 📸 markers on the for-humans index", () => {
+    const existing = makeIndexPage(
+      [
+        "# Release notes for humans",
+        "",
+        "- [30-Oct-2026 — #407 — External email](/how-to/committee/release-notes/2026-10-30-issue-407) 📸",
+        "- [08-Jun-2026 — #273 — Email wording](/how-to/committee/release-notes/2026-06-08-issue-273) 📸"
+      ].join("\n")
+    );
+    const imageStatusByPath = new Map<string, boolean>([
+      ["how-to/committee/release-notes/2026-10-30-issue-407", true],
+      ["how-to/committee/release-notes/2026-06-08-issue-273", true]
+    ]);
+    const content = extractContent(refreshIndexPageContent(existing, { imageStatusByPath, omitCameraMarkers: true }));
+    expect(content).toContain("](/how-to/committee/release-notes/2026-10-30-issue-407)");
+    expect(content).not.toContain("📸");
+  });
+
   it("preserves 📸 across many entries when inserting in the middle", () => {
     const existing = makeIndexPage(
       [
@@ -466,6 +484,17 @@ describe("content-generator generateMarkdown commit body paragraphs", () => {
     expect(markdown).toContain("Something a committee member cares about.");
     expect(markdown).not.toContain("Technical changes");
     expect(markdown).not.toContain("Extract Cloudflare email-routing controllers");
+  });
+
+  it("joins What's new bullets from commit bodies for the App Store", () => {
+    const text = whatsNewFromCommitBodies([
+      "## What's new\n\n- Delete a saved route from More.\n\n## Technical changes\n\n- Return 409 from DELETE",
+      "## What's new\n\n- Style cards match height without stretching a route sidebar."
+    ]);
+    expect(text).toContain("- Delete a saved route from More.");
+    expect(text).toContain("- Style cards match height without stretching a route sidebar.");
+    expect(text).not.toContain("Technical changes");
+    expect(text).not.toContain("Return 409");
   });
 
   it("collapses a spaced-dash divider line into a single horizontal rule rather than expanding it into many empty bullets", () => {

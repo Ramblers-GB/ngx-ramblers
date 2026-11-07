@@ -2,6 +2,8 @@ import { sign } from "node:crypto";
 import { setInterval, setTimeout } from "node:timers/promises";
 import debug from "debug";
 import { dateTimeNow } from "../server/lib/shared/dates";
+import { gitLogRecent } from "../server/lib/release-notes/commit-parser";
+import { whatsNewFromCommitBodies } from "../server/lib/release-notes/content-generator";
 import {
   AppleAppStoreState,
   AppleAppStoreVersion,
@@ -152,7 +154,18 @@ async function storeVersion(configuration: AppleStoreReleaseConfiguration): Prom
   }
 }
 
-const APP_STORE_WHATS_NEW = "Walking app updates from the latest NGX Ramblers website release, including map and route improvements.";
+const APP_STORE_WHATS_NEW_FALLBACK = "Walking app updates from the latest NGX Ramblers website release.";
+const MEMBER_STORE_COMMIT_TYPES = new Set(["feat", "fix", "perf"]);
+
+function storeWhatsNew(configuration: AppleStoreReleaseConfiguration): string {
+  if (configuration.whatsNew) {
+    return configuration.whatsNew;
+  } else {
+    const commits = gitLogRecent(40, process.env.SOURCE_SHA || "HEAD")
+      .filter(commit => MEMBER_STORE_COMMIT_TYPES.has(commit.type));
+    return whatsNewFromCommitBodies(commits.map(commit => commit.body)) || APP_STORE_WHATS_NEW_FALLBACK;
+  }
+}
 
 async function attachBuild(configuration: AppleStoreReleaseConfiguration, version: AppleAppStoreVersion, build: AppleReleaseBuild): Promise<void> {
   await request(configuration, `appStoreVersions/${version.id}/relationships/build`, {
@@ -168,12 +181,12 @@ async function fillWhatsNew(configuration: AppleStoreReleaseConfiguration, versi
   const localization = listed.data[0];
   if (!localization) {
     throw new Error(`App Store version ${configuration.versionString} has no localisation to hold What's New.`);
-  } else if (!localization.attributes.whatsNew) {
+  } else {
     await request(configuration, `appStoreVersionLocalizations/${localization.id}`, {
       data: {
         type: "appStoreVersionLocalizations",
         id: localization.id,
-        attributes: {whatsNew: APP_STORE_WHATS_NEW}
+        attributes: {whatsNew: storeWhatsNew(configuration)}
       }
     }, AppleRequestMethod.PATCH);
   }
@@ -255,6 +268,7 @@ function configurationFromEnv(): AppleStoreReleaseConfiguration {
     appId: process.env.APP_STORE_CONNECT_APP_ID,
     buildNumber: process.env.MOBILE_BUILD_NUMBER,
     versionString: process.env.MOBILE_STORE_VERSION,
+    whatsNew: process.env.MOBILE_STORE_WHATS_NEW,
     keyId: process.env.APP_STORE_CONNECT_KEY_ID,
     issuerId: process.env.APP_STORE_CONNECT_ISSUER_ID,
     privateKey: process.env.APP_STORE_CONNECT_PRIVATE_KEY

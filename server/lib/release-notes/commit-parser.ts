@@ -118,6 +118,20 @@ export function resolveGitLogRange(since?: string, until: string = "HEAD"): {sin
   return {since, until, fellBack: false};
 }
 
+export function gitLogRecent(count: number, until: string = "HEAD"): ConventionalCommit[] {
+  const COMMIT_SEPARATOR = "---COMMIT-SEPARATOR---";
+  const format = `${COMMIT_SEPARATOR}%n%H%n%h%n%cd%n%B`;
+  const output = execSync(
+    `git log --date=format:%Y-%m-%d --format="${format}" --no-merges -n ${count} ${until}`,
+    {encoding: "utf-8", maxBuffer: 10 * 1024 * 1024}
+  );
+  return output
+    .split(COMMIT_SEPARATOR)
+    .filter(chunk => chunk.trim())
+    .map(chunk => parseCommit(chunk.trim()))
+    .filter((commit): commit is ConventionalCommit => commit !== null);
+}
+
 export function gitLog(since?: string, until: string = "HEAD"): ConventionalCommit[] {
   const COMMIT_SEPARATOR = "---COMMIT-SEPARATOR---";
   const format = `${COMMIT_SEPARATOR}%n%H%n%h%n%cd%n%B`;

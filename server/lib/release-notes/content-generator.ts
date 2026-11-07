@@ -332,6 +332,24 @@ export function withoutTechnicalChanges(body: string): string {
   return lines.slice(0, startIndex).concat(lines.slice(resumeIndex)).join("\n").trim();
 }
 
+const WHATS_NEW_HEADING = /^#{1,6}\s*what's new\s*$/im;
+const APP_STORE_WHATS_NEW_LIMIT = 4000;
+
+export function whatsNewFromCommitBodies(bodies: string[]): string {
+  const sections = bodies
+    .map(body => withoutTechnicalChanges(body || ""))
+    .map(text => text.replace(WHATS_NEW_HEADING, "").trim())
+    .filter(text => text.length > 0);
+  const joined = sections.join("\n\n").trim();
+  if (joined.length === 0) {
+    return "";
+  } else if (joined.length <= APP_STORE_WHATS_NEW_LIMIT) {
+    return joined;
+  } else {
+    return `${joined.slice(0, APP_STORE_WHATS_NEW_LIMIT - 3).replace(/\s+\S*$/, "")}...`;
+  }
+}
+
 function formatBodyLine(line: string): string[] {
   if (line.startsWith("- ") || line.startsWith("* ")) {
     const stripped = line.replace(/^[-*]\s+/, "");
@@ -697,10 +715,11 @@ export function updateIndexPageContent(
  */
 export function refreshIndexPageContent(
   existingContent: PageContent,
-  options?: { imageStatusByPath?: Map<string, boolean>; buildNumberByPath?: Map<string, string> }
+  options?: { imageStatusByPath?: Map<string, boolean>; buildNumberByPath?: Map<string, string>; omitCameraMarkers?: boolean }
 ): PageContent {
   const imageStatusByPath = options?.imageStatusByPath;
   const buildNumberByPath = options?.buildNumberByPath;
+  const omitCameraMarkers = Boolean(options?.omitCameraMarkers);
   if (!existingContent.rows || existingContent.rows.length === 0) {
     return existingContent;
   }
@@ -720,9 +739,11 @@ export function refreshIndexPageContent(
   const parsedEntries = entryLines
     .map(line => parseIndexLine(line))
     .filter((entry): entry is IndexEntry => Boolean(entry))
-    .map(entry => imageStatusByPath?.has(entry.path)
-      ? { ...entry, hasCamera: imageStatusByPath.get(entry.path)! }
-      : entry)
+    .map(entry => omitCameraMarkers
+      ? { ...entry, hasCamera: false }
+      : imageStatusByPath?.has(entry.path)
+        ? { ...entry, hasCamera: imageStatusByPath.get(entry.path)! }
+        : entry)
     .map(entry => buildNumberByPath?.has(entry.path)
       ? { ...entry, buildNumber: buildNumberByPath.get(entry.path)! }
       : entry);

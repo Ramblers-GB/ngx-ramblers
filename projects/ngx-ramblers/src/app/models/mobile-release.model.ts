@@ -88,4 +88,5 @@ export interface AppleStoreReleaseConfiguration {
   keyId: string;
   issuerId: string;
   privateKey: string;
+  whatsNew?: string;
 }

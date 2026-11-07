@@ -11,7 +11,8 @@ const configuration: AppleStoreReleaseConfiguration = {
   versionString: "1.1",
   keyId: "EXAMPLEKEY",
   issuerId: "example-issuer",
-  privateKey: keyPair.privateKey.export({type: "pkcs8", format: "pem"}).toString()
+  privateKey: keyPair.privateKey.export({type: "pkcs8", format: "pem"}).toString(),
+  whatsNew: "- Delete a saved route from More on the follow screen."
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -100,7 +101,7 @@ test("creates version 1.1, attaches the build and submits it for App Review", as
       data: {
         type: "appStoreVersionLocalizations",
         id: "loc-en",
-        attributes: {whatsNew: "Walking app updates from the latest NGX Ramblers website release, including map and route improvements."}
+        attributes: {whatsNew: "- Delete a saved route from More on the follow screen."}
       }
     });
     assert.deepEqual(await mock.requests[9].json(), {
