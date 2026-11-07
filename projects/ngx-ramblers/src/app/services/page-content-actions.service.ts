@@ -163,15 +163,11 @@ export class PageContentActionsService {
     );
   }
 
-  rowHasNestedColumns(row: PageContentRow): boolean {
-    return (row?.columns || []).some(column => (column?.rows || []).length > 0);
-  }
-
   rowClasses(row: PageContentRow, options?: { omitMargins?: boolean }): string {
     const margins = options?.omitMargins ? "" : (this.rowMarginClasses(row) ? ` ${this.rowMarginClasses(row)}` : "");
     const gutter = this.hasIndex(row?.gutter) ? (` g-${row.gutter}`) : "";
     const multiColumn = (row?.columns?.length || 0) > 1;
-    const equalHeight = multiColumn && (this.rowHasCardStyles(row) || this.rowHasNestedColumns(row))
+    const equalHeight = multiColumn && this.rowHasCardStyles(row)
       ? " row-equal-style-cards"
       : "";
     const rowClasses = "row" + margins + gutter + equalHeight;

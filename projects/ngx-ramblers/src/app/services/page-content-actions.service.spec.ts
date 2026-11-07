@@ -30,6 +30,39 @@ describe("PageContentActionsService", () => {
         expect(existingAlbum.autoHideStoryNavigator).toBe(false);
     });
 
+    it("stretches multi-column rows that use text-style cards", () => {
+        const cardRow = {
+            type: PageContentType.TEXT,
+            columns: [
+                { columns: 6, styles: { class: "text-style-cloudy" } },
+                { columns: 6, styles: { class: "text-style-mintcake" } }
+            ]
+        } as unknown as PageContentRow;
+        expect(service.rowClasses(cardRow)).toContain("row-equal-style-cards");
+    });
+
+    it("stretches a parent row when nested columns carry card styles", () => {
+        const nestedCards = {
+            type: PageContentType.TEXT,
+            columns: [
+                { columns: 6, rows: [{ type: PageContentType.TEXT, columns: [{ styles: { class: "text-style-cloudy" } }] }] },
+                { columns: 6, rows: [{ type: PageContentType.TEXT, columns: [{ styles: { class: "text-style-mintcake" } }] }] }
+            ]
+        } as unknown as PageContentRow;
+        expect(service.rowClasses(nestedCards)).toContain("row-equal-style-cards");
+    });
+
+    it("does not stretch multi-column nested rows that have no card styles", () => {
+        const routeSidebar = {
+            type: PageContentType.TEXT,
+            columns: [
+                { columns: 8, rows: [{ type: PageContentType.ROUTE, columns: [] }] },
+                { columns: 4, rows: [{ type: PageContentType.TEXT, columns: [{}] }] }
+            ]
+        } as unknown as PageContentRow;
+        expect(service.rowClasses(routeSidebar)).not.toContain("row-equal-style-cards");
+    });
+
     it("treats a route row as distinct from a map row and initialises guide data", () => {
         const row: PageContentRow = { type: PageContentType.ROUTE, columns: [] } as unknown as PageContentRow;
         expect(service.isRoute(row)).toBe(true);
