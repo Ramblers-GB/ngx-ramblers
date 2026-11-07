@@ -632,8 +632,8 @@ async function generateInteractiveMode(config: ReleaseNotesConfig, includeUnassi
     debugLog(`Generated ${pluraliseWithCount(published.pages.length, "release note")} for commit range`);
   }
 
-  debugLog("Syncing 📸 markers for the notes just published");
-  await syncReleaseNotesIndexImages(auth, { log: message => debugLog(message), pages: published.pages });
+  debugLog("Syncing 📸 markers from current CMS release-note pages");
+  await syncReleaseNotesIndexImages(auth, { log: message => debugLog(message) });
 }
 
 async function commandLineMode(options: GenerateOptions, config: ReleaseNotesConfig): Promise<void> {
@@ -829,8 +829,8 @@ async function commandLineMode(options: GenerateOptions, config: ReleaseNotesCon
   }
 
   if (auth && !options.dryRun) {
-    debugLog("Syncing 📸 markers for the notes just published");
-    await syncReleaseNotesIndexImages(auth, { log: message => debugLog(message), pages: published.pages });
+    debugLog("Syncing 📸 markers from current CMS release-note pages");
+    await syncReleaseNotesIndexImages(auth, { log: message => debugLog(message) });
   }
 }
 
