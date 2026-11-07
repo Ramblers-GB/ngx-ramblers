@@ -2,7 +2,7 @@
 
 ## Critical Rules
 
-1. **NEVER commit or push without explicit instruction** - make file changes freely, but `git commit` and `git push` each require the user to explicitly ask for that specific action. Do not anticipate, chain, or assume the next step. Pattern-matching on previous flows is not permission.
+1. **NEVER commit or push without explicit instruction** - make file changes freely, but `git commit` and `git push` each require the user to explicitly ask for that specific action. Do not anticipate, chain, or assume the next step. Pattern-matching on previous flows is not permission. Finish the work, keep it as one local commit for that ticket, and push only when Nick says push.
 2. **No code comments** - no `//` or `/* */`. Use self-documenting names. Remove comments during refactoring
 3. **No AI attribution in commits** - no `Co-Authored-By`, no `Generated with`, nothing. A `commit-msg` hook enforces this
 4. **No `console.log()`** - Frontend: use `Logger` via `LoggerFactory`. Backend: use `debug` module
@@ -19,6 +19,7 @@
    The board is [project 3](https://github.com/orgs/Ramblers-GB/projects/3). **Kind** is `Ticket` (can be closed) or `Ongoing` (living product area). Labels are areas only. Do not put Ongoing cards in In review. Close a Ticket only after a **code vs checklist** pass, not from commit subjects. Full rules: [`.github/PROJECT-BOARD.md`](.github/PROJECT-BOARD.md).
    **The failure that keeps happening:** the action-button icon picker was already [#376](https://github.com/Ramblers-GB/ngx-ramblers/issues/376); an agent opened [#377](https://github.com/Ramblers-GB/ngx-ramblers/issues/377) six seconds later with the same title and body, then [#378](https://github.com/Ramblers-GB/ngx-ramblers/issues/378) as a second bucket, then spent the rest of the session closing, reopening and amending. That is busywork. Search first (`gh issue list` / `gh issue search`). Reuse. Ask. Do not recreate.
 13. **Never put real people, groups, or live domains into the repo.** Tests, migrations, fixtures, snapshots, comments, tickets, and commit messages stay fictional. Do not copy a live DNS record, DMARC string, mailbox, member name, group name, or site hostname from staging, production, or a screenshot into source. Use placeholders only: `Alex Reed`, `alex.reed@example.com`, `chair@group.example.org.uk`, `Hillside Park`, `https://group.example.org.uk`. A value you saw in Mongo, Fly logs, Cloudflare, or Gmail is not a fixture. If you diagnosed against a real domain, rewrite it before the file is saved. This is a hard rule, not a style preference.
+14. **Standing rules live in this repo.** `AGENTS.md`, `docs/contributing/`, and `.agents/skills/` are what every agent reads (Grok, Claude, Codex). Do not keep project rules in a vendor memory store. If a fact should persist, write it here.
 
 ## Project Overview
 
