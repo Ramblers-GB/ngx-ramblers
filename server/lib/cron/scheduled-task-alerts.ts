@@ -7,10 +7,8 @@ import {
 } from "../../../projects/ngx-ramblers/src/app/models/scheduled-task.model";
 import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
 import { envConfig } from "../env-config/env-config";
-import { sendAdminAlertEmail } from "../alerts/admin-alerts";
+import { notifyAdminIncident } from "../alerts/admin-alerts";
 import { siteBaseUrl } from "../config/site-base-url";
-import { dateTimeNow } from "../shared/dates";
-import { escapeHtml } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 
 const debugLog = debug(envConfig.logNamespace("cron:scheduled-task-alerts"));
 debugLog.enabled = true;
@@ -62,47 +60,24 @@ function problemTitle(problem: ScheduledTaskProblem): string {
   }
 }
 
-function buildHtml(alert: ScheduledTaskAlert, adminUrl: string | null): string {
-  const detectedAt = dateTimeNow().toFormat("cccc, d LLLL yyyy 'at' H:mm");
-  const detailsBlock = alert.details
-    ? `<h3>Details</h3><pre style="background-color:#fee2e2;padding:10px;border-radius:4px;overflow-x:auto;white-space:pre-wrap;">${escapeHtml(alert.details)}</pre>`
-    : "";
-  const actionsBlock = adminUrl
-    ? `<p style="margin-top:1.25em;">
-         <a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#c05711;color:#fff;text-decoration:none;padding:10px 16px;border-radius:4px;font-weight:600;">
-           Open Scheduled Tasks
-         </a>
-       </p>
-       <p style="color:#666;font-size:0.9em;">
-         Or go to
-         <a href="${escapeHtml(adminUrl)}" style="color:#c05711;">Admin → System Settings → Scheduled Tasks</a>
-         for history and manual runs.
-       </p>`
-    : `<p style="color:#666;font-size:0.9em;">Check Admin → System Settings → Scheduled Tasks for history and manual runs.</p>`;
-  return `
-    <html>
-      <body style="font-family: Arial, sans-serif; color: #333;">
-        <h2 style="color: #dc2626;">${problemTitle(alert.problem)}</h2>
-        <p>A scheduled task problem was detected on the platform admin environment.</p>
-        <ul>
-          <li><strong>Task:</strong> ${escapeHtml(alert.taskName)} (<code>${escapeHtml(alert.taskId)}</code>)</li>
-          <li><strong>Problem:</strong> ${escapeHtml(alert.problem)}</li>
-          <li><strong>Detected:</strong> ${detectedAt} (Europe/London)</li>
-        </ul>
-        <p>${escapeHtml(alert.message)}</p>
-        ${detailsBlock}
-        ${actionsBlock}
-      </body>
-    </html>
-  `;
-}
-
 export async function notifyPlatformAdminsOfScheduledTaskProblem(alert: ScheduledTaskAlert): Promise<void> {
   const adminUrl = await scheduledTasksAdminUrl(alert.taskId);
-  const sent = await sendAdminAlertEmail({
-    subject: `[NGX platform] ${problemTitle(alert.problem)}: ${alert.taskName}`,
-    htmlContent: buildHtml(alert, adminUrl),
-    category: `scheduled-task:${alert.problem}`
+  const title = problemTitle(alert.problem);
+  const sent = await notifyAdminIncident({
+    subject: `[NGX platform] ${title}: ${alert.taskName}`,
+    category: `scheduled-task:${alert.problem}`,
+    title,
+    intro: "A scheduled task problem was detected on the platform admin environment.",
+    items: [
+      {label: "Task", value: `${alert.taskName} (${alert.taskId})`},
+      {label: "Problem", value: alert.problem}
+    ],
+    message: alert.message,
+    details: alert.details,
+    actionUrl: adminUrl,
+    actionLabel: "Open Scheduled Tasks",
+    actionHint: "Admin → System Settings → Scheduled Tasks",
+    actionFooter: "for history and manual runs."
   });
   if (!sent) {
     debugLog(`Scheduled task alert not sent for "${alert.taskId}" (${alert.problem})`);

@@ -22,7 +22,9 @@ import {
 import { addCustomDomainForEnvironment, setupSubdomainForEnvironment } from "../cli/commands/subdomain";
 import { baseDomainFrom } from "../environment-setup/environment-context";
 import { appIpAddresses, queryCertificates } from "./fly-certificates";
+import * as flyPublicIps from "./fly-public-ips";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
+import { holdMemoryWatchdogRestart, releaseMemoryWatchdogRestart } from "../health/memory-watchdog";
 
 const debugLog = debug(envConfig.logNamespace("fly-org-migration"));
 debugLog.enabled = true;
@@ -164,7 +166,7 @@ async function importSecretsAndDeploy(
     const tempSecretsPath = path.join(os.tmpdir(), `secrets-migrate-${appName}-${dateTimeNowAsValue()}.env`);
     try {
       writeSecretsFile(tempSecretsPath, secrets);
-      runCommand(`flyctl secrets import --app ${appName} < ${tempSecretsPath}`);
+      runCommand(`flyctl secrets import --stage --app ${appName} < ${tempSecretsPath}`);
     } finally {
       if (fs.existsSync(tempSecretsPath)) {
         fs.unlinkSync(tempSecretsPath);
@@ -183,6 +185,17 @@ async function importSecretsAndDeploy(
     runCommand(`flyctl scale memory ${memory} --app ${appName}`);
     report(`Deployed ${appName}`, SetupStepStatus.Completed);
   }
+  await ensureMigratedAppHasPublicIps(appName, apiKey, report);
+}
+
+export async function ensureMigratedAppHasPublicIps(
+  appName: string,
+  apiKey: string,
+  report: FlyOrgMigrateProgress
+): Promise<void> {
+  report(`Ensuring public IPv4 and IPv6 for ${appName}`);
+  const ips = await flyPublicIps.ensureAppPublicIps({ apiToken: apiKey, appName });
+  report(`Public IPs for ${appName}: IPv4 ${ips.ipv4}, IPv6 ${ips.ipv6}`, SetupStepStatus.Completed);
 }
 
 async function finalisePreferredAppConfig(
@@ -352,6 +365,7 @@ async function cleanupCutoverAndFinalise(input: {
     report
   } = input;
   setFlyApiToken(newApiKey);
+  await ensureMigratedAppHasPublicIps(preferredAppName, newApiKey, report);
   await upsertEnvironmentInDatabase({
     environment: environmentName,
     flyio: {
@@ -540,7 +554,7 @@ export async function probeFlyOrgMigrationStatus(
   };
 }
 
-export async function migrateFlyOrganisation(
+async function migrateFlyOrganisationUnheld(
   environmentName: string,
   options: FlyOrgMigrateOptions = {},
   onProgress?: FlyOrgMigrateProgress
@@ -958,6 +972,19 @@ export async function migrateFlyOrganisation(
   }
 
   return result;
+}
+
+export async function migrateFlyOrganisation(
+  environmentName: string,
+  options: FlyOrgMigrateOptions = {},
+  onProgress?: FlyOrgMigrateProgress
+): Promise<FlyOrgMigrateResult> {
+  holdMemoryWatchdogRestart(`fly org migrate ${environmentName}`);
+  try {
+    return await migrateFlyOrganisationUnheld(environmentName, options, onProgress);
+  } finally {
+    releaseMemoryWatchdogRestart();
+  }
 }
 
 export function flyCredentialsFingerprint(apiKey: string | undefined): string {

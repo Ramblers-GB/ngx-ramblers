@@ -16,8 +16,8 @@ import { AdminAlertRecipient } from "../../../../models/admin-alerts.model";
       <div class="col-sm-12">
         <p class="mb-3">
           Platform-admin operations alerts go only to the people listed here. That covers scheduled-task problems
-          (failed, missed, interrupted) and failed backup or restore sessions. Leave empty to log problems without
-          sending mail. Stored in the database.
+          (failed, missed, interrupted), failed backup or restore sessions, and memory-watchdog restarts when the
+          process is about to exit. Leave empty to log problems without sending mail. Stored in the database.
         </p>
         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
           <span class="badge d-inline-flex align-items-center gap-1"

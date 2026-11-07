@@ -1,7 +1,9 @@
 import debug from "debug";
 import { Brevo } from "@getbrevo/brevo";
 import { isArray, isString, uniqBy } from "es-toolkit/compat";
-import { validEmail } from "../../../projects/ngx-ramblers/src/app/functions/strings";
+import { escapeHtml, validEmail } from "../../../projects/ngx-ramblers/src/app/functions/strings";
+import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";
+import { dateTimeNow } from "../shared/dates";
 import { AdminAlertRecipient, AdminAlertsConfiguration } from "../../../projects/ngx-ramblers/src/app/models/admin-alerts.model";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
@@ -21,6 +23,64 @@ export interface AdminAlertEmailRequest {
   subject: string;
   htmlContent: string;
   category?: string;
+}
+
+export interface AdminIncidentEmail {
+  title: string;
+  intro: string;
+  items: { label: string; value: string }[];
+  message: string;
+  details?: string | null;
+  actionUrl?: string | null;
+  actionLabel?: string;
+  actionHint?: string;
+  actionFooter?: string;
+}
+
+export function buildAdminIncidentHtml(incident: AdminIncidentEmail): string {
+  const detectedAt = dateTimeNow().toFormat(UIDateFormat.DISPLAY_DATE_AND_TIME);
+  const detailsBlock = incident.details
+    ? `<h3>Details</h3><pre style="background-color:#fee2e2;padding:10px;border-radius:4px;overflow-x:auto;white-space:pre-wrap;">${escapeHtml(incident.details)}</pre>`
+    : "";
+  const actionLabel = incident.actionLabel || "Open admin";
+  const actionHint = incident.actionHint || "the admin page";
+  const actionFooter = incident.actionFooter || "for more.";
+  const actionsBlock = incident.actionUrl
+    ? `<p style="margin-top:1.25em;">
+         <a href="${escapeHtml(incident.actionUrl)}" style="display:inline-block;background:#c05711;color:#fff;text-decoration:none;padding:10px 16px;border-radius:4px;font-weight:600;">
+           ${escapeHtml(actionLabel)}
+         </a>
+       </p>
+       <p style="color:#666;font-size:0.9em;">
+         Or go to
+         <a href="${escapeHtml(incident.actionUrl)}" style="color:#c05711;">${escapeHtml(actionHint)}</a>
+         ${escapeHtml(actionFooter)}
+       </p>`
+    : `<p style="color:#666;font-size:0.9em;">Check ${escapeHtml(actionHint)} ${escapeHtml(actionFooter)}</p>`;
+  const items = incident.items.map(item => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.value)}</li>`).join("");
+  return `
+    <html>
+      <body style="font-family: Arial, sans-serif; color: #333;">
+        <h2 style="color: #dc2626;">${escapeHtml(incident.title)}</h2>
+        <p>${escapeHtml(incident.intro)}</p>
+        <ul>
+          ${items}
+          <li><strong>Detected:</strong> ${escapeHtml(detectedAt)} (Europe/London)</li>
+        </ul>
+        <p>${escapeHtml(incident.message)}</p>
+        ${detailsBlock}
+        ${actionsBlock}
+      </body>
+    </html>
+  `;
+}
+
+export async function notifyAdminIncident(request: AdminIncidentEmail & { subject: string; category: string }): Promise<boolean> {
+  return sendAdminAlertEmail({
+    subject: request.subject,
+    htmlContent: buildAdminIncidentHtml(request),
+    category: request.category
+  });
 }
 
 export function platformAdminEnvironment(): boolean {

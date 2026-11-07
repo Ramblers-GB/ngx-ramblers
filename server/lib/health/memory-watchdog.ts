@@ -4,6 +4,9 @@ import { getHeapStatistics } from "v8";
 import { readFileSync } from "fs";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
+import { AdminPlatformPath } from "../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
+import * as adminAlerts from "../alerts/admin-alerts";
+import * as siteBaseUrlModule from "../config/site-base-url";
 
 const debugLog = debug(envConfig.logNamespace("memory-watchdog"));
 debugLog.enabled = true;
@@ -11,6 +14,7 @@ debugLog.enabled = true;
 const BYTES_PER_MB = 1048576;
 const KB_PER_MB = 1024;
 const NANOS_PER_MS = 1e6;
+const WATCHDOG_ALERT_WAIT_MS = 15000;
 
 function numberFromEnv(variable: Environment, fallback: number): number {
   const raw = envConfig.value(variable);
@@ -81,6 +85,46 @@ export async function waitUntilMachineMemoryAllows(limitPercent: number, label: 
   return attempt(maximumAttempts);
 }
 
+export async function notifyMemoryWatchdogRestart(breaches: string[], metrics: string): Promise<void> {
+  const base = await siteBaseUrlModule.siteBaseUrl();
+  const actionUrl = base ? `${base}/${AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH}` : null;
+  const appName = envConfig.value(Environment.FLY_APP_NAME) || envConfig.value(Environment.APP_NAME) || "(none)";
+  const sent = await adminAlerts.notifyAdminIncident({
+    subject: "[NGX platform] Memory watchdog restarting the process",
+    category: "memory-watchdog:restart",
+    title: "Memory watchdog restarting the process",
+    intro: "The process is about to exit so Fly can start a fresh machine. This is a serious event.",
+    items: [
+      {label: "Environment", value: envConfig.env},
+      {label: "App", value: appName},
+      {label: "Reason", value: breaches.join(", ")}
+    ],
+    message: "The event loop or memory limits were breached twice in a row. The HTTP server will stop after this alert is sent.",
+    details: metrics,
+    actionUrl,
+    actionLabel: "Open Environments Monitoring",
+    actionHint: "Admin → Environment management → Environments Monitoring",
+    actionFooter: "for machine health."
+  });
+  if (!sent) {
+    debugLog("Memory watchdog restart alert not sent");
+  }
+}
+
+async function exitAfterWatchdogAlert(breaches: string[], metrics: string): Promise<void> {
+  try {
+    await Promise.race([
+      notifyMemoryWatchdogRestart(breaches, metrics),
+      new Promise<void>(resolve => {
+        setTimeout(resolve, WATCHDOG_ALERT_WAIT_MS);
+      })
+    ]);
+  } catch (error: any) {
+    debugLog("Memory watchdog restart alert failed:", error?.message || error);
+  }
+  process.exit(1);
+}
+
 export function startMemoryWatchdog(): void {
   if (envConfig.value(Environment.MEMORY_WATCHDOG_ENABLED) === "false") {
     debugLog("memory watchdog disabled via MEMORY_WATCHDOG_ENABLED=false");
@@ -113,7 +157,7 @@ export function startMemoryWatchdog(): void {
       heapPercent >= heapPercentLimit ? `heap ${heapPercent.toFixed(0)}% (${heapUsedMb.toFixed(0)}/${heapLimitMb.toFixed(0)}MB)` : null,
       rssMbLimit > 0 && rssMb >= rssMbLimit ? `rss ${rssMb.toFixed(0)}MB` : null,
       loopLagMs >= loopLagMsLimit ? `loopLag ${loopLagMs.toFixed(0)}ms` : null
-    ].filter(Boolean);
+    ].filter((item): item is string => !!item);
 
     if (breaches.length > 0) {
       trips += 1;
@@ -122,9 +166,10 @@ export function startMemoryWatchdog(): void {
         if (memoryWatchdogRestartHeld()) {
           debugLog(`restart deferred (${watchdogRestartHold.reason}): ${breaches.join(", ")} (machine ${machine ? machine.percent.toFixed(0) + "%" : "n/a"}, rss ${rssMb.toFixed(0)}MB, heap ${heapPercent.toFixed(0)}%, loopLag ${loopLagMs.toFixed(0)}ms)`);
         } else {
-          console.error(`[memory-watchdog] restarting: ${breaches.join(", ")} — exiting so Fly restarts a fresh machine (machine ${machine ? machine.usedMb.toFixed(0) + "/" + machine.totalMb.toFixed(0) + "MB" : "n/a"}, heap ${heapUsedMb.toFixed(0)}/${heapLimitMb.toFixed(0)}MB, rss ${rssMb.toFixed(0)}MB, loopLag ${loopLagMs.toFixed(0)}ms).`);
+          const metrics = `machine ${machine ? machine.usedMb.toFixed(0) + "/" + machine.totalMb.toFixed(0) + "MB" : "n/a"}, heap ${heapUsedMb.toFixed(0)}/${heapLimitMb.toFixed(0)}MB, rss ${rssMb.toFixed(0)}MB, loopLag ${loopLagMs.toFixed(0)}ms`;
+          console.error(`[memory-watchdog] restarting: ${breaches.join(", ")} — exiting so Fly restarts a fresh machine (${metrics}).`);
           clearInterval(timer);
-          process.exit(1);
+          void exitAfterWatchdogAlert(breaches, metrics);
         }
       }
     } else if (trips > 0) {
