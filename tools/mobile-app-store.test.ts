@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
 import test from "node:test";
 import { AppleAppStoreState, AppleBuildProcessingState, AppleStoreReleaseConfiguration } from "../projects/ngx-ramblers/src/app/models/mobile-release.model";
-import { submitProcessedBuild } from "./mobile-app-store";
+import { resolveStoreVersion, submitProcessedBuild } from "./mobile-app-store";
 
 const keyPair = generateKeyPairSync("ec", {namedCurve: "prime256v1"});
 const configuration: AppleStoreReleaseConfiguration = {
@@ -116,6 +116,31 @@ test("leaves a version already with Apple Review alone", async () => {
       "GET /v1/builds",
       "GET /v1/appStoreVersions"
     ]);
+  } finally {
+    mock.restore();
+  }
+});
+
+test("resolves 1.1 when 1.0 is already for sale", async () => {
+  const mock = mockApple(url => url.pathname === "/v1/appStoreVersions"
+    ? jsonResponse({data: [{id: "version-10", attributes: {versionString: "1.0", appStoreState: AppleAppStoreState.READY_FOR_SALE}}]})
+    : null);
+  try {
+    assert.equal(await resolveStoreVersion(configuration), "1.1");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("keeps a version already with Apple Review when resolving", async () => {
+  const mock = mockApple(url => url.pathname === "/v1/appStoreVersions"
+    ? jsonResponse({data: [
+      {id: "version-10", attributes: {versionString: "1.0", appStoreState: AppleAppStoreState.READY_FOR_SALE}},
+      {id: "version-11", attributes: {versionString: "1.1", appStoreState: AppleAppStoreState.WAITING_FOR_REVIEW}}
+    ]})
+    : null);
+  try {
+    assert.equal(await resolveStoreVersion(configuration), "1.1");
   } finally {
     mock.restore();
   }

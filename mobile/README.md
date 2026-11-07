@@ -28,13 +28,13 @@ Walkers do not need Xcode, Android Studio or a development computer. They instal
 
 `build-and-release-mobile.yml` runs automatically after the main website workflow succeeds for a push to `main`. It checks out that workflow's exact source revision, prepares the generic mobile bundle once, and builds iOS and Android in parallel. No developer workstation is used. A manual dispatch is available for retrying a release from `main`.
 
-The workflow tests the native journals and retains an iOS simulator archive and an unsigned Android bundle. Store uploads are off until each platform's publish variable is `true`. Enabled uploads check credentials and fail on missing configuration or a genuine upload error. The iPhone job signs and uploads to App Store Connect, waits for Apple to validate the build, attaches it to store version `1.1`, and submits that version for App Review. After Apple approves it, the version releases on the App Store. There is no TestFlight distribution. The Android job signs and uploads to Google Play's closed Alpha testing track.
+The workflow tests the native journals and retains an iOS simulator archive and an unsigned Android bundle. Store uploads are off until each platform's publish variable is `true`. Enabled uploads check credentials and fail on missing configuration or a genuine upload error. The iPhone job signs and uploads to App Store Connect, waits for Apple to validate the build, attaches it to the next App Store version, and submits that version for App Review. After Apple approves it, the version releases on the App Store. If the current version is already for sale, the job increases the last version number (for example 1.1 to 1.2). There is no TestFlight distribution and Apple does not email testers. The Android job signs and uploads to Google Play's closed Alpha testing track.
 
 The Google service account must also have app-scoped Play Console access to view app information and release apps to testing tracks. A valid service-account key in repository secrets does not itself grant Play Console access. Apple review can delay availability after a successful upload.
 
 One-time repository variables:
 
-- `MOBILE_IOS_PUBLISH_ENABLED`: set to `true` after Apple signing and API credentials are configured. That uploads the iPhone build and submits it for App Review. Unset or any other value builds without uploading.
+- `MOBILE_IOS_PUBLISH_ENABLED`: set to `true` to upload the iPhone build and submit it for App Review on the public App Store. Unset or any other value builds without uploading. This is not a TestFlight switch.
 - `MOBILE_ANDROID_PUBLISH_ENABLED`: set to `true` after Google account setup, initial upload and signing/API credentials are configured. Unset or any other value builds without uploading.
 - `MOBILE_DIRECTORY_URL`: public HTTPS origin providing the initial area/group lookup, not a selected group website.
 - `APPLE_TEAM_ID`: Apple Developer team identifier.
@@ -51,7 +51,7 @@ One-time repository secrets:
 
 Signing material stays in secrets and temporary runner files, never in the repository or build artifacts. The workflow cleans up temporary keys. Apple certificates and provisioning profiles need renewal before expiry; Google and Apple account verification or agreements are account setup, not recurring build steps.
 
-Both platforms use a build number derived from the native workflow run number and attempt (`run_number * 100 + run_attempt`). A rerun therefore gets a new number. Source SHA is included in artifact names and workflow summaries. The app remains version `1.1` until a deliberate version change; website Docker tags have their own numbering.
+Both platforms use a build number derived from the native workflow run number and attempt (`run_number * 100 + run_attempt`). A rerun therefore gets a new number. Source SHA is included in artifact names and workflow summaries. The iPhone store version is taken from App Store Connect: an in-flight review keeps that version, and a version already for sale is increased automatically. Website Docker tags have their own numbering.
 
 The native application is a separate installation, so do not assume that the browser app's sign-in, unsaved recording or downloaded routes and maps will transfer. Saved routes on the website are accessed through the same group account. Download anything needed offline again inside the native app before walking.
 

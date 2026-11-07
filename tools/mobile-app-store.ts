@@ -82,6 +82,53 @@ function versionAlreadyWithApple(state: AppleAppStoreState): boolean {
   return state === AppleAppStoreState.WAITING_FOR_REVIEW || state === AppleAppStoreState.IN_REVIEW;
 }
 
+function versionRank(versionString: string): number[] {
+  return versionString.split(".").map(part => Number(part));
+}
+
+function compareVersionStrings(left: string, right: string): number {
+  const leftParts = versionRank(left);
+  const rightParts = versionRank(right);
+  const length = Math.max(leftParts.length, rightParts.length);
+  const ranks = Array.from({length}, (_, index) => (leftParts[index] || 0) - (rightParts[index] || 0));
+  return ranks.find(rank => rank !== 0) || 0;
+}
+
+function bumpVersionString(versionString: string): string {
+  const parts = versionString.split(".");
+  const last = Number(parts[parts.length - 1]);
+  if (!Number.isFinite(last)) {
+    throw new Error(`Cannot increase App Store version ${versionString}`);
+  } else {
+    return [...parts.slice(0, -1), String(last + 1)].join(".");
+  }
+}
+
+export async function resolveStoreVersion(configuration: AppleStoreReleaseConfiguration): Promise<string> {
+  const filters = new URLSearchParams({
+    "filter[app]": configuration.appId,
+    "filter[platform]": ApplePlatform.IOS,
+    limit: "50"
+  });
+  const listed: AppleAppStoreVersionResponse = await (await request(configuration, `appStoreVersions?${filters}`)).json();
+  const withApple = listed.data.find(candidate => versionAlreadyWithApple(candidate.attributes.appStoreState));
+  const editable = listed.data
+    .filter(candidate => versionEditable(candidate.attributes.appStoreState))
+    .sort((left, right) => compareVersionStrings(right.attributes.versionString, left.attributes.versionString));
+  const highest = listed.data
+    .slice()
+    .sort((left, right) => compareVersionStrings(right.attributes.versionString, left.attributes.versionString))[0];
+  if (withApple) {
+    return withApple.attributes.versionString;
+  } else if (editable[0]) {
+    return editable[0].attributes.versionString;
+  } else if (highest && highest.attributes.appStoreState === AppleAppStoreState.READY_FOR_SALE) {
+    return bumpVersionString(highest.attributes.versionString);
+  } else {
+    return configuration.versionString;
+  }
+}
+
 async function storeVersion(configuration: AppleStoreReleaseConfiguration): Promise<AppleAppStoreVersion> {
   const filters = new URLSearchParams({
     "filter[app]": configuration.appId,
@@ -183,7 +230,7 @@ async function submitUntilDeadline(configuration: AppleStoreReleaseConfiguration
   return submitted.value;
 }
 
-async function main(): Promise<void> {
+function configurationFromEnv(): AppleStoreReleaseConfiguration {
   const configuration: AppleStoreReleaseConfiguration = {
     appId: process.env.APP_STORE_CONNECT_APP_ID,
     buildNumber: process.env.MOBILE_BUILD_NUMBER,
@@ -192,18 +239,30 @@ async function main(): Promise<void> {
     issuerId: process.env.APP_STORE_CONNECT_ISSUER_ID,
     privateKey: process.env.APP_STORE_CONNECT_PRIVATE_KEY
   };
-  if ([configuration.appId, configuration.buildNumber, configuration.versionString, configuration.keyId, configuration.issuerId, configuration.privateKey].some(value => !value)) {
-    throw new Error("App Store Connect API credentials, app ID, store version and build number are required.");
+  if ([configuration.appId, configuration.versionString, configuration.keyId, configuration.issuerId, configuration.privateKey].some(value => !value)) {
+    throw new Error("App Store Connect API credentials, app ID and store version are required.");
+  } else {
+    return configuration;
   }
-  const deadline = dateTimeNow().plus({minutes: 30}).toMillis();
-  const submitted = {value: false};
-  submitted.value = await submitUntilDeadline(configuration, deadline);
-  if (!submitted.value) {
-    for await (const tick of setInterval(15000)) {
-      if (dateTimeNow().toMillis() >= deadline) {
-        throw new Error("Apple processing did not complete within 30 minutes. The upload is retained; check its processing status before retrying.");
-      } else if (await submitUntilDeadline(configuration, deadline)) {
-        break;
+}
+
+async function main(): Promise<void> {
+  const configuration = configurationFromEnv();
+  if (process.argv.includes("--resolve-version")) {
+    process.stdout.write(`${await resolveStoreVersion(configuration)}\n`);
+  } else if (!configuration.buildNumber) {
+    throw new Error("App Store Connect API credentials, app ID, store version and build number are required.");
+  } else {
+    const deadline = dateTimeNow().plus({minutes: 30}).toMillis();
+    const submitted = {value: false};
+    submitted.value = await submitUntilDeadline(configuration, deadline);
+    if (!submitted.value) {
+      for await (const tick of setInterval(15000)) {
+        if (dateTimeNow().toMillis() >= deadline) {
+          throw new Error("Apple processing did not complete within 30 minutes. The upload is retained; check its processing status before retrying.");
+        } else if (await submitUntilDeadline(configuration, deadline)) {
+          break;
+        }
       }
     }
   }
