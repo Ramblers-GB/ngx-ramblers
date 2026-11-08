@@ -238,6 +238,7 @@ function infraFrom(env: EnvironmentConfig): EstateRebuildInfraSnapshot {
   return {
     environment: env.environment,
     ngxLite: env.ngxLite === true,
+    estateDeploy: env.estateDeploy !== false,
     awsBucket: env.aws?.bucket || "",
     awsRegion: env.aws?.region || "",
     awsAccessKeyId: asText(env.aws?.accessKeyId),
@@ -476,6 +477,7 @@ export function safeValueFor(
     flyAppName: infra.flyAppName,
     customDomains: infra.customDomains.join(", "),
     ngxLite: yn(infra.ngxLite),
+    estateDeploy: yn(infra.estateDeploy),
     mongoCluster: infra.mongoCluster,
     mongoDb: infra.mongoDb,
     mongoUsername: infra.mongoUsername,
@@ -792,11 +794,11 @@ async function buildWorkbook(
 
   const directory = workbook.addWorksheet("Sites directory");
   directory.addRow([
-    "Environment", "Group", "Group code", "Area", "Public URL", "Fly app",
+    "Environment", "Group", "Group code", "Area", "Public URL", "Fly app", "Fly organisation",
     "Mongo cluster", "Mongo DB", "Mongo user", "AWS bucket", "AWS region",
     "Custom domains", "Mail provider",
     "Chairman name", "Chairman email", "Webmaster name", "Webmaster email", "Site contacts summary",
-    "ngxLite", "Probe status"
+    "ngxLite", "Estate deploy", "Probe status"
   ]);
   infraList.forEach(infra => {
     const site = probes.find(probe => probe.environment === infra.environment);
@@ -807,6 +809,7 @@ async function buildWorkbook(
       site?.areaCode || "",
       site?.siteHref || "",
       infra.flyAppName,
+      infra.flyOrganisation,
       infra.mongoCluster,
       infra.mongoDb,
       infra.mongoUsername,
@@ -820,10 +823,11 @@ async function buildWorkbook(
       site?.webmasterEmail || "",
       site?.siteContactsSummary || "",
       infra.ngxLite ? "Y" : "",
+      infra.estateDeploy ? "Y" : "",
       site?.error ? "error" : "ok"
     ]);
   });
-  styleHeader(directory, 20);
+  styleHeader(directory, 22);
   autosize(directory);
 
   const capture = workbook.addWorksheet("Site values");
@@ -1773,6 +1777,7 @@ function buildSiteDirectory(
       areaCode: site?.areaCode || "",
       siteHref: site?.siteHref || "",
       flyAppName: infra.flyAppName,
+      flyOrganisation: infra.flyOrganisation,
       mongoCluster: infra.mongoCluster,
       mongoDb: infra.mongoDb,
       mongoUsername: infra.mongoUsername,
@@ -1786,6 +1791,7 @@ function buildSiteDirectory(
       webmasterEmail: site?.webmasterEmail || "",
       siteContactsSummary: site?.siteContactsSummary || "",
       ngxLite: !!infra.ngxLite,
+      estateDeploy: infra.estateDeploy !== false,
       probeStatus: site?.error ? "error" : "ok"
     };
   });

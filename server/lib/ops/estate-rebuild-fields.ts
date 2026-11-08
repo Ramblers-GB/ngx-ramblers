@@ -21,6 +21,7 @@ const SITE_RUNTIME_AND_APP_FIELDS: EstateRebuildSiteFieldDefinition[] = [
   {fieldId: "customDomains", category: "Identity", label: "Custom domains", whereHeld: "config.environments[].customDomains", source: S.INFRA, layer: L.RUNTIME},
   {fieldId: "mailProvider", category: "Identity", label: "Mail provider", whereHeld: "system.mailDefaults.mailProvider", source: S.SYSTEM, layer: L.APPLICATION},
   {fieldId: "ngxLite", category: "Identity", label: "ngxLite", whereHeld: "config.environments[].ngxLite", source: S.INFRA, layer: L.RUNTIME},
+  {fieldId: "estateDeploy", category: "Identity", label: "Include in estate deploys", whereHeld: "config.environments[].estateDeploy", source: S.INFRA, layer: L.RUNTIME},
 
   {fieldId: "mongoCluster", category: "MongoDB", label: "Cluster hostname prefix", whereHeld: "config.environments[].mongo.cluster", source: S.INFRA, layer: L.RUNTIME},
   {fieldId: "mongoDb", category: "MongoDB", label: "Database name", whereHeld: "config.environments[].mongo.db", source: S.INFRA, layer: L.RUNTIME},

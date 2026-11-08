@@ -57,6 +57,7 @@ export interface EstateRebuildThirdPartySystem {
 export interface EstateRebuildInfraSnapshot {
   environment: string;
   ngxLite: boolean;
+  estateDeploy: boolean;
   awsBucket: string;
   awsRegion: string;
   awsAccessKeyId: string;
@@ -216,6 +217,8 @@ export interface EstateRebuildSiteDirectoryRow {
   webmasterEmail: string;
   siteContactsSummary: string;
   ngxLite: boolean;
+  estateDeploy: boolean;
+  flyOrganisation: string;
   probeStatus: string;
 }
 

@@ -324,6 +324,12 @@ const AUDIT_SECTION_DEFAULT_SORT: Record<AuditSectionTab, string> = {
                       <ng-template appSortableTableCell="flyAppName" let-row>
                         <code>{{ row.flyAppName }}</code>
                       </ng-template>
+                      <ng-template appSortableTableCell="flyOrganisation" let-row>
+                        <code>{{ row.flyOrganisation }}</code>
+                      </ng-template>
+                      <ng-template appSortableTableCell="estateDeploy" let-row>
+                        {{ row.estateDeploy ? "Yes" : "No" }}
+                      </ng-template>
                       <ng-template appSortableTableCell="mongo" let-row>
                         <code>{{ row.mongoCluster }} / {{ row.mongoDb }}</code>
                       </ng-template>
@@ -1030,6 +1036,8 @@ export class EstateRebuildCaptureComponent implements OnInit, OnDestroy {
     {key: "chairman", label: "Chairman", sortKey: "chairmanName"},
     {key: "webmaster", label: "Webmaster", sortKey: "webmasterName"},
     {key: "flyAppName", label: "Fly app", sortKey: "flyAppName"},
+    {key: "flyOrganisation", label: "Fly org", sortKey: "flyOrganisation"},
+    {key: "estateDeploy", label: "Estate deploy", sortKey: "estateDeploy"},
     {key: "mongo", label: "Mongo", sortKey: "mongoCluster"},
     {key: "awsBucket", label: "AWS bucket", sortKey: "awsBucket"},
     {key: "probeStatus", label: "Probe", sortKey: "probeStatus"}

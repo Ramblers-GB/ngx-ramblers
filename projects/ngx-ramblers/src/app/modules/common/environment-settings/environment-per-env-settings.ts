@@ -22,6 +22,7 @@ import { EnvironmentWebAnalyticsSites } from "./environment-web-analytics-sites"
 import { FlyMachineHistoryComponent } from "../../../pages/admin/system-settings/diagnostics/fly-machine-history";
 import { flyAppUrl } from "../../../functions/fly-app-url";
 import { SystemConfigService } from "../../../services/system/system-config.service";
+import { DateUtilsService } from "../../../services/date-utils.service";
 import { UrlService } from "../../../services/url.service";
 import {
   createEmptyAiConfig,
@@ -155,6 +156,22 @@ import { toKebabCase } from "../../../functions/strings";
                     NGX-Lite Mode
                   </label>
                   <small class="form-text text-muted d-block">Email-only mode for groups that don't run a full public site. Trims the public nav bar to essentials (Walks always; Social only when local social events exist) and hides admin content with no email purpose. Platform Admin visibility is separate, controlled by PLATFORM_ADMIN_ENABLED.</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="form-check">
+                <input type="checkbox"
+                       class="form-check-input"
+                       id="estateDeploy"
+                       [ngModel]="estateDeployIncluded"
+                       (ngModelChange)="estateDeployIncluded = $event"
+                       name="estateDeploy">
+                <div class="flex-grow-1 min-w-0">
+                  <label class="form-check-label" for="estateDeploy">
+                    Include in estate deploys
+                  </label>
+                  <small class="form-text text-muted d-block">When on, this environment is in deploy-to-all. When off, it is skipped. Unset is treated as on.</small>
                 </div>
               </div>
             </div>
@@ -342,6 +359,19 @@ import { toKebabCase } from "../../../functions/strings";
                 (old and new tokens are entered there).
               </small>
             </div>
+            @if (currentEnvironment.flyio?.previous) {
+              <div class="col-md-12 mb-2">
+                <label class="form-label">Previous Fly organisation (after a cutover)</label>
+                <p class="form-control-plaintext mb-0">
+                  {{ currentEnvironment.flyio.previous.organisation || "(none)" }}
+                  / {{ currentEnvironment.flyio.previous.appName || "(none)" }}
+                  @if (currentEnvironment.flyio.previous.capturedAt) {
+                    · {{ dateUtils.displayDateAndTime(currentEnvironment.flyio.previous.capturedAt) }}
+                  }
+                </p>
+                <small class="form-text text-muted">Cleared automatically when a cutover finishes. Not edited here.</small>
+              </div>
+            }
           </div>
           </div>
         </div>
@@ -498,6 +528,7 @@ export class EnvironmentPerEnvSettings implements OnChanges, OnInit, OnDestroy {
   private cloudflareUrl = inject(CloudflareUrlService);
   private crossEnvironmentHealthService = inject(CrossEnvironmentHealthService);
   urlService = inject(UrlService);
+  dateUtils = inject(DateUtilsService);
   private activatedRoute = inject(ActivatedRoute);
   private location = inject(Location);
   private subscriptions: Subscription[] = [];
@@ -570,6 +601,16 @@ export class EnvironmentPerEnvSettings implements OnChanges, OnInit, OnDestroy {
 
   get currentEnvironment(): EnvironmentConfig | null {
     return this.config.environments[this.currentEnvironmentIndex] ?? null;
+  }
+
+  get estateDeployIncluded(): boolean {
+    return this.currentEnvironment?.estateDeploy !== false;
+  }
+
+  set estateDeployIncluded(value: boolean) {
+    if (this.currentEnvironment) {
+      this.currentEnvironment.estateDeploy = value;
+    }
   }
 
   get aiOverrideEnabled(): boolean {

@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 12
       matrix:
         environment: ${{ fromJson(needs.set-environments.outputs.matrix) }}
     name: Deploy to ${{ matrix.environment }}

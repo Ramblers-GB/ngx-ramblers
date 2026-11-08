@@ -31,6 +31,9 @@ import { Environment } from "../../../models/environment.model";
 import { StoredValue } from "../../../models/ui-actions";
 import { FormSaveActionsComponent } from "../form-save-actions/form-save-actions";
 import { FormSaveActions } from "../../../models/form-save-actions.model";
+import { AlertPanelComponent } from "../alert-panel/alert-panel";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 
 @Component({
   selector: "app-environment-settings",
@@ -40,7 +43,8 @@ import { FormSaveActions } from "../../../models/form-save-actions.model";
     EnvironmentGlobalSettings,
     EnvironmentPerEnvSettings,
     EnvironmentConfigTools,
-    FormSaveActionsComponent
+    FormSaveActionsComponent,
+    AlertPanelComponent
   ],
   template: `
     <div class="row thumbnail-heading-frame">
@@ -53,8 +57,13 @@ import { FormSaveActions } from "../../../models/form-save-actions.model";
           [fullWidth]="true"/>
       </div>
       @if (configError) {
-        <div class="alert alert-danger">
-          {{ configError }}
+        <div class="col-sm-12">
+          <app-alert-panel class="mt-2 mb-0"
+                           [title]="configErrorTitle"
+                           [icon]="faCircleExclamation"
+                           [variant]="AlertPanelVariant.DANGER">
+            {{ configError }}
+          </app-alert-panel>
         </div>
       }
       @if (showSubTab(EnvironmentSettingsSubTab.TOOLS)) {
@@ -88,6 +97,8 @@ export class EnvironmentSettings implements OnInit, OnDestroy {
 
   protected readonly EnvironmentSettingsSubTab = EnvironmentSettingsSubTab;
   protected readonly StoredValue = StoredValue;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
+  protected readonly faCircleExclamation = faCircleExclamation;
 
   public formSaveActions: FormSaveActions = {
     save: () => this.saveConfigFromForm(),
@@ -101,6 +112,7 @@ export class EnvironmentSettings implements OnInit, OnDestroy {
   notify: AlertInstance;
 
   configJson = "";
+  configErrorTitle = "Error saving configuration";
   configError = "";
   editableConfig: EnvironmentsConfig = {
     environments: [],
@@ -139,7 +151,8 @@ export class EnvironmentSettings implements OnInit, OnDestroy {
           this.configError = "";
         },
         error: err => {
-          this.configError = `Error loading config: ${err.message}`;
+          this.configErrorTitle = "Error loading configuration";
+          this.configError = err.message;
         }
       })
     );
@@ -190,7 +203,8 @@ export class EnvironmentSettings implements OnInit, OnDestroy {
         message: `Environment configuration has been saved successfully${unreachable}`
       });
     }).catch(err => {
-      this.configError = `Error saving config: ${err.message}`;
+      this.configErrorTitle = "Error saving configuration";
+      this.configError = err.message;
       this.notify.error({
         title: "Error saving configuration",
         message: err.message

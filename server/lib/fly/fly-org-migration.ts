@@ -378,16 +378,9 @@ async function cleanupCutoverAndFinalise(input: {
   });
   report(`Config points at preferred app ${preferredAppName}`);
   if (reattachSubdomain) {
-    try {
-      report("Re-attaching free NGX subdomain / SSL to preferred app (does not change custom Site URL)");
-      await setupSubdomainForEnvironment(environmentName);
-      report("Subdomain setup completed", SetupStepStatus.Completed);
-    } catch (error) {
-      report(
-        `Subdomain setup warning: ${error instanceof Error ? error.message : String(error)} — continue and verify DNS manually`,
-        SetupStepStatus.Failed
-      );
-    }
+    report("Re-attaching free NGX subdomain / SSL to preferred app (does not change custom Site URL)");
+    await setupSubdomainForEnvironment(environmentName);
+    report("Subdomain setup completed", SetupStepStatus.Completed);
   }
   if (appExistsWithToken(cutoverAppName, newApiKey)) {
     report(`Destroying temporary cutover app ${cutoverAppName}`);
@@ -817,17 +810,12 @@ async function migrateFlyOrganisationUnheld(
     });
     report(`Updated environment config to use app ${workingAppName}`);
 
-    if (reattachSubdomain) {
-      try {
-        report("Re-attaching subdomain / SSL to the working app");
-        await setupSubdomainForEnvironment(environmentName);
-        report("Subdomain setup completed", SetupStepStatus.Completed);
-      } catch (error) {
-        report(
-          `Subdomain setup warning: ${error instanceof Error ? error.message : String(error)} — continue and verify DNS manually`,
-          SetupStepStatus.Failed
-        );
-      }
+    if (reattachSubdomain && !usedTemporaryAppName) {
+      report("Re-attaching subdomain / SSL to the preferred app");
+      await setupSubdomainForEnvironment(environmentName);
+      report("Subdomain setup completed", SetupStepStatus.Completed);
+    } else if (reattachSubdomain && usedTemporaryAppName) {
+      report("Deferring public hostname SSL until the preferred app exists — no Let's Encrypt order on the cutover app");
     }
 
     const baseDomain = environmentsConfig ? baseDomainFrom(environmentsConfig) : "ngx-ramblers.org.uk";
@@ -900,12 +888,8 @@ async function migrateFlyOrganisationUnheld(
         }
       });
       if (reattachSubdomain) {
-        try {
-          await setupSubdomainForEnvironment(environmentName);
-          report("Subdomain re-pointed at final app name", SetupStepStatus.Completed);
-        } catch (error) {
-          report(`Subdomain re-point warning: ${error instanceof Error ? error.message : String(error)}`, SetupStepStatus.Failed);
-        }
+        await setupSubdomainForEnvironment(environmentName);
+        report("Subdomain re-pointed at final app name", SetupStepStatus.Completed);
       }
       const preferredHealthy = await appDeployedWithToken(preferredAppName, newApiKey);
       if (preferredHealthy && appExistsWithToken(cutoverName, newApiKey)) {
@@ -957,6 +941,12 @@ async function migrateFlyOrganisationUnheld(
     }
 
     const freeHost = `https://${environmentName}.${baseDomain}`;
+    const finalPublicHealthy = await publicHostLooksHealthy(freeHost, report);
+    if (!finalPublicHealthy) {
+      throw new Error(
+        `Public HTTPS is not healthy at ${freeHost} after cutover. Fly .dev may be up, but the member URL is not finished.`
+      );
+    }
     const appUrl = await publicAppUrlForEnvironment(environmentName, freeHost);
     report(`Fly organisation migration finished for ${environmentName} (app ${workingAppName})`, SetupStepStatus.Completed);
     result = {

@@ -40,7 +40,7 @@ no `configs.json` file; the workflow reads the database directly at run time.
 ### 3. `deploy` Job
 
 - **Depends on**: `set-environments`.
-- **Strategy Matrix**: runs once per environment, up to 6 in parallel (`max-parallel: 6`,
+- **Strategy Matrix**: runs once per environment, up to 12 in parallel (`max-parallel: 12`,
   `fail-fast: false`, so one failing environment does not stop the others).
 - **GitHub Environment**: each matrix run uses `environment: <environment-name>`, so any
   GitHub Environment protection rules or environment-scoped secrets apply per environment.

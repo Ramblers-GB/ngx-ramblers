@@ -21,7 +21,7 @@ import {
 } from "../../cloudflare/cloudflare-dns";
 import { ensureHostRedirectRule, removeHostRedirectRule } from "../../cloudflare/cloudflare-redirect-rules";
 import { AppIpAddresses, CertificateInfo, FlyConfig } from "../../fly/fly.model";
-import { appIpAddresses, addCertificate, deleteCertificate, queryCertificates } from "../../fly/fly-certificates";
+import { appIpAddresses, addCertificate, deleteCertificate, queryCertificates, waitForCertificateReady } from "../../fly/fly-certificates";
 import { ensureAppPublicIps } from "../../fly/fly-public-ips";
 import { findEnvironmentFromDatabase, environmentsConfigFromDatabase } from "../../environments/environments-config";
 import { connectToDatabase } from "../../environment-setup/database-initialiser";
@@ -104,8 +104,8 @@ export async function setupSubdomainForEnvironment(environmentName: string): Pro
   const existingAAAA = existingRecords.find(r => r.type === "AAAA");
   const existingMx = existingRecords.filter(r => r.type === "MX");
 
-  if (existingA) log(`   ⚠ A record exists: ${existingA.content}`);
-  if (existingAAAA) log(`   ⚠ AAAA record exists: ${existingAAAA.content}`);
+  if (existingA) log(`   ⚠ A record exists: ${existingA.content} proxied=${existingA.proxied}`);
+  if (existingAAAA) log(`   ⚠ AAAA record exists: ${existingAAAA.content} proxied=${existingAAAA.proxied}`);
   if (existingMx.length > 0) log(`   ⚠ ${existingMx.length} MX record(s) exist`);
 
   log("\n4. Creating DNS records...");
@@ -142,9 +142,26 @@ export async function setupSubdomainForEnvironment(environmentName: string): Pro
   if (cert) {
     log(`   ✓ Status: ${cert.clientStatus}`);
     cert.issued.forEach(i => log(`   ✓ ${i.type} cert expires: ${i.expiresAt}`));
+    const zone = await zoneForHostname(environmentsConfig.cloudflare.apiToken, fullHostname);
+    if (zone) {
+      log("\n7. Reconciling Fly ACME and ownership DNS...");
+      await reconcileFlyValidationRecords(message => log(`   ${message.trim()}`), cloudflareConfig, zone, fullHostname, cert);
+    } else {
+      log("   - No Cloudflare zone for hostname; skipped Fly validation records");
+    }
+    log("\n8. Waiting for Fly to issue the certificate...");
+    const issued = await waitForCertificateReady(flyConfig, fullHostname);
+    if (issued?.clientStatus?.toLowerCase() === "ready") {
+      log(`   ✓ Certificate ready: ${issued.clientStatus}`);
+      issued.issued.forEach(item => log(`   ✓ ${item.type} cert expires: ${item.expiresAt}`));
+    } else {
+      throw new Error(
+        `Fly certificate for ${fullHostname} is not ready (${issued?.clientStatus || "missing"}). Public HTTPS would fail.`
+      );
+    }
   }
 
-  log("\n7. Updating Web URL in target environment...");
+  log("\n9. Updating Web URL in target environment...");
   if (envConfig.mongo?.cluster && envConfig.mongo?.db) {
     const mongoUri = buildMongoUri({
       cluster: envConfig.mongo.cluster,
@@ -666,26 +683,25 @@ export async function reconcileAddressRecord(
   hostname: string,
   type: DnsRecordType.A | DnsRecordType.AAAA,
   flyAddress: string | undefined,
-  existingRecords: { id: string; type: string; content: string }[]
+  existingRecords: { id: string; type: string; content: string; proxied?: boolean }[]
 ): Promise<void> {
   const existing = existingRecords.find(record => record.type === type);
   if (!flyAddress) {
     if (existing) {
       step(`  - ${type} record present (${existing.content}) but Fly has no ${type === DnsRecordType.A ? "IPv4" : "IPv6"} — leaving as is`);
     }
-    return;
-  }
-  if (!existing) {
+  } else if (!existing) {
     await createDnsRecord(cloudflareConfig, { type, name: recordName, content: flyAddress, proxied: false });
     step(`  ✓ ${type} record created (DNS only): ${hostname} -> ${flyAddress}`);
-    return;
-  }
-  if (existing.content === flyAddress) {
+  } else if (existing.content === flyAddress && existing.proxied) {
+    await updateDnsRecord(cloudflareConfig, existing.id, { type, name: recordName, content: flyAddress, proxied: false });
+    step(`  ✓ ${type} record left DNS-only (was proxied): ${hostname} -> ${flyAddress}`);
+  } else if (existing.content === flyAddress) {
     step(`  - ${type} record already correct (${flyAddress})`);
-    return;
+  } else {
+    await updateDnsRecord(cloudflareConfig, existing.id, { type, name: recordName, content: flyAddress, proxied: false });
+    step(`  ✓ ${type} record updated (DNS only): ${hostname} ${existing.content} -> ${flyAddress}`);
   }
-  await updateDnsRecord(cloudflareConfig, existing.id, { type, name: recordName, content: flyAddress, proxied: false });
-  step(`  ✓ ${type} record updated (DNS only): ${hostname} ${existing.content} -> ${flyAddress}`);
 }
 
 async function reconcileCnameRecord(
@@ -925,11 +941,16 @@ async function reconcileFlyValidationRecords(
 
   step(`Reconciling Fly ACME CNAME: ${cert.dnsValidationHostname} -> ${acmeTarget}`);
   const acmeRecords = await listDnsRecords(cloudflareConfig, cert.dnsValidationHostname.replace(/\.$/, ""));
+  await acmeRecords.filter(record => record.type !== "CNAME").reduce(async (pending, record) => {
+    await pending;
+    await deleteDnsRecord(cloudflareConfig, record.id);
+    step(`  ✓ Removed extra ${record.type} on ACME hostname so the CNAME is the only record`);
+  }, Promise.resolve());
   const existingAcme = acmeRecords.find(record => record.type === "CNAME");
   if (!existingAcme) {
     await createDnsRecord(cloudflareConfig, { type: DnsRecordType.CNAME, name: acmeName, content: acmeTarget, proxied: false });
     step(`  ✓ ACME CNAME created`);
-  } else if (existingAcme.content !== acmeTarget) {
+  } else if (existingAcme.content.replace(/\.$/, "") !== acmeTarget) {
     await updateDnsRecord(cloudflareConfig, existingAcme.id, { type: DnsRecordType.CNAME, name: acmeName, content: acmeTarget, proxied: false });
     step(`  ✓ ACME CNAME updated ${existingAcme.content} -> ${acmeTarget}`);
   } else {

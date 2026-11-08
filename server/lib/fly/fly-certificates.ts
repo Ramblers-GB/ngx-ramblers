@@ -1,5 +1,6 @@
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
+import { dateTimeNowAsValue } from "../shared/dates";
 import { AppIpAddresses, CertificateInfo, FlyConfig, IpAddressType } from "./fly.model";
 
 const debugLog = debug(envConfig.logNamespace("fly:certificates"));
@@ -234,6 +235,45 @@ export async function queryCertificates(config: FlyConfig, signal?: AbortSignal)
     configured: cert.configured,
     issued: cert.issued.nodes
   }));
+}
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+export async function waitForCertificateReady(
+  config: FlyConfig,
+  hostname: string,
+  timeoutMs: number = 1200000,
+  pollIntervalMs: number = 15000
+): Promise<CertificateInfo | null> {
+  const start = dateTimeNowAsValue();
+  const poll = async (): Promise<CertificateInfo | null> => {
+    const certs = await queryCertificates(config);
+    const cert = certs.find(item => item.hostname === hostname) || null;
+    const ready = cert?.clientStatus?.toLowerCase() === "ready" && (cert.issued?.length || 0) > 0;
+    const timedOut = dateTimeNowAsValue() - start >= timeoutMs;
+    if (ready) {
+      debugLog("Certificate ready for %s on %s (%s)", hostname, config.appName, cert?.clientStatus);
+    } else if (timedOut) {
+      debugLog(
+        "waitForCertificateReady: timeout after %sms for %s on %s status=%s",
+        timeoutMs,
+        hostname,
+        config.appName,
+        cert?.clientStatus
+      );
+    } else {
+      debugLog(
+        "waitForCertificateReady: %s on %s still %s — polling in %sms",
+        hostname,
+        config.appName,
+        cert?.clientStatus || "missing",
+        pollIntervalMs
+      );
+      await sleep(pollIntervalMs);
+    }
+    return ready || timedOut ? cert : poll();
+  };
+  return poll();
 }
 
 export async function deleteCertificate(config: FlyConfig, hostname: string): Promise<void> {

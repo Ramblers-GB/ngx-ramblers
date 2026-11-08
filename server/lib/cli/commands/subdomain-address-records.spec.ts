@@ -37,4 +37,13 @@ describe("reconcileAddressRecord", () => {
     expect(requests.map(request => request.method)).toEqual(["POST"]);
     expect(requests[0].body.content).toEqual("2001:db8::20");
   });
+
+  it("turns a proxied address record DNS-only when the content already matches Fly", async () => {
+    const requests = recordRequests();
+    const existing = [{id: "aaaa", type: "AAAA", content: "2001:db8::20", proxied: true}];
+    await reconcileAddressRecord(() => undefined, dnsConfig, "example-group", "example-group.example.org", DnsRecordType.AAAA, "2001:db8::20", existing);
+    expect(requests.map(request => request.method)).toEqual(["PUT"]);
+    expect(requests[0].body.proxied).toEqual(false);
+    expect(requests[0].body.content).toEqual("2001:db8::20");
+  });
 });
