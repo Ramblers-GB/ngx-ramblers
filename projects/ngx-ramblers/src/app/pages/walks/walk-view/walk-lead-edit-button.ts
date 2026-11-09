@@ -127,7 +127,7 @@ export class WalkLeadEditButton {
 
   primaryButtonClass(): string {
     if (this.appearance === WalkLeadEditAppearance.ACTION) {
-      return "btn btn-primary btn-sm walk-view-action";
+      return "btn btn-primary walk-view-action";
     } else if (this.appearance === WalkLeadEditAppearance.INLINE) {
       return "btn pager-btn btn-sm me-0";
     } else {

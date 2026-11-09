@@ -55,7 +55,8 @@ import {
   faPersonWalking,
   faCopy,
   faCircleCheck,
-  faEnvelope
+  faEnvelope,
+  faRoute
 } from "@fortawesome/free-solid-svg-icons";
 
 
@@ -84,6 +85,10 @@ import { BookingFormComponent } from "../../admin/bookings/booking-form.componen
 import { NormaliseMarkdownPipe } from "../../../pipes/normalise-markdown.pipe";
 import { WalkAlbumPanelComponent } from "./walk-album-panel";
 import { AppPath } from "../../../models/route-follow.model";
+import { MobileAppAction } from "../../../models/walks-config.model";
+import { MobileAppAccessService } from "../../../services/maps/mobile-app-access.service";
+import { RouteFollowPayloadService } from "../../../services/maps/route-follow-payload.service";
+import { generateUid } from "../../../functions/numbers";
 
 @Component({
   selector: "app-walk-view",
@@ -287,16 +292,17 @@ import { AppPath } from "../../../models/route-follow.model";
           @if (showAlbumAction()) {
             <button type="button" (click)="createPhotoAlbum()" [disabled]="creatingAlbum"
                     [tooltip]="albumActionTooltip()"
-                    class="btn btn-quiet btn-sm walk-view-action">
+                    class="btn btn-quiet walk-view-action">
               <fa-icon [icon]="faImages"/>
               <span>{{ albumActionCaption() }}</span>
             </button>
           }
           @if (canShareWalk() || showPublishToRamblers || showSocialPublishing() || showAlbumShare() || showEmailActions()) {
             <app-button-dropdown class="walk-view-split"
+                                 [fullWidth]="true"
                                  [label]="showPublishToRamblers ? 'Publish' : 'Share'"
                                  [icon]="showPublishToRamblers ? faCloudArrowUp : faShareNodes"
-                                 [buttonClass]="showPublishToRamblers ? 'btn btn-primary btn-sm walk-view-action' : 'btn btn-quiet btn-sm walk-view-action'"
+                                 [buttonClass]="showPublishToRamblers ? 'btn btn-primary walk-view-action' : 'btn btn-quiet walk-view-action'"
                                  [ariaLabel]="'Share and publish options for this ' + eventTypeLabel()"
                                  [items]="shareMenuItems()"
                                  (itemSelect)="onShareMenu($event)"/>
@@ -313,7 +319,7 @@ import { AppPath } from "../../../models/route-follow.model";
             <a [routerLink]="display.walkViewLink(displayedWalk?.walk)"
                (click)="display.rememberReturnUrl()"
                tooltip="View this walk"
-               class="btn btn-quiet btn-sm walk-view-action">
+               class="btn btn-quiet walk-view-action">
               <fa-icon [icon]="faEye"/>
               <span>View</span>
             </a>
@@ -328,9 +334,20 @@ import { AppPath } from "../../../models/route-follow.model";
                     [delay]="tooltipShowDelay"
                     [adaptivePosition]="false"
                     placement="top"
-                    class="btn btn-primary btn-sm walk-view-action walk-view-action-follow">
+                    class="btn btn-primary walk-view-action walk-view-action-follow">
               <fa-icon [icon]="faPersonWalking"/>
               <span>Follow this route</span>
+            </button>
+          } @else if (canRecordRoute()) {
+            <button type="button" (click)="recordRoute()"
+                    tooltip="Record this route"
+                    container="body"
+                    [delay]="tooltipShowDelay"
+                    [adaptivePosition]="false"
+                    placement="top"
+                    class="btn btn-primary walk-view-action walk-view-action-follow">
+              <fa-icon [icon]="faRoute"/>
+              <span>Record this route</span>
             </button>
           }
         </ng-template>
@@ -458,19 +475,28 @@ export class WalkViewComponent implements OnInit, OnDestroy {
   protected linkCopied = false;
   private linkCopiedTimeout: ReturnType<typeof setTimeout>;
   protected readonly faPersonWalking = faPersonWalking;
+  protected readonly faRoute = faRoute;
   protected readonly tooltipShowDelay = TOOLTIP_SHOW_DELAY_MS;
   public showPublishToRamblers = false;
   public publishTooltip = "Open Walks export to publish changes to Ramblers";
   public publishExportLink: string[] = [];
   public publishExportQueryParams = {tab: WalkExportTab.WALK_UPLOAD_SELECTION};
   private ramblersWalksAndEventsService = inject(RamblersWalksAndEventsService);
+  private mobileAccess = inject(MobileAppAccessService);
+  private payloadService = inject(RouteFollowPayloadService);
 
   showWalkViewActions(): boolean {
-    return !!(this.allowWalkAdminEdits || this.displayedWalk?.walkAccessMode?.walkWritable || this.showPublishToRamblers || this.canShareWalk() || this.canFollowRoute());
+    return !!(this.allowWalkAdminEdits || this.displayedWalk?.walkAccessMode?.walkWritable || this.showPublishToRamblers || this.canShareWalk() || this.canFollowRoute() || this.canRecordRoute());
   }
 
   canFollowRoute(): boolean {
-    return !!this.displayedWalk?.walk?.fields?.gpxFile?.awsFileName;
+    return this.payloadService.walkHasGpx(this.displayedWalk?.walk);
+  }
+
+  canRecordRoute(): boolean {
+    return this.loggedIn && this.mobileAccess.allowed(MobileAppAction.RECORD)
+      && !this.canFollowRoute()
+      && this.payloadService.walkHasStart(this.displayedWalk?.walk);
   }
 
   canShareWalk(): boolean {
@@ -1024,11 +1050,19 @@ export class WalkViewComponent implements OnInit, OnDestroy {
   }
 
   followRoute() {
+    this.openRouteFollow();
+  }
+
+  recordRoute() {
+    this.openRouteFollow({[StoredValue.RECORD_ROUTE]: generateUid()});
+  }
+
+  private openRouteFollow(extraQuery: Record<string, string> = {}) {
     const slug = this.display.walkSlug(this.displayedWalk?.walk);
     if (slug) {
       this.display.rememberFollowReturnUrl();
       void this.router.navigate(["/" + AppPath.ROOT + "/" + AppPath.ROUTE], {
-        queryParams: {[StoredValue.WALK_ID]: slug}
+        queryParams: {[StoredValue.WALK_ID]: slug, ...extraQuery}
       });
     }
   }
