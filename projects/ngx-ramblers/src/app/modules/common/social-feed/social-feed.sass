@@ -1,12 +1,38 @@
-@import "../../assets/styles/colours"
+@import "../../../assets/styles/colours"
 
-.facebook-post-list
+.social-feed-grid
+  display: grid
+  width: 100%
+  grid-template-columns: repeat(3, 1fr)
+  gap: 6px
+
+  a
+    position: relative
+    display: block
+    overflow: hidden
+    border-radius: 8px
+    background: $ramblers-colour-grey
+
+  img,
+  .social-feed-grid-empty
+    display: block
+    width: 100%
+    aspect-ratio: 1
+    object-fit: cover
+    transition: transform 0.35s ease, filter 0.35s ease
+
+  a:hover img,
+  a:focus img
+    transform: scale(1.04)
+    filter: brightness(1.05)
+
+.social-feed-list
   display: flex
   flex-direction: column
   gap: 8px
   width: 100%
 
-.facebook-post
+.social-feed-list-item
   display: flex
   flex: 0 0 auto
   align-items: center
@@ -19,12 +45,12 @@
 
   &:hover,
   &:focus-visible
-    background: rgba(24, 119, 242, 0.06)
+    background: color-mix(in srgb, var(--social-feed-brand, #1877f2) 8%, transparent)
     box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08)
     color: inherit
     text-decoration: none
 
-.facebook-post-thumb
+.social-feed-thumb
   position: relative
   flex: 0 0 84px
   width: 84px
@@ -40,18 +66,18 @@
     object-fit: cover
     transition: transform 0.35s ease
 
-.facebook-post:hover .facebook-post-thumb img,
-.facebook-post:focus-visible .facebook-post-thumb img
+.social-feed-list-item:hover .social-feed-thumb img,
+.social-feed-list-item:focus-visible .social-feed-thumb img
   transform: scale(1.05)
 
-.facebook-post-thumb-empty
+.social-feed-thumb-empty
   display: flex
   align-items: center
   justify-content: center
   font-size: 1.5rem
-  color: rgba(24, 119, 242, 0.5)
+  color: color-mix(in srgb, var(--social-feed-brand, #1877f2) 50%, transparent)
 
-.facebook-post-count
+.social-feed-count
   position: absolute
   right: 4px
   bottom: 4px
@@ -65,13 +91,13 @@
   font-size: 0.7rem
   font-weight: 600
 
-.facebook-post-copy
+.social-feed-copy
   display: flex
   flex-direction: column
   gap: 3px
   min-width: 0
 
-.facebook-post-message
+.social-feed-message
   display: -webkit-box
   -webkit-line-clamp: 3
   -webkit-box-orient: vertical
@@ -79,70 +105,55 @@
   font-size: 0.9rem
   line-height: 1.35
 
-.facebook-post-meta
+.social-feed-meta
   font-size: 0.8rem
   color: rgba(29, 53, 87, 0.65)
 
-.facebook-post-skeleton
+.social-feed-list-skeleton
   display: flex
   flex: 0 0 auto
   align-items: center
   gap: 12px
   padding: 8px
 
-.facebook-skeleton-thumb
+.social-feed-skeleton-thumb
   flex: 0 0 84px
   width: 84px
   height: 84px
   border-radius: 8px
 
-.facebook-skeleton-lines
+.social-feed-skeleton-lines
   display: flex
   flex-direction: column
   gap: 8px
   flex: 1 1 auto
 
-.facebook-skeleton-line
+.social-feed-skeleton-line
   height: 12px
   border-radius: 6px
 
   &.short
     width: 55%
 
-.facebook-skeleton-thumb,
-.facebook-skeleton-line
+.social-feed-skeleton-tile
+  aspect-ratio: 1
+  border-radius: 8px
+
+.social-feed-skeleton-thumb,
+.social-feed-skeleton-line,
+.social-feed-skeleton-tile
   background: linear-gradient(100deg, $ramblers-colour-grey 30%, rgba(255, 255, 255, 0.75) 50%, $ramblers-colour-grey 70%)
   background-size: 220% 100%
-  animation: facebook-skeleton-sweep 1.4s ease-in-out infinite
+  animation: social-feed-skeleton-sweep 1.4s ease-in-out infinite
 
-@keyframes facebook-skeleton-sweep
+@keyframes social-feed-skeleton-sweep
   0%
     background-position: 120% 0
   100%
     background-position: -20% 0
 
 @media (prefers-reduced-motion: reduce)
-  .facebook-skeleton-thumb,
-  .facebook-skeleton-line
+  .social-feed-skeleton-thumb,
+  .social-feed-skeleton-line,
+  .social-feed-skeleton-tile
     animation: none
-
-@media (max-width: 991.98px)
-  .facebook-post-list
-    display: grid
-    grid-template-columns: repeat(3, minmax(0, 1fr))
-    gap: var(--space-2)
-  .facebook-post,
-  .facebook-post-skeleton
-    display: block
-    padding: 0
-  .facebook-post-thumb,
-  .facebook-skeleton-thumb
-    display: flex
-    width: 100%
-    height: auto
-    min-height: 0
-    max-height: none
-    aspect-ratio: 1
-  .facebook-post-copy,
-  .facebook-skeleton-lines
-    display: none

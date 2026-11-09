@@ -1,5 +1,5 @@
 import debug from "debug";
-import { isArray } from "es-toolkit/compat";
+import { isArray, isNumber, keys, uniq } from "es-toolkit/compat";
 import { Request, Response } from "express";
 import { envConfig } from "../env-config/env-config";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
@@ -7,6 +7,7 @@ import { systemConfig } from "../config/system-config";
 import { graphApiRequest } from "../social/graph-api";
 import { GraphApiMethod } from "../../../projects/ngx-ramblers/src/app/models/social-publish.model";
 import {
+  FacebookAttachmentMediaType,
   FacebookGraphAttachment,
   FacebookGraphPost,
   FacebookGraphProfile,
@@ -19,7 +20,7 @@ import { TtlCached } from "../shared/ttl-cache.model";
 
 const debugLog = debug(envConfig.logNamespace("facebook:recent-posts"));
 debugLog.enabled = false;
-const POST_FIELDS = "id,message,story,created_time,permalink_url,full_picture,from{id,name},attachments{media_type,media,subattachments}";
+const POST_FIELDS = "id,message,story,created_time,permalink_url,full_picture,from{id,name},attachments{media_type,media,target,subattachments.limit(100)}";
 const PROFILE_FIELDS = "name,username,followers_count,fan_count,link,picture.type(large)";
 const FEED_LIMIT = 12;
 const RECENT_POSTS_TTL_MS = 5 * 60 * 1000;
@@ -38,12 +39,33 @@ function imageUrlFor(post: FacebookGraphPost): string {
   return post?.full_picture || attachment?.media?.image?.src || "";
 }
 
-function imageCountFor(post: FacebookGraphPost): number {
-  const subAttachments = attachmentFor(post)?.subattachments?.data;
-  return isArray(subAttachments) && subAttachments.length > 0 ? subAttachments.length : (imageUrlFor(post) ? 1 : 0);
+export function albumIdFor(post: FacebookGraphPost): string {
+  const attachment = attachmentFor(post);
+  const albumType = attachment?.media_type === FacebookAttachmentMediaType.ALBUM;
+  const morePages = !!attachment?.subattachments?.paging?.next;
+  if (attachment?.target?.id && (albumType || morePages)) {
+    return attachment.target.id;
+  } else {
+    return "";
+  }
 }
 
-function normalisePost(post: FacebookGraphPost, pageId: string): FacebookPagePost {
+export function imageCountFor(post: FacebookGraphPost, albumCounts: Record<string, number> = {}): number {
+  const albumCount = albumCounts[albumIdFor(post)];
+  const subAttachments = attachmentFor(post)?.subattachments?.data;
+  const subCount = isArray(subAttachments) ? subAttachments.length : 0;
+  if (isNumber(albumCount) && albumCount > 0) {
+    return albumCount;
+  } else if (subCount > 0) {
+    return subCount;
+  } else if (imageUrlFor(post)) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+function normalisePost(post: FacebookGraphPost, pageId: string, albumCounts: Record<string, number>): FacebookPagePost {
   const author = post?.from;
   return {
     id: post.id,
@@ -51,9 +73,52 @@ function normalisePost(post: FacebookGraphPost, pageId: string): FacebookPagePos
     createdTime: post.created_time,
     permalink: post.permalink_url || `https://www.facebook.com/${post.id}`,
     imageUrl: imageUrlFor(post),
-    imageCount: imageCountFor(post),
+    imageCount: imageCountFor(post, albumCounts),
     authorName: author?.id && author.id !== pageId ? author.name || "" : ""
   };
+}
+
+function countFromAlbumNode(node: { count?: number; photos?: { summary?: { total_count?: number } } }): number {
+  const fromSummary = node?.photos?.summary?.total_count;
+  const fromCount = node?.count;
+  if (isNumber(fromSummary) && fromSummary > 0) {
+    return fromSummary;
+  } else if (isNumber(fromCount) && fromCount > 0) {
+    return fromCount;
+  } else {
+    return 0;
+  }
+}
+
+function countsFromGraph(response: Record<string, { count?: number; photos?: { summary?: { total_count?: number } } }>): Record<string, number> {
+  return keys(response || {}).reduce((counts: Record<string, number>, id: string) => {
+    const count = countFromAlbumNode(response[id]);
+    if (count > 0) {
+      return {...counts, [id]: count};
+    } else {
+      return counts;
+    }
+  }, {});
+}
+
+async function albumCountsFor(posts: FacebookGraphPost[], accessToken: string): Promise<Record<string, number>> {
+  const ids = uniq(posts.map(post => albumIdFor(post)).filter(Boolean));
+  if (ids.length === 0) {
+    return {};
+  } else {
+    try {
+      const response = await graphApiRequest({
+        method: GraphApiMethod.GET,
+        path: "/",
+        params: {ids: ids.join(","), fields: "count,photos.limit(0).summary(true)", access_token: accessToken},
+        debug: debugLog
+      });
+      return countsFromGraph(response);
+    } catch (error) {
+      debugLog("album count lookup failed - using attachment counts:", error?.message || error);
+      return {};
+    }
+  }
 }
 
 function normaliseProfile(profile: FacebookGraphProfile): FacebookPageProfile {
@@ -111,8 +176,9 @@ export async function recentPosts(req: Request, res: Response): Promise<void> {
             return null;
           })
         ]);
+        const albumCounts = await albumCountsFor(rawPosts, facebook.pageAccessToken);
         const data: FacebookPagePost[] = rawPosts
-          .map(post => normalisePost(post, facebook.pageId))
+          .map(post => normalisePost(post, facebook.pageId, albumCounts))
           .filter(post => post.imageUrl || post.message);
         const profile: FacebookPageProfile = profileResponse ? normaliseProfile(profileResponse) : null;
         debugLog("recent posts:", data.length, "of", rawPosts.length, "from Graph API, profile:", profile);

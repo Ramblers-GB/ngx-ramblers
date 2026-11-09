@@ -5,6 +5,7 @@ import { SystemConfig } from "../../../../models/system.model";
 import { LoggerFactory } from "../../../../services/logger-factory.service";
 import { SystemConfigService } from "../../../../services/system/system-config.service";
 import { FormsModule } from "@angular/forms";
+import { SocialFeedStyleSelectComponent } from "../../../../modules/common/social-feed/social-feed-style-select";
 
 @Component({
   selector: "app-system-instagram-settings",
@@ -44,12 +45,14 @@ import { FormsModule } from "@angular/forms";
                   <label class="form-check-label" for="instagram-show-feed">Show Instagram Feed</label>
                 </div>
               </div>
+              <app-social-feed-style-select [externalSystem]="config.externalSystems.instagram"
+                                            selectId="instagram-feed-style"/>
             </div>
           </div>
         }
       </div>
     </div>`,
-  imports: [FormsModule]
+  imports: [FormsModule, SocialFeedStyleSelectComponent]
 })
 export class InstagramSettings implements OnInit, OnDestroy {
 

@@ -57,6 +57,7 @@ import { CloudflareWebAnalyticsDashboard } from "./cloudflare-web-analytics/clou
 import { SectionToggle } from "../../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { FooterLinkSetting } from "./footer-link-setting";
+import { SocialFeedStyleSelectComponent } from "../../../modules/common/social-feed/social-feed-style-select";
 import { SalesforceSettings } from "./salesforce/salesforce-settings";
 import { SalesforceConfigService } from "../../../services/salesforce/salesforce-config.service";
 import { MemberSyncPolicySettings } from "./member-sync-policy/member-sync-policy-settings";
@@ -281,6 +282,8 @@ import { MemberResourcesReferenceDataService } from "../../../services/member/me
                                        for="facebook-show-feed">Show Facebook Feed
                                 </label>
                               </div>
+                              <app-social-feed-style-select [externalSystem]="config.externalSystems.facebook"
+                                                            selectId="facebook-feed-style"/>
                               <div class="form-group">
                                 <label for="facebook-pages-url">Facebook Pages Url (optional)</label>
                                 <input [(ngModel)]="config.externalSystems.facebook.pagesUrl"
@@ -445,7 +448,7 @@ import { MemberResourcesReferenceDataService } from "../../../services/member/me
           </div>
         </div>
       </app-page>`,
-  imports: [PageComponent, TabsetComponent, TabDirective, FormsModule, LinksEditComponent, ImageSettings, ColourSelectorComponent, InstagramSettings, FlickrSettings, SystemRecaptchaSettingsComponent, SystemGoogleAnalyticsSettings, SystemGoogleSearchConsoleSettings, SystemOsMapsSettings, SystemGoogleMapsSettingsComponent, FontAwesomeModule, AreaAndGroupSettingsComponent, ImageSettings, ImageCollectionSettingsComponent, RamblersSettings, InstagramSettings, SystemMeetupSettingsComponent, RamblersSettings, GlobalStyles, SystemAreaMapSyncComponent, SectionToggle, SystemCloudflareSettingsComponent, SystemCloudflareWebAnalyticsSettings, CloudflareWebAnalyticsDashboard, FooterLinkSetting, SalesforceSettings, MemberSyncPolicySettings, ScheduledTasksComponent, SystemLogsSettingsComponent, SystemMemorySettingsComponent, IntegrationWorkerQueueComponent, MemberBulkLoadAuditSettingsComponent, FormSaveActionsComponent, SystemSocialPublishingSettings, VolunteerSettings, SystemVideoMeetingsSettings, ReleaseNoteUpdateSettings]
+  imports: [PageComponent, TabsetComponent, TabDirective, FormsModule, LinksEditComponent, ImageSettings, ColourSelectorComponent, InstagramSettings, FlickrSettings, SystemRecaptchaSettingsComponent, SystemGoogleAnalyticsSettings, SystemGoogleSearchConsoleSettings, SystemOsMapsSettings, SystemGoogleMapsSettingsComponent, FontAwesomeModule, AreaAndGroupSettingsComponent, ImageSettings, ImageCollectionSettingsComponent, RamblersSettings, InstagramSettings, SystemMeetupSettingsComponent, RamblersSettings, GlobalStyles, SystemAreaMapSyncComponent, SectionToggle, SystemCloudflareSettingsComponent, SystemCloudflareWebAnalyticsSettings, CloudflareWebAnalyticsDashboard, FooterLinkSetting, SocialFeedStyleSelectComponent, SalesforceSettings, MemberSyncPolicySettings, ScheduledTasksComponent, SystemLogsSettingsComponent, SystemMemorySettingsComponent, IntegrationWorkerQueueComponent, MemberBulkLoadAuditSettingsComponent, FormSaveActionsComponent, SystemSocialPublishingSettings, VolunteerSettings, SystemVideoMeetingsSettings, ReleaseNoteUpdateSettings]
 })
 export class SystemSettingsComponent implements OnInit, OnDestroy {
 

@@ -7,6 +7,7 @@ import { EmojiSettings } from "./emoji.model";
 import { HasStyles } from "./content-text.model";
 import { FocalPoint, ImageCropperPosition } from "./image-cropper.model";
 import { Tag } from "./tag.model";
+import { SocialFeedStyle } from "./social-feed.model";
 import { FacebookPostStyle } from "./social-publish.model";
 import { VideoMeetingsConfig } from "./video-meeting.model";
 
@@ -276,6 +277,7 @@ export interface ExternalSystem {
   groupUrl?: string;
   showFooterLink?: boolean;
   showFeed?: boolean;
+  feedStyle?: SocialFeedStyle;
 }
 
 export interface Instagram extends ExternalSystem {

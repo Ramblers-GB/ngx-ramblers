@@ -10,14 +10,30 @@ export interface FacebookPagePost {
   authorName: string;
 }
 
+export enum FacebookAttachmentMediaType {
+  ALBUM = "album",
+  PHOTO = "photo",
+  VIDEO = "video",
+  SHARE = "share"
+}
+
 export interface FacebookGraphSubAttachment {
   media?: { image?: { src?: string } };
 }
 
+export interface FacebookGraphAttachmentTarget {
+  id?: string;
+}
+
+export interface FacebookGraphAttachmentPaging {
+  next?: string;
+}
+
 export interface FacebookGraphAttachment {
-  media_type?: string;
+  media_type?: FacebookAttachmentMediaType | string;
   media?: { image?: { src?: string } };
-  subattachments?: { data: FacebookGraphSubAttachment[] };
+  target?: FacebookGraphAttachmentTarget;
+  subattachments?: { data: FacebookGraphSubAttachment[]; paging?: FacebookGraphAttachmentPaging };
 }
 
 export interface FacebookGraphPost {
