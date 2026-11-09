@@ -5,7 +5,7 @@ import {
   PageContent,
   PageContentType
 } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
-import { ConventionalCommit } from "./models";
+import { ConventionalCommit } from "./release-notes.model";
 
 function makeIndexPage(body: string): PageContent {
   return {
@@ -267,22 +267,22 @@ describe("content-generator updateIndexPageContent", () => {
     expect(content).toContain("](/how-to/committee/release-notes/2024-12-19) 📸");
   });
 
-  it("refreshIndexPageContent can omit 📸 markers on the for-humans index", () => {
+  it("refreshIndexPageContent keeps 📸 markers on the for-humans index when pages have images", () => {
     const existing = makeIndexPage(
       [
         "# Release notes for humans",
         "",
-        "- [30-Oct-2026 — #407 — External email](/how-to/committee/release-notes/2026-10-30-issue-407) 📸",
-        "- [08-Jun-2026 — #273 — Email wording](/how-to/committee/release-notes/2026-06-08-issue-273) 📸"
+        "- [30-Oct-2026 — #407 — External email](/how-to/committee/release-notes/2026-10-30-issue-407)",
+        "- [08-Jun-2026 — #273 — Email wording](/how-to/committee/release-notes/2026-06-08-issue-273)"
       ].join("\n")
     );
     const imageStatusByPath = new Map<string, boolean>([
       ["how-to/committee/release-notes/2026-10-30-issue-407", true],
       ["how-to/committee/release-notes/2026-06-08-issue-273", true]
     ]);
-    const content = extractContent(refreshIndexPageContent(existing, { imageStatusByPath, omitCameraMarkers: true }));
-    expect(content).toContain("](/how-to/committee/release-notes/2026-10-30-issue-407)");
-    expect(content).not.toContain("📸");
+    const content = extractContent(refreshIndexPageContent(existing, { imageStatusByPath }));
+    expect(content).toContain("](/how-to/committee/release-notes/2026-10-30-issue-407) 📸");
+    expect(content).toContain("](/how-to/committee/release-notes/2026-06-08-issue-273) 📸");
   });
 
   it("preserves 📸 across many entries when inserting in the middle", () => {

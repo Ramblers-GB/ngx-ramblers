@@ -4,7 +4,7 @@ import type {
   ConventionalCommit,
   IssueReference,
   ReleaseNotesData
-} from "./models.js";
+} from "./release-notes.model.js";
 import {
   PageContent,
   PageContentColumn,
@@ -715,11 +715,10 @@ export function updateIndexPageContent(
  */
 export function refreshIndexPageContent(
   existingContent: PageContent,
-  options?: { imageStatusByPath?: Map<string, boolean>; buildNumberByPath?: Map<string, string>; omitCameraMarkers?: boolean }
+  options?: { imageStatusByPath?: Map<string, boolean>; buildNumberByPath?: Map<string, string> }
 ): PageContent {
   const imageStatusByPath = options?.imageStatusByPath;
   const buildNumberByPath = options?.buildNumberByPath;
-  const omitCameraMarkers = Boolean(options?.omitCameraMarkers);
   if (!existingContent.rows || existingContent.rows.length === 0) {
     return existingContent;
   }
@@ -739,11 +738,9 @@ export function refreshIndexPageContent(
   const parsedEntries = entryLines
     .map(line => parseIndexLine(line))
     .filter((entry): entry is IndexEntry => Boolean(entry))
-    .map(entry => omitCameraMarkers
-      ? { ...entry, hasCamera: false }
-      : imageStatusByPath?.has(entry.path)
-        ? { ...entry, hasCamera: imageStatusByPath.get(entry.path)! }
-        : entry)
+    .map(entry => imageStatusByPath?.has(entry.path)
+      ? { ...entry, hasCamera: imageStatusByPath.get(entry.path)! }
+      : entry)
     .map(entry => buildNumberByPath?.has(entry.path)
       ? { ...entry, buildNumber: buildNumberByPath.get(entry.path)! }
       : entry);

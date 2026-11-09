@@ -104,8 +104,7 @@ async function applyIndexRefresh(
 ): Promise<IndexSyncStats> {
   const beforeText = page.rows?.[0]?.columns?.[0]?.contentText ?? "";
   const refreshed = refreshIndexPageContent(page, {
-    imageStatusByPath,
-    omitCameraMarkers: indexPath === HUMANS_INDEX_PATH
+    imageStatusByPath
   });
   const afterText = refreshed.rows?.[0]?.columns?.[0]?.contentText ?? "";
 
