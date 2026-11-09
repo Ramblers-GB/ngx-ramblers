@@ -9,7 +9,7 @@ import {
   FileUploadSummary,
   Status
 } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-upload-audit.model";
-import { UPLOAD_FINISHED_MESSAGE_PATTERN } from "../../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
+import { UPLOAD_FINISHED_MESSAGE_PATTERN } from "../../../../projects/ngx-ramblers/src/app/functions/integration-worker";
 import { asNumber } from "../../../../projects/ngx-ramblers/src/app/functions/numbers";
 import { isString } from "es-toolkit/compat";
 import {

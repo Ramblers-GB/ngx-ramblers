@@ -1,4 +1,15 @@
 import crypto from "crypto";
+import { isString } from "es-toolkit/compat";
+import { envConfig } from "../env-config/env-config";
+import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
+
+export const RAMBLERS_UPLOAD_SIGNATURE_HEADER = "x-ramblers-upload-signature";
+
+export type SignedJsonRequest = {
+  header?(name: string): string | undefined;
+  headers?: { [key: string]: string | string[] | undefined };
+  body?: unknown;
+};
 
 function bytes(value: Buffer | Uint8Array): Uint8Array {
   return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
@@ -57,4 +68,51 @@ export function verifyRamblersUploadSignature(body: string, secret: string, sign
     bytes(Buffer.from(expectedSignature, "utf8")),
     bytes(Buffer.from(signature, "utf8"))
   );
+}
+
+export function signedJsonHeaders(body: string, secret: string): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    [RAMBLERS_UPLOAD_SIGNATURE_HEADER]: signRamblersUploadBody(body, secret)
+  };
+}
+
+function ramblersUploadSignatureHeader(req: SignedJsonRequest): string {
+  const named = req.header ? req.header(RAMBLERS_UPLOAD_SIGNATURE_HEADER) : null;
+  const raw = named || req.headers?.[RAMBLERS_UPLOAD_SIGNATURE_HEADER];
+  if (isString(raw)) {
+    return raw;
+  } else {
+    return "";
+  }
+}
+
+export function verifySignedJsonRequest(
+  req: SignedJsonRequest,
+  secret: string | null | undefined = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET)
+): boolean {
+  if (!secret) {
+    return false;
+  } else {
+    return verifyRamblersUploadSignature(JSON.stringify(req.body ?? {}), secret, ramblersUploadSignatureHeader(req));
+  }
+}
+
+export function signedJsonPost(url: string, secret: string, payload: object | string): Promise<Response> {
+  const body = isString(payload) ? payload : JSON.stringify(payload);
+  return fetch(url, {
+    method: "POST",
+    headers: signedJsonHeaders(body, secret),
+    body
+  });
+}
+
+export async function postSignedWorkerBody(url: string, sharedSecret: string, payload: object): Promise<void> {
+  const response = await signedJsonPost(url, sharedSecret, payload);
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Worker callback ${url} failed with status ${response.status}: ${text}`);
+  } else {
+    return;
+  }
 }

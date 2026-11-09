@@ -6,25 +6,25 @@ import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 import angular from "angular-eslint";
 
-const earlyReturnBaselineCache = new Map<string, Set<string>>();
+const lintBaselineCache = new Map<string, Set<string>>();
 
-function earlyReturnBaselineSet(baselinePath: string | null): Set<string> {
+function lintBaselineSet(baselinePath: string | null): Set<string> {
   if (!baselinePath) {
     return new Set();
   }
   const absolutePath = resolve(process.cwd(), baselinePath);
-  const cached = earlyReturnBaselineCache.get(absolutePath);
+  const cached = lintBaselineCache.get(absolutePath);
   if (cached) {
     return cached;
   }
   if (!existsSync(absolutePath)) {
     const empty = new Set<string>();
-    earlyReturnBaselineCache.set(absolutePath, empty);
+    lintBaselineCache.set(absolutePath, empty);
     return empty;
   }
   const parsed = JSON.parse(readFileSync(absolutePath, "utf8")) as string[];
   const set = new Set(parsed);
-  earlyReturnBaselineCache.set(absolutePath, set);
+  lintBaselineCache.set(absolutePath, set);
   return set;
 }
 
@@ -107,7 +107,7 @@ const ngxConventions = {
         const options = context.options?.[0] || {};
         const ignoreBaseline = options.ignoreBaseline === true;
         const baselinePath = ignoreBaseline ? null : (options.baselinePath || ".eslint-baselines/no-early-return.json");
-        const baseline = earlyReturnBaselineSet(baselinePath);
+        const baseline = lintBaselineSet(baselinePath);
         const filename = context.filename || context.getFilename();
         const relativePath = relative(process.cwd(), filename).split("\\").join("/");
         const sourceCode = context.sourceCode ?? context.getSourceCode();
@@ -125,6 +125,61 @@ const ngxConventions = {
             if (ifStatement && !baselined) {
               context.report({node, messageId: "banned", data: {digest}});
             }
+          }
+        };
+      },
+    },
+    "no-inline-route-handler": {
+      meta: {
+        type: "problem" as const,
+        docs: {
+          description: "Keep Express route files declarative: named handlers live in a matching *-controllers.ts file, not inline in *-routes.ts."
+        },
+        messages: {
+          inline: "Do not put functions in a *-routes.ts file. Export a named handler from the matching *-controllers.ts file and reference it here. ({{digest}})",
+          missingControllers: "This routes file needs a matching *-controllers.ts file for named handlers. ({{digest}})"
+        },
+        schema: [
+          {
+            type: "object",
+            properties: {
+              baselinePath: {type: "string"},
+              ignoreBaseline: {type: "boolean"}
+            },
+            additionalProperties: false
+          }
+        ],
+      },
+      create(context: any) {
+        const options = context.options?.[0] || {};
+        const ignoreBaseline = options.ignoreBaseline === true;
+        const baselinePath = ignoreBaseline ? null : (options.baselinePath || ".eslint-baselines/no-inline-route-handler.json");
+        const baseline = lintBaselineSet(baselinePath);
+        const filename = context.filename || context.getFilename();
+        const relativePath = relative(process.cwd(), filename).split("\\").join("/");
+        const sourceCode = context.sourceCode ?? context.getSourceCode();
+        const reportUnlessBaselined = (node: any, messageId: string) => {
+          const digest = createHash("sha1").update(sourceCode.getText(node).replace(/\s+/g, " ").trim()).digest("hex").slice(0, 12);
+          const key = `${relativePath}:${digest}`;
+          if (!baseline.has(key)) {
+            context.report({node, messageId, data: {digest}});
+          }
+        };
+        return {
+          Program(node: any) {
+            const controllersPath = filename.replace(/-routes\.ts$/, "-controllers.ts");
+            if (!existsSync(controllersPath)) {
+              reportUnlessBaselined(node, "missingControllers");
+            }
+          },
+          FunctionDeclaration(node: any) {
+            reportUnlessBaselined(node, "inline");
+          },
+          FunctionExpression(node: any) {
+            reportUnlessBaselined(node, "inline");
+          },
+          ArrowFunctionExpression(node: any) {
+            reportUnlessBaselined(node, "inline");
           }
         };
       },
@@ -267,15 +322,15 @@ const nativeBrowserDialogRestrictions = [
 const queryParamRestrictions = [
   {
     "selector": "TSEnumDeclaration[id.name=/QueryParam|QueryString|UrlParam/]",
-    "message": "Query string keys live in the StoredValue enum (models/ui-actions.ts) only. Do not declare a second enum for them - add the key to StoredValue, kebab-case, sorted by value."
+    "message": "Query string keys live in the StoredValue enum (models/ui-actions.model.ts) only. Do not declare a second enum for them - add the key to StoredValue, kebab-case, sorted by value."
   },
   {
     "selector": "Property[key.name='queryParams'] ObjectExpression > Property[key.type='Literal']",
-    "message": "Query string keys must come from the StoredValue enum (models/ui-actions.ts), not string literals. Add the key to StoredValue, kebab-case, sorted by value, and use [StoredValue.X]."
+    "message": "Query string keys must come from the StoredValue enum (models/ui-actions.model.ts), not string literals. Add the key to StoredValue, kebab-case, sorted by value, and use [StoredValue.X]."
   },
   {
     "selector": "CallExpression[callee.property.name='get'][callee.object.name=/queryParam|params/i] > Literal[value=/^[a-z][a-z0-9-]*$/]",
-    "message": "Read query string keys from the StoredValue enum (models/ui-actions.ts), not string literals. Add the key to StoredValue, kebab-case, sorted by value."
+    "message": "Read query string keys from the StoredValue enum (models/ui-actions.model.ts), not string literals. Add the key to StoredValue, kebab-case, sorted by value."
   }
 ];
 
@@ -380,6 +435,18 @@ export default defineConfig([
       "server/lib/environments/environments-config.ts",
       "server/deploy/mongo-cli-interactive.ts",
     ],
+  },
+  {
+    files: ["server/**/*-routes.ts"],
+    ignores: [
+      "server/lib/mongo/migrations/**",
+      "server/ts-gen/**",
+      "server/lib/serenity-js/**",
+    ],
+    plugins: {ngx: ngxConventions},
+    rules: {
+      "ngx/no-inline-route-handler": ["error", {baselinePath: ".eslint-baselines/no-inline-route-handler.json"}],
+    },
   },
   {
     files: ["server/**/*.js"],

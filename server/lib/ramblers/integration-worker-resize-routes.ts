@@ -1,8 +1,7 @@
 import debug from "debug";
-import { isString } from "es-toolkit/compat";
 import express, { Request, Response } from "express";
 import { S3 } from "@aws-sdk/client-s3";
-import { decryptRamblersUploadPayload, signRamblersUploadBody, verifyRamblersUploadSignature } from "./integration-worker-crypto";
+import { decryptRamblersUploadPayload, postSignedWorkerBody, verifySignedJsonRequest } from "./integration-worker-crypto";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import {
@@ -29,7 +28,7 @@ router.post("/jobs", async (req: Request, res: Response) => {
   const incomingJobId = (req.body as IntegrationWorkerResizeJobRequest | undefined)?.jobId;
   const activeJob = integrationWorkerHeavyJobQueue.activeJob();
   debugLog("POST /resize/jobs received: jobId:", incomingJobId, "activeJobId:", activeJob?.jobId, "activeJobType:", activeJob?.type, "queueDepth:", integrationWorkerHeavyJobQueue.queuedJobs().length);
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({ error: "Invalid integration worker request signature" });
     return;
   }
@@ -119,7 +118,7 @@ async function runResize(request: IntegrationWorkerResizeJobRequest): Promise<vo
 
 async function postProgress(callback: IntegrationWorkerCallbackConfig, sharedSecret: string, payload: IntegrationWorkerResizeProgressCallback): Promise<void> {
   try {
-    await postSigned(`${callback.baseUrl}${callback.progressPath}`, sharedSecret, payload);
+    await postSignedWorkerBody(`${callback.baseUrl}${callback.progressPath}`, sharedSecret, payload);
   } catch (error) {
     debugLog("resize progress callback failed jobId:", payload.jobId, "error:", (error as Error).message);
   }
@@ -127,33 +126,10 @@ async function postProgress(callback: IntegrationWorkerCallbackConfig, sharedSec
 
 async function postResult(callback: IntegrationWorkerCallbackConfig, sharedSecret: string, payload: IntegrationWorkerResizeResultCallback): Promise<void> {
   try {
-    await postSigned(`${callback.baseUrl}${callback.resultPath}`, sharedSecret, payload);
+    await postSignedWorkerBody(`${callback.baseUrl}${callback.resultPath}`, sharedSecret, payload);
   } catch (error) {
     debugLog("resize result callback failed jobId:", payload.jobId, "error:", (error as Error).message);
   }
-}
-
-async function postSigned(url: string, sharedSecret: string, payload: object): Promise<void> {
-  const body = JSON.stringify(payload);
-  const signature = signRamblersUploadBody(body, sharedSecret);
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-ramblers-upload-signature": signature },
-    body
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Resize callback ${url} failed with status ${response.status}: ${text}`);
-  }
-}
-
-function requestIsSigned(req: Request): boolean {
-  const secret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  if (!secret) {
-    return false;
-  }
-  const signature = req.header("x-ramblers-upload-signature") || "";
-  return isString(signature) && verifyRamblersUploadSignature(JSON.stringify(req.body ?? {}), secret, signature);
 }
 
 function requiredValue(environmentVariable: Environment): string {

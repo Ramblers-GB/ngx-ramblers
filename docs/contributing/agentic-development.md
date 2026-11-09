@@ -47,9 +47,11 @@ expects code to be written. Claude Code picks it up automatically (via
 [CLAUDE.md](../../CLAUDE.md)). It covers, among other things:
 
 - Critical rules — never commit or push without being asked, no code comments,
-  no AI attribution in commit messages
+  no AI attribution in commit messages, HTTP endpoints split into `*-routes.ts`
+  plus `*-controllers.ts`
 - ESLint-enforced bans that fail the build (`new Date()`, native `for` loops,
-  `Object.keys`, and others — each with the replacement to use)
+  `Object.keys`, inline Express handlers in route files, and others — each with
+  the replacement to use)
 - Code style — double quotes, `null` over `undefined`, immutable operations
 - Git workflow and conventional commit format
 

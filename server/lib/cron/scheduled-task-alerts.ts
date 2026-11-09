@@ -5,7 +5,7 @@ import {
   SCHEDULED_TASK_SUB_TAB_GROUPS,
   ScheduledTaskSubTab
 } from "../../../projects/ngx-ramblers/src/app/models/scheduled-task.model";
-import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { envConfig } from "../env-config/env-config";
 import { notifyAdminIncident } from "../alerts/admin-alerts";
 import { siteBaseUrl } from "../config/site-base-url";
@@ -64,10 +64,10 @@ export async function notifyPlatformAdminsOfScheduledTaskProblem(alert: Schedule
   const adminUrl = await scheduledTasksAdminUrl(alert.taskId);
   const title = problemTitle(alert.problem);
   const sent = await notifyAdminIncident({
-    subject: `[NGX platform] ${title}: ${alert.taskName}`,
+    subject: `[NGX ${envConfig.env}] ${title}: ${alert.taskName}`,
     category: `scheduled-task:${alert.problem}`,
     title,
-    intro: "A scheduled task problem was detected on the platform admin environment.",
+    intro: `A scheduled task problem was detected on ${envConfig.env}.`,
     items: [
       {label: "Task", value: `${alert.taskName} (${alert.taskId})`},
       {label: "Problem", value: alert.problem}

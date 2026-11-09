@@ -2,10 +2,9 @@ import debug from "debug";
 import { isString } from "es-toolkit/compat";
 import express, { Request, Response } from "express";
 import { Browser, Page } from "playwright";
-import { verifyRamblersUploadSignature } from "./integration-worker-crypto";
+import { verifySignedJsonRequest } from "./integration-worker-crypto";
 import { launchChromium } from "../shared/playwright-browser";
 import { envConfig } from "../env-config/env-config";
-import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { FlickrScrapedAlbumSummary, FlickrScrapedUserAlbumsData } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { PlaywrightWaitUntil } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
 
@@ -47,7 +46,7 @@ interface FlickrUserAlbumsRequest {
 }
 
 router.post("/html-fetch", async (req: Request, res: Response) => {
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({ error: "Invalid integration worker request signature" });
     return;
   }
@@ -80,7 +79,7 @@ router.post("/html-fetch", async (req: Request, res: Response) => {
 });
 
 router.post("/flickr-user-albums", async (req: Request, res: Response) => {
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({ error: "Invalid integration worker request signature" });
     return;
   }
@@ -319,16 +318,6 @@ async function dismissCookieConsent(page: Page): Promise<void> {
   } catch (error) {
     debugLog("dismissCookieConsent: error dismissing consent:", error);
   }
-}
-
-function requestIsSigned(req: Request): boolean {
-  const secret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  if (!secret) {
-    return false;
-  }
-  const signature = req.header("x-ramblers-upload-signature") || "";
-  const body = JSON.stringify(req.body ?? {});
-  return verifyRamblersUploadSignature(body, secret, signature);
 }
 
 export const integrationWorkerBrowserRoutes = router;

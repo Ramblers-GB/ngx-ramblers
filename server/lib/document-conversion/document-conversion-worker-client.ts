@@ -5,7 +5,7 @@ import {
   DocumentConversionWorkerRequest,
   DocumentConversionWorkerResponse
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
-import { signRamblersUploadBody } from "../ramblers/integration-worker-crypto";
+import { signedJsonPost } from "../ramblers/integration-worker-crypto";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 
 const debugLog = debug(envConfig.logNamespace("document-conversion-worker-client"));
@@ -19,15 +19,9 @@ export async function convertDocumentViaIntegrationWorker(buffer: Buffer, fileNa
   const workerUrl = envConfig.value(Environment.INTEGRATION_WORKER_URL);
   const sharedSecret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET);
   const request: DocumentConversionWorkerRequest = {fileName, fileBase64: buffer.toString("base64")};
-  const body = JSON.stringify(request);
-  const signature = signRamblersUploadBody(body, sharedSecret);
   const endpoint = `${stripTrailingSlash(workerUrl)}/api/integration-worker/document-conversion/convert`;
-  debugLog("-> convert:", fileName, "endpoint:", endpoint, "bytes:", body.length);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {"content-type": "application/json", "x-ramblers-upload-signature": signature},
-    body
-  });
+  debugLog("-> convert:", fileName, "endpoint:", endpoint);
+  const response = await signedJsonPost(endpoint, sharedSecret, request);
   const text = await response.text();
   if (!response.ok) {
     debugLog("<- convert failed:", fileName, "status:", response.status, "body:", text.slice(0, 300));

@@ -6,7 +6,7 @@ import {
   IntegrationWorkerQueueClearResult,
   IntegrationWorkerQueueStatus
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
-import { signRamblersUploadBody } from "./integration-worker-crypto";
+import { signedJsonPost } from "./integration-worker-crypto";
 
 const debugLog = debug(envConfig.logNamespace("integration-worker-queue-client"));
 debugLog.enabled = true;
@@ -18,16 +18,7 @@ export function integrationWorkerConfigured(): boolean {
 async function postSignedToWorker<T>(path: string): Promise<T> {
   const workerUrl = requiredValue(Environment.INTEGRATION_WORKER_URL);
   const sharedSecret = requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  const body = JSON.stringify({});
-  const signature = signRamblersUploadBody(body, sharedSecret);
-  const response = await fetch(`${workerUrl}${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-ramblers-upload-signature": signature
-    },
-    body
-  });
+  const response = await signedJsonPost(`${workerUrl}${path}`, sharedSecret, {});
   debugLog("postSignedToWorker path:", path, "status:", response.status);
   if (!response.ok) {
     const responseBody = await response.text();

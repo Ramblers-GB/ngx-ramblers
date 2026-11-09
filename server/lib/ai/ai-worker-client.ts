@@ -3,7 +3,7 @@ import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { Ai } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { AiConnectionStatus, CoverImageCandidate } from "../../../projects/ngx-ramblers/src/app/models/ai.model";
-import { signRamblersUploadBody } from "../ramblers/integration-worker-crypto";
+import { signedJsonPost } from "../ramblers/integration-worker-crypto";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 
 const debugLog = debug(envConfig.logNamespace("ai:worker-client"));
@@ -16,14 +16,8 @@ export function integrationWorkerConfigured(): boolean {
 async function callWorker<T>(operationPath: string, payload: object): Promise<T> {
   const workerUrl = required(Environment.INTEGRATION_WORKER_URL);
   const sharedSecret = required(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  const body = JSON.stringify(payload);
-  const signature = signRamblersUploadBody(body, sharedSecret);
   const endpoint = `${stripTrailingSlash(workerUrl)}/api/integration-worker/ai/${operationPath}`;
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {"content-type": "application/json", "x-ramblers-upload-signature": signature},
-    body
-  });
+  const response = await signedJsonPost(endpoint, sharedSecret, payload);
   const text = await response.text();
   if (!response.ok) {
     debugLog(operationPath, "failed", response.status, text.slice(0, 200));

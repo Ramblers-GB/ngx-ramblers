@@ -31,8 +31,7 @@ import { TOOLTIP_SHOW_DELAY_MS } from "../tooltip-config";
 
     :host-context(.composer-workspace-actions)
       display: flex
-      width: 100%
-      min-width: 0
+      min-width: min-content
       height: var(--btn-min-height)
 
     :host-context(.composer-workspace-actions) .btn-group

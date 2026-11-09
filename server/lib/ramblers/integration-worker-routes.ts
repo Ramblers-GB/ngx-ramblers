@@ -1,9 +1,8 @@
 import { completeOsMapsExportResult, osMapsExportResultByJobId } from "../os-maps/os-maps-export-result-store";
 import { dateTimeNowAsValue } from "../shared/dates";
 import debug from "debug";
-import { isString } from "es-toolkit/compat";
 import express, { Request, Response } from "express";
-import { verifyRamblersUploadSignature, decryptRamblersUploadPayload } from "./integration-worker-crypto";
+import { decryptRamblersUploadPayload, verifySignedJsonRequest } from "./integration-worker-crypto";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import {
@@ -82,7 +81,7 @@ function queueStatus(): IntegrationWorkerQueueStatus {
 }
 
 router.post("/queue/status", (req: Request, res: Response) => {
-  if (!requestIsSigned(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
+  if (!verifySignedJsonRequest(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
     res.status(401).json({error: "Invalid upload worker request signature"});
   } else {
     res.json(queueStatus());
@@ -90,7 +89,7 @@ router.post("/queue/status", (req: Request, res: Response) => {
 });
 
 router.post("/queue/cancel-active", (req: Request, res: Response) => {
-  if (!requestIsSigned(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
+  if (!verifySignedJsonRequest(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
     res.status(401).json({error: "Invalid upload worker request signature"});
   } else {
     const result: IntegrationWorkerQueueCancelResult = cancelActiveWorkerJob();
@@ -100,7 +99,7 @@ router.post("/queue/cancel-active", (req: Request, res: Response) => {
 });
 
 router.post("/queue/clear", (req: Request, res: Response) => {
-  if (!requestIsSigned(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
+  if (!verifySignedJsonRequest(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
     res.status(401).json({error: "Invalid upload worker request signature"});
   } else {
     const cleared = integrationWorkerHeavyJobQueue.clearQueued();
@@ -115,7 +114,7 @@ router.post("/jobs", async (req: Request, res: Response) => {
   const activeJob = integrationWorkerHeavyJobQueue.activeJob();
   debugLog("POST /jobs received: jobId:", incomingJobId, "activeJobId:", activeJob?.jobId, "activeJobType:", activeJob?.type, "queueDepth:", integrationWorkerHeavyJobQueue.queuedJobs().length);
   try {
-    if (!requestIsSigned(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
+    if (!verifySignedJsonRequest(req, requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET))) {
       debugLog("POST /jobs rejected: invalid signature for jobId:", incomingJobId);
       res.status(401).json({ error: "Invalid upload worker request signature" });
       return;
@@ -175,7 +174,7 @@ router.post("/progress", async (req: Request, res: Response) => {
   const incomingType = (req.body as IntegrationWorkerProgressCallbackRequest | undefined)?.type;
   debugLog("POST /progress received: jobId:", incomingJobId, "type:", incomingType);
   try {
-    if (!requestIsSigned(req, callbackSecret())) {
+    if (!verifySignedJsonRequest(req, callbackSecret())) {
       debugLog("POST /progress rejected: invalid signature for jobId:", incomingJobId);
       res.status(401).json({ error: "Invalid upload worker callback signature" });
       return;
@@ -229,7 +228,7 @@ router.post("/result", async (req: Request, res: Response) => {
   const incomingStatus = (req.body as IntegrationWorkerResultCallbackRequest | undefined)?.status;
   debugLog("POST /result received: jobId:", incomingJobId, "status:", incomingStatus);
   try {
-    if (!requestIsSigned(req, callbackSecret())) {
+    if (!verifySignedJsonRequest(req, callbackSecret())) {
       debugLog("POST /result rejected: invalid signature for jobId:", incomingJobId);
       res.status(401).json({ error: "Invalid upload worker callback signature" });
       return;
@@ -300,11 +299,6 @@ async function executeWorkerJob(queuedJob: IntegrationWorkerQueuedUploadJob): Pr
 function callbackSecret(): string {
   return envConfig.value(Environment.INTEGRATION_WORKER_CALLBACK_SECRET)
     || requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-}
-
-function requestIsSigned(req: Request, secret: string): boolean {
-  const signature = req.headers["x-ramblers-upload-signature"];
-  return isString(signature) && verifyRamblersUploadSignature(JSON.stringify(req.body), secret, signature);
 }
 
 function requiredValue(environmentVariable: Environment): string {

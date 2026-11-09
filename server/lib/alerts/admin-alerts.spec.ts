@@ -6,7 +6,7 @@ describe("buildAdminIncidentHtml", () => {
   it("matches the scheduled-task alert layout", () => {
     const html = buildAdminIncidentHtml({
       title: "Scheduled task failed",
-      intro: "A scheduled task problem was detected on the platform admin environment.",
+      intro: "A scheduled task problem was detected on ekwg.",
       items: [
         {label: "Task", value: "Walks Manager sync (walks-manager-sync)"},
         {label: "Problem", value: "failed"}

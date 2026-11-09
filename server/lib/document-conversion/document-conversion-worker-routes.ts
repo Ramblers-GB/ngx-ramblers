@@ -1,14 +1,12 @@
 import debug from "debug";
-import { isString } from "es-toolkit/compat";
 import express, { Request, Response } from "express";
 import { envConfig } from "../env-config/env-config";
-import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import {
   ConvertedDocumentImage,
   DocumentConversionWorkerRequest,
   DocumentConversionWorkerResponse
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
-import { verifyRamblersUploadSignature } from "../ramblers/integration-worker-crypto";
+import { verifySignedJsonRequest } from "../ramblers/integration-worker-crypto";
 import { convertBufferToMarkdown } from "./document-conversion";
 
 const debugLog = debug(envConfig.logNamespace("document-conversion-worker-routes"));
@@ -16,14 +14,8 @@ debugLog.enabled = true;
 
 const router = express.Router();
 
-function requestIsSigned(req: Request): boolean {
-  const sharedSecret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  const signature = req.headers["x-ramblers-upload-signature"];
-  return isString(sharedSecret) && isString(signature) && verifyRamblersUploadSignature(JSON.stringify(req.body), sharedSecret, signature);
-}
-
 async function convertDocument(req: Request, res: Response): Promise<void> {
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     debugLog("POST /convert rejected: invalid signature");
     res.status(401).json({error: "Invalid document conversion request signature"});
     return;

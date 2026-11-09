@@ -1,8 +1,7 @@
 import debug from "debug";
 import express, { Request, Response } from "express";
-import { verifyRamblersUploadSignature } from "./integration-worker-crypto";
+import { verifySignedJsonRequest } from "./integration-worker-crypto";
 import { envConfig } from "../env-config/env-config";
-import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import {
   IntegrationWorkerMigrationProgressCallback,
   IntegrationWorkerMigrationResultCallback
@@ -16,7 +15,7 @@ debugLog.enabled = true;
 const router = express.Router();
 
 router.post("/progress", async (req: Request, res: Response) => {
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({ error: "Invalid integration worker callback signature" });
     return;
   }
@@ -32,7 +31,7 @@ router.post("/progress", async (req: Request, res: Response) => {
 });
 
 router.post("/result", async (req: Request, res: Response) => {
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({ error: "Invalid integration worker callback signature" });
     return;
   }
@@ -50,15 +49,5 @@ router.post("/result", async (req: Request, res: Response) => {
   }
   res.json({ ok: true });
 });
-
-function requestIsSigned(req: Request): boolean {
-  const secret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  if (!secret) {
-    return false;
-  }
-  const signature = req.header("x-ramblers-upload-signature") || "";
-  const body = JSON.stringify(req.body ?? {});
-  return verifyRamblersUploadSignature(body, secret, signature);
-}
 
 export const integrationWorkerMigrationCallbackRoutes = router;

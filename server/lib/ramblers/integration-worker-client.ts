@@ -9,7 +9,7 @@ import {
   IntegrationWorkerJobResponse
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
 import { RamblersUploadJob } from "../../../projects/ngx-ramblers/src/app/models/ramblers-upload-job.model";
-import { encryptRamblersUploadPayload, signRamblersUploadBody } from "./integration-worker-crypto";
+import { encryptRamblersUploadPayload, signedJsonPost } from "./integration-worker-crypto";
 
 const debugLog = debug(envConfig.logNamespace("integration-worker-client"));
 debugLog.enabled = true;
@@ -50,20 +50,11 @@ export async function submitRamblersUploadJobToWorker(job: RamblersUploadJob, cr
       resultPath: "/api/integration-worker/result"
     }
   };
-  const body = JSON.stringify(request);
-  const signature = signRamblersUploadBody(body, sharedSecret);
-  debugLog("submitRamblersUploadJobToWorker: jobId:", job.jobId, "workerUrl:", workerUrl, "callbackBaseUrl:", callbackBaseUrl, "bodyBytes:", body.length, "fileName:", job.data?.fileName, "rowCount:", job.data?.rows?.length, "uploads:", job.data?.walkIdUploadList?.length, "deletions:", job.data?.walkIdDeletionList?.length);
+  debugLog("submitRamblersUploadJobToWorker: jobId:", job.jobId, "workerUrl:", workerUrl, "callbackBaseUrl:", callbackBaseUrl, "fileName:", job.data?.fileName, "rowCount:", job.data?.rows?.length, "uploads:", job.data?.walkIdUploadList?.length, "deletions:", job.data?.walkIdDeletionList?.length);
   const submissionStart = dateTimeNowAsValue();
   let response: Awaited<ReturnType<typeof fetch>>;
   try {
-    response = await fetch(`${workerUrl}/api/integration-worker/jobs`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-ramblers-upload-signature": signature
-      },
-      body
-    });
+    response = await signedJsonPost(`${workerUrl}/api/integration-worker/jobs`, sharedSecret, request);
   } catch (error) {
     debugLog("submitRamblersUploadJobToWorker: fetch failed for jobId:", job.jobId, "elapsedMs:", dateTimeNowAsValue() - submissionStart, "error:", (error as Error).message);
     throw error;

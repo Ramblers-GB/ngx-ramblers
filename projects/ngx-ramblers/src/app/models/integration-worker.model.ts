@@ -1,6 +1,4 @@
-import { MessageType } from "./websocket.model";
 import { RamblersUploadJob } from "./ramblers-upload-job.model";
-import { RamblersUploadAudit } from "./ramblers-upload-audit.model";
 import { SiteMigrationConfig } from "./migration-config.model";
 import { MigrationResult } from "./migration-scraping.model";
 import { ContentMetadata, ContentMetadataItem, ContentMetadataResizeRequest } from "./content-metadata.model";
@@ -8,6 +6,12 @@ import { ApiAction } from "./api-response.model";
 import { ExportedGpxSummary, OsMapsListedRoute } from "./os-maps-export.model";
 import { OsDataHubApiKey } from "./os-data-hub-api-key.model";
 import { SystemConfig } from "./system.model";
+import {
+  ResolvedAlbumImage,
+  SocialNetwork,
+  SocialPublishProgress,
+  SocialPublishResult
+} from "./social-publish.model";
 
 export enum IntegrationWorkerEventType {
   STANDARD_OUT = "standard-out",
@@ -22,20 +26,6 @@ export enum UploadOutcome {
   FAILED = "failed",
   STOPPED = "stopped"
 }
-
-const UPLOAD_FINISHED_PREFIX = /^Upload (completed|failed|stopped)\b/;
-
-export function uploadFinishedMessage(fileName: string, elapsed: string, outcome: UploadOutcome): string {
-  return outcome === UploadOutcome.COMPLETED
-    ? `Upload completed for ${fileName} in ${elapsed}`
-    : `Upload ${outcome} for ${fileName} after ${elapsed}`;
-}
-
-export function isUploadFinishedMessage(message: string): boolean {
-  return UPLOAD_FINISHED_PREFIX.test(message || "");
-}
-
-export const UPLOAD_FINISHED_MESSAGE_PATTERN = UPLOAD_FINISHED_PREFIX.source;
 
 export interface RamblersUploadCredentials {
   userName: string;
@@ -91,11 +81,6 @@ export interface IntegrationWorkerResultCallbackRequest {
   listedRoutes?: OsMapsListedRoute[];
   exportedGpx?: ExportedGpxSummary[];
   osDataHubApiKey?: OsDataHubApiKey;
-}
-
-export interface IntegrationWorkerAuditEnvelope {
-  messageType: MessageType;
-  audits: RamblersUploadAudit[];
 }
 
 export interface PublicSiteFetchRelay {
@@ -251,4 +236,47 @@ export interface IntegrationWorkerQueueCancelResult {
 export interface IntegrationWorkerQueueClearResult {
   clearedCount: number;
   clearedJobs: IntegrationWorkerQueueJob[];
+}
+
+export interface IntegrationWorkerSocialPublishCredentials {
+  facebookPageId?: string;
+  facebookPageAccessToken?: string;
+  facebookPublishingEnabled?: boolean;
+  instagramUserId?: string;
+  instagramPublishingEnabled?: boolean;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+}
+
+export interface IntegrationWorkerSocialPublishAwsConfig {
+  bucket: string;
+  region: string;
+}
+
+export interface IntegrationWorkerSocialPublishNetworkImages {
+  network: SocialNetwork;
+  images: ResolvedAlbumImage[];
+  imageNames: string[];
+  caption: string;
+}
+
+export interface IntegrationWorkerSocialPublishJobRequest {
+  jobId: string;
+  albumName: string;
+  networks: IntegrationWorkerSocialPublishNetworkImages[];
+  encryptedCredentials: string;
+  awsConfig?: IntegrationWorkerSocialPublishAwsConfig;
+  callback: IntegrationWorkerCallbackConfig;
+}
+
+export interface IntegrationWorkerSocialPublishProgressCallback {
+  jobId: string;
+  progress: SocialPublishProgress;
+}
+
+export interface IntegrationWorkerSocialPublishResultCallback {
+  jobId: string;
+  status: IntegrationWorkerResultStatus;
+  results?: SocialPublishResult[];
+  errorMessage?: string;
 }

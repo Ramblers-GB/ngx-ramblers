@@ -1,7 +1,7 @@
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { encryptRamblersUploadPayload, signRamblersUploadBody } from "./integration-worker-crypto";
+import { encryptRamblersUploadPayload, signedJsonPost } from "./integration-worker-crypto";
 import {
   IntegrationWorkerAwsCredentials,
   IntegrationWorkerCallbackConfig,
@@ -49,15 +49,9 @@ export async function submitResizeJobToIntegrationWorker(jobId: string, mode: Re
     }, encryptionKey);
   }
 
-  const body = JSON.stringify(request);
-  const signature = signRamblersUploadBody(body, sharedSecret);
   const endpoint = `${stripTrailingSlash(workerUrl)}/api/integration-worker/resize/jobs`;
-  debugLog("-> submit resize jobId:", jobId, "mode:", mode, "endpoint:", endpoint, "bytes:", body.length);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-ramblers-upload-signature": signature },
-    body
-  });
+  debugLog("-> submit resize jobId:", jobId, "mode:", mode, "endpoint:", endpoint);
+  const response = await signedJsonPost(endpoint, sharedSecret, request);
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`Integration worker resize submit failed with status ${response.status}: ${text}`);

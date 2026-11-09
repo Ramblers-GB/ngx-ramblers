@@ -15,7 +15,7 @@ import { AdminAlertRecipient } from "../../../../models/admin-alerts.model";
       <div class="thumbnail-heading">Admin alert emails</div>
       <div class="col-sm-12">
         <p class="mb-3">
-          Platform-admin operations alerts go only to the people listed here. That covers scheduled-task problems
+          Operations alerts from this site go only to the people listed here. That covers scheduled-task problems
           (failed, missed, interrupted), failed backup or restore sessions, and memory-watchdog restarts when the
           process is about to exit. Leave empty to log problems without sending mail. Stored in the database.
         </p>
@@ -43,7 +43,7 @@ import { AdminAlertRecipient } from "../../../../models/admin-alerts.model";
           @if (draftRecipients.length === 0) {
             <div class="alert alert-warning d-flex align-items-start mb-3">
               <fa-icon [icon]="faCircleExclamation" class="me-2"/>
-              <div><strong>No alert recipients</strong><p class="mb-0">Platform operations problems will be logged on the server only.</p></div>
+              <div><strong>No alert recipients</strong><p class="mb-0">Operations problems will be logged on the server only.</p></div>
             </div>
           }
           <app-recipient-field [to]="draftRecipients" (toChange)="recipientsChanged($event)" [plain]="true"/>

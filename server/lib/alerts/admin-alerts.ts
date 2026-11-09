@@ -6,7 +6,6 @@ import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date
 import { dateTimeNow } from "../shared/dates";
 import { AdminAlertRecipient, AdminAlertsConfiguration } from "../../../projects/ngx-ramblers/src/app/models/admin-alerts.model";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
-import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { envConfig } from "../env-config/env-config";
 import { systemConfig } from "../config/system-config";
 import * as config from "../mongo/controllers/config";
@@ -14,8 +13,6 @@ import { brevoClient } from "../brevo/brevo-config";
 import { scheduleBrevo } from "../brevo/common/rate-limiting";
 import { assertSendAllowed } from "../brevo/send-permission";
 import { SendPurpose } from "../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { booleanOf } from "../shared/string-utils";
-
 const debugLog = debug(envConfig.logNamespace("admin-alerts"));
 debugLog.enabled = true;
 
@@ -83,10 +80,6 @@ export async function notifyAdminIncident(request: AdminIncidentEmail & { subjec
   });
 }
 
-export function platformAdminEnvironment(): boolean {
-  return booleanOf(process.env[Environment.PLATFORM_ADMIN_ENABLED]);
-}
-
 export function normalisedAlertRecipients(value: unknown): AdminAlertRecipient[] {
   const entries: Partial<AdminAlertRecipient>[] = isArray(value) ? value : [];
   return uniqBy(entries
@@ -112,7 +105,7 @@ export async function setAdminAlertRecipients(value: unknown): Promise<AdminAler
 }
 
 async function adminAlertRecipients(): Promise<Brevo.SendTransacEmailRequest["to"]> {
-  const recipients = platformAdminEnvironment() ? await configuredAdminAlertRecipients() : [];
+  const recipients = await configuredAdminAlertRecipients();
   return recipients.map(recipient => recipient.name ? recipient : {email: recipient.email});
 }
 
@@ -120,10 +113,7 @@ export async function sendAdminAlertEmail(request: AdminAlertEmailRequest): Prom
   const category = request.category || "general";
   try {
     const recipients = await adminAlertRecipients();
-    if (!platformAdminEnvironment()) {
-      debugLog(`Skipping admin alert (${category}) - not a platform admin environment`);
-      return false;
-    } else if (!envConfig.production) {
+    if (!envConfig.production) {
       debugLog(`Skipping admin alert (${category}) - ${envConfig.env} server, alerts are only emailed from deployed environments: ${request.subject}`);
       return false;
     } else if (recipients.length === 0) {

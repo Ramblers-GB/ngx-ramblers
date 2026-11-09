@@ -1,7 +1,7 @@
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { signRamblersUploadBody } from "./integration-worker-crypto";
+import { signedJsonPost } from "./integration-worker-crypto";
 import { FlickrScrapedUserAlbumsData } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { HtmlFetchResult, IntegrationWorkerCallbackConfig, IntegrationWorkerMigrationJobRequest, IntegrationWorkerWalksManagerSyncJobRequest, PlaywrightWaitUntil } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
 import { publicSiteFetchRelay } from "../cloudflare/public-site-fetch-worker";
@@ -40,14 +40,9 @@ export async function scrapeFlickrUserAlbumsViaIntegrationWorker(userId: string)
 export async function cancelMigrationJobOnIntegrationWorker(jobId: string, reason: string): Promise<void> {
   const workerUrl = required(Environment.INTEGRATION_WORKER_URL);
   const sharedSecret = required(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  const body = JSON.stringify({ reason });
   const endpoint = `${stripTrailingSlash(workerUrl)}/api/integration-worker/migration/jobs/${encodeURIComponent(jobId)}/cancel`;
   debugLog("-> cancel migration jobId:", jobId);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-ramblers-upload-signature": signRamblersUploadBody(body, sharedSecret) },
-    body
-  });
+  const response = await signedJsonPost(endpoint, sharedSecret, { reason });
   if (!response.ok) {
     throw new Error(`Integration worker migration cancel failed with status ${response.status}`);
   }
@@ -66,15 +61,9 @@ export async function submitWalksManagerSyncJobToIntegrationWorker(jobId: string
       resultPath: "/api/integration-worker/walks-manager-sync/result"
     };
     const request: IntegrationWorkerWalksManagerSyncJobRequest = {jobId, environmentName, mongoUri, systemConfig, fullSync, callback};
-    const body = JSON.stringify(request);
-    const signature = signRamblersUploadBody(body, sharedSecret);
     const endpoint = `${stripTrailingSlash(workerUrl)}/api/integration-worker/walks-manager-sync/jobs`;
     debugLog("-> submit walks manager sync jobId:", jobId, "endpoint:", endpoint);
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {"content-type": "application/json", "x-ramblers-upload-signature": signature},
-      body
-    });
+    const response = await signedJsonPost(endpoint, sharedSecret, request);
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new Error(`Integration worker Walks Manager sync submit failed with status ${response.status}: ${text}`);
@@ -102,15 +91,9 @@ export async function submitMigrationJobToIntegrationWorker(jobId: string, siteC
     callback,
     publicSiteFetchRelay: await publicSiteFetchRelay()
   };
-  const body = JSON.stringify(request);
-  const signature = signRamblersUploadBody(body, sharedSecret);
   const endpoint = `${stripTrailingSlash(workerUrl)}/api/integration-worker/migration/jobs`;
   debugLog("-> submit migration jobId:", jobId, "endpoint:", endpoint);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-ramblers-upload-signature": signature },
-    body
-  });
+  const response = await signedJsonPost(endpoint, sharedSecret, request);
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`Integration worker migration submit failed with status ${response.status}: ${text}`);
@@ -120,18 +103,9 @@ export async function submitMigrationJobToIntegrationWorker(jobId: string, siteC
 async function requestBrowserOperation<T>(operationPath: string, payload: object): Promise<T> {
   const workerUrl = required(Environment.INTEGRATION_WORKER_URL);
   const sharedSecret = required(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  const body = JSON.stringify(payload);
-  const signature = signRamblersUploadBody(body, sharedSecret);
   const endpoint = `${stripTrailingSlash(workerUrl)}/api/integration-worker/browser/${operationPath}`;
-  debugLog("->", operationPath, "endpoint:", endpoint, "bytes:", body.length);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-ramblers-upload-signature": signature
-    },
-    body
-  });
+  debugLog("->", operationPath, "endpoint:", endpoint);
+  const response = await signedJsonPost(endpoint, sharedSecret, payload);
   const text = await response.text();
   if (!response.ok) {
     debugLog("<-", operationPath, "status:", response.status, "body:", text.slice(0, 200));

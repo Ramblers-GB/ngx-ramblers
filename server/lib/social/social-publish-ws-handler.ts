@@ -9,16 +9,19 @@ import {
   SocialPublishProgress,
   SocialPublishResult
 } from "../../../projects/ngx-ramblers/src/app/models/social-publish.model";
+import { IntegrationWorkerSocialPublishNetworkImages } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { systemConfig } from "../config/system-config";
 import { resolveAlbumImages } from "./album-images";
-import { publishAlbumToFacebook } from "../facebook/facebook-publish";
 import { withLink } from "./caption-builder";
-import { publishAlbumToInstagram } from "../instagram/instagram-publish";
 import { socialPublication } from "../mongo/models/social-publication";
 import { dateTimeNowAsValue } from "../shared/dates";
 import { livePublicationOrNull } from "./publication-status";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
+import { socialPublishCompleteMessage, socialPublishFailed } from "./social-publish-outcome";
+import { completeSocialPublishSession, registerSocialPublishSession } from "./social-publish-session-registry";
+import { submitSocialPublishJobToIntegrationWorker } from "../ramblers/integration-worker-social-publish-client";
+import { integrationWorkerConfigured } from "../ramblers/dispatch-integration-worker-job";
 
 const debugLog = debug(envConfig.logNamespace("social:publish-ws"));
 debugLog.enabled = true;
@@ -64,18 +67,12 @@ function publicBaseUrlFor(config: SystemConfig, requestedBaseUrl?: string): stri
   return baseUrl;
 }
 
-async function recordPublication(albumName: string, result: SocialPublishResult, imageNames: string[], caption: string): Promise<void> {
-  if (result.success) {
-    await socialPublication.create({
-      albumName,
-      network: result.network,
-      postId: result.postId,
-      permalink: result.permalink,
-      imageCount: result.imageCount,
-      imageNames,
-      caption,
-      publishedAt: dateTimeNowAsValue()
-    });
+function finishPublish(ws: WebSocket, jobId: string, results: SocialPublishResult[]): void {
+  const message = socialPublishCompleteMessage(results);
+  if (socialPublishFailed(results)) {
+    sendError(ws, jobId, message, {results});
+  } else {
+    sendComplete(ws, jobId, message, {results});
   }
 }
 
@@ -100,7 +97,6 @@ export async function handleSocialPublishAlbum(ws: WebSocket, data: SocialPublis
     } else {
       const config: SystemConfig = await systemConfig();
       const baseUrl = publicBaseUrlFor(config, data?.publicBaseUrl);
-      const results: SocialPublishResult[] = [];
       const imageNamesFor = (network: SocialNetwork): string[] => {
         const perNetwork = data?.imageNamesByNetwork?.[network];
         return perNetwork?.length ? perNetwork : imageNames;
@@ -116,62 +112,63 @@ export async function handleSocialPublishAlbum(ws: WebSocket, data: SocialPublis
       const resolvedImages = await resolveAlbumImages(baseUrl, albumName, allImageNames);
       const imagesByName = new Map(resolvedImages.map(image => [image.image, image]));
       debugLog("resolved images:", resolvedImages.length, "baseUrl:", baseUrl);
+      const priorResults: SocialPublishResult[] = [];
+      const pending: IntegrationWorkerSocialPublishNetworkImages[] = [];
       for (const network of networks) {
         const enteredCaption = data?.captions?.[network] || "";
         const caption = withLink(enteredCaption, data?.albumUrl, "See the full album:");
         const networkImageNames = imageNamesFor(network);
         const networkImages = networkImageNames.map(name => imagesByName.get(name)).filter(Boolean);
         if (!enteredCaption?.trim()) {
-          results.push({network, success: false, error: `A caption is required for ${network}`});
+          priorResults.push({network, success: false, error: `A caption is required for ${network}`});
         } else if (networkImages.length === 0) {
-          results.push({network, success: false, error: `Select at least one image to publish to ${network}`});
+          priorResults.push({network, success: false, error: `Select at least one image to publish to ${network}`});
         } else {
           const recorded = await socialPublication.findOne({albumName, network}).lean().exec() as {postId?: string; permalink?: string; network?: SocialNetwork} | null;
           const existing = await livePublicationOrNull(recorded, config?.externalSystems?.facebook?.pageAccessToken);
           if (existing) {
-            results.push({
+            priorResults.push({
               network,
               success: false,
               error: `This album has already been published to ${network} (post ${existing.postId || existing.permalink || "recorded"})`
             });
           } else {
-            sendProgress(ws, jobId, {
-              network,
-              phase: "network-start",
-              message: `Starting ${network} publish`,
-              completed: results.filter(result => result.success).length,
-              total: networks.length,
-              percent: Math.round((results.length / Math.max(networks.length, 1)) * 100)
-            });
-            try {
-              const onProgress = (progress: SocialPublishProgress) => sendProgress(ws, jobId, progress);
-              const result = network === SocialNetwork.FACEBOOK
-                ? await publishAlbumToFacebook(config?.externalSystems?.facebook, networkImages, caption, onProgress)
-                : await publishAlbumToInstagram(
-                  config?.externalSystems?.instagram,
-                  config?.externalSystems?.facebook?.pageAccessToken,
-                  networkImages,
-                  caption,
-                  onProgress
-                );
-              await recordPublication(albumName, result, networkImageNames, caption);
-              results.push(result);
-            } catch (error) {
-              debugLog(network, "publish failed:", error);
-              results.push({network, success: false, error: error?.message || String(error)});
-            }
+            pending.push({network, images: networkImages, imageNames: networkImageNames, caption});
           }
         }
       }
-      const successCount = results.filter(result => result.success).length;
-      const failureCount = results.length - successCount;
-      if (successCount === 0) {
-        sendError(ws, jobId, failureCount === 1 ? results[0]?.error || "Publish failed" : "Publish failed for all selected networks", {results});
+      if (pending.length === 0) {
+        finishPublish(ws, jobId, priorResults);
+      } else if (!integrationWorkerConfigured()) {
+        debugLog("album publish requires INTEGRATION_WORKER_URL; refusing in-process fallback");
+        sendError(ws, jobId, "Album publish runs on the integration worker. Set INTEGRATION_WORKER_URL (local ngx-cli starts a worker on the next port).");
       } else {
-        sendComplete(ws, jobId, failureCount === 0
-          ? `Published to ${successCount === 1 ? results.find(result => result.success)?.network : `${successCount} networks`}`
-          : `Published to ${successCount} of ${results.length} networks`,
-          {results});
+        debugLog("dispatching album publish to integration worker", {jobId, albumName, networks: pending.map(item => item.network)});
+        registerSocialPublishSession({jobId, ws, albumName, pending, priorResults});
+        sendProgress(ws, jobId, {
+          message: "Sending album publish to the integration worker",
+          phase: "queued",
+          percent: 0
+        });
+        try {
+          const submitted = await submitSocialPublishJobToIntegrationWorker(
+            jobId,
+            albumName,
+            pending,
+            config?.externalSystems?.facebook,
+            config?.externalSystems?.instagram
+          );
+          if (submitted.queued) {
+            sendProgress(ws, jobId, {
+              message: `Queued at position ${submitted.queuePosition} on the integration worker`,
+              phase: "queued",
+              percent: 0
+            });
+          }
+        } catch (error) {
+          completeSocialPublishSession(jobId);
+          sendError(ws, jobId, error?.message || String(error));
+        }
       }
     }
   } catch (error) {

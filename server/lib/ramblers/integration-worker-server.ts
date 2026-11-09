@@ -16,6 +16,7 @@ import { integrationWorkerBrowserRoutes } from "./integration-worker-browser-rou
 import { integrationWorkerMigrationRoutes } from "./integration-worker-migration-routes";
 import { integrationWorkerWalksManagerSyncRoutes } from "./integration-worker-walks-manager-sync-routes";
 import { integrationWorkerResizeRoutes } from "./integration-worker-resize-routes";
+import { integrationWorkerSocialPublishRoutes } from "./integration-worker-social-publish-routes";
 import { integrationWorkerAiRoutes } from "./integration-worker-ai-routes";
 import { documentConversionWorkerRoutes } from "../document-conversion/document-conversion-worker-routes";
 
@@ -57,6 +58,7 @@ app.get("/", (req, res) => {
       progressCallback: { method: "POST", path: "/api/integration-worker/progress" },
       resultCallback: { method: "POST", path: "/api/integration-worker/result" },
       resizeJob: { method: "POST", path: "/api/integration-worker/resize/jobs" },
+      socialPublishJob: { method: "POST", path: "/api/integration-worker/social-publish/jobs" },
       htmlFetch: { method: "POST", path: "/api/integration-worker/browser/html-fetch" },
       flickrUserAlbums: { method: "POST", path: "/api/integration-worker/browser/flickr-user-albums" },
       documentConversion: { method: "POST", path: "/api/integration-worker/document-conversion/convert" }
@@ -70,6 +72,7 @@ app.use("/api/integration-worker/browser", integrationWorkerBrowserRoutes);
 app.use("/api/integration-worker/migration", integrationWorkerMigrationRoutes);
 app.use("/api/integration-worker/walks-manager-sync", integrationWorkerWalksManagerSyncRoutes);
 app.use("/api/integration-worker/resize", integrationWorkerResizeRoutes);
+app.use("/api/integration-worker/social-publish", integrationWorkerSocialPublishRoutes);
 app.use("/api/integration-worker/ai", integrationWorkerAiRoutes);
 app.use("/api/integration-worker/document-conversion", documentConversionWorkerRoutes);
 

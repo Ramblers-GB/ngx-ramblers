@@ -14,12 +14,12 @@ import {
   IntegrationWorkerAwsCredentials,
   IntegrationWorkerCallbackConfig,
   IntegrationWorkerEventType,
-  uploadFinishedMessage,
   UploadOutcome,
   IntegrationWorkerProgressCallbackRequest,
   IntegrationWorkerReportUploadConfig,
   IntegrationWorkerResultCallbackRequest
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
+import { uploadFinishedMessage } from "../../../projects/ngx-ramblers/src/app/functions/integration-worker";
 import { prepareRamblersUploadJobFiles, removeRamblersUploadJobFiles } from "./ramblers-upload-job-files";
 import { applyOsMapsExportEnvironment, isOsDataHubApiKeyJob, isOsMapsExportJob, isOsMapsListJob, isOsMapsWorkerJob } from "./serenity-job-environment";
 import { osDataHubApiKeyFromJobPath } from "../os-maps/os-data-hub-api-key-store";

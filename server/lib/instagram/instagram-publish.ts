@@ -16,6 +16,7 @@ import {
 import { graphApiRequest } from "../social/graph-api";
 import { delay } from "../shared/delay";
 import { prepareInstagramAlbumImages } from "./instagram-image";
+import { InstagramImageObjectStore } from "./instagram-image.model";
 
 const debugLog = debug(envConfig.logNamespace("instagram:publish"));
 debugLog.enabled = true;
@@ -126,13 +127,14 @@ export async function publishSingleImageToInstagram(
   accessToken: string,
   images: ResolvedAlbumImage[],
   caption: string,
-  onProgress: SocialProgressCallback = null
+  onProgress: SocialProgressCallback = null,
+  imageStore: InstagramImageObjectStore = null
 ): Promise<SocialPublishResult> {
   assertInstagramConfigured(instagram, accessToken);
   if (images.length === 0) {
     throw new Error("Instagram needs an image to post - add one to this event first");
   }
-  const preparedImages = await prepareInstagramAlbumImages(images.slice(0, 1));
+  const preparedImages = await prepareInstagramAlbumImages(images.slice(0, 1), imageStore || undefined);
   const igUserId = instagram.igUserId;
   const totalSteps = 3;
   debugLog("single image publish starting: url:", preparedImages[0]?.url);
@@ -210,11 +212,12 @@ export async function publishEventToInstagram(
   accessToken: string,
   images: ResolvedAlbumImage[],
   caption: string,
-  onProgress: SocialProgressCallback = null
+  onProgress: SocialProgressCallback = null,
+  imageStore: InstagramImageObjectStore = null
 ): Promise<SocialPublishResult> {
   return images.length >= INSTAGRAM_MIN_CAROUSEL_IMAGES
-    ? publishAlbumToInstagram(instagram, accessToken, images, caption, onProgress)
-    : publishSingleImageToInstagram(instagram, accessToken, images, caption, onProgress);
+    ? publishAlbumToInstagram(instagram, accessToken, images, caption, onProgress, imageStore)
+    : publishSingleImageToInstagram(instagram, accessToken, images, caption, onProgress, imageStore);
 }
 
 export async function publishAlbumToInstagram(
@@ -222,7 +225,8 @@ export async function publishAlbumToInstagram(
   accessToken: string,
   images: ResolvedAlbumImage[],
   caption: string,
-  onProgress: SocialProgressCallback = null
+  onProgress: SocialProgressCallback = null,
+  imageStore: InstagramImageObjectStore = null
 ): Promise<SocialPublishResult> {
   if (!instagram?.publishingEnabled) {
     throw new Error("Instagram publishing is disabled in System Settings");
@@ -233,7 +237,7 @@ export async function publishAlbumToInstagram(
   if (images.length < INSTAGRAM_MIN_CAROUSEL_IMAGES || images.length > INSTAGRAM_MAX_CAROUSEL_IMAGES) {
     throw new Error(`Instagram carousels need between ${INSTAGRAM_MIN_CAROUSEL_IMAGES} and ${INSTAGRAM_MAX_CAROUSEL_IMAGES} images (${images.length} selected)`);
   }
-  const preparedImages = await prepareInstagramAlbumImages(images);
+  const preparedImages = await prepareInstagramAlbumImages(images, imageStore || undefined);
   const igUserId = instagram.igUserId;
   const children: string[] = [];
   const totalSteps = preparedImages.length + 2;

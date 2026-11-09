@@ -1,7 +1,7 @@
 import debug from "debug";
 import express, { Request, Response } from "express";
 import mongoose from "mongoose";
-import { verifyRamblersUploadSignature, signRamblersUploadBody } from "./integration-worker-crypto";
+import { postSignedWorkerBody, verifySignedJsonRequest } from "./integration-worker-crypto";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import {
@@ -20,33 +20,9 @@ import { walksManagerSyncModelsFor } from "../walks/walks-manager-sync-models";
 const debugLog = debug(envConfig.logNamespace("integration-worker-walks-manager-sync-routes"));
 const router = express.Router();
 
-function requestIsSigned(req: Request): boolean {
-  const secret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  const signature = req.header("x-ramblers-upload-signature") || "";
-  const body = JSON.stringify(req.body ?? {});
-  return !!secret && verifyRamblersUploadSignature(body, secret, signature);
-}
-
-async function postSigned(url: string, sharedSecret: string, payload: object): Promise<void> {
-  const body = JSON.stringify(payload);
-  const signature = signRamblersUploadBody(body, sharedSecret);
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-ramblers-upload-signature": signature
-    },
-    body
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Walks Manager sync callback ${url} failed with status ${response.status}: ${text}`);
-  }
-}
-
 async function postProgress(callback: IntegrationWorkerCallbackConfig, sharedSecret: string, payload: IntegrationWorkerWalksManagerSyncProgressCallback): Promise<void> {
   try {
-    await postSigned(`${callback.baseUrl}${callback.progressPath}`, sharedSecret, payload);
+    await postSignedWorkerBody(`${callback.baseUrl}${callback.progressPath}`, sharedSecret, payload);
   } catch (error) {
     debugLog("progress callback failed jobId:", payload.jobId, "error:", (error as Error).message);
   }
@@ -54,7 +30,7 @@ async function postProgress(callback: IntegrationWorkerCallbackConfig, sharedSec
 
 async function postResult(callback: IntegrationWorkerCallbackConfig, sharedSecret: string, payload: IntegrationWorkerWalksManagerSyncResultCallback): Promise<void> {
   try {
-    await postSigned(`${callback.baseUrl}${callback.resultPath}`, sharedSecret, payload);
+    await postSignedWorkerBody(`${callback.baseUrl}${callback.resultPath}`, sharedSecret, payload);
   } catch (error) {
     debugLog("result callback failed jobId:", payload.jobId, "error:", (error as Error).message);
   }
@@ -100,7 +76,7 @@ async function runWalksManagerSync(request: IntegrationWorkerWalksManagerSyncJob
 
 router.post("/jobs", async (req: Request, res: Response) => {
   const request = req.body as IntegrationWorkerWalksManagerSyncJobRequest;
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({error: "Invalid integration worker request signature"});
   } else if (!request?.jobId || !request?.mongoUri || !request?.systemConfig || !request?.callback) {
     res.status(400).json({error: "jobId, mongoUri, systemConfig and callback are required"});

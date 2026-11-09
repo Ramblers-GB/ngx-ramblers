@@ -793,8 +793,13 @@ async function runDev(config: LocalRunConfig): Promise<void> {
     throw new Error("Docker is required for worker but is not available. Start Docker or re-run with --no-docker-worker.");
   }
 
-  if (useDockerWorker) {
-    env[Environment.INTEGRATION_WORKER_CALLBACK_BASE_URL] = `http://host.docker.internal:${config.port}`;
+  if (spawnLocalWorker && !config.dynamicWorker) {
+    env[Environment.INTEGRATION_WORKER_URL] = `http://localhost:${workerPort}`;
+    if (useDockerWorker) {
+      env[Environment.INTEGRATION_WORKER_CALLBACK_BASE_URL] = `http://host.docker.internal:${config.port}`;
+    } else {
+      env[Environment.INTEGRATION_WORKER_CALLBACK_BASE_URL] = `http://localhost:${config.port}`;
+    }
   }
 
   const workerEnv: NodeJS.ProcessEnv = { ...env, PORT: String(workerPort) };
@@ -816,7 +821,7 @@ async function runDev(config: LocalRunConfig): Promise<void> {
   log("Frontend: http://localhost:4200");
   log("Backend: http://localhost:%d", config.port);
   if (spawnLocalWorker) {
-    const mode = useDockerWorker ? "docker" : "in-process";
+    const mode = useDockerWorker ? "docker" : "local Node";
     log("Worker:  http://localhost:%d (%s)", workerPort, mode);
   } else {
     log("Worker:  %s (remote - not spawning local worker)", configuredWorkerUrl);

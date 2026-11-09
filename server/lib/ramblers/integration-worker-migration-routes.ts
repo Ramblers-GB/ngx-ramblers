@@ -1,7 +1,7 @@
 import debug from "debug";
 import { isObject, isString } from "es-toolkit/compat";
 import express, { Request, Response } from "express";
-import { verifyRamblersUploadSignature, signRamblersUploadBody } from "./integration-worker-crypto";
+import { postSignedWorkerBody, verifySignedJsonRequest } from "./integration-worker-crypto";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import {
@@ -32,7 +32,7 @@ function activeMigrationJobId(): string | null {
 router.post("/jobs", async (req: Request, res: Response) => {
   const incomingJobId = (req.body as IntegrationWorkerMigrationJobRequest | undefined)?.jobId;
   debugLog("POST /migration/jobs received: jobId:", incomingJobId, "activeJobId:", integrationWorkerHeavyJobQueue.activeJob()?.jobId);
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({ error: "Invalid integration worker request signature" });
     return;
   }
@@ -119,7 +119,7 @@ function normaliseMessage(payload: any): string {
 
 async function postProgress(callback: IntegrationWorkerCallbackConfig, sharedSecret: string, payload: IntegrationWorkerMigrationProgressCallback): Promise<void> {
   try {
-    await postSigned(`${callback.baseUrl}${callback.progressPath}`, sharedSecret, payload);
+    await postSignedWorkerBody(`${callback.baseUrl}${callback.progressPath}`, sharedSecret, payload);
   } catch (error) {
     debugLog("progress callback failed jobId:", payload.jobId, "error:", (error as Error).message);
   }
@@ -127,41 +127,14 @@ async function postProgress(callback: IntegrationWorkerCallbackConfig, sharedSec
 
 async function postResult(callback: IntegrationWorkerCallbackConfig, sharedSecret: string, payload: IntegrationWorkerMigrationResultCallback): Promise<void> {
   try {
-    await postSigned(`${callback.baseUrl}${callback.resultPath}`, sharedSecret, payload);
+    await postSignedWorkerBody(`${callback.baseUrl}${callback.resultPath}`, sharedSecret, payload);
   } catch (error) {
     debugLog("result callback failed jobId:", payload.jobId, "error:", (error as Error).message);
   }
 }
 
-async function postSigned(url: string, sharedSecret: string, payload: object): Promise<void> {
-  const body = JSON.stringify(payload);
-  const signature = signRamblersUploadBody(body, sharedSecret);
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-ramblers-upload-signature": signature
-    },
-    body
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Migration callback ${url} failed with status ${response.status}: ${text}`);
-  }
-}
-
-function requestIsSigned(req: Request): boolean {
-  const secret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-  if (!secret) {
-    return false;
-  }
-  const signature = req.header("x-ramblers-upload-signature") || "";
-  const body = JSON.stringify(req.body ?? {});
-  return verifyRamblersUploadSignature(body, secret, signature);
-}
-
 router.post("/jobs/:jobId/cancel", async (req: Request, res: Response) => {
-  if (!requestIsSigned(req)) {
+  if (!verifySignedJsonRequest(req)) {
     res.status(401).json({ error: "Invalid integration worker request signature" });
   } else if (integrationWorkerHeavyJobQueue.removeQueued(req.params.jobId)) {
     debugLog("queued migration job removed jobId:", req.params.jobId);

@@ -2,7 +2,7 @@ import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/
 import debug from "debug";
 import { Environment } from "../../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { IntegrationWorkerEventType } from "../../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
-import { signRamblersUploadBody } from "../../ramblers/integration-worker-crypto";
+import { signedJsonPost } from "../../ramblers/integration-worker-crypto";
 import { dateTimeFromMillis } from "../../shared/dates";
 
 const debugLog = debug("ngx-ramblers:realtime-step-reporter");
@@ -64,13 +64,8 @@ export default class RealtimeStepReporter implements Reporter {
       type: IntegrationWorkerEventType.TEST_STEP,
       payload: JSON.stringify(payload)
     });
-    const signature = signRamblersUploadBody(body, this.sharedSecret!);
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-ramblers-upload-signature": signature },
-        body
-      });
+      const response = await signedJsonPost(url, this.sharedSecret!, body);
       if (!response.ok) {
         const text = await response.text().catch(() => "");
         debugLog(`POST failed status=${response.status} body=${text.slice(0, 200)}`);

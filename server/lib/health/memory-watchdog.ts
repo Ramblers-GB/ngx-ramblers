@@ -90,7 +90,7 @@ export async function notifyMemoryWatchdogRestart(breaches: string[], metrics: s
   const actionUrl = base ? `${base}/${AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH}` : null;
   const appName = envConfig.value(Environment.FLY_APP_NAME) || envConfig.value(Environment.APP_NAME) || "(none)";
   const sent = await adminAlerts.notifyAdminIncident({
-    subject: "[NGX platform] Memory watchdog restarting the process",
+    subject: `[NGX ${envConfig.env}] Memory watchdog restarting the process`,
     category: "memory-watchdog:restart",
     title: "Memory watchdog restarting the process",
     intro: "The process is about to exit so Fly can start a fresh machine. This is a serious event.",
