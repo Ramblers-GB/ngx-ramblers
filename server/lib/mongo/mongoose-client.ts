@@ -1,4 +1,4 @@
-import { envConfig } from "../env-config/env-config";
+import { envConfig, redactForLog } from "../env-config/env-config";
 import debug from "debug";
 import mongoose, { Model } from "mongoose";
 import * as transforms from "./controllers/transforms";
@@ -78,20 +78,20 @@ export async function connect(debug?: debug.Debugger): Promise<boolean> {
   const debugConnect = debug || debugLog;
   if (mongoose.connection.readyState === 1) {
     connected = true;
-    debugConnect("Already connected to database:", mongoUri);
+    debugConnect("Already connected to database:", redactForLog(mongoUri));
     return true;
   } else {
     try {
       mongoose.connection.on("connected", () => {
-        debugConnect("Connected to database:", mongoUri);
+        debugConnect("Connected to database:", redactForLog(mongoUri));
         connected = true;
       });
       mongoose.connection.on("disconnected", () => {
-        debugConnect("Disconnected from database:", mongoUri);
+        debugConnect("Disconnected from database:", redactForLog(mongoUri));
         connected = false;
       });
       mongoose.connection.on("error", err => {
-        debugConnect("Connection error:", err);
+        debugConnect("Connection error:", redactForLog(String(err?.message || err)));
         connected = false;
       });
       mongoose.set("autoCreate", false);
@@ -110,7 +110,7 @@ export async function connect(debug?: debug.Debugger): Promise<boolean> {
       });
       return true;
     } catch (error) {
-      debugConnect("Connection failed:", mongoUri, "error:", error);
+      debugConnect("Connection failed:", redactForLog(mongoUri), "error:", redactForLog(String((error as Error)?.message || error)));
       throw error;
     }
   }

@@ -15,12 +15,18 @@ if (process.env.LOG_ENV_CONFIG === "false") {
 }
 const validatedCache = new Map<string, string>();
 const SECRET_NAME_PATTERN = /(SECRET|TOKEN|PASSWORD|KEY)/i;
+const MONGO_URI_PASSWORD = /(mongodb(?:\+srv)?:\/\/[^:/?#]+:)([^@/]+)(@)/gi;
+
+export function redactForLog(value: string): string {
+  return value.replace(MONGO_URI_PASSWORD, "$1[REDACTED]$3");
+}
 
 function redactedEnvironmentValue(variableName: Environment, variableValue: string): string {
   if (SECRET_NAME_PATTERN.test(variableName)) {
     return "[REDACTED]";
+  } else {
+    return redactForLog(variableValue);
   }
-  return variableValue;
 }
 
 function booleanEnvironmentVariable(variableName: Environment) {
