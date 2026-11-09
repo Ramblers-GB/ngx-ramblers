@@ -30,6 +30,7 @@ import {
   PlatformSendControlResponse,
   RamblersAreaLookup,
   ResumeEnvironmentResponse,
+  RemoveExtraDnsResponse,
   SetDnsOnlyResponse,
   SetupStatusResponse,
   ValidateRequestResponse,
@@ -599,6 +600,15 @@ export class EnvironmentSetupService {
       this.notifications
     );
     return response as unknown as ApexRedirectResponse;
+  }
+
+  async removeExtraDns(environmentName: string, hostname: string): Promise<RemoveExtraDnsResponse> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.post<ApiResponse>(`${this.BASE_URL}/remove-extra-dns/${environmentName}`, {hostname}, this.opts),
+      this.notifications
+    );
+    return response as unknown as RemoveExtraDnsResponse;
   }
 
   async setDnsOnly(environmentName: string, hostname: string): Promise<SetDnsOnlyResponse> {

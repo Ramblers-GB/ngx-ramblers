@@ -86,7 +86,7 @@ export async function listInboxThreads(req: Request, res: Response): Promise<voi
             ? { ...sentMessageFilter(), $or: messageSearchOr({ $regex: escapeSearchRegex(sentSearchTermRaw), $options: "i" }) }
             : sentMessageFilter();
           const outboundMessages = await inboxMessageModel.find(outboundFilter)
-            .select("threadId messageId subject from to sentAt receivedAt direction").lean();
+            .select("threadId messageId subject from to inReplyTo sentAt receivedAt direction").lean();
           const sentThreadIds = Array.from(new Set(outboundMessages.map(message => String(message.threadId))));
           const sentFilter: Record<string, unknown> = {
             tenantSlug: defaultTenantSlug(),

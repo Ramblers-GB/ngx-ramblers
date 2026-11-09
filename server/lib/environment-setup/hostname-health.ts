@@ -31,6 +31,7 @@ import { apexHost, dnsProviderFromNameservers, hostFromUrl, ramblersNationalUrl,
 import { unmappedHostsToOffer, webFacingHostnamesFromDns } from "./zone-web-hosts";
 import { nameserversForHostname, publicAddressRecord } from "../shared/dns-nameservers";
 import { probeHttp } from "../health/public-http-probe";
+import { leftoverCloudflareAddressRecords } from "../../../projects/ngx-ramblers/src/app/functions/cloudflare-anycast";
 
 const debugLog = debug(envConfig.logNamespace("hostname-health"));
 
@@ -61,23 +62,25 @@ function hrefFromCustomDomains(environmentEntry: EnvironmentConfig): string {
 }
 
 async function siteHrefFor(environmentEntry: EnvironmentConfig): Promise<string> {
-  const fromCustomDomains = hrefFromCustomDomains(environmentEntry);
-  if (fromCustomDomains) {
-    return fromCustomDomains;
-  } else if (!environmentEntry?.mongo?.cluster) {
-    return "";
+  if (!environmentEntry?.mongo?.cluster) {
+    return hrefFromCustomDomains(environmentEntry);
   } else {
     try {
       const { client, db } = await connectToEnvironmentMongo(environmentEntry);
       try {
         const systemConfigDoc = await db.collection("config").findOne({ key: "system" });
-        return systemConfigDoc?.value?.group?.href || "";
+        const fromGroup = systemConfigDoc?.value?.group?.href || "";
+        if (fromGroup && !ramblersNationalUrl(fromGroup)) {
+          return fromGroup;
+        } else {
+          return hrefFromCustomDomains(environmentEntry);
+        }
       } finally {
         await client.close();
       }
     } catch (error) {
       debugLog("Could not read group.href for %s: %s", environmentEntry.environment, error instanceof Error ? error.message : String(error));
-      return "";
+      return hrefFromCustomDomains(environmentEntry);
     }
   }
 }
@@ -220,13 +223,24 @@ export function classifyHostnameHealth(
       health: HostnameHealth.REDIRECT_PENDING,
       message: `Set to send visitors to https://${redirectRuleTarget}. Cloudflare has not finished HTTPS yet.`
     };
+  } else if (redirectRuleTarget && primaryRecord.proxied && primaryRecord.content === REDIRECT_PLACEHOLDER_IPV4) {
+    return {
+      health: HostnameHealth.REDIRECTING,
+      message: `Redirects to https://${redirectRuleTarget} via a Cloudflare rule`
+    };
   } else if (httpStatus >= 300 && httpStatus < 400 && httpRedirectLocation) {
     return {
       health: HostnameHealth.REDIRECTING,
       message: `Redirects to ${httpRedirectLocation} (sent by the site itself, not a Cloudflare rule, so nothing needs setting up here)`
     };
   } else if (httpStatus >= 200 && httpStatus < 400) {
-    if (primaryRecord.proxied) {
+    const leftovers = leftoverCloudflareAddressRecords(records);
+    if (leftovers.length > 0 && primaryRecord.content !== REDIRECT_PLACEHOLDER_IPV4) {
+      return {
+        health: HostnameHealth.EXTRA_ADDRESSES,
+        message: `${hostname} still has extra Cloudflare addresses alongside the Fly address. Mail apps on phones often use IPv6, miss IMAP, and never reach this host. Remove the extra records so only the Fly addresses remain.`
+      };
+    } else if (primaryRecord.proxied) {
       return {
         health: HostnameHealth.PROXIED,
         message: `${hostname} is serving the site through Cloudflare's HTTP proxy. Mail apps cannot reach IMAP (port 993) or SMTP (port 465) on this host.`
@@ -296,6 +310,7 @@ async function statusFor(
       healthy: serving,
       dnsRecordType: publicRecord?.type || "",
       dnsContent: publicRecord?.content || "",
+      addressRecords: publicRecord ? [{type: publicRecord.type, content: publicRecord.content, proxied: false}] : [],
       proxied: false,
       redirectRuleTarget: "",
       httpStatus,
@@ -323,6 +338,9 @@ async function statusFor(
       healthy: healthyStates.includes(health),
       dnsRecordType: primaryRecord?.type || "",
       dnsContent: primaryRecord?.content || "",
+      addressRecords: records
+        .filter(record => ["A", "AAAA", "CNAME"].includes(record.type))
+        .map(record => ({type: record.type, content: record.content, proxied: !!record.proxied})),
       proxied: primaryRecord?.proxied ?? false,
       redirectRuleTarget,
       httpStatus,

@@ -685,7 +685,9 @@ export async function reconcileAddressRecord(
   flyAddress: string | undefined,
   existingRecords: { id: string; type: string; content: string; proxied?: boolean }[]
 ): Promise<void> {
-  const existing = existingRecords.find(record => record.type === type);
+  const ofType = existingRecords.filter(record => record.type === type);
+  const matching = ofType.find(record => record.content === flyAddress) || null;
+  const existing = matching || ofType[0] || null;
   if (!flyAddress) {
     if (existing) {
       step(`  - ${type} record present (${existing.content}) but Fly has no ${type === DnsRecordType.A ? "IPv4" : "IPv6"} — leaving as is`);
@@ -701,6 +703,14 @@ export async function reconcileAddressRecord(
   } else {
     await updateDnsRecord(cloudflareConfig, existing.id, { type, name: recordName, content: flyAddress, proxied: false });
     step(`  ✓ ${type} record updated (DNS only): ${hostname} ${existing.content} -> ${flyAddress}`);
+  }
+  if (flyAddress && existing) {
+    const extras = ofType.filter(record => record.id !== existing.id);
+    await extras.reduce(async (pending, extra) => {
+      await pending;
+      await deleteDnsRecord(cloudflareConfig, extra.id);
+      step(`  ✓ Removed extra ${type} ${extra.content} from ${hostname}`);
+    }, Promise.resolve());
   }
 }
 

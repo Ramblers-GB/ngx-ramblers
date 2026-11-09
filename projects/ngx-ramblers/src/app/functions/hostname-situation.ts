@@ -16,7 +16,28 @@ export function hostnameNeedsAction(hostname: HostnameStatus): boolean {
 }
 
 export function hostnameServesSite(hostname: HostnameStatus): boolean {
-  return hostname.health === HostnameHealth.SERVING || hostname.health === HostnameHealth.PROXIED;
+  return hostname.health === HostnameHealth.SERVING
+    || hostname.health === HostnameHealth.PROXIED
+    || hostname.health === HostnameHealth.EXTRA_ADDRESSES;
+}
+
+export function activeHostInApexWwwPair(
+  pair: {apex: string; www: string},
+  hostnames: HostnameStatus[],
+  siteUrl: string
+): string | null {
+  const pairHosts = [pair.apex, pair.www];
+  const serving = hostnames.filter(hostname => pairHosts.includes(hostname.hostname) && hostnameServesSite(hostname));
+  const fromSiteUrl = (siteUrl || "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (serving.length === 1) {
+    return serving[0].hostname;
+  } else if (pairHosts.includes(fromSiteUrl)) {
+    return fromSiteUrl;
+  } else {
+    const marked = hostnames.find(hostname =>
+      hostname.origin === HostnameOrigin.SITE_URL && pairHosts.includes(hostname.hostname));
+    return marked?.hostname || null;
+  }
 }
 
 function servingHost(hostnames: HostnameStatus[]): HostnameStatus | null {
@@ -205,6 +226,15 @@ export function analyseHostnameSituation(hostnames: HostnameStatus[]): HostnameS
         "The site is live, but Site URL is not that address",
         `${named(site)} is serving visitors. The stored Site URL is not this host, so links the group publishes may be wrong.`,
         `Press Use as Site URL on the ${named(site)} row.`
+      );
+    } else if (ofHealth(hostnames, HostnameHealth.EXTRA_ADDRESSES).length > 0) {
+      const extra = ofHealth(hostnames, HostnameHealth.EXTRA_ADDRESSES)[0];
+      return situation(
+        HostnameSituationKind.LIVE_SITE_EXTRA_ADDRESSES,
+        HostnameSituationAlert.WARNING,
+        `Remove extra DNS records on ${named(extra)}`,
+        `The website is fine. Extra Cloudflare addresses are still on this hostname next to the Fly address. Mail apps on phones often use IPv6 and never reach IMAP. The yellow button deletes those extra records.`,
+        null
       );
     } else if (proxiedServing.length > 0) {
       return situation(

@@ -47,6 +47,7 @@ export enum EventType {
   SCHEDULED_TASK_EVENTS = "scheduled-task-events",
   SITE_MIGRATION = "site-migration",
   SOCIAL_PUBLISH_ALBUM = "social-publish-album",
+  SYSTEM_LOGS = "system-logs",
   WALKS_MANAGER_SYNC = "walks-manager-sync",
 }
 
@@ -65,6 +66,7 @@ export enum MessageType {
   MEMBER_SYNC_PROGRESS = "member-sync-progress",
   PROGRESS = "progress",
   SCHEDULED_TASK_UPDATED = "scheduled-task-updated",
+  SYSTEM_LOG = "system-log",
 }
 
 export const allowableStatusCodes: number[] = [1000, 1005];

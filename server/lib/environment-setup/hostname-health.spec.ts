@@ -35,6 +35,7 @@ function status(overrides: Partial<HostnameStatus>): HostnameStatus {
     healthy: true,
     dnsRecordType: "A",
     dnsContent: "1.2.3.4",
+    addressRecords: [],
     proxied: true,
     redirectRuleTarget: "",
     httpStatus: 200,
@@ -131,6 +132,34 @@ describe("hostname-health", () => {
       expect(result.health).toEqual(HostnameHealth.REDIRECT_NOT_PROXIED);
       expect(result.message).toContain("Visitors cannot reach this address");
       expect(result.message).toContain("winchesterwalkingweekend.org.uk");
+    });
+
+    it("should mark leftover Cloudflare IPv6 next to a Fly address as blocking mail", () => {
+      const result = classifyHostnameHealth(
+        "group.example.org.uk",
+        [
+          {type: "A", content: "66.241.125.141", proxied: false},
+          {type: "AAAA", content: "2a09:8280:1::1", proxied: false},
+          {type: "AAAA", content: "2606:4700:3036::1", proxied: false}
+        ],
+        "",
+        200,
+        ""
+      );
+      expect(result.health).toEqual(HostnameHealth.EXTRA_ADDRESSES);
+      expect(result.message).toContain("IPv6");
+    });
+
+    it("should treat a redirect placeholder as redirecting even when HTTPS returns 200", () => {
+      const result = classifyHostnameHealth(
+        "www.group.example.org.uk",
+        [{ type: "A", content: "192.0.2.1", proxied: true }],
+        "group.example.org.uk",
+        200,
+        ""
+      );
+      expect(result.health).toEqual(HostnameHealth.REDIRECTING);
+      expect(result.message).toContain("via a Cloudflare rule");
     });
 
     it("should mark a proxied hostname with a Cloudflare 302 as redirecting", () => {

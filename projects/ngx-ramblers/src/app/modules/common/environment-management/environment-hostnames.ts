@@ -34,7 +34,7 @@ import {
 } from "../../../models/environment-setup.model";
 import { SortDirection } from "../../../models/sort.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { LoggerFactory } from "../../../services/logger-factory.service";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
 import { EnvironmentSetupService } from "../../../services/environment-setup/environment-setup.service";
@@ -44,6 +44,7 @@ import { SortableTableComponent } from "../sortable-table/sortable-table.compone
 import { SortableTableColumn, SortableTableSortState } from "../sortable-table/sortable-table.model";
 import {
   canAttachUnmappedHostname,
+  canRemoveExtraAddresses,
   canRepairRedirect,
   canSetDnsOnly,
   canUseAsSiteUrl,
@@ -63,6 +64,7 @@ import {
 import { analyseHostnameSituation } from "../../../functions/hostname-situation";
 import { conversionNextStep, conversionNextStepBody, conversionNextStepTitle } from "../../../functions/conversion-next-step";
 import { firstGroupOwnedApex } from "../../../functions/hosts";
+import { leftoverCloudflareAddressRecords } from "../../../functions/cloudflare-anycast";
 import { environmentOperationErrorDetail } from "./environment-operation-error";
 import { EnvironmentCustomDomains } from "./environment-custom-domains";
 import { MailMxRecords } from "../../../pages/admin/system-settings/mail/mail-mx-records";
@@ -120,6 +122,21 @@ import { MailMxRecords } from "../../../pages/admin/system-settings/mail/mail-mx
             Re-check
           </button>
         </div>
+        @if (notifyTarget.showAlert) {
+          <div class="alert {{ notifyTarget.alert.class }} mb-3">
+            <div class="d-flex align-items-start">
+              <fa-icon [icon]="notifyTarget.alert.icon" class="me-2 mt-1"></fa-icon>
+              <div>
+                @if (notifyTarget.alertTitle) {
+                  <strong>{{ notifyTarget.alertTitle }}</strong>
+                  <div class="mt-1">{{ notifyTarget.alertMessage }}</div>
+                } @else {
+                  {{ notifyTarget.alertMessage }}
+                }
+              </div>
+            </div>
+          </div>
+        }
         @if (cutoverStep() !== ConversionNextStep.NONE) {
           <div class="alert alert-warning d-flex align-items-start mb-3">
             <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1"></fa-icon>
@@ -215,17 +232,25 @@ import { MailMxRecords } from "../../../pages/admin/system-settings/mail/mail-mx
                     Turn off Cloudflare proxy
                   </button>
                 }
+                @if (extraAddressesHostToFix(); as extraHost) {
+                  <button type="button" class="btn btn-primary mt-2"
+                          (click)="requestRemoveExtraDns(extraHost)"
+                          [disabled]="customDomainsBusy() || operationBusy || siteUrlBusy || extraDnsBusy === extraHost.hostname">
+                    @if (extraDnsBusy === extraHost.hostname) {
+                      <fa-icon [icon]="faSpinner" animation="spin" class="me-1"></fa-icon>
+                    } @else {
+                      <fa-icon [icon]="faEraser" class="me-1"></fa-icon>
+                    }
+                    Remove extra DNS records
+                  </button>
+                }
               </div>
             </div>
           </div>
         }
         @if (loadingHostnameHealth) {
           <div class="small text-muted">Checking hostnames…</div>
-        } @else if (hostnameHealthError) {
-          <p class="small text-danger mb-0">
-            Hostname check did not complete: {{ hostnameHealthError }}. Press Re-check to try again.
-          </p>
-        } @else {
+        } @else if (!hostnameHealthError) {
           <app-sortable-table
             [columns]="hostnameColumns"
             [rows]="hostnameStatuses()"
@@ -273,6 +298,20 @@ import { MailMxRecords } from "../../../pages/admin/system-settings/mail/mail-mx
                         <fa-icon [icon]="faSpinner" animation="spin"></fa-icon>
                       } @else {
                         <fa-icon [icon]="faWrench"></fa-icon>
+                      }
+                    </button>
+                  }
+                  @if (offerExtraDns(row)) {
+                    <button class="btn btn-primary btn-icon"
+                            (click)="requestRemoveExtraDns(row)"
+                            [disabled]="customDomainsBusy() || operationBusy || siteUrlBusy || extraDnsBusy === row.hostname"
+                            tooltip="Remove extra DNS records"
+                            container="body"
+                            aria-label="Remove extra DNS records">
+                      @if (extraDnsBusy === row.hostname) {
+                        <fa-icon [icon]="faSpinner" animation="spin"></fa-icon>
+                      } @else {
+                        <fa-icon [icon]="faEraser"></fa-icon>
                       }
                     </button>
                   }
@@ -406,7 +445,26 @@ import { MailMxRecords } from "../../../pages/admin/system-settings/mail/mail-mx
             </div>
           </div>
         }
-
+        @if (extraDnsConfirming; as extraConfirm) {
+          <div class="alert alert-warning d-flex align-items-start mt-3 mb-0">
+            <fa-icon [icon]="faExclamationTriangle" class="me-2 mt-1"/>
+            <div class="flex-grow-1">
+              <div><strong>Remove extra DNS records on {{ extraConfirm.hostname }}?</strong></div>
+              <div class="small mt-1">These Cloudflare addresses will be deleted so only the Fly addresses remain. Mail apps on phones can then reach IMAP on this host.</div>
+              <ul class="small mt-2 mb-0">
+                @for (record of extraDnsRecords(extraConfirm); track record.type + record.content) {
+                  <li>{{ record.type }} {{ record.content }}</li>
+                }
+              </ul>
+            </div>
+            <div class="btn-group btn-group-sm ms-3">
+              <button type="button" class="btn btn-danger" [disabled]="extraDnsBusy === extraConfirm.hostname"
+                      (click)="confirmRemoveExtraDns()">Remove</button>
+              <button type="button" class="btn btn-quiet"
+                      (click)="cancelRemoveExtraDns()">Cancel</button>
+            </div>
+          </div>
+        }
         @if (environment) {
           <app-environment-custom-domains
             [environment]="environment"
@@ -414,21 +472,6 @@ import { MailMxRecords } from "../../../pages/admin/system-settings/mail/mail-mx
             [hostnameHealthReport]="hostnameHealthReport"
             [operationBusy]="operationBusy || siteUrlBusy || removingNgxSubdomain"
             (environmentChanged)="onCustomDomainsChanged()"/>
-        }
-        @if (notifyTarget.showAlert) {
-          <div class="alert {{ notifyTarget.alert.class }} mt-3 mb-0">
-            <div class="d-flex align-items-start">
-              <fa-icon [icon]="notifyTarget.alert.icon" class="me-2 mt-1"></fa-icon>
-              <div>
-                @if (notifyTarget.alertTitle) {
-                  <strong>{{ notifyTarget.alertTitle }}</strong>
-                  <div class="mt-1">{{ notifyTarget.alertMessage }}</div>
-                } @else {
-                  {{ notifyTarget.alertMessage }}
-                }
-              </div>
-            </div>
-          </div>
         }
       </div>
     </div>
@@ -459,6 +502,8 @@ export class EnvironmentHostnames implements OnChanges {
   estateMailBusy = false;
   attachingHostname: string | null = null;
   dnsOnlyBusy: string | null = null;
+  extraDnsBusy: string | null = null;
+  extraDnsConfirming: HostnameStatus | null = null;
   removingNgxSubdomain = false;
   removeNgxSubdomainConfirming = false;
   hostnameSortKey = "healthy";
@@ -496,6 +541,8 @@ export class EnvironmentHostnames implements OnChanges {
     if (!this.environment) {
       this.hostnameHealthReport = null;
       this.loadingHostnameHealth = false;
+      this.hostnameHealthError = null;
+      this.notify.hide();
     } else if (this.preparedHostnameHealth) {
       this.hostnameHealthReport = this.preparedHostnameHealth;
       this.loadingHostnameHealth = false;
@@ -602,6 +649,7 @@ export class EnvironmentHostnames implements OnChanges {
   dnsProviderBadgeClass = hostnameDnsProviderBadgeClass;
   repairRedirect = canRepairRedirect;
   offerDnsOnly = canSetDnsOnly;
+  offerExtraDns = canRemoveExtraAddresses;
 
   actionStatement(hostname: HostnameStatus): string {
     return hostnameActionStatement(hostname, this.environmentSubdomainHint());
@@ -667,6 +715,53 @@ export class EnvironmentHostnames implements OnChanges {
       return this.hostnameStatuses().find(hostname => hostname.health === HostnameHealth.PROXIED) || null;
     } else {
       return null;
+    }
+  }
+
+  extraAddressesHostToFix(): HostnameStatus | null {
+    if (this.situation()?.kind === HostnameSituationKind.LIVE_SITE_EXTRA_ADDRESSES) {
+      return this.hostnameStatuses().find(hostname => hostname.health === HostnameHealth.EXTRA_ADDRESSES) || null;
+    } else {
+      return null;
+    }
+  }
+
+  requestRemoveExtraDns(hostname: HostnameStatus): void {
+    this.extraDnsConfirming = hostname;
+  }
+
+  extraDnsRecords(hostname: HostnameStatus) {
+    return leftoverCloudflareAddressRecords(hostname.addressRecords || []);
+  }
+
+  cancelRemoveExtraDns(): void {
+    this.extraDnsConfirming = null;
+  }
+
+  async confirmRemoveExtraDns(): Promise<void> {
+    if (this.extraDnsConfirming) {
+      await this.removeExtraDns(this.extraDnsConfirming);
+    }
+  }
+
+  async removeExtraDns(hostname: HostnameStatus): Promise<void> {
+    if (this.environment) {
+      this.extraDnsBusy = hostname.hostname;
+      this.notify.hide();
+      try {
+        const result = await this.environmentSetupService.removeExtraDns(this.environment.name, hostname.hostname);
+        if (result.success) {
+          this.extraDnsConfirming = null;
+          this.notify.success({title: "Extra DNS records removed", message: result.message});
+          await this.refresh();
+        } else {
+          this.notify.error({title: "Could not remove extra DNS records", message: result.message});
+        }
+      } catch (error) {
+        this.notify.error({title: "Could not remove extra DNS records", message: environmentOperationErrorDetail(error)});
+      } finally {
+        this.extraDnsBusy = null;
+      }
     }
   }
 
@@ -822,10 +917,15 @@ export class EnvironmentHostnames implements OnChanges {
     this.loadingHostnameHealth = true;
     this.hostnameHealthReport = null;
     this.hostnameHealthError = null;
+    this.notify.hide();
     try {
       this.hostnameHealthReport = await this.environmentSetupService.hostnameHealth(environmentName);
     } catch (error) {
       this.hostnameHealthError = environmentOperationErrorDetail(error);
+      this.notify.error({
+        title: "Hostname check did not complete",
+        message: `${this.hostnameHealthError}. Press Re-check to try again.`
+      });
       this.logger.error("Failed to probe hostname health:", error);
     } finally {
       this.loadingHostnameHealth = false;

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import debug from "debug";
-import { keys } from "es-toolkit/compat";
+import { keys, omit } from "es-toolkit/compat";
 import { envConfig } from "../env-config/env-config";
 import {
   InboxAddress,
@@ -26,6 +26,7 @@ import { aliasMailboxAddresses, deliveredToFromMessage, inboxThreadSlug } from "
 import { applyInboundMeetingCalendarReply } from "../video-meetings/apply-meeting-calendar-reply";
 import { derivedAliasForEmail, derivedAliases, messageRecipientEmails } from "./inbox-aliases";
 import { configuredRoleTypeSet } from "./inbox-orphaned-threads";
+import { isRecentSentCopy, SENT_COPY_REPLACE_WINDOW_MS } from "./inbox-sent";
 import { isRecordedDeletedInbound } from "./inbox-deleted";
 import * as config from "../mongo/controllers/config";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
@@ -563,12 +564,34 @@ async function persistOutboundOnThread(aliasConfig: InboxAliasConfig, replyMessa
   if (existing) {
     return existing;
   } else {
-    const created = await inboxMessageModel.create({
-      ...replyMessage,
+    const sentAt = replyMessage.sentAt ?? dateTimeNow().toMillis();
+    const recent = await inboxMessageModel.find({
       threadId: originalThreadId,
-      mailboxConnectionId: replyMessage.mailboxConnectionId ?? aliasConfig.mailboxConnectionId
-    });
-    return created.toObject();
+      direction: InboxMessageDirection.OUTBOUND,
+      sentAt: {$gte: sentAt - SENT_COPY_REPLACE_WINDOW_MS, $lte: sentAt + SENT_COPY_REPLACE_WINDOW_MS}
+    }).lean() as InboxMessage[];
+    const duplicate = recent.find(candidate => isRecentSentCopy({...replyMessage, sentAt}, candidate));
+    if (duplicate) {
+      const documentId = duplicate.id ?? String((duplicate as InboxMessage & {_id?: unknown})._id ?? "");
+      await inboxMessageModel.updateOne(
+        {_id: documentId},
+        {$set: omit({...replyMessage, threadId: originalThreadId, messageId: duplicate.messageId}, ["id", "_id"])}
+      );
+      return {
+        ...duplicate,
+        ...replyMessage,
+        threadId: originalThreadId,
+        messageId: duplicate.messageId,
+        id: documentId
+      };
+    } else {
+      const created = await inboxMessageModel.create({
+        ...replyMessage,
+        threadId: originalThreadId,
+        mailboxConnectionId: replyMessage.mailboxConnectionId ?? aliasConfig.mailboxConnectionId
+      });
+      return created.toObject();
+    }
   }
 }
 

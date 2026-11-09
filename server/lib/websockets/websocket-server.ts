@@ -11,7 +11,7 @@ import {
   MessageType,
   WebSocketRequest
 } from "../../../projects/ngx-ramblers/src/app/models/websocket.model";
-import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { handleRamblersWalksUpload } from "../ramblers/ramblers-upload-websocket-handler";
 import { cancelLocalRamblersUpload } from "../ramblers/ramblers-upload-dispatcher";
 import { humanFileSize } from "../../../projects/ngx-ramblers/src/app/functions/file-utils";
@@ -36,6 +36,7 @@ import { handleLegacyUrlScrape } from "../legacy-redirect/legacy-redirect-ws-han
 import { handleScheduledTaskEventsWebSocket } from "../cron/scheduled-task-events-ws-handler";
 import { handleSocialPublishAlbum } from "../social/social-publish-ws-handler";
 import { handleCampaignRecipientExport } from "../brevo/campaigns/campaign-recipients-ws-handler";
+import { handleSystemLogsWebSocket } from "../logging/system-logs-ws-handler";
 
 const debugLog = debug(envConfig.logNamespace("websocket-server"));
 debugLog.enabled = true;
@@ -69,6 +70,7 @@ const messageHandlers: MessageHandlers = {
   [EventType.EXTERNAL_USER_ALBUMS_FETCH]: async (ws: WebSocket, data: any) => handleExternalUserAlbumsFetch(ws, data),
   [EventType.EXTERNAL_BULK_ALBUM_IMPORT]: async (ws: WebSocket, data: any) => handleExternalBulkAlbumImport(ws, data),
   [EventType.LEGACY_URL_SCRAPE]: async (ws: WebSocket, data: any) => handleLegacyUrlScrape(ws, data),
+  [EventType.SYSTEM_LOGS]: async (ws: WebSocket, data: any, authToken: string) => handleSystemLogsWebSocket(ws, data, authToken),
   [EventType.SCHEDULED_TASK_EVENTS]: async (ws: WebSocket, data: any) => handleScheduledTaskEventsWebSocket(ws, data),
   [EventType.SOCIAL_PUBLISH_ALBUM]: async (ws: WebSocket, data: any) => handleSocialPublishAlbum(ws, data),
   [EventType.PING]: (ws: WebSocket) => {

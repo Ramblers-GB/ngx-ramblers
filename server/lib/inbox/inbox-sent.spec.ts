@@ -1,7 +1,7 @@
 import expect from "expect";
 import { describe, it } from "mocha";
 import { InboxMessage, InboxMessageDirection, InboxThread } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
-import { sentMessageRows, sentThreadObjectIds } from "./inbox-sent";
+import { isRecentSentCopy, sentMessageRows, sentThreadObjectIds } from "./inbox-sent";
 
 describe("inbox-sent", () => {
 
@@ -77,17 +77,94 @@ describe("inbox-sent", () => {
       expect(rows[0].externalAddress).toEqual({name: "Jane Member", email: "jane@example.com"});
     });
 
+    it("hides Outlook Sent stubs that have no recipient, subject or body", () => {
+      const threads = [createThread("a")];
+      const messages = [
+        createMessage({threadId: "a", messageId: "<real>", subject: "Walk notes", sentAt: 200}),
+        createMessage({threadId: "a", messageId: "<stub>", subject: "(no subject)", to: [], sentAt: 100})
+      ];
+      const {rows, totalCount} = sentMessageRows(threads, messages, 0, 50);
+      expect(totalCount).toBe(1);
+      expect(rows.map(row => row.sentMessageId)).toEqual(["<real>"]);
+    });
+
+    it("collapses duplicate copies of the same send from SMTP and IMAP", () => {
+      const threads = [createThread("a"), createThread("b")];
+      const messages = [
+        createMessage({threadId: "a", messageId: "<smtp>", subject: "Re: Test of group mail", inReplyTo: "<orig>", sentAt: 1000}),
+        createMessage({threadId: "b", messageId: "<imap>", subject: "Re: Test of group mail", inReplyTo: "<orig>", sentAt: 1400})
+      ];
+      const {rows, totalCount} = sentMessageRows(threads, messages, 0, 50);
+      expect(totalCount).toBe(1);
+      expect(rows[0].sentMessageId).toBe("<imap>");
+    });
+
+    it("collapses Outlook draft saves that change Message-ID and In-Reply-To", () => {
+      const threads = [createThread("a")];
+      const messages = [
+        createMessage({threadId: "a", messageId: "<v3>", subject: "Re: Walk notes", inReplyTo: "<v2>", sentAt: 3 * 60 * 1000}),
+        createMessage({threadId: "a", messageId: "<v2>", subject: "Re: Walk notes", inReplyTo: "<v1>", sentAt: 2 * 60 * 1000}),
+        createMessage({threadId: "a", messageId: "<v1>", subject: "Re: Walk notes", inReplyTo: null, sentAt: 60 * 1000})
+      ];
+      const {rows, totalCount} = sentMessageRows(threads, messages, 0, 50);
+      expect(totalCount).toBe(1);
+      expect(rows[0].sentMessageId).toBe("<v3>");
+    });
+
+    it("keeps two genuine sends of the same subject when they are hours apart", () => {
+      const threads = [createThread("a")];
+      const hour = 60 * 60 * 1000;
+      const messages = [
+        createMessage({threadId: "a", messageId: "<later>", subject: "Walk notes", sentAt: 3 * hour}),
+        createMessage({threadId: "a", messageId: "<earlier>", subject: "Walk notes", sentAt: hour})
+      ];
+      const {totalCount} = sentMessageRows(threads, messages, 0, 50);
+      expect(totalCount).toBe(2);
+    });
+
     it("should apply offset and limit after ordering", () => {
       const threads = [createThread("a")];
       const messages = [
-        createMessage({threadId: "a", messageId: "<m1>", sentAt: 400}),
-        createMessage({threadId: "a", messageId: "<m2>", sentAt: 300}),
-        createMessage({threadId: "a", messageId: "<m3>", sentAt: 200}),
-        createMessage({threadId: "a", messageId: "<m4>", sentAt: 100})
+        createMessage({threadId: "a", messageId: "<m1>", subject: "one", sentAt: 400}),
+        createMessage({threadId: "a", messageId: "<m2>", subject: "two", sentAt: 300}),
+        createMessage({threadId: "a", messageId: "<m3>", subject: "three", sentAt: 200}),
+        createMessage({threadId: "a", messageId: "<m4>", subject: "four", sentAt: 100})
       ];
       const {rows, totalCount} = sentMessageRows(threads, messages, 1, 2);
       expect(totalCount).toBe(4);
       expect(rows.map(row => row.sentMessageId)).toEqual(["<m2>", "<m3>"]);
+    });
+  });
+
+  describe("isRecentSentCopy", () => {
+
+    it("does not treat two different replies as copies because they share sender, subject and recipients", () => {
+      const first = createMessage({
+        subject: "Re: Walk notes",
+        bodyText: "I can lead Saturday",
+        sentAt: 1000
+      });
+      const second = createMessage({
+        subject: "Re: Walk notes",
+        bodyText: "I will bring the first-aid kit",
+        sentAt: 60 * 1000
+      });
+      expect(isRecentSentCopy(first, second)).toBe(false);
+    });
+
+    it("treats a later IMAP copy as the same send when one body is still empty", () => {
+      const smtp = createMessage({
+        subject: "Re: Walk notes",
+        bodyText: "I can lead Saturday",
+        sentAt: 1000
+      });
+      const imapStub = createMessage({
+        subject: "Re: Walk notes",
+        bodyText: "",
+        bodyHtml: "",
+        sentAt: 1400
+      });
+      expect(isRecentSentCopy(smtp, imapStub)).toBe(true);
     });
   });
 

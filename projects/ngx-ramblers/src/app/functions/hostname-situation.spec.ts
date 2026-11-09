@@ -6,7 +6,7 @@ import {
   HostnameSituationKind,
   HostnameStatus
 } from "../models/environment-setup.model";
-import { analyseHostnameSituation, hostnameNeedsAction } from "./hostname-situation";
+import { activeHostInApexWwwPair, analyseHostnameSituation, hostnameNeedsAction } from "./hostname-situation";
 
 function status(overrides: Partial<HostnameStatus>): HostnameStatus {
   return {
@@ -16,6 +16,7 @@ function status(overrides: Partial<HostnameStatus>): HostnameStatus {
     healthy: true,
     dnsRecordType: "A",
     dnsContent: "1.2.3.4",
+    addressRecords: [],
     proxied: false,
     redirectRuleTarget: "",
     httpStatus: 200,
@@ -29,6 +30,35 @@ function status(overrides: Partial<HostnameStatus>): HostnameStatus {
 }
 
 describe("hostname-situation", () => {
+
+  it("should treat the serving host in an apex/www pair as the active public site", () => {
+    const pair = {apex: "group.example.org.uk", www: "www.group.example.org.uk"};
+    const active = activeHostInApexWwwPair(pair, [
+      status({hostname: pair.apex, origin: HostnameOrigin.SITE_URL, health: HostnameHealth.SERVING}),
+      status({
+        hostname: pair.www,
+        origin: HostnameOrigin.CUSTOM_DOMAIN,
+        health: HostnameHealth.REDIRECTING,
+        healthy: true
+      })
+    ], pair.apex);
+    expect(active).toBe(pair.apex);
+  });
+
+  it("should treat the www host as active when that side is serving", () => {
+    const pair = {apex: "group.example.org.uk", www: "www.group.example.org.uk"};
+    const active = activeHostInApexWwwPair(pair, [
+      status({
+        hostname: pair.apex,
+        origin: HostnameOrigin.CUSTOM_DOMAIN,
+        health: HostnameHealth.REDIRECTING,
+        healthy: true
+      }),
+      status({hostname: pair.www, origin: HostnameOrigin.SITE_URL, health: HostnameHealth.SERVING})
+    ], pair.www);
+    expect(active).toBe(pair.www);
+  });
+
 
   it("should ask for a re-check when no hostnames were returned", () => {
     const situation = analyseHostnameSituation([]);
@@ -231,6 +261,21 @@ describe("hostname-situation", () => {
     ]);
     expect(situation.kind).toBe(HostnameSituationKind.LIVE_REDIRECT_TARGET_MISSING);
     expect(situation.action).toContain("Apex / www redirect");
+  });
+
+  it("should tell you to remove extra Cloudflare addresses on a live Site URL", () => {
+    const situation = analyseHostnameSituation([
+      status({
+        hostname: "group.example.org.uk",
+        origin: HostnameOrigin.SITE_URL,
+        health: HostnameHealth.EXTRA_ADDRESSES,
+        healthy: false,
+        message: "Extra Cloudflare addresses"
+      })
+    ]);
+    expect(situation.kind).toBe(HostnameSituationKind.LIVE_SITE_EXTRA_ADDRESSES);
+    expect(situation.alert).toBe(HostnameSituationAlert.WARNING);
+    expect(situation.title).toContain("group.example.org.uk");
   });
 
   it("should tell you to set DNS only when the live Site URL is Cloudflare-proxied", () => {

@@ -20,6 +20,7 @@ import { MailClientAppendResult, MailClientMailbox } from "./mail-client-imap.mo
 import { storeMailClientAttachments } from "./mail-client-submit";
 import { mailboxUidState, mailboxMessageUid, mailboxByName } from "./mail-client-imap-mailbox";
 import { Member } from "../../../projects/ngx-ramblers/src/app/models/member.model";
+import { normaliseEmail } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 
 export async function appendMailClientRfc822(
   role: CommitteeMember,
@@ -28,7 +29,7 @@ export async function appendMailClientRfc822(
   member: Member
 ): Promise<MailClientAppendResult> {
   const parsed = await simpleParser(raw, {skipImageLinks: true});
-  const from = firstAddress(parsed.from) ?? {name: role.fullName || "", email: role.email};
+  const from = fromAddressForRole(firstAddress(parsed.from), role, mailbox);
   const to = addressesOf(parsed.to);
   const cc = addressesOf(parsed.cc);
   const messageId = parsed.messageId || `<imap-append-${dateTimeNow().toMillis()}@mail-client.example.invalid>`;
@@ -61,6 +62,7 @@ export async function appendMailClientRfc822(
       externalId: null,
       attachments: mailbox.folder !== InboxThreadFolder.DRAFTS && existingThread?.folder !== InboxThreadFolder.DRAFTS && existing ? existing.attachments : await storeMailClientAttachments(parsed.attachments ?? [])
     };
+    const incomingEmpty = !mailClientAppendHasContent(parsed);
     if (mailbox.folder === InboxThreadFolder.DRAFTS) {
       const stored = await persistWithoutRecipients(alias.roleType, outbound, InboxThreadFolder.DRAFTS, null);
       if (existing?.threadId && existing.threadId !== stored.threadId) {
@@ -70,7 +72,8 @@ export async function appendMailClientRfc822(
       return appendResult(role, mailbox, messageId, stored.id);
     } else {
       if (existing) {
-        if (existingThread?.folder === InboxThreadFolder.DRAFTS
+        if ((!incomingEmpty && inboxMessageHasNoContent(existing))
+          || existingThread?.folder === InboxThreadFolder.DRAFTS
           || (existing.direction === InboxMessageDirection.INBOUND && sentCopyOnInbox(mailbox, outbound, role))) {
           await inboxMessageModel.updateOne(
             {threadId: existing.threadId, messageId},
@@ -78,12 +81,14 @@ export async function appendMailClientRfc822(
           );
         }
         await placeExistingInMailbox(existing, mailbox, outbound, role);
+      } else if (incomingEmpty && (sentMailbox(mailbox) || sentCopyOnInbox(mailbox, outbound, role))) {
+        const state = await mailboxUidState(role, mailbox);
+        return {uidValidity: state.uidValidity, uid: state.uidNext};
       } else if (sentMailbox(mailbox) || sentCopyOnInbox(mailbox, outbound, role)) {
-        if (outbound.deliveryRecipients?.length) {
-          await recordOutboundMessage(alias, outbound);
-        } else {
-          await persistWithoutRecipients(alias.roleType, outbound, InboxThreadFolder.SENT, null);
-        }
+        const stored = outbound.deliveryRecipients?.length
+          ? await recordOutboundMessage(alias, outbound)
+          : await persistWithoutRecipients(alias.roleType, outbound, InboxThreadFolder.SENT, null);
+        return appendResult(role, mailbox, stored?.messageId || messageId, stored?.id || null, sentCopyOnInbox(mailbox, outbound, role));
       } else if (mailbox.folder === InboxThreadFolder.INBOX) {
         await storeInboundMessage(alias, {...outbound, direction: InboxMessageDirection.INBOUND, receivedAt: dateTimeNow().toMillis()});
       } else if (mailbox.userFolderId) {
@@ -152,6 +157,38 @@ async function placeExistingInMailbox(existing: InboxMessage, mailbox: MailClien
   } else if (mailbox.folder === InboxThreadFolder.DRAFTS && existing.threadId) {
     await inboxThreadModel.updateOne({_id: existing.threadId}, {$set: {folder: InboxThreadFolder.DRAFTS}});
   }
+}
+
+function fromAddressForRole(from: InboxAddress | null, role: CommitteeMember, mailbox: MailClientMailbox): InboxAddress {
+  const roleEmail = normaliseEmail(role.email);
+  const parsedEmail = normaliseEmail(from?.email || "");
+  const nameLooksLikeRole = normaliseEmail(from?.name || "") === roleEmail;
+  if (sentMailbox(mailbox) || !parsedEmail || parsedEmail === roleEmail) {
+    return {
+      name: nameLooksLikeRole ? (role.fullName || "") : (from?.name || role.fullName || ""),
+      email: role.email
+    };
+  } else {
+    return {
+      name: from?.name || "",
+      email: from?.email || ""
+    };
+  }
+}
+
+function mailClientAppendHasContent(parsed: {subject?: string; html?: string | false; text?: string; attachments?: unknown[]}): boolean {
+  const subject = (parsed.subject || "").trim();
+  const html = parsed.html ? String(parsed.html).trim() : "";
+  const text = (parsed.text || "").trim();
+  return Boolean(subject) || Boolean(html) || Boolean(text) || (parsed.attachments?.length ?? 0) > 0;
+}
+
+function inboxMessageHasNoContent(message: InboxMessage): boolean {
+  const subject = (message.subject || "").trim();
+  const html = (message.bodyHtml || "").trim();
+  const text = (message.bodyText || "").trim();
+  const placeholderSubject = !subject || subject === "(no subject)";
+  return placeholderSubject && !html && !text && !(message.attachments?.length);
 }
 
 function sentMailbox(mailbox: MailClientMailbox): boolean {

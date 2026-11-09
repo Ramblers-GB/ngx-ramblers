@@ -18,8 +18,7 @@ import {
 } from "../database-initialiser";
 import { adminConfigFromEnvironment, copyStandardAssets, validateAwsAdminCredentials } from "../aws-setup";
 import { createEnvironment, listSessions, sessionStatus, validateSetupRequest } from "../environment-setup-service";
-import { EnvironmentStatusCheck, HostnameHealth, HostnameOrigin } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
-import { EnvironmentSetupRequest, RamblersAreaLookup, RamblersGroupLookup } from "../types";
+import { EnvironmentSetupRequest, EnvironmentStatusCheck, HostnameHealth, HostnameOrigin, RamblersAreaLookup, RamblersGroupLookup } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { configuredEnvironments, findEnvironmentFromDatabase } from "../../environments/environments-config";
 import { registrationSettings } from "../../site-registration/registration-store";
 import { extendedGroupEvent } from "../../mongo/models/extended-group-event";
@@ -29,7 +28,7 @@ import { liteHomeTemplatePageContent, LITE_HOME_TEMPLATE_PATH } from "../../../.
 import { PageContent } from "../../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { GroupEventField, DocumentField } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { EventSource } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { buildMongoUri, parseMongoUri } from "../../shared/mongodb-uri";
 import { resumeEnvironment } from "../../cli/commands/environment";
 import { destroyEnvironment } from "../../cli/commands/destroy";
@@ -51,6 +50,7 @@ import { environmentHostnameHealth, updateEnvironmentSiteUrl } from "../hostname
 import { moveMailToCustomDomainForEnvironment } from "../rewrite-mail-domain-for-environment";
 import { enableInboundMailForEnvironment } from "../enable-inbound-mail";
 import { setHostnameDnsOnly } from "../set-dns-only";
+import { removeExtraCloudflareAddresses } from "../remove-extra-dns";
 import { appIpAddresses, queryCertificates } from "../../fly/fly-certificates";
 import { probeFlyOrgMigrationStatus } from "../../fly/fly-org-migration";
 import { booleanOf } from "../../shared/string-utils";
@@ -1028,6 +1028,35 @@ export async function removeApexRedirectRequest(req: Request, res: Response) {
     }
     errorDebugLog("Error removing apex redirect:", error.message);
     res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function removeExtraDnsRequest(req: Request, res: Response) {
+  try {
+    const environmentName = req.params.environmentName;
+    const hostname = req.body?.hostname;
+    debugLog("Remove extra DNS request received for:", environmentName, hostname);
+    if (!isString(hostname) || !hostname.trim()) {
+      res.status(400).json({ success: false, message: "hostname is required" });
+    } else {
+      const result = await removeExtraCloudflareAddresses(environmentName, hostname);
+      res.json({
+        success: true,
+        message: result.removed > 0
+          ? `Removed ${result.removed} extra Cloudflare address${result.removed === 1 ? "" : "es"} from ${result.hostname}. Mail apps can use IMAP and SMTP on this host.`
+          : `${result.hostname} has no extra Cloudflare addresses`,
+        hostname: result.hostname,
+        removed: result.removed,
+        logs: result.logs
+      });
+    }
+  } catch (error) {
+    if (error instanceof EnvironmentNotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
+    } else {
+      errorDebugLog("Error removing extra DNS:", error.message);
+      res.status(500).json({ success: false, message: error.message });
+    }
   }
 }
 

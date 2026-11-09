@@ -27,6 +27,7 @@ import {
   hostnameMayHaveWwwCompanion,
   suggestedCustomDomainHostname
 } from "../../../functions/hosts";
+import { activeHostInApexWwwPair } from "../../../functions/hostname-situation";
 import { mailDomainForSiteHost, ngxRamblersMailDomain } from "../../../functions/rewrite-mail-domain";
 import { LoggerFactory } from "../../../services/logger-factory.service";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
@@ -161,18 +162,27 @@ import { environmentOperationErrorDetail } from "./environment-operation-error";
       </p>
       @if (switchableSiteHostPair(); as pair) {
         <div class="d-flex gap-2 align-items-start flex-wrap mb-2">
-          <button type="button" class="btn btn-primary" (click)="setupApexRedirect(pair.apex)"
-                  [disabled]="operationBusy || customDomainBusy || apexRedirectBusy">
+          <button type="button" class="btn"
+                  [class.btn-primary]="activeApexWwwHost() !== pair.apex"
+                  [class.btn-quiet]="activeApexWwwHost() === pair.apex"
+                  (click)="setupApexRedirect(pair.apex)"
+                  [disabled]="operationBusy || customDomainBusy || apexRedirectBusy || activeApexWwwHost() === pair.apex">
             @if (apexRedirectBusy) {
               <fa-icon [icon]="faSpinner" animation="spin" class="me-1"></fa-icon>
             }
             Use {{ pair.apex }}
           </button>
-          <button type="button" class="btn btn-quiet" (click)="setupApexRedirect(pair.www)"
-                  [disabled]="operationBusy || customDomainBusy || apexRedirectBusy">
+          <button type="button" class="btn"
+                  [class.btn-primary]="activeApexWwwHost() !== pair.www"
+                  [class.btn-quiet]="activeApexWwwHost() === pair.www"
+                  (click)="setupApexRedirect(pair.www)"
+                  [disabled]="operationBusy || customDomainBusy || apexRedirectBusy || activeApexWwwHost() === pair.www">
             Use {{ pair.www }}
           </button>
         </div>
+        @if (activeApexWwwHost(); as active) {
+          <p class="small text-muted mb-2">{{ active }} is the public site. The other button switches visitors to that address.</p>
+        }
       } @else {
         <div class="d-flex gap-2 align-items-start flex-wrap">
           <input type="text" class="form-control" style="max-width: 320px;"
@@ -405,6 +415,15 @@ export class EnvironmentCustomDomains implements OnChanges {
       return {apex, www: `www.${apex}`};
     } else {
       return null;
+    }
+  }
+
+  activeApexWwwHost(): string | null {
+    const pair = this.switchableSiteHostPair();
+    if (!pair) {
+      return null;
+    } else {
+      return activeHostInApexWwwPair(pair, this.hostnameStatuses(), this.hostnameHealthReport?.siteUrl || "");
     }
   }
 

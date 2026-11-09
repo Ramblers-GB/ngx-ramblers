@@ -38,6 +38,19 @@ describe("reconcileAddressRecord", () => {
     expect(requests[0].body.content).toEqual("2001:db8::20");
   });
 
+  it("deletes extra address records of the same type once Fly is pointed correctly", async () => {
+    const requests = recordRequests();
+    const existing = [
+      {id: "keep", type: "AAAA", content: "2001:db8::20", proxied: false},
+      {id: "extra-1", type: "AAAA", content: "2606:4700::1", proxied: false},
+      {id: "extra-2", type: "AAAA", content: "2606:4700::2", proxied: false}
+    ];
+    await reconcileAddressRecord(() => undefined, dnsConfig, "example-group", "example-group.example.org", DnsRecordType.AAAA, "2001:db8::20", existing);
+    expect(requests.map(request => request.method)).toEqual(["DELETE", "DELETE"]);
+    expect(requests.map(request => request.url).join(" ")).toContain("extra-1");
+    expect(requests.map(request => request.url).join(" ")).toContain("extra-2");
+  });
+
   it("turns a proxied address record DNS-only when the content already matches Fly", async () => {
     const requests = recordRequests();
     const existing = [{id: "aaaa", type: "AAAA", content: "2001:db8::20", proxied: true}];

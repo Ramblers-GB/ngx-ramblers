@@ -46,6 +46,7 @@ router.post("/check-custom-domain/:environmentName", controllers.checkCustomDoma
 router.post("/setup-apex-redirect/:environmentName", controllers.setupApexRedirectRequest);
 router.post("/remove-apex-redirect/:environmentName", controllers.removeApexRedirectRequest);
 router.post("/set-dns-only/:environmentName", controllers.requireSetupAccess, controllers.setDnsOnlyRequest);
+router.post("/remove-extra-dns/:environmentName", controllers.requireSetupAccess, controllers.removeExtraDnsRequest);
 router.post("/authenticate-brevo-domain/:environmentName", controllers.authenticateBrevoDomainRequest);
 router.post("/move-mail-to-custom-domain/:environmentName", controllers.moveMailToCustomDomainRequest);
 router.post("/enable-inbound-mail/:environmentName", controllers.requireSetupAccess, controllers.enableInboundMailRequest);

@@ -6,6 +6,7 @@ import {
   HostnameStatus
 } from "../../../models/environment-setup.model";
 import {
+  canSetDnsOnly,
   canUseAsSiteUrl,
   domainStatusLabel,
   hostnameActionStatement,
@@ -21,6 +22,7 @@ function status(overrides: Partial<HostnameStatus>): HostnameStatus {
     healthy: true,
     dnsRecordType: "A",
     dnsContent: "1.2.3.4",
+    addressRecords: [],
     proxied: false,
     redirectRuleTarget: "",
     httpStatus: 200,
@@ -54,6 +56,16 @@ describe("environment-hostname-display", () => {
     });
     expect(hostnameHealthBadgeClass(hostname)).toBe("badge bg-warning text-dark");
     expect(hostnameActionStatement(hostname, "group.ngx-ramblers.org.uk")).toBe("");
+  });
+
+  it("should not offer DNS only on a Cloudflare redirect placeholder", () => {
+    const hostname = status({
+      health: HostnameHealth.PROXIED,
+      healthy: false,
+      proxied: true,
+      dnsContent: "192.0.2.1"
+    });
+    expect(canSetDnsOnly(hostname)).toBe(false);
   });
 
   it("should not offer Use as Site URL unless the host is serving", () => {

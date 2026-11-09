@@ -12,7 +12,7 @@ import { ramblersNationalUrl } from "../../../functions/hosts";
 export function hostnameHealthBadgeClass(hostname: HostnameStatus): string {
   if (hostname.health === HostnameHealth.NOT_CREATED) {
     return "badge bg-warning";
-  } else if (hostname.health === HostnameHealth.PROXIED) {
+  } else if (hostname.health === HostnameHealth.PROXIED || hostname.health === HostnameHealth.EXTRA_ADDRESSES) {
     return "badge bg-warning text-dark";
   } else if (hostname.healthy) {
     return "badge bg-success";
@@ -34,11 +34,18 @@ export function hostnameOriginLabel(hostname: HostnameStatus): string {
 }
 
 export function hostnameDnsSummary(hostname: HostnameStatus): string {
-  if (!hostname.dnsRecordType) {
+  const records = hostname.addressRecords?.length
+    ? hostname.addressRecords
+    : hostname.dnsRecordType
+      ? [{type: hostname.dnsRecordType, content: hostname.dnsContent, proxied: hostname.proxied}]
+      : [];
+  if (records.length === 0) {
     return "no record";
   } else {
-    const proxyState = hostname.proxied ? "proxied" : "DNS only";
-    return `${hostname.dnsRecordType} ${hostname.dnsContent} (${proxyState})`;
+    return records.map(record => {
+      const proxyState = record.proxied ? "proxied" : "DNS only";
+      return `${record.type} ${record.content} (${proxyState})`;
+    }).join("; ");
   }
 }
 
@@ -88,7 +95,11 @@ export function canRepairRedirect(hostname: HostnameStatus): boolean {
 }
 
 export function canSetDnsOnly(hostname: HostnameStatus): boolean {
-  return hostname.health === HostnameHealth.PROXIED;
+  return hostname.health === HostnameHealth.PROXIED && hostname.dnsContent !== "192.0.2.1";
+}
+
+export function canRemoveExtraAddresses(hostname: HostnameStatus): boolean {
+  return hostname.health === HostnameHealth.EXTRA_ADDRESSES;
 }
 
 export function shouldOfferClearSiteUrl(hostname: HostnameStatus, environmentSubdomainHint: string): boolean {
@@ -111,7 +122,7 @@ export function canUseAsSiteUrl(hostname: HostnameStatus, statuses: HostnameStat
 }
 
 export function hostnameActionStatement(hostname: HostnameStatus, environmentSubdomainHint: string): string {
-  if (hostname.health === HostnameHealth.PROXIED) {
+  if (hostname.health === HostnameHealth.PROXIED || hostname.health === HostnameHealth.EXTRA_ADDRESSES) {
     return "";
   } else if (hostname.healthy && hostname.origin === HostnameOrigin.SITE_URL) {
     return "This is the public site.";
@@ -157,6 +168,7 @@ export function hostnameHasActions(
 ): boolean {
   return canRepairRedirect(hostname)
     || canSetDnsOnly(hostname)
+    || canRemoveExtraAddresses(hostname)
     || shouldOfferClearSiteUrl(hostname, environmentSubdomainHint)
     || canUseAsSiteUrl(hostname, statuses)
     || canAttachUnmappedHostname(hostname)

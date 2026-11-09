@@ -1,6 +1,6 @@
 import { PlatformSendControl } from "./mail.model";
 import { ApiResponse } from "./api-response.model";
-import { RamblersGroupsApiResponse } from "./ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "./ramblers-walks-manager.model";
 import { AWS_DEFAULTS, CustomDomainEntry, FLYIO_DEFAULTS } from "./environment-config.model";
 import { RootFolder } from "./system.model";
 import { MxRecordStatus } from "./cloudflare-email-routing.model";
@@ -596,6 +596,14 @@ export interface SetDnsOnlyResponse {
   logs?: string[];
 }
 
+export interface RemoveExtraDnsResponse {
+  success: boolean;
+  message: string;
+  hostname?: string;
+  removed?: number;
+  logs?: string[];
+}
+
 export interface ExistingEnvironmentsResponse extends ApiResponse {
   environments: ExistingEnvironment[];
 }
@@ -1013,6 +1021,7 @@ export enum HostnameHealth {
   NOT_CREATED = "not-created",
   UNREACHABLE = "unreachable",
   ZONE_NOT_FOUND = "zone-not-found",
+  EXTRA_ADDRESSES = "extra-addresses",
   UNKNOWN = "unknown"
 }
 
@@ -1034,7 +1043,8 @@ export enum HostnameSituationKind {
   LIVE_REMOVE_SUBDOMAIN = "live-remove-subdomain",
   LIVE_CHECK_CUSTOM_DOMAIN = "live-check-custom-domain",
   LIVE_SETUP_PAIR_REDIRECT = "live-setup-pair-redirect",
-  LIVE_SITE_PROXIED = "live-site-proxied"
+  LIVE_SITE_PROXIED = "live-site-proxied",
+  LIVE_SITE_EXTRA_ADDRESSES = "live-site-extra-addresses"
 }
 
 export enum HostnameSituationAlert {
@@ -1082,6 +1092,12 @@ export const dnsProviderLabels: Record<DnsProvider, string> = {
   [DnsProvider.UNKNOWN]: "Unknown"
 };
 
+export interface HostnameAddressRecord {
+  type: string;
+  content: string;
+  proxied: boolean;
+}
+
 export interface HostnameStatus {
   hostname: string;
   origin: HostnameOrigin;
@@ -1089,6 +1105,7 @@ export interface HostnameStatus {
   healthy: boolean;
   dnsRecordType: string;
   dnsContent: string;
+  addressRecords: HostnameAddressRecord[];
   proxied: boolean;
   redirectRuleTarget: string;
   httpStatus: number;
@@ -1156,6 +1173,7 @@ export const hostnameHealthLabels: Record<HostnameHealth, string> = {
   [HostnameHealth.NOT_CREATED]: "Not created",
   [HostnameHealth.UNREACHABLE]: "Unreachable",
   [HostnameHealth.ZONE_NOT_FOUND]: "No Cloudflare zone",
+  [HostnameHealth.EXTRA_ADDRESSES]: "Blocks mail",
   [HostnameHealth.UNKNOWN]: "Unknown"
 };
 

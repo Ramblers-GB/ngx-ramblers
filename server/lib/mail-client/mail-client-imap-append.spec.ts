@@ -30,7 +30,7 @@ describe("mail application saved copies", () => {
   afterEach(() => sandbox.restore());
 
   it("files an existing outbound copy into Sent", async () => {
-    const existing = {threadId: "thread-1", messageId, direction: InboxMessageDirection.OUTBOUND, attachments: []};
+    const existing = {threadId: "thread-1", messageId, direction: InboxMessageDirection.OUTBOUND, subject: "Local check", bodyHtml: "<p>Test body</p>", bodyText: "Test body", attachments: []};
     const find = sandbox.stub(inboxMessage, "findOne").returns({lean: async () => existing} as any);
     const update = sandbox.stub(inboxThread, "updateOne");
     sandbox.stub(inboxThread, "find").returns({select: () => ({lean: async () => []})} as any);
@@ -46,7 +46,7 @@ describe("mail application saved copies", () => {
   });
 
   it("keeps a received conversation in its current folder when saving a sent copy", async () => {
-    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => ({threadId: "thread-1", messageId, direction: InboxMessageDirection.OUTBOUND, attachments: []})} as any);
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => ({threadId: "thread-1", messageId, direction: InboxMessageDirection.OUTBOUND, subject: "Local check", bodyHtml: "<p>Test body</p>", bodyText: "Test body", attachments: []})} as any);
     (inboxMessage.countDocuments as sinon.SinonStub).resolves(1);
     const update = sandbox.stub(inboxThread, "updateOne");
     sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(11);
@@ -55,7 +55,7 @@ describe("mail application saved copies", () => {
   });
 
   it("limits outbound-only Sent filing to unfiled Inbox or Drafts conversations", async () => {
-    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => ({threadId: "thread-1", messageId, direction: InboxMessageDirection.OUTBOUND, attachments: []})} as any);
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => ({threadId: "thread-1", messageId, direction: InboxMessageDirection.OUTBOUND, subject: "Local check", bodyHtml: "<p>Test body</p>", bodyText: "Test body", attachments: []})} as any);
     const update = sandbox.stub(inboxThread, "updateOne");
     sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(11);
     await appendMailClientRfc822(role, sent, raw, member);
@@ -69,6 +69,21 @@ describe("mail application saved copies", () => {
     sandbox.stub(messageImport, "recordOutboundMessage").resolves({threadId: "sent-thread", messageId} as any);
     sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(null);
     expect(await appendMailClientRfc822(role, inbox, raw, member)).toEqual({uidValidity: 4, uid: null});
+  });
+
+  it("keeps an external Inbox sender and stores the message as inbound", async () => {
+    const inbox = {name: "INBOX", folder: InboxThreadFolder.INBOX, userFolderId: null};
+    const incoming = Buffer.from(`From: Alex Reed <alex.reed@example.com>\r\nTo: chair@group.example.org.uk\r\nMessage-ID: ${messageId}\r\nSubject: Walk query\r\n\r\nCan I join Saturday?\r\n`);
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => null} as any);
+    sandbox.stub(submission, "storeMailClientAttachments").resolves([]);
+    const inbound = sandbox.stub(messageImport, "storeInboundMessage").resolves({} as any);
+    const outbound = sandbox.stub(messageImport, "recordOutboundMessage");
+    sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(9);
+    await appendMailClientRfc822(role, inbox, incoming, member);
+    expect(outbound.called).toBe(false);
+    expect(inbound.calledOnce).toBe(true);
+    expect(inbound.firstCall.args[1].from).toEqual({name: "Alex Reed", email: "alex.reed@example.com"});
+    expect(inbound.firstCall.args[1].direction).toBe(InboxMessageDirection.INBOUND);
   });
 
   it("classifies an existing own-address Inbox copy as outbound before filing it", async () => {
@@ -103,6 +118,7 @@ describe("mail application saved copies", () => {
 
   it("does not report another message's identifier when the saved message is absent", async () => {
     sandbox.stub(inboxMessage, "findOne").returns({lean: async () => ({threadId: "thread-1", messageId, attachments: []})} as any);
+    sandbox.stub(inboxMessage, "updateOne").resolves({} as any);
     sandbox.stub(inboxThread, "updateOne");
     sandbox.stub(inboxThread, "find").returns({select: () => ({lean: async () => []})} as any);
     sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(null);
@@ -145,6 +161,63 @@ describe("mail application saved copies", () => {
     expect(uid.firstCall.args).toEqual([role, drafts, messageId, "new-message"]);
     expect(removedMessages.calledWith({threadId: "old-thread"})).toBe(true);
     expect(removedThreads.calledWith({_id: "old-thread"})).toBe(true);
+  });
+
+  it("does not file an empty Outlook Sent stub as a conversation", async () => {
+    const stub = Buffer.from(`From: "chair@group.example.org.uk" <nick@example.com>\r\nMessage-ID: <empty-stub@group.example.org.uk>\r\n\r\n`);
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => null} as any);
+    sandbox.stub(inboxThread, "find").returns({select: () => ({lean: async () => []})} as any);
+    const persistThread = sandbox.stub(inboxThread, "create");
+    const persistMessage = sandbox.stub(inboxMessage, "create");
+    sandbox.stub(submission, "storeMailClientAttachments").resolves([]);
+    expect(await appendMailClientRfc822(role, sent, stub, member)).toEqual({uidValidity: 4, uid: 12});
+    expect(persistThread.called).toBe(false);
+    expect(persistMessage.called).toBe(false);
+  });
+
+  it("replaces an empty saved copy when the full message arrives", async () => {
+    const existing = {
+      threadId: "thread-1",
+      messageId,
+      direction: InboxMessageDirection.OUTBOUND,
+      subject: "(no subject)",
+      bodyHtml: null,
+      bodyText: null,
+      attachments: []
+    };
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => existing} as any);
+    const messageUpdate = sandbox.stub(inboxMessage, "updateOne").resolves({} as any);
+    sandbox.stub(inboxThread, "updateOne");
+    sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(11);
+    sandbox.stub(submission, "storeMailClientAttachments").resolves([]);
+    await appendMailClientRfc822(role, sent, raw, member);
+    expect(messageUpdate.called).toBe(true);
+    expect(messageUpdate.firstCall.args[1].$set.subject).toBe("Local check");
+    expect(messageUpdate.firstCall.args[1].$set.bodyText).toContain("Test body");
+  });
+
+  it("reuses the existing Sent identifier when Outlook appends another draft version", async () => {
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => null} as any);
+    sandbox.stub(submission, "storeMailClientAttachments").resolves([]);
+    sandbox.stub(messageImport, "recordOutboundMessage").resolves({
+      id: "existing-doc",
+      threadId: "sent-thread",
+      messageId
+    } as any);
+    const uid = sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(11);
+    const later = Buffer.from(`From: chair@group.example.org.uk\r\nTo: alex.reed@example.com\r\nMessage-ID: <later-draft@group.example.org.uk>\r\nSubject: Local check\r\n\r\nEdited body\r\n`);
+    expect(await appendMailClientRfc822(role, sent, later, member)).toEqual({uidValidity: 4, uid: 11});
+    expect(uid.firstCall.args).toEqual([role, sent, messageId, "existing-doc"]);
+  });
+
+  it("stores the committee role as From when Outlook puts a personal address in the header", async () => {
+    const outlook = Buffer.from(`From: "chair@group.example.org.uk" <nick@example.com>\r\nTo: alex.reed@example.com\r\nMessage-ID: <outlook-from@group.example.org.uk>\r\nSubject: Walk notes\r\n\r\nSee you Saturday\r\n`);
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => null} as any);
+    sandbox.stub(submission, "storeMailClientAttachments").resolves([]);
+    const recorded = sandbox.stub(messageImport, "recordOutboundMessage").resolves({threadId: "sent-thread"} as any);
+    sandbox.stub(mailboxQueries, "mailboxMessageUid").resolves(11);
+    await appendMailClientRfc822(role, sent, outlook, member);
+    expect(recorded.firstCall.args[1].from).toEqual({name: "", email: "chair@group.example.org.uk"});
   });
 
   it("files a sent copy saved to Inbox into Sent", async () => {

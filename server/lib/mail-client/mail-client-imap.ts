@@ -33,6 +33,7 @@ import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date
 import { InboxThreadFolder } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 import { ImapSearchCriterion, ImapSearchReturnOption, ImapSequenceRange, ImapSession, MailClientImapAuth, MailClientImapCapability, MailClientImapCommand, MailClientImapMessage, MailClientMailbox, MailClientMailboxAttribute } from "./mail-client-imap.model";
 
+
 const debugLog = debug(envConfig.logNamespace("mail-client:imap"));
 debugLog.enabled = true;
 
@@ -1032,5 +1033,6 @@ function write(session: ImapSession, line: string): void {
 }
 
 function sessionLog(session: ImapSession, message: string, ...details: unknown[]): void {
-  debugLog(`IMAP session=${session.id ?? "local"} ${message.replace(/^IMAP /, "")}`, ...details);
+  const text = `IMAP session=${session.id ?? "local"} ${message.replace(/^IMAP /, "")}`;
+  debugLog(text, ...details);
 }
