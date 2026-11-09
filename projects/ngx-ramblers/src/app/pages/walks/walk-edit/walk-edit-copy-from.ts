@@ -15,7 +15,7 @@ import {
 import { FormsModule } from "@angular/forms";
 import { DisplayMember } from "../../../models/member.model";
 import { EventSource, ExtendedGroupEvent, InputSource } from "../../../models/group-event.model";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { WalkDisplayService } from "../walk-display.service";
 import { WalksAndEventsService } from "../../../services/walks-and-events/walks-and-events.service";
 import { GroupEventService } from "../../../services/walks-and-events/group-event.service";
@@ -34,7 +34,7 @@ import { EventDefaultsService } from "../../../services/event-defaults.service";
 import { ExtendedFields, GroupEvent } from "../../../models/group-event.model";
 import { FullNameWithAliasOrMePipe } from "../../../pipes/full-name-with-alias-or-me.pipe";
 import { NgSelectComponent } from "@ng-select/ng-select";
-import { WalkEditTab } from "../../../models/ui-actions";
+import { WalkEditTab } from "../../../models/ui-actions.model";
 import { DistanceValidationService } from "../../../services/walks/distance-validation.service";
 import { isMongoId } from "../../../services/mongo-utils";
 

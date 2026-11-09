@@ -313,6 +313,12 @@ const rp = adminRelativePath;
       canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
     },
     {
+      path: rp(AdminPlatformPath.SYSTEM_LOGS),
+      loadComponent: () => import("../../pages/admin/platform/system-logs")
+        .then(m => m.SystemLogsComponent),
+      canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
+    },
+    {
       path: rp(AdminPlatformPath.CONTRIBUTOR_ENVIRONMENT),
       loadComponent: () => import("../../pages/admin/contributor-environment/contributor-environment.component")
         .then(m => m.ContributorEnvironmentComponent),

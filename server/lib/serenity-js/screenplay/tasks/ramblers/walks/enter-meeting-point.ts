@@ -1,7 +1,7 @@
 import { AnswersQuestions, Check, Duration, PerformsActivities, Task, UsesAbilities, Wait } from "@serenity-js/core";
 import { not } from "@serenity-js/assertions";
 import { Enter, isSelected, isVisible, Scroll } from "@serenity-js/web";
-import { WalkMeetingPoint } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkMeetingPoint } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { WalksPageElements } from "../../../ui/ramblers/walks-page-elements";
 import { ClickWhenReady } from "../../common/click-when-ready";
 

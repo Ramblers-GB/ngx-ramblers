@@ -1,4 +1,4 @@
-import { BrevoResendEnv, ForwardableEmailMessage } from "./types";
+import { BrevoResendEnv, ForwardableEmailMessage } from "./worker-templates.model";
 import { encodeRawMimeBase64, signAndPostWebhook } from "./shared";
 
 declare const __RECIPIENTS__: string[];

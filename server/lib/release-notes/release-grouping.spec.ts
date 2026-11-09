@@ -1,6 +1,6 @@
 import expect from "expect";
 import {describe, it} from "mocha";
-import type {ConventionalCommit} from "./models";
+import type {ConventionalCommit} from "./release-notes.model";
 import {assertEveryCommitGrouped, groupCommitsByDateAndIssue, groupCommitsIndividually} from "./release-grouping";
 
 function commit(hash: string, date: string, issue: string | null): ConventionalCommit {

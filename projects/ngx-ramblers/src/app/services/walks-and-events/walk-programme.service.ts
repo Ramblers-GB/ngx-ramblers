@@ -7,7 +7,7 @@ import { Logger, LoggerFactory } from "../logger-factory.service";
 import { EventsInRangeParameters, WalkProgrammeSummaryRequest, WalkProgrammeSummaryResponse } from "../../models/walk-programme.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
 import { EventField, EventStartDateAscending, GroupEventField } from "../../models/walk.model";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { DataQueryOptions } from "../../models/api-request.model";
 import { LocalWalksAndEventsService } from "./local-walks-and-events.service";
 import { ExtendedGroupEventQueryService } from "./extended-group-event-query.service";

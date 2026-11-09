@@ -35,7 +35,7 @@ import {
   WalkUploadColumnHeading,
   WalkUploadInfo,
   WalkUploadRow
-} from "../../models/ramblers-walks-manager";
+} from "../../models/ramblers-walks-manager.model";
 import { FieldChange } from "../../models/field-change.model";
 import { changedFieldValues } from "../../functions/field-change";
 import { Ramblers } from "../../models/system.model";

@@ -51,7 +51,7 @@ import { quickSearchCriteria } from "../../../functions/walks/quick-search";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { WalksConfig } from "../../../models/walks-config.model";
 import { WalksConfigService } from "../../../services/system/walks-config.service";
-import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions.model";
 import { WalkSearch } from "../../../pages/walks/walk-search/walk-search";
 import { WalkCardListComponent } from "../../../pages/walks/walk-view/walk-card-list";
 import { WalksMapView } from "../../../pages/walks/walk-list/walks-map-view";
@@ -67,7 +67,7 @@ import {
 } from "../../../models/search.model";
 import { EM_DASH_WITH_SPACES } from "../../../models/content-text.model";
 import { InputSource } from "../../../models/group-event.model";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { DataQueryOptions, FilterCriteria, SortOrder } from "../../../models/api-request.model";
 import { MAP_VIEW_MAX_EVENTS, MAP_VIEW_SELECT } from "../../../models/map.model";
 import { buildAdvancedSearchCriteria } from "../../../functions/walks/advanced-search-criteria-builder";

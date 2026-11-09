@@ -54,14 +54,14 @@ import {
 } from "../system-settings/mail/content-block-editor";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { StickyControlsDirective } from "../../../modules/common/tiptap-editor/sticky-controls.directive";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { kebabCase, values } from "es-toolkit/compat";
 import { enumKeyValues } from "../../../functions/enums";
 import { BookingConfigService } from "../../../services/system/booking-config.service";
 import { NotificationConfigService } from "../../../services/notification-config.service";
 import { GroupEventField } from "../../../models/walk.model";
-import { EventQueryParameters, RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { EventQueryParameters, RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { SectionToggle } from "../../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../../models/section-toggle.model";

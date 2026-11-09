@@ -9,7 +9,7 @@ import {PageComponent} from "../../../page/page.component";
 import {CrossEnvironmentHealthService} from "../../../services/cross-environment-health.service";
 import {DateUtilsService} from "../../../services/date-utils.service";
 import {EnvironmentHealthCheckStatus, EnvironmentHealthProgress, HealthSortColumn} from "../../../models/health.model";
-import {StoredValue} from "../../../models/ui-actions";
+import {StoredValue} from "../../../models/ui-actions.model";
 import {ASCENDING, DESCENDING} from "../../../models/table-filtering.model";
 
 function progress(): EnvironmentHealthProgress {

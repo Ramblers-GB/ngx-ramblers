@@ -8,7 +8,7 @@ import { ATLAS_M0_MAX_COLLECTIONS, ATLAS_RECOMMENDED_COLLECTION_AND_INDEX_LIMIT,
 import { EmptyCollectionCandidate, EmptyCollectionCleanupPreview, EmptyCollectionEnvironmentGroup } from "../../../models/environment-collection-cleanup.model";
 import { ConsoleAccessUrlIconKey, MONGODB_ATLAS_CONSOLE_URLS, MongoClusterInfo } from "../../../models/environment-setup.model";
 import { resolveConsoleUrls } from "../../../functions/console-access-urls";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { AlertPanelVariant } from "../../../models/alert-panel.model";
 import { PageComponent } from "../../../page/page.component";
 import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";

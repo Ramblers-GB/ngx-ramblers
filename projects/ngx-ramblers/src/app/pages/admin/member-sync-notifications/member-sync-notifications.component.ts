@@ -15,7 +15,7 @@ import {
   MemberSyncNotificationResolution,
   MemberSyncNotificationStatus
 } from "../../../models/member-sync-notification.model";
-import { AUDIT_FIELDS } from "../../../models/ramblers-insight-hub";
+import { AUDIT_FIELDS } from "../../../models/ramblers-insight-hub.model";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { MemberService } from "../../../services/member/member.service";
@@ -24,7 +24,7 @@ import { AlertInstance, NotifierService } from "../../../services/notifier.servi
 import { PageComponent } from "../../../page/page.component";
 import { FullNamePipe } from "../../../pipes/full-name.pipe";
 import { StringUtilsService } from "../../../services/string-utils.service";
-import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { UIDateFormat } from "../../../models/date-format.model";
 

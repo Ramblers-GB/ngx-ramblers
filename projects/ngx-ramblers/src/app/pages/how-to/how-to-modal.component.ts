@@ -10,7 +10,7 @@ import { AlertTarget } from "../../models/alert-target.model";
 import { DateValue } from "../../models/date.model";
 import { MailchimpCampaign, MailchimpCampaignSearchRequest } from "../../models/mailchimp.model";
 import { MailchimpCampaignMixedVersion, MemberResource } from "../../models/member-resource.model";
-import { Confirm } from "../../models/ui-actions";
+import { Confirm } from "../../models/ui-actions.model";
 import { DisplayDatePipe } from "../../pipes/display-date.pipe";
 import { DateUtilsService } from "../../services/date-utils.service";
 import { FileUploadService } from "../../services/file-upload.service";

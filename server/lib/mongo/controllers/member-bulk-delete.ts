@@ -3,7 +3,7 @@ import { isNumber } from "es-toolkit/compat";
 import { envConfig } from "../../env-config/env-config";
 import { dateTimeNow } from "../../shared/dates";
 import { DeletedMember, Member } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
-import { DeletionResponse } from "../../../../projects/ngx-ramblers/src/app/models/mongo-models";
+import { DeletionResponse } from "../../../../projects/ngx-ramblers/src/app/models/mongo.model";
 import { NumberOrString, PostSendActionsResult, WorkflowAction } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { MessageType, ProgressResponse } from "../../../../projects/ngx-ramblers/src/app/models/websocket.model";
 import { member as memberModel } from "../models/member";

@@ -24,7 +24,7 @@ import { MaximisablePanelComponent } from "../../../modules/common/maximisable-p
 import { SortableTableComponent } from "../../../modules/common/sortable-table/sortable-table.component";
 import { SortableTableCellDirective, SortableTableHeaderCellDirective } from "../../../modules/common/sortable-table/sortable-table-cell.directive";
 import { SortableTableColumn, SortableTableSortState } from "../../../modules/common/sortable-table/sortable-table.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { jointWalkLeaderNames, normalisedWalkLeaderName, normaliseWalkLeaderNameForCompare } from "../../../functions/walks/joint-walk-leaders";
 import { memberFullName } from "../../../functions/member-names";
 import { DisplayDatePipe } from "../../../pipes/display-date.pipe";

@@ -15,12 +15,12 @@ import { EnvironmentSetupService } from "../../../services/environment-setup/env
 import { RegistrationAdminTab, RegistrationEmailApproval, RegistrationHistoryRow, RegistrationPageAnchor, RegistrationSettings, RegistrationState, SiteRegistration } from "../../../models/site-registration.model";
 import { AvailableArea } from "../../../models/system.model";
 import { ComposerExternalRecipient } from "../../../models/email-composer.model";
-import { RamblersGroupsApiResponse } from "../../../models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "../../../models/ramblers-walks-manager.model";
 import { GroupSelector } from "../../walks/walk-edit/group-selector";
 import { RecipientFieldComponent } from "../../../modules/common/recipient-field/recipient-field";
 import { AdminPlatformPath } from "../../../models/admin-route-paths.model";
 import { EnvironmentSetupTab, SetupMode } from "../../../models/environment-setup.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { SortableTableComponent } from "../../../modules/common/sortable-table/sortable-table.component";
 import { SortableTableCellDirective, SortableTableExpandedRowDirective } from "../../../modules/common/sortable-table/sortable-table-cell.directive";
 import { SortableTableColumn, SortableTableSortState } from "../../../modules/common/sortable-table/sortable-table.model";

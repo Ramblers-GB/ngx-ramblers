@@ -1,5 +1,5 @@
 import { Member } from "../../../../../projects/ngx-ramblers/src/app/models/member.model";
-import { AdminUserConfig } from "../../types";
+import { AdminUserConfig } from "../../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { dateTimeNowAsValue } from "../../../shared/dates";
 import { generateUid } from "../../../shared/string-utils";
 

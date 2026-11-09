@@ -32,7 +32,7 @@ import { WalksConfigService } from "../../services/system/walks-config.service";
 import { MemberLoginService } from "../../services/member/member-login.service";
 import { ActivatedRoute } from "@angular/router";
 import { EventField, GroupEventField } from "../../models/walk.model";
-import { WalkEditField, WalkUploadColumnHeading } from "../../models/ramblers-walks-manager";
+import { WalkEditField, WalkUploadColumnHeading } from "../../models/ramblers-walks-manager.model";
 
 describe("CONTRACT: walk leader fields — what each field is for (no ambiguity)", () => {
 

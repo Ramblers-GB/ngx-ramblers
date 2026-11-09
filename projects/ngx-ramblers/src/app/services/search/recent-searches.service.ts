@@ -2,7 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { BehaviorSubject, Observable } from "rxjs";
 import { isArray, isString, uniq } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { LoggerFactory } from "../logger-factory.service";
 
 const RECENT_SEARCH_LIMIT = 5;

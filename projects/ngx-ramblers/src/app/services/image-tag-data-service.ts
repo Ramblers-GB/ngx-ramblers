@@ -5,7 +5,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { ALL_PHOTOS, ImageTag, RECENT_PHOTOS } from "../models/content-metadata.model";
 import { findTag, tagsSorted } from "../functions/tags";
 import { Logger, LoggerFactory } from "./logger-factory.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { UiActionsService } from "./ui-actions.service";
 
 @Injectable({

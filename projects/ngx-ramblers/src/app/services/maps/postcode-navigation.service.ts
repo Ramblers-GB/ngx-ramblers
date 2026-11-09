@@ -2,8 +2,8 @@ import { inject, Injectable } from "@angular/core";
 import { concat, from, Observable, of } from "rxjs";
 import { switchMap } from "rxjs/operators";
 import { NgxLoggerLevel } from "ngx-logger";
-import { GridReferenceLookupResponse } from "../../models/address-model";
-import { LocationDetails } from "../../models/ramblers-walks-manager";
+import { GridReferenceLookupResponse } from "../../models/address.model";
+import { LocationDetails } from "../../models/ramblers-walks-manager.model";
 import {
   POSTCODE_DETOUR_MINIMUM_METRES,
   POSTCODE_DETOUR_RATIO,

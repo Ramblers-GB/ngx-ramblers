@@ -4,7 +4,7 @@ import { PostcodeNavigationCheckComponent } from "./postcode-navigation-check";
 import { PostcodeNavigationService } from "../../services/maps/postcode-navigation.service";
 import { MemberLoginService } from "../../services/member/member-login.service";
 import { PostcodeNavigationCheck, PostcodeNavigationStatus, PostcodeRoadCheckStatus } from "../../models/postcode-navigation.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { DistanceUnit } from "../../models/walk.model";
 import { RouteFollowService } from "../../services/maps/route-follow.service";
 import { UiActionsService } from "../../services/ui-actions.service";

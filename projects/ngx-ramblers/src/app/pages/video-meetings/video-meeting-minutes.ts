@@ -11,7 +11,7 @@ import { CommitteeConfigService } from "../../services/committee/commitee-config
 import { MEETING_MINUTES_TEMPLATE_ID, MeetingMinutesView, MeetingTranscriptEntry } from "../../models/video-meeting.model";
 import { CommitteeFile, CommitteeMeetingFormat } from "../../models/committee.model";
 import { AdminPath } from "../../models/admin-route-paths.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { UIDateFormat } from "../../models/date-format.model";
 import { DateUtilsService } from "../../services/date-utils.service";
 import { meetingMinutesDocumentSlug, preferredCommitteeDocumentsPagePath } from "../../functions/committee-documents-page";

@@ -29,8 +29,8 @@ import { FileUploadService } from "../../../services/file-upload.service";
 import { RootFolder, SystemConfig } from "../../../models/system.model";
 import { UIDateFormat } from "../../../models/date-format.model";
 import { AwsFileUploadResponseData } from "../../../models/aws-object.model";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
-import { StoredValue } from "../../../models/ui-actions";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { SortDirection } from "../../../models/sort.model";
 import {

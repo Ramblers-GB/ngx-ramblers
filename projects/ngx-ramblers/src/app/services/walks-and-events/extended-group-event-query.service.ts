@@ -18,7 +18,7 @@ import { DataQueryOptions, FilterCriteria, MongoCriteria } from "../../models/ap
 import { StringUtilsService } from "../string-utils.service";
 import { FilterParameters, HasBasicEventSelection, GroupEventSearchParams, GroupEventSearchResponse, SyncStatusResponse } from "../../models/search.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
-import { EventQueryParameters } from "../../models/ramblers-walks-manager";
+import { EventQueryParameters } from "../../models/ramblers-walks-manager.model";
 import { UrlService } from "../url.service";
 import { isNumericRamblersId } from "../path-matchers";
 import { isMongoId } from "../mongo-utils";

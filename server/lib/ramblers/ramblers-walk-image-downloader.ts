@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { WalkImagesUpload as WalkImagesUploadSource } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkImagesUpload as WalkImagesUploadSource } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { WalkImagesUpload } from "../models/walk-upload-metadata";
 
 export async function downloadWalkImages(uploads: WalkImagesUploadSource[], directory: string): Promise<WalkImagesUpload[]> {

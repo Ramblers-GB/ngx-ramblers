@@ -2,7 +2,7 @@ import debug from "debug";
 import { envConfig } from "../lib/env-config/env-config";
 import { configuredEnvironments } from "../lib/environments/environments-config";
 import { BuildVersion } from "../../projects/ngx-ramblers/src/app/models/build-version.model";
-import { EstateHealthResult } from "./types";
+import { EstateHealthResult } from "./deploy.model";
 import { pluraliseWithCount } from "../lib/shared/string-utils";
 
 const debugLog = debug(envConfig.logNamespace("estate-health"));

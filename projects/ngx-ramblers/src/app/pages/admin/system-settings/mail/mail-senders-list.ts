@@ -24,7 +24,7 @@ import { ALERT_ERROR } from "../../../../models/alert-target.model";
 import { StringUtilsService } from "../../../../services/string-utils.service";
 import { SortDirection } from "../../../../models/sort.model";
 import { ASCENDING, DESCENDING } from "../../../../models/table-filtering.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { FormsModule } from "@angular/forms";
 import { BrevoButtonComponent } from "../../../../modules/common/third-parties/brevo-button";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";

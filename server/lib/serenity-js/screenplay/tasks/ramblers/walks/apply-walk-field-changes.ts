@@ -3,7 +3,7 @@ import { BrowseTheWeb, Enter, PageElement, Scroll } from "@serenity-js/web";
 import type { PlaywrightPage } from "@serenity-js/playwright";
 import type { Page as NativePage } from "playwright-core";
 import debug from "debug";
-import { WalkEditField, WalkFieldChange } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkEditField, WalkFieldChange } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { envConfig } from "../../../../../env-config/env-config";
 import { WalksPageElements } from "../../../ui/ramblers/walks-page-elements";
 import { ClickWhenReady } from "../../common/click-when-ready";

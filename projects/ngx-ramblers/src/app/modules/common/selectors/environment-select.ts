@@ -8,7 +8,7 @@ import {
 } from "@ng-select/ng-select";
 import { EnvironmentInfo } from "../../../models/backup-session.model";
 import { HumanisePipe } from "../../../pipes/humanise.pipe";
-import { HasNgSelectAttributes } from "../../../models/ramblers-walks-manager";
+import { HasNgSelectAttributes } from "../../../models/ramblers-walks-manager.model";
 import { SelectAllHeaderComponent } from "./select-all-header";
 
 @Component({

@@ -6,7 +6,7 @@ import { ContactUsModalComponent } from "./contact-us-modal.component";
 import { LoggerFactory } from "../../services/logger-factory.service";
 import { NgxLoggerLevel } from "ngx-logger";
 import { CommitteeMember } from "../../models/committee.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { redirectPathFrom } from "../../functions/redirect-path";
 import { contactUsRequested } from "../../modules/common/tiptap-editor/contact-us-link";
 

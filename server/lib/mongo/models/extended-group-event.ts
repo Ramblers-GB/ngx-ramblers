@@ -5,7 +5,7 @@ import { media, metaData, riskAssessmentRecord, walkEvent, walkVenue } from "./w
 import { notification } from "./social-event";
 import { fileNameData } from "./banner";
 import { EventSource, ExtendedGroupEvent } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { WalkStatus } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkStatus } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { EventType, GroupEventField, DocumentField } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { get, isArray, isEmpty, keys, set, values } from "es-toolkit/compat";
 

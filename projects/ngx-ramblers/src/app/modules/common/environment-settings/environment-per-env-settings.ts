@@ -20,6 +20,7 @@ import { MongoUriInputComponent, MongoUriParseResult } from "../mongo-uri-input/
 import { VendorBrandMarkComponent } from "../vendor-brand-mark/vendor-brand-mark.component";
 import { EnvironmentWebAnalyticsSites } from "./environment-web-analytics-sites";
 import { FlyMachineHistoryComponent } from "../../../pages/admin/system-settings/diagnostics/fly-machine-history";
+import { SystemLogsSettingsComponent } from "../../../pages/admin/system-settings/diagnostics/system-logs-settings";
 import { flyAppUrl } from "../../../functions/fly-app-url";
 import { SystemConfigService } from "../../../services/system/system-config.service";
 import { DateUtilsService } from "../../../services/date-utils.service";
@@ -38,7 +39,7 @@ import { CrossEnvironmentHealthService } from "../../../services/cross-environme
 import { AiProviderType, EnvironmentSettingsSubTab, Image, SystemConfig, SystemSettingsTab } from "../../../models/system.model";
 import { EnvironmentSetupTab, ManageAction, SetupMode } from "../../../models/environment-setup.model";
 import { InputSize } from "../../../models/ui-size.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { asNumber } from "../../../functions/numbers";
 import { toKebabCase } from "../../../functions/strings";
 
@@ -54,6 +55,7 @@ import { toKebabCase } from "../../../functions/strings";
     EnvironmentWebAnalyticsSites,
     VendorBrandMarkComponent,
     FlyMachineHistoryComponent,
+    SystemLogsSettingsComponent,
     SectionToggle
   ],
   template: `
@@ -297,7 +299,7 @@ import { toKebabCase } from "../../../functions/strings";
             <app-vendor-brand-mark serviceId="flyIo" [sizePx]="28"/>
             <span>Fly.io Configuration</span>
           </div>
-          <div class="col-sm-12">
+          <div class="col-12 pt-3">
           @if (currentEnvironment?.flyio?.appName) {
             <div class="mb-2">
               <a [href]="flyAppUrl(currentEnvironment.flyio.appName)"
@@ -376,6 +378,7 @@ import { toKebabCase } from "../../../functions/strings";
           </div>
         </div>
         @if (currentEnvironment.environment) {
+          <app-system-logs-settings [environmentName]="currentEnvironment.environment"/>
           <app-fly-machine-history [environmentName]="currentEnvironment.environment"/>
         }
         }

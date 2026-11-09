@@ -7,7 +7,7 @@ import { LoggerTestingModule } from "ngx-logger/testing";
 import { vi } from "vitest";
 import { AWSLinkConfig, LinkConfig } from "../models/link.model";
 import { UrlService } from "./url.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { provideHttpClientTesting } from "@angular/common/http/testing";
 import { StringUtilsService } from "./string-utils.service";
 import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";

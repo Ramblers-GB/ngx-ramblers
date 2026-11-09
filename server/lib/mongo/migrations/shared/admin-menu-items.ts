@@ -290,7 +290,14 @@ export const ENVIRONMENT_MANAGEMENT_MENU_ITEMS: ActionButtonColumn[] = [
     href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH,
     contentText: "Monitor migration status and health across all environments"
   },
-  ESTATE_REBUILD_CAPTURE_MENU_ITEM
+  ESTATE_REBUILD_CAPTURE_MENU_ITEM,
+  {
+    accessLevel: "environmentAdmin",
+    title: "System logs",
+    icon: "faList",
+    href: AdminPlatformPath.SYSTEM_LOGS,
+    contentText: "Live debug log for this environment, newest first, filterable by prefix or any text"
+  }
 ];
 
 export const ADMIN_CATEGORY_MENU_ITEMS: ActionButtonColumn[] = [

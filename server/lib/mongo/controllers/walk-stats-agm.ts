@@ -5,7 +5,7 @@ import {
   WalkAGMStats,
   WalkListItem
 } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { EventPopulation, SystemConfig } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { GroupEventField } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import {

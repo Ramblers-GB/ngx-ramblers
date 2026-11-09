@@ -31,7 +31,7 @@ import { MailMessagingConfig } from "../../models/mail.model";
 import { MemberDefaultsService } from "./member-defaults.service";
 import { NumberUtilsService } from "../number-utils.service";
 import { StringUtilsService } from "../string-utils.service";
-import { AUDIT_FIELDS, AuditField } from "../../models/ramblers-insight-hub";
+import { AUDIT_FIELDS, AuditField } from "../../models/ramblers-insight-hub.model";
 import { isString } from "es-toolkit/compat";
 import { isNumber } from "es-toolkit/compat";
 import { FullNamePipe } from "../../pipes/full-name.pipe";

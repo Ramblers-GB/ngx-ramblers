@@ -3,7 +3,7 @@ import { faInbox, faPersonHiking, faSliders } from "@fortawesome/free-solid-svg-
 import { AdminPath } from "../models/admin-route-paths.model";
 import { AccessLevel } from "../models/member-resource.model";
 import { AppPath } from "../models/route-follow.model";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { MobileAppAction } from "../models/walks-config.model";
 import { MobileAppAccessService } from "../services/maps/mobile-app-access.service";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";

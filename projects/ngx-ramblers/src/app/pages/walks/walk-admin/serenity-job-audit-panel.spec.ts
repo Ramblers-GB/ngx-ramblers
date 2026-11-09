@@ -11,7 +11,7 @@ import { WebSocketClientService } from "../../../services/websockets/websocket-c
 import { AuditType, RamblersUploadAudit, Status } from "../../../models/ramblers-upload-audit.model";
 import { OsMapsExportJobStatus, osMapsExportProgressMessage } from "../../../models/os-maps-export.model";
 import { MessageType, RamblersUploadAuditProgressResponse } from "../../../models/websocket.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { provideHttpClient } from "@angular/common/http";
 import { provideHttpClientTesting } from "@angular/common/http/testing";
 import { LoggerTestingModule } from "ngx-logger/testing";

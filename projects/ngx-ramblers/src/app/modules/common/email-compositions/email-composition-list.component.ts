@@ -5,7 +5,7 @@ import {faCopy, faFolderOpen, faSpinner, faTrash, faTriangleExclamation} from "@
 import {TooltipDirective} from "ngx-bootstrap/tooltip";
 import {EmailCompositionStatus, EmailCompositionSummary} from "../../../models/email-composer.model";
 import {Member} from "../../../models/member.model";
-import {StoredValue} from "../../../models/ui-actions";
+import {StoredValue} from "../../../models/ui-actions.model";
 import {DESCENDING, ASCENDING} from "../../../models/table-filtering.model";
 import {EmailCompositionsService} from "../../../services/email-composer/email-compositions.service";
 import {MemberLoginService} from "../../../services/member/member-login.service";

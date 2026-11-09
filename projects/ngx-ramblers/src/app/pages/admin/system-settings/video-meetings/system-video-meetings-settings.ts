@@ -11,7 +11,7 @@ import {
 } from "../../../../models/video-meeting.model";
 import { MailSettingsTab } from "../../../../models/mail.model";
 import { AdminPath } from "../../../../models/admin-route-paths.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { ContentTextEditor } from "../../../../modules/common/tiptap-editor/content-text-editor";
 import { LoggerFactory } from "../../../../services/logger-factory.service";
 import { SystemConfigService } from "../../../../services/system/system-config.service";

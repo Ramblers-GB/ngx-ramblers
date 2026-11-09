@@ -14,7 +14,7 @@ import { matchesAllowingTruncation } from "../../../../../../../projects/ngx-ram
 import { SynchroniseWalkImages } from "./synchronise-walk-images";
 import { ApplyWalkFieldChanges } from "./apply-walk-field-changes";
 import { changesForStep } from "./edit-walk-details";
-import { WalkEditStep, WalkFieldChange } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkEditStep, WalkFieldChange } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { ClickWhenReady } from "../../common/click-when-ready";
 import { WalkFilters } from "./select-walks";
 import { Accept } from "../common/accept-cookie-prompt";

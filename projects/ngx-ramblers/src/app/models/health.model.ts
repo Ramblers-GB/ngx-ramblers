@@ -1,5 +1,5 @@
 import {HostnameCandidate} from "./environment-setup.model";
-import { MigrationFile } from "./mongo-migration-model";
+import { MigrationFile } from "./mongo-migration.model";
 
 export interface HealthMigrations {
   pending: number;

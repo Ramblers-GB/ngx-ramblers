@@ -1,4 +1,4 @@
-import { Confirm } from "../../../../models/ui-actions";
+import { Confirm } from "../../../../models/ui-actions.model";
 import { Component, inject, Input, OnInit } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { NamedEvent, NamedEventType } from "../../../../models/broadcast.model";

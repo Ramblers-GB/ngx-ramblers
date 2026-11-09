@@ -1,6 +1,6 @@
 import { Component, EventEmitter, inject, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { Subscription } from "rxjs";
-import { BasicMedia, Media } from "../../../models/ramblers-walks-manager";
+import { BasicMedia, Media } from "../../../models/ramblers-walks-manager.model";
 import { MediaQueryService } from "../../../services/committee/media-query.service";
 import { UrlService } from "../../../services/url.service";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";

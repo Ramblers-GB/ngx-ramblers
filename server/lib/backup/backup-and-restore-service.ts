@@ -31,10 +31,9 @@ import {
   RamblersWalksManagerDateFormat as DateFormat
 } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";
 import { environmentConfigFor } from "./backup-config";
-import type { EnvironmentConfig } from "../../deploy/types";
-import { FLYIO_DEFAULTS } from "../../deploy/types";
+import type { EnvironmentConfig } from "../../deploy/deploy.model";
 import { NamedError } from "../../../projects/ngx-ramblers/src/app/models/api-response.model";
-import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { AWS_DEFAULTS, FLYIO_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { buildMongoUri } from "../shared/mongodb-uri";
 import { isUndefined } from "es-toolkit/compat";
 import {

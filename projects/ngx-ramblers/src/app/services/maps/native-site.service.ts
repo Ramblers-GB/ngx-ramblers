@@ -3,7 +3,7 @@ import { Capacitor, CapacitorHttp, HttpResponse, registerPlugin } from "@capacit
 import { isObject, isString } from "es-toolkit/compat";
 import { HealthResponse, HealthStatus } from "../../models/health.model";
 import { NativeSiteNavigationPlugin, NativeWalkingSite } from "../../models/native-route.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { isNativeLocalShell, nativeWalkingSite, openNativeGroupApp, parseHttpsOrigin, saveNativeWalkingSite } from "../../functions/native-walking";
 
 export const NATIVE_HTTP = new InjectionToken<typeof CapacitorHttp>("NativeHttp", {

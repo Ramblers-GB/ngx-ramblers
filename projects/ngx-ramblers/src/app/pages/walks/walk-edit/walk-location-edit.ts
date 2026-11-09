@@ -13,9 +13,9 @@ import { AlertInstance, NotifierService } from "../../../services/notifier.servi
 import { AddressQueryService } from "../../../services/walks/address-query.service";
 import { WalkDisplayService } from "../walk-display.service";
 import { StringUtilsService } from "../../../services/string-utils.service";
-import { LocationDetails } from "../../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../../models/ramblers-walks-manager.model";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
-import { GridReferenceLookupResponse } from "../../../models/address-model";
+import { GridReferenceLookupResponse } from "../../../models/address.model";
 import { FileNameData } from "../../../models/aws-object.model";
 import { NumberUtilsService } from "../../../services/number-utils.service";
 import { FormsModule } from "@angular/forms";

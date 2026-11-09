@@ -1,5 +1,5 @@
 import { Status } from "./ramblers-upload-audit.model";
-import { WalkCancellation, WalkImagesUpload, WalkUploadInfo, WalkUploadRow } from "./ramblers-walks-manager";
+import { WalkCancellation, WalkImagesUpload, WalkUploadInfo, WalkUploadRow } from "./ramblers-walks-manager.model";
 
 export enum RamblersUploadJobState {
   QUEUED = "queued",

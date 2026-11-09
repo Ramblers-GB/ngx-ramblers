@@ -11,6 +11,8 @@ import { EventPopulation } from "../../../models/system.model";
 import {
   AdvancedSearchCriteria,
   AdvancedSearchPreset,
+  createFuturePreset,
+  createPastPreset,
   CUSTOM_PRESET_LABEL,
   DateRangeDirection,
   DateRangePresetLabel,
@@ -28,7 +30,7 @@ import { MemberService } from "../../../services/member/member.service";
 import { MemberLoginService } from "../../../services/member/member-login.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { NgxLoggerLevel } from "ngx-logger";
-import { RamblersGroupWithLabel, WalkLeaderContact } from "../../../models/ramblers-walks-manager";
+import { RamblersGroupWithLabel, WalkLeaderContact } from "../../../models/ramblers-walks-manager.model";
 import { from, Subject } from "rxjs";
 import { GroupEventField, WALK_GRADES, WalkType } from "../../../models/walk.model";
 import { FEATURE_CATEGORIES, FeatureCategory } from "../../../models/walk-feature.model";
@@ -45,7 +47,7 @@ import { ActivatedRoute } from "@angular/router";
 import { advancedSearchCriteriaFromParams } from "../../../functions/walks/advanced-search";
 import { buildAdvancedSearchCriteria } from "../../../functions/walks/advanced-search-criteria-builder";
 import { LocationAutocompleteComponent } from "../../../shared/components/location-autocomplete";
-import { GridReferenceLookupResponse } from "../../../models/address-model";
+import { GridReferenceLookupResponse } from "../../../models/address.model";
 import { debounceTime } from "rxjs/operators";
 import * as L from "leaflet";
 import { LeafletModule } from "@bluehalo/ngx-leaflet";
@@ -1698,43 +1700,30 @@ export class AdvancedSearchPane implements OnInit, OnDestroy {
 
   private allWalksPresetRanges(): AdvancedSearchPreset[] {
     return [
-      this.pastPreset("Past Month", { months: 1 }),
-      this.pastPreset("Past Year", { years: 1 }),
-      this.futurePreset("30 Days", { days: 30 }),
-      this.futurePreset("6 Months", { months: 6 }),
+      createPastPreset("Past Month", { months: 1 }),
+      createPastPreset("Past Year", { years: 1 }),
+      createFuturePreset("30 Days", { days: 30 }),
+      createFuturePreset("6 Months", { months: 6 }),
       this.allTimePreset()
     ];
   }
 
-  private pastPreset(label: string, duration: { days?: number; months?: number; years?: number }): AdvancedSearchPreset {
-    return {
-      label,
-      range: () => {
-        const now = DateTime.now().startOf("day");
-        return {
-          from: now.minus(duration).toMillis(),
-          to: now.toMillis()
-        };
-      }
-    };
-  }
-
   private pastPresetRanges(): AdvancedSearchPreset[] {
     return [
-      this.pastPreset("Past Week", { days: 7 }),
-      this.pastPreset("Past Month", { months: 1 }),
-      this.pastPreset("Past Year", { years: 1 }),
-      this.pastPreset("Past 2 Years", { years: 2 }),
+      createPastPreset("Past Week", { days: 7 }),
+      createPastPreset("Past Month", { months: 1 }),
+      createPastPreset("Past Year", { years: 1 }),
+      createPastPreset("Past 2 Years", { years: 2 }),
       this.allTimePreset()
     ];
   }
 
   private futurePresetRanges(): AdvancedSearchPreset[] {
     return [
-      this.futurePreset("7 Days", { days: 7 }),
-      this.futurePreset("30 Days", { days: 30 }),
-      this.futurePreset("3 Months", { months: 3 }),
-      this.futurePreset("6 Months", { months: 6 }),
+      createFuturePreset("7 Days", { days: 7 }),
+      createFuturePreset("30 Days", { days: 30 }),
+      createFuturePreset("3 Months", { months: 3 }),
+      createFuturePreset("6 Months", { months: 6 }),
       this.allTimePreset()
     ];
   }
@@ -1749,16 +1738,4 @@ export class AdvancedSearchPane implements OnInit, OnDestroy {
     };
   }
 
-  private futurePreset(label: string, duration: { days?: number; months?: number; years?: number }): AdvancedSearchPreset {
-    return {
-      label,
-      range: () => {
-        const start = DateTime.now().startOf("day");
-        return {
-          from: start.toMillis(),
-          to: start.plus(duration).toMillis()
-        };
-      }
-    };
-  }
 }

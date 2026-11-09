@@ -25,7 +25,7 @@ import {
   TableFilterItem
 } from "../../../models/table-filtering.model";
 import { SortDirection } from "../../../models/sort.model";
-import { Confirm, ConfirmType, EditMode, StoredValue } from "../../../models/ui-actions";
+import { Confirm, ConfirmType, EditMode, StoredValue } from "../../../models/ui-actions.model";
 import { SearchFilterPipe } from "../../../pipes/search-filter.pipe";
 import { ApiResponseProcessor } from "../../../services/api-response-processor.service";
 import { DateUtilsService } from "../../../services/date-utils.service";

@@ -41,7 +41,7 @@ import { FileUploadService } from "../../../services/file-upload.service";
 import { FileUploader } from "ng2-file-upload";
 import { MapTilesService } from "../../../services/maps/map-tiles.service";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { AlertComponent } from "ngx-bootstrap/alert";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { ALERT_SUCCESS, ALERT_WARNING } from "../../../models/alert-target.model";

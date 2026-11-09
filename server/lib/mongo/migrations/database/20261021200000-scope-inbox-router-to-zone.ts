@@ -1,5 +1,5 @@
 import { Db, MongoClient } from "mongodb";
-import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 import { migrateZoneInboxRouter } from "../shared/zone-inbox-router";
 import { ensureActionButton } from "../shared/page-content-actions";
 import { CLOUDFLARE_WORKERS_MENU_ITEM } from "../shared/admin-menu-items";

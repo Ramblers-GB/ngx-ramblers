@@ -6,7 +6,7 @@ import { HasClass } from "./banner-configuration.model";
 import { EventsData } from "./group-events.model";
 import { DescribedDimensions, FileNameData } from "./aws-object.model";
 import { FocalPoint, ImageCropperPosition } from "./image-cropper.model";
-import { HasNgSelectAttributes, LocationDetails } from "./ramblers-walks-manager";
+import { HasNgSelectAttributes, LocationDetails } from "./ramblers-walks-manager.model";
 import { SharedDistrictStyle } from "./system.model";
 import { DEFAULT_OS_STYLE, MapProvider } from "./map.model";
 import { RouteGuideData, RouteGuidePanelPosition, RouteTurnModifier, RouteWaypointKind } from "./route-follow.model";

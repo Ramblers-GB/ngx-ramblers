@@ -3,7 +3,7 @@ import { describe, it } from "mocha";
 import { escapeIcalText, foldIcalLine, icalDocument, meetingIcalDocument } from "./ical";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
-import { RamblersEventType, WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType, WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { dateTimeFromObject } from "../shared/dates";
 
 describe("ical", () => {

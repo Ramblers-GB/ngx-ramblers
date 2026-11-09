@@ -5,7 +5,7 @@ import { MemberLoginService } from "../services/member/member-login.service";
 import { PageService } from "../services/page.service";
 import { WalksAndEventsService } from "../services/walks-and-events/walks-and-events.service";
 import { GroupEventDisplayService } from "../pages/group-events/group-event-display.service";
-import { RamblersEventType } from "../models/ramblers-walks-manager";
+import { RamblersEventType } from "../models/ramblers-walks-manager.model";
 import { RouteParam } from "../models/content-text.model";
 import { ExtendedGroupEvent } from "../models/group-event.model";
 

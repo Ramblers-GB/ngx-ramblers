@@ -1,4 +1,4 @@
-import { Media, RamblersEventType } from "./ramblers-walks-manager";
+import { Media, RamblersEventType } from "./ramblers-walks-manager.model";
 import { HasColumnRange } from "./content-text.model";
 import { FilterCriteria, SortOrder } from "./api-request.model";
 import { SavedSearchCriteria } from "./search.model";

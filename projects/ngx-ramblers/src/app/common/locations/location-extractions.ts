@@ -1,5 +1,5 @@
 import { ExtractedLocation } from "../../models/map.model";
-import { GeocodeMatchType } from "../../models/address-model";
+import { GeocodeMatchType } from "../../models/address.model";
 
 
 export function extractLocations(text: string): ExtractedLocation[] {

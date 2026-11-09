@@ -17,7 +17,7 @@ import {
   ResourceSubject
 } from "../../../models/member-resource.model";
 import { Member } from "../../../models/member.model";
-import { Confirm } from "../../../models/ui-actions";
+import { Confirm } from "../../../models/ui-actions.model";
 import { SearchFilterPipe } from "../../../pipes/search-filter.pipe";
 import { ApiResponseProcessor } from "../../../services/api-response-processor.service";
 import { sortBy } from "../../../functions/arrays";

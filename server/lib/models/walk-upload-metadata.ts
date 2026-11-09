@@ -1,4 +1,4 @@
-import { WalkFieldChange } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkFieldChange } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 
 export interface WalkCancellation {
   walkId: string;

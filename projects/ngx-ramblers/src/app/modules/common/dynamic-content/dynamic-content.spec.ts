@@ -10,7 +10,7 @@ import { NotifierService } from "../../../services/notifier.service";
 import { PageContentService } from "../../../services/page-content.service";
 import { PageService } from "../../../services/page.service";
 import { UrlService } from "../../../services/url.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 describe("CMS content navigation", () => {
   const navigation = new Subject<NavigationEnd>();

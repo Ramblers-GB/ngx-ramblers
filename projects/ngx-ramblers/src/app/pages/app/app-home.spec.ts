@@ -1,7 +1,7 @@
-import { RamblersGroupsApiResponse } from "../../models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "../../models/ramblers-walks-manager.model";
 import { AppHomeComponent } from "./app-home";
 import { AppHomeView, RouteFollowMode, RouteFollowSession, RouteFollowSummary } from "../../models/route-follow.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { DistanceUnit } from "../../models/search.model";
 import {ExtendedGroupEvent} from "../../models/group-event.model";
 

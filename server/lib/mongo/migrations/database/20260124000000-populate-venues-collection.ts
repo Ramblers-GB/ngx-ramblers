@@ -1,7 +1,7 @@
 import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
 import { postcodeLookupFromPostcodesIo } from "../../../addresses/postcode-lookup";
-import { GridReferenceLookupApiResponse, GridReferenceLookupResponse } from "../../../../../projects/ngx-ramblers/src/app/models/address-model";
+import { GridReferenceLookupApiResponse, GridReferenceLookupResponse } from "../../../../../projects/ngx-ramblers/src/app/models/address.model";
 import { inferVenueTypeFromName } from "../../../../../projects/ngx-ramblers/src/app/models/event-venue.model";
 import { EventField, GroupEventField } from "../../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { dateTimeNowAsValue, dateTimeFromJsDate } from "../../../shared/dates";

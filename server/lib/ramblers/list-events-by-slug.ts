@@ -7,7 +7,7 @@ import {
   RamblersEventsApiResponse,
   RamblersGroupEventsRawApiResponse,
   WALKS_MANAGER_GO_LIVE_DATE
-} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { dateTimeFromIso, dateTimeNow } from "../shared/dates";
 import * as requestDefaults from "./request-defaults";
 import { lastItemFrom, pluraliseWithCount, uniqueCommaDelimitedList } from "../shared/string-utils";

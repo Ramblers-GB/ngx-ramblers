@@ -1,7 +1,7 @@
 import debug from "debug";
 import crypto from "crypto";
 import { envConfig } from "../env-config/env-config";
-import { SecretsConfig } from "../../deploy/types";
+import { SecretsConfig } from "../../deploy/deploy.model";
 import {
   AwsCustomerCredentials,
   CopiedAssets,
@@ -16,7 +16,7 @@ import {
   SetupStepStatus,
   SetupWarning,
   ValidationResult
-} from "./types";
+} from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { groupDetails, listGroupsByAreaCode, validateRamblersApiKey } from "./ramblers-api-client";
 import {
   adminConfigFromEnvironment,

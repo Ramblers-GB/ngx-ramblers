@@ -2,7 +2,7 @@ import { ApiResponse, Identifiable } from "./api-response.model";
 import { ExternalSystems, Organisation } from "./system.model";
 import { BannerConfig } from "./banner-configuration.model";
 import { Auditable, HasEmailFirstAndLastName, Member, MemberFilterSelection } from "./member.model";
-import { AuditStatus } from "./audit";
+import { AuditStatus } from "./audit.model";
 import { SortDirection } from "./sort.model";
 import { CommitteeReferenceDataLike } from "./committee-reference-data.model";
 import { CONTACT_US_TYPE } from "./committee.model";

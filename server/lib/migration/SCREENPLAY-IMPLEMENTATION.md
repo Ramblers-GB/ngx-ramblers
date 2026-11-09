@@ -99,7 +99,7 @@ const USE_SERENITY = envConfig.booleanValue(Environment.USE_SERENITY_FOR_MIGRATI
 
 ### Exported Interfaces
 
-All inline types have been converted to proper interfaces in `migration-types.ts`:
+All inline types have been converted to proper interfaces in `migration.model.ts`:
 
 ```typescript
 export interface BaseHrefResult {
@@ -227,7 +227,7 @@ For each page link:
 - `screenplay/questions/page-content.ts` - Generic page content question (reference)
 - `screenplay/page-elements/migration-page.ts.unused` - Page element locators (reference)
 - `screenplay/page-elements/README.md` - Documentation
-- `migration-types.ts` - Exported type interfaces
+- `migration.model.ts` - Exported type interfaces
 
 ### Modified
 - `environment-model.ts` - Added USE_SERENITY_FOR_MIGRATION

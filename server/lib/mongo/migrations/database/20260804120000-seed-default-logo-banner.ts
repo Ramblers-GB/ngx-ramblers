@@ -1,6 +1,6 @@
 import { Db } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
-import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 import { seedDefaultLogoBanner } from "../shared/seed-default-banner";
 
 const debugLog = createMigrationLogger("seed-default-logo-banner");

@@ -6,7 +6,7 @@ import { FileNameData } from "./aws-object.model";
 import { DateValue } from "./date.model";
 import { NotificationConfig } from "./mail.model";
 import { Link } from "./page.model";
-import { Media } from "./ramblers-walks-manager";
+import { Media } from "./ramblers-walks-manager.model";
 import { VideoMeetingInviteRecipient, VideoMeetingRsvp } from "./video-meeting.model";
 import { ProgrammeOverviewStatus, WalkProgrammeSummaryRow } from "./walk-programme.model";
 

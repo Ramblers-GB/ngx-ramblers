@@ -2,7 +2,7 @@ import { inject } from "@angular/core";
 import { ActivatedRouteSnapshot, Router } from "@angular/router";
 import { MobileAppAccessService } from "../services/maps/mobile-app-access.service";
 import { MobileAppAction } from "../models/walks-config.model";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { NativeSiteService } from "../services/maps/native-site.service";
 import { AppPath } from "../models/route-follow.model";
 

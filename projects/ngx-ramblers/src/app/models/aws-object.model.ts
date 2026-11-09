@@ -1,5 +1,5 @@
 import { Dimensions } from "ngx-image-cropper";
-import { AuditStatus, RouteAudit } from "./audit";
+import { AuditStatus, RouteAudit } from "./audit.model";
 
 export enum FileServeDisposition {
   DOWNLOAD = "download",

@@ -20,7 +20,7 @@ import { Logger, LoggerFactory } from "../../../../services/logger-factory.servi
 import { MailService } from "../../../../services/mail/mail.service";
 import { StringUtilsService } from "../../../../services/string-utils.service";
 import { UiActionsService } from "../../../../services/ui-actions.service";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 
 
 @Component({

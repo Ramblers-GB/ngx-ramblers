@@ -6,7 +6,7 @@ import { publicSitePaths } from "../mongo/controllers/site-search";
 import { pageContent } from "../mongo/models/page-content";
 import { PageContent } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { ContentExportFormat } from "../../../projects/ngx-ramblers/src/app/models/content-export.model";
-import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { renderMarkdownToHtml } from "../shared/markdown-renderer";
 import { dateTimeNow } from "../shared/dates";
 import {

@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { venueViewport } from "./venue";
 import { ensureModel } from "../utils/model-utils";
 import uniqueValidator from "mongoose-unique-validator";
-import { Walk } from "../../../../projects/ngx-ramblers/src/app/models/deprecated";
+import { Walk } from "../../../../projects/ngx-ramblers/src/app/models/deprecated.model";
 
 export const riskAssessmentRecord = new mongoose.Schema({
   confirmationText: {type: String},

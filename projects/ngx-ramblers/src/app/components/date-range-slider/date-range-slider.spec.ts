@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { dateRangeSliderAxisTicks } from "./date-range-slider";
+import { DateRangeSliderUnit } from "../../models/date.model";
 
 describe("dateRangeSliderAxisTicks", () => {
   const start = DateTime.fromISO("2026-03-01", {zone: "Europe/London"}).startOf("day");
@@ -18,6 +19,15 @@ describe("dateRangeSliderAxisTicks", () => {
     expect(ticks[ticks.length - 1].end).toBe(true);
     expect(ticks[0].label).toBe("01 Mar 2026");
     expect(ticks[ticks.length - 1].label).toBe("08 Mar 2026");
+  });
+
+  it("places hour ticks on a 24-hour range", () => {
+    const ticks = dateRangeSliderAxisTicks(start, 24, date => date.toFormat("HH:mm"), DateRangeSliderUnit.HOURS);
+    expect(ticks.map(tick => tick.value)).toEqual([0, 6, 12, 18, 24]);
+    expect(ticks[0].label).toBe("00:00");
+    expect(ticks[ticks.length - 1].label).toBe("00:00");
+    const gaps = ticks.slice(1).map((tick, index) => tick.percent - ticks[index].percent);
+    expect(gaps.every(gap => gap >= 18)).toBe(true);
   });
 
   it("keeps start and end on a year-long range and spaces ticks at least 12 percent apart", () => {

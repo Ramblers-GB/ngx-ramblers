@@ -9,7 +9,7 @@ import { dateTimeNow } from "../shared/dates";
 import {
   MigrationFileStatus,
   MigrationStatus
-} from "../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+} from "../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 
 const debugLog = debug(envConfig.logNamespace("health"));
 debugLog.enabled = false;

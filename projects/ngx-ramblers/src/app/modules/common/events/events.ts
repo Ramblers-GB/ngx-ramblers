@@ -9,7 +9,7 @@ import { AlertTarget } from "../../../models/alert-target.model";
 import { DataQueryOptions, FilterCriteria, SortOrder } from "../../../models/api-request.model";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
 import { EventsData } from "../../../models/group-events.model";
-import { DateDirection } from "../../../models/search.model";
+import { RelativeDateRange, relativeDateRangeBounds } from "../../../models/search.model";
 import { SearchFilterPipe } from "../../../pipes/search-filter.pipe";
 import { BroadcastService } from "../../../services/broadcast-service";
 import { DateUtilsService } from "../../../services/date-utils.service";
@@ -28,9 +28,9 @@ import { WalksConfig } from "../../../models/walks-config.model";
 import { WalksConfigService } from "../../../services/system/walks-config.service";
 import { ExtendedGroupEvent, InputSource } from "../../../models/group-event.model";
 import { WalksAndEventsService } from "../../../services/walks-and-events/walks-and-events.service";
-import { EventQueryParameters, RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { EventQueryParameters, RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { DateFilterParameters } from "../../../models/search.model";
-import { MongoSort } from "../../../models/mongo-models";
+import { MongoSort } from "../../../models/mongo.model";
 import {GroupEventField} from "../../../models/walk.model";
 import { tagCriteriaClauses } from "../../../functions/walks/event-tag-filter";
 import { WalkDisplayService } from "../../../pages/walks/walk-display.service";
@@ -38,7 +38,7 @@ import { EM_DASH_WITH_SPACES } from "../../../models/content-text.model";
 import { enumValues } from "../../../functions/enums";
 import {groupEventIdsCriteria} from "../../../functions/group-event-id-criteria";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions.model";
 
 @Component({
     selector: "app-events",
@@ -324,16 +324,20 @@ export class Events implements OnInit, OnDestroy {
     return tagCriteriaClauses(tagsAny, tagsExclude);
   }
 
-  private resolveRelativeDate(dateRange?: { direction: DateDirection; duration: { days?: number; months?: number; years?: number } }): number | undefined {
-    if (!dateRange) { return undefined; }
-    const now = this.dateUtils.dateTimeNow().startOf("day");
-    return dateRange.direction === DateDirection.FUTURE ? now.toMillis() : now.minus(dateRange.duration).toMillis();
+  private resolveRelativeDate(dateRange?: RelativeDateRange): number | undefined {
+    if (!dateRange) {
+      return undefined;
+    } else {
+      return relativeDateRangeBounds(dateRange, this.dateUtils.dateTimeNow()).from.toMillis();
+    }
   }
 
-  private resolveRelativeEndDate(dateRange?: { direction: DateDirection; duration: { days?: number; months?: number; years?: number } }): number | undefined {
-    if (!dateRange) { return undefined; }
-    const now = this.dateUtils.dateTimeNow().startOf("day");
-    return dateRange.direction === DateDirection.FUTURE ? now.plus(dateRange.duration).toMillis() : now.toMillis();
+  private resolveRelativeEndDate(dateRange?: RelativeDateRange): number | undefined {
+    if (!dateRange) {
+      return undefined;
+    } else {
+      return relativeDateRangeBounds(dateRange, this.dateUtils.dateTimeNow()).to.toMillis();
+    }
   }
 
   private dateRangeCriteria(fromDate: number, toDate: number) {

@@ -5,7 +5,7 @@ import { buildMongoUri } from "../../shared/mongodb-uri";
 import { validateMongoConnection } from "../../environment-setup/database-initialiser";
 import { validateAwsAdminCredentials, adminConfigFromEnvironment } from "../../environment-setup/aws-setup";
 import { validateRamblersApiKey } from "../../environment-setup/ramblers-api-client";
-import { ValidationResult, MongoValidationConfig, ProgressCallback } from "../types";
+import { ValidationResult, MongoValidationConfig, ProgressCallback } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { cliLogger, log } from "../cli-logger";
 

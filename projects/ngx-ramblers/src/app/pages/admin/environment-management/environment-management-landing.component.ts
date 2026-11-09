@@ -120,6 +120,13 @@ export class EnvironmentManagementLandingComponent implements OnInit, OnDestroy 
             icon: "faClipboardList",
             contentText: "View and inventory platform and site configuration values, system logins, and offline export packs",
             accessLevel: AccessLevel.ENVIRONMENT_ADMIN
+          },
+          {
+            href: AdminPlatformPath.SYSTEM_LOGS,
+            title: "System logs",
+            icon: "faList",
+            contentText: "Live debug log for this environment, newest first, filterable by prefix or any text",
+            accessLevel: AccessLevel.ENVIRONMENT_ADMIN
           }
         ]
       }]

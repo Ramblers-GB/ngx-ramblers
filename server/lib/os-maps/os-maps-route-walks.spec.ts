@@ -4,7 +4,7 @@ import { afterEach, describe, it } from "mocha";
 import { Request, Response } from "express";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { OsMapsListedRoute, OsMapsRouteSource } from "../../../projects/ngx-ramblers/src/app/models/os-maps-export.model";
-import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { walkReferencesRoute, withRouteWalks } from "./os-maps-route-walks";
 import * as references from "./os-maps-route-walks";
 import * as listingStore from "./os-maps-route-listing-store";

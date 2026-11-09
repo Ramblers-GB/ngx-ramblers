@@ -23,7 +23,7 @@ import {
 import { UIDateFormat } from "../../../../models/date-format.model";
 import { ALERT_ERROR } from "../../../../models/alert-target.model";
 import { SectionToggle } from "../../../../shared/components/section-toggle";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 
 @Component({
   selector: "app-fly-machine-history",

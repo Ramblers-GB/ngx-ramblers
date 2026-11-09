@@ -3,7 +3,7 @@ import { inject, Injectable } from "@angular/core";
 import { Router } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
 import { isNumber, isObject, isString, kebabCase, toPairs } from "es-toolkit/compat";
-import { StoredValue, StoredValueQueryParameters } from "../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../models/ui-actions.model";
 import { Logger, LoggerFactory } from "./logger-factory.service";
 import { booleanOf as sharedBooleanOf, toKebabCase } from "../functions/strings";
 

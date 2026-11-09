@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { BucketResult, CopyAssetsCliResult, IamUserResult, ProgressCallback } from "../types";
+import { BucketResult, CopyAssetsCliResult, IamUserResult, ProgressCallback } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { log } from "../cli-logger";
 import { AWS_DEFAULTS } from "../../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";

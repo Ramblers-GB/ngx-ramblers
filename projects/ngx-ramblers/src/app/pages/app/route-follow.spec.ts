@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, ElementRef } from "@angular/core";
 import { DistanceUnit } from "../../models/walk.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { AppInstallPlatform, RouteFollowEditTool, RouteFollowLocationError, RouteFollowMode, RouteFollowPoint, RouteFollowPayload, RouteFollowSession, RouteFollowSheetState, RouteFollowSource } from "../../models/route-follow.model";
 import { DEFAULT_OS_STYLE, MapProvider } from "../../models/map.model";
 import { RouteFollowComponent } from "./route-follow";

@@ -14,7 +14,7 @@ import { PageComponent } from "../../../page/page.component";
 import { WalkEditComponent } from "../walk-edit/walk-edit.component";
 import { ExtendedGroupEvent } from "../../../models/group-event.model";
 import { EventDefaultsService } from "../../../services/event-defaults.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 @Component({
   selector: "app-walk-edit-full-page",

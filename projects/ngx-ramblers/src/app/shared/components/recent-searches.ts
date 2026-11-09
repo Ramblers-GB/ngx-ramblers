@@ -2,7 +2,7 @@ import { Component, EventEmitter, inject, Input, Output } from "@angular/core";
 import { AsyncPipe } from "@angular/common";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faClockRotateLeft } from "@fortawesome/free-solid-svg-icons";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { RecentSearchesService } from "../../services/search/recent-searches.service";
 
 @Component({

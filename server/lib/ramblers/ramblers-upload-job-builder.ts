@@ -4,7 +4,7 @@ import {
   RamblersUploadJobData,
   RamblersUploadJobState
 } from "../../../projects/ngx-ramblers/src/app/models/ramblers-upload-job.model";
-import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { dateTimeNowAsValue } from "../shared/dates";
 import { SerenityFeature } from "../../../projects/ngx-ramblers/src/app/models/serenity-feature.model";
 

@@ -5,13 +5,13 @@ import { faArrowLeft, faCheck, faCopy, faEnvelope, faEraser, faFloppyDisk, faPap
 import { cloneDeep, isEmpty, isEqual, isString, values } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
-import { GridReferenceLookupResponse } from "../../../models/address-model";
+import { GridReferenceLookupResponse } from "../../../models/address.model";
 import { ALERT_SUCCESS, ALERT_WARNING, AlertTarget } from "../../../models/alert-target.model";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
 import { ConfigKey } from "../../../models/config.model";
 import { MEETUP_API_AVAILABLE, MeetupConfig } from "../../../models/meetup-config.model";
 import { Member } from "../../../models/member.model";
-import { ConfirmType, StoredValue, WalkEditTab } from "../../../models/ui-actions";
+import { ConfirmType, StoredValue, WalkEditTab } from "../../../models/ui-actions.model";
 import { WalkEventType } from "../../../models/walk-event-type.model";
 import {
   DisplayedWalk,

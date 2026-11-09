@@ -4,7 +4,7 @@ import { envConfig } from "../../env-config/env-config";
 import { extendedGroupEvent } from "../models/extended-group-event";
 import * as crudController from "./crud-controller";
 import { EventSource, ExtendedGroupEvent, InputSource } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType, WalkStatus } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType, WalkStatus } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { DocumentField, EventField, EventType, GroupEventField } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { ProgrammeOverviewStatus, ProgrammeStatusCounts, WalkProgrammeSummaryResponse } from "../../../../projects/ngx-ramblers/src/app/models/walk-programme.model";
 import { dateTimeFromMillis, dateTimeNow } from "../../shared/dates";

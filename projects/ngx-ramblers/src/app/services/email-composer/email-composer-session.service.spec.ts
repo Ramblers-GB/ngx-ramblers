@@ -6,7 +6,7 @@ import { TestBed } from "@angular/core/testing";
 import { LoggerFactory } from "../logger-factory.service";
 import { EmailComposerSessionService } from "./email-composer-session.service";
 import { BrandingMode, EmailCompositionKind, EmailComposerStepKey, RecipientMode } from "../../models/email-composer.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { defaultEmailComposerState } from "../../functions/email-composer";
 
 describe("unbranded composer session", () => {

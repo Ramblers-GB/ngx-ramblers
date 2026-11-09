@@ -12,7 +12,7 @@ import {
   MigrationRetryResult,
   MigrationStatus,
   MigrationUpResult
-} from "../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+} from "../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 import { migrateMongoConfig } from "./migrations-config";
 import { ConfigKey } from "../../../../projects/ngx-ramblers/src/app/models/config.model";
 import * as mongooseClient from "../mongoose-client";

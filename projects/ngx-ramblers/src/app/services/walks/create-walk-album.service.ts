@@ -14,7 +14,7 @@ import { DateUtilsService } from "../date-utils.service";
 import { SystemConfigService } from "../system/system-config.service";
 import { AiService } from "../ai/ai.service";
 import { LoggerFactory } from "../logger-factory.service";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { memberLeadsWalk, walkLeaderFirstNameForAlbumThanks } from "../../functions/walks/walk-leader-fields";
 import {
   albumRowReferencesEvent,

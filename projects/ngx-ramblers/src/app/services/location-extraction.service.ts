@@ -2,7 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { PageContent, PageContentColumn, PageContentRow, PageContentType } from "../models/content-text.model";
 import { AccessLevel } from "../models/member-resource.model";
-import { LocationDetails } from "../models/ramblers-walks-manager";
+import { LocationDetails } from "../models/ramblers-walks-manager.model";
 import { LoggerFactory } from "./logger-factory.service";
 import { PageContentActionsService } from "./page-content-actions.service";
 import { UrlService } from "./url.service";

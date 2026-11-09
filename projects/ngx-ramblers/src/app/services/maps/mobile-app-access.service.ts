@@ -5,7 +5,7 @@ import { inject, Injectable } from "@angular/core";
 import { MemberLoginService } from "../member/member-login.service";
 import { WalksConfigService } from "../system/walks-config.service";
 import { UiActionsService } from "../ui-actions.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { DEFAULT_MOBILE_APP_CONFIG, MobileAppConfig, MobileAppAction, WalksConfig } from "../../models/walks-config.model";
 import { mobileAppAccessPermitted } from "../../functions/mobile-app-access";
 

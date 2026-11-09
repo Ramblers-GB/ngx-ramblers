@@ -1,4 +1,4 @@
-import { PublicSiteFetchEnv } from "./types";
+import { PublicSiteFetchEnv } from "./worker-templates.model";
 
 const MAX_REDIRECTS = 5;
 

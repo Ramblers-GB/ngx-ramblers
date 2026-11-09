@@ -1,4 +1,4 @@
-import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { gpxAudit } from "../walks/walk-gpx-persist";
 import { dateTimeNowAsValue } from "../shared/dates";
 import { ImportedRouteNumberCounter, osMapsImportedRoute, OsMapsImportedRouteRecord } from "../mongo/models/os-maps-imported-route";

@@ -3,7 +3,7 @@ import { ApiResponse, Identifiable } from "./api-response.model";
 import { MailchimpSubscription } from "./mailchimp.model";
 import { EmailAddress, MailIdentifiers, MailSubscription, SendSmtpEmailRequest } from "./mail.model";
 import { sortBy } from "../functions/arrays";
-import { Contact, HasNgSelectAttributes } from "./ramblers-walks-manager";
+import { Contact, HasNgSelectAttributes } from "./ramblers-walks-manager.model";
 import { ExtendedGroupEvent } from "./group-event.model";
 
 export enum ProfileUpdateType {

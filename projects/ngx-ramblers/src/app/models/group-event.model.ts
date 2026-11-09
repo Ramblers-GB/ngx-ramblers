@@ -8,7 +8,7 @@ import {
   Metadata,
   RamblersEventType,
   WalkStatus
-} from "./ramblers-walks-manager";
+} from "./ramblers-walks-manager.model";
 import { WalkEvent } from "./walk-event.model";
 import { MeetupConfig } from "./meetup-config.model";
 import { Venue } from "./event-venue.model";

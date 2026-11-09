@@ -8,7 +8,7 @@ import { PageContentColumn } from "../../../projects/ngx-ramblers/src/app/models
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { envConfig } from "../env-config/env-config";
 import { GitHubTokenProvider } from "../shared/github-token-provider.js";
-import { DEFAULT_CMS_BASE_URL } from "./models.js";
+import { DEFAULT_CMS_BASE_URL } from "./release-notes.model.js";
 import { PageContent, PageContentType } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
 
 const debugLog = debug(envConfig.logNamespace("refresh-build-links"));

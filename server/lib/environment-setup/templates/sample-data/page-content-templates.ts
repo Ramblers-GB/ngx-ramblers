@@ -2,7 +2,7 @@ import { WALKS_HOW_TO_DOCUMENTATION_URL } from "../../../../../projects/ngx-ramb
 import { PageContent, PageContentRow, PageContentType } from "../../../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { AccessLevel } from "../../../../../projects/ngx-ramblers/src/app/models/member-resource.model";
 import { FilterCriteria, SortOrder } from "../../../../../projects/ngx-ramblers/src/app/models/api-request.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { liteHomePageContent } from "../../../../../projects/ngx-ramblers/src/app/models/home-content.model";
 import { dateTimeNow } from "../../../shared/dates";
 import { DateRangeMode } from "../../../../../projects/ngx-ramblers/src/app/models/group-events.model";

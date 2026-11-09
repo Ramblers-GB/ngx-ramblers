@@ -61,7 +61,7 @@ import {
 } from "../../../../models/cloudflare-email-routing.model";
 import { EnvironmentSettingsSubTab, SystemConfig } from "../../../../models/system.model";
 import { EnvironmentSetupTab } from "../../../../models/environment-setup.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { sortBy } from "../../../../functions/arrays";
 import { assignedMemberId } from "../../../../functions/committee-members";
 import { extractErrorMessage, toDotCase, toKebabCase } from "../../../../functions/strings";

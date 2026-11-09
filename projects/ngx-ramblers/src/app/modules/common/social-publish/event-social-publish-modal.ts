@@ -11,7 +11,7 @@ import { Subscription } from "rxjs";
 import { FileUploadService } from "../../../services/file-upload.service";
 import { AwsFileUploadResponseData } from "../../../models/aws-object.model";
 import { RootFolder } from "../../../models/system.model";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { AlertTarget } from "../../../models/alert-target.model";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";

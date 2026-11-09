@@ -1,4 +1,4 @@
-import { GridReferenceLookupApiResponse } from "../../../projects/ngx-ramblers/src/app/models/address-model";
+import { GridReferenceLookupApiResponse } from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import { ApiAction } from "../../../projects/ngx-ramblers/src/app/models/api-response.model";
 import { ApiRequest } from "../../../projects/ngx-ramblers/src/app/models/api-request.model";
 import { envConfig } from "../env-config/env-config";

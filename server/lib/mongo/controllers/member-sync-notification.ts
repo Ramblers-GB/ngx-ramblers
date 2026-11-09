@@ -8,7 +8,7 @@ import { mailListAudit } from "../models/mail-list-audit";
 import * as crudController from "./crud-controller";
 import { parseError, toObjectWithId } from "./transforms";
 import { ApiAction } from "../../../../projects/ngx-ramblers/src/app/models/api-response.model";
-import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { Member } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 import {
   MemberSyncNotification,

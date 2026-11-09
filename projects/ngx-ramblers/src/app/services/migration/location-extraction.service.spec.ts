@@ -2,7 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { LoggerTestingModule } from "ngx-logger/testing";
 import { MigrationLocationExtractionService } from "./location-extraction.service";
 import { ExtractedLocation } from "../../models/map.model";
-import { GeocodeMatchType } from "../../models/address-model";
+import { GeocodeMatchType } from "../../models/address.model";
 import { SystemConfigService } from "../system/system-config.service";
 import { ReplaySubject } from "rxjs";
 import { SystemConfig } from "../../models/system.model";

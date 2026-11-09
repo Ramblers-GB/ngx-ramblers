@@ -1,6 +1,6 @@
 import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
-import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 
 const debugLog = createMigrationLogger("update-brevo-transactional-template");
 

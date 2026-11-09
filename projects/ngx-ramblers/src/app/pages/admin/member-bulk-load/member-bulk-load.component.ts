@@ -46,7 +46,7 @@ import { ComposerExternalRecipient } from "../../../models/email-composer.model"
 import { RecipientFieldComponent } from "../../../modules/common/recipient-field/recipient-field";
 import { EmailPreviewComponent } from "../../../modules/common/email-preview/email-preview.component";
 import { UIDateFormat } from "../../../models/date-format.model";
-import { EditMode, StoredValue } from "../../../models/ui-actions";
+import { EditMode, StoredValue } from "../../../models/ui-actions.model";
 import { SearchFilterPipe } from "../../../pipes/search-filter.pipe";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";

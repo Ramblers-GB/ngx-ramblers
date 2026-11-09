@@ -1,6 +1,6 @@
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
-import { WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";
 import { eventUrlFor } from "../shared/event-url";
 import { dateTimeFromIsoWithZone, dateTimeFromMillis, dateTimeNow, formatDateTime } from "../shared/dates";

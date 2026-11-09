@@ -24,8 +24,8 @@ import { WalksAndEventsService } from "../walks-and-events/walks-and-events.serv
 import { DateUtilsService } from "../date-utils.service";
 import { EmailCompositionsService } from "./email-compositions.service";
 import { GroupEventSummary } from "../../models/committee.model";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
-import { StoredValue } from "../../models/ui-actions";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
+import { StoredValue } from "../../models/ui-actions.model";
 import { Injectable } from "@angular/core";
 
 

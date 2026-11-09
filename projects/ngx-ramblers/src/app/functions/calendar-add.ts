@@ -6,7 +6,7 @@ import { DateTime } from "luxon";
 import { CalendarApp, CalendarClientHints, CalendarPreviewEvent, DeviceKind, OrganiserLabel } from "../models/inbox.model";
 import { UIDateFormat } from "../models/date-format.model";
 import { ExtendedGroupEvent } from "../models/group-event.model";
-import { RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager";
+import { RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager.model";
 import { escapeHtml, stripTrailingSlash } from "./strings";
 
 import { OutlookCalendarPlatform } from "../models/walk-programme.model";

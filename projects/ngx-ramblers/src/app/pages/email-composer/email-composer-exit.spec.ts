@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 import {AdminPath} from "../../models/admin-route-paths.model";
-import {StoredValue} from "../../models/ui-actions";
+import {StoredValue} from "../../models/ui-actions.model";
 import {EmailComposer} from "./email-composer";
 
 describe("composer Exit destination", () => {

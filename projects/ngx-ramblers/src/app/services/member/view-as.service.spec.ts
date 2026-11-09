@@ -4,7 +4,7 @@ import { AuthService } from "../../auth/auth.service";
 import { MemberCookie } from "../../models/member.model";
 import { ViewAsService } from "./view-as.service";
 import { MemberService } from "./member.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 
 const actorId = "aaaaaaaaaaaaaaaaaaaaaaaa";
 const targetId = "bbbbbbbbbbbbbbbbbbbbbbbb";

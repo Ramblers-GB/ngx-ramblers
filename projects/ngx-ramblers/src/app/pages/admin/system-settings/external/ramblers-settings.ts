@@ -15,7 +15,7 @@ import { WebSocketClientService } from "../../../../services/websockets/websocke
 import { EventType, MessageType } from "../../../../models/websocket.model";
 import { Subscription } from "rxjs";
 import { InputSize } from "../../../../models/ui-size.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { walksManagerSyncEnabled } from "../../../../functions/walks/walks-manager-sync-config";
 
 @Component({

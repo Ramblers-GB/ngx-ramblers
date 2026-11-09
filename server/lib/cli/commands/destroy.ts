@@ -20,7 +20,7 @@ import { extractUsernameFromUri } from "../../shared/mongodb-uri";
 import { loadSecretsForEnvironment, secretsPath } from "../../shared/secrets";
 import { runCommand } from "../../fly/fly-commands";
 import { adminConfigFromEnvironment } from "../../environment-setup/aws-setup";
-import { ProgressCallback } from "../types";
+import { ProgressCallback } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { DestroyConfig, DestroyResult, DestroyStep } from "../cli.model";
 import { log } from "../cli-logger";

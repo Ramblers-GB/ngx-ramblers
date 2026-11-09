@@ -10,7 +10,7 @@ import {
 import { loadSecretsForEnvironment } from "../../shared/secrets";
 import { parseMongoUri } from "../../shared/mongodb-uri";
 import { findEnvironmentFromDatabase } from "../../environments/environments-config";
-import { ProgressCallback, ReinitDatabaseParams, SeedConfig, ValidationResult } from "../types";
+import { ProgressCallback, ReinitDatabaseParams, SeedConfig, ValidationResult } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { log } from "../cli-logger";
 import { MigrationRunner } from "../../mongo/migrations/migrations-runner";

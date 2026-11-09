@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output, inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgLabelTemplateDirective, NgOptionTemplateDirective, NgSelectComponent } from "@ng-select/ng-select";
-import { Difficulty } from "../../models/ramblers-walks-manager";
+import { Difficulty } from "../../models/ramblers-walks-manager.model";
 import { WALK_GRADES, WalkGrade } from "../../models/walk.model";
 import { WalkDisplayService } from "../../pages/walks/walk-display.service";
 

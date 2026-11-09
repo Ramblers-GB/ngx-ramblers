@@ -23,7 +23,7 @@ import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faArrowLeft, faCheck, faShareNodes } from "@fortawesome/free-solid-svg-icons";
 import { TooltipModule } from "ngx-bootstrap/tooltip";
 import { nativeShareSupported } from "../functions/native-share";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { AppPath, walkingAppName } from "../models/route-follow.model";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "../services/logger-factory.service";

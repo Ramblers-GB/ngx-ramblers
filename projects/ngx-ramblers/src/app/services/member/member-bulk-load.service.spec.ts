@@ -2,7 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { vi } from "vitest";
 import { MemberBulkLoadService } from "./member-bulk-load.service";
 import { Member, MemberAction, RamblersMember, WriteDataRule } from "../../models/member.model";
-import { AUDIT_FIELDS, AuditField, InsightHubDateFormat } from "../../models/ramblers-insight-hub";
+import { AUDIT_FIELDS, AuditField, InsightHubDateFormat } from "../../models/ramblers-insight-hub.model";
 import { DateUtilsService } from "../date-utils.service";
 import { LoggerFactory } from "../logger-factory.service";
 import { MemberUpdateAuditService } from "./member-update-audit.service";

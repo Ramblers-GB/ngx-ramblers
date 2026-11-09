@@ -10,7 +10,7 @@ import {CommitteeFile, GroupEventsFilter, GroupEventSummary, GroupEventTypes} fr
 import {EVENT_EMAIL_IMAGE_HEIGHT, EventListingPreview, ProgrammeEventFormat} from "../../../../models/email-composer.model";
 import {ProgrammeOverviewStatus} from "../../../../models/walk-programme.model";
 import {SectionToggleTab} from "../../../../models/section-toggle.model";
-import {StoredValue} from "../../../../models/ui-actions";
+import {StoredValue} from "../../../../models/ui-actions.model";
 import {CommitteeQueryService} from "../../../../services/committee/committee-query.service";
 import {DateUtilsService} from "../../../../services/date-utils.service";
 import {EventTemplateRenderingService} from "../../../../services/mail/event-template-rendering.service";

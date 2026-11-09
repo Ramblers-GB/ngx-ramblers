@@ -17,7 +17,7 @@ import { ContentMetadata, ContentMetadataItem } from "../../../projects/ngx-ramb
 import { PageContent, PageContentColumn, PageContentRow } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { CommitteeFile } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
-import { Media, MediaStyle, RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { Media, MediaStyle, RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import * as transforms from "../mongo/controllers/transforms";
 import * as mongooseClient from "../mongo/mongoose-client";
 import { isArray } from "es-toolkit/compat";

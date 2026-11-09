@@ -4,7 +4,7 @@ import {
   GroupListRequest,
   MAXIMUM_PAGE_SIZE,
   WALKS_MANAGER_GO_LIVE_DATE
-} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { dateTimeNow, dateTimeFromIso } from "../shared/dates";
 
 export function dateParameter(body: EventsListRequest, debugLog: debug.Debugger): string {

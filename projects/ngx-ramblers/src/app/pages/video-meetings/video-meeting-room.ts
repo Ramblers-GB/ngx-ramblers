@@ -100,7 +100,7 @@ import {
   videoMeetingMediaHelp,
   microphoneBlockedGuidance
 } from "../../functions/video-meeting-client";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { AdminPath } from "../../models/admin-route-paths.model";
 import { appendUniqueLine, lineFromJitsiChat, lineFromJitsiTranscription } from "../../functions/video-meeting-minutes";
 import { createMeetingAudioRecorder } from "../../functions/meeting-audio-recorder";

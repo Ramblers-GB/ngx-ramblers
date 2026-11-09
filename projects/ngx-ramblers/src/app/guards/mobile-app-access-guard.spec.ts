@@ -5,7 +5,7 @@ import { NativeSiteService } from "../services/maps/native-site.service";
 import { MobileAppAccessService } from "../services/maps/mobile-app-access.service";
 import { AppPath } from "../models/route-follow.model";
 import { MobileAppAction } from "../models/walks-config.model";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 describe("MobileAppAccessGuard", () => {
   const nativeSite = {needsChooser: vi.fn()};

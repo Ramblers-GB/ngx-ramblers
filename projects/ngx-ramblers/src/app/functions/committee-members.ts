@@ -8,7 +8,7 @@ import {
   roleRecipientMemberIds
 } from "../models/committee.model";
 import { KEY_NULL_VALUE_NONE } from "./enums";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { isNullText, normaliseEmail } from "./strings";
 
 const MEMBER_ID_PATTERN = /^[0-9a-fA-F]{24}$/;

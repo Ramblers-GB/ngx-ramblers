@@ -41,7 +41,7 @@ export { validateMongodb, validateAwsAdmin, validateRamblersApi } from "./comman
 export { destroyEnvironment } from "./commands/destroy";
 export { createBackup, restoreBackup } from "./commands/backup";
 
-export * from "./types";
+export * from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 
 function configureHelp(cmd: Command): Command {
   cmd.helpOption("-h, --help", "display help for command");

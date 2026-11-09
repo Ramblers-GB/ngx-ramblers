@@ -2,7 +2,7 @@ import { Directive, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { outputToObservable } from "@angular/core/rxjs-interop";
 import { NgSelectComponent } from "@ng-select/ng-select";
 import { Subscription } from "rxjs";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { RecentSearchesService } from "../../services/search/recent-searches.service";
 
 @Directive({selector: "ng-select[appSearchHistory]", exportAs: "appSearchHistory"})

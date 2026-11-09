@@ -7,7 +7,7 @@ import { FormsModule } from "@angular/forms";
 import { PageContentRow } from "../../../models/content-text.model";
 import { GroupEvent } from "../../../models/group-event.model";
 import { DisplayedWalk } from "../../../models/walk.model";
-import { Difficulty, LocationDetails } from "../../../models/ramblers-walks-manager";
+import { Difficulty, LocationDetails } from "../../../models/ramblers-walks-manager.model";
 import { LocationType } from "../../../models/map.model";
 import { FeatureCategory } from "../../../models/walk-feature.model";
 import { ROUTE_EXCLUDED_FEATURES, RouteDetailsPart, RouteGuideData } from "../../../models/route-follow.model";

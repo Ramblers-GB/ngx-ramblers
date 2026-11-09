@@ -1,4 +1,4 @@
-import { CloudflareForwardEnv, ForwardableEmailMessage } from "./types";
+import { CloudflareForwardEnv, ForwardableEmailMessage } from "./worker-templates.model";
 
 declare const __RECIPIENTS__: string[];
 

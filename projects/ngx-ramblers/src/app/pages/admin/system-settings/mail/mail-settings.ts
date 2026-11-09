@@ -23,7 +23,7 @@ import { StringUtilsService } from "../../../../services/string-utils.service";
 import { MemberService } from "../../../../services/member/member.service";
 import { MemberDefaultsService } from "../../../../services/member/member-defaults.service";
 import { Member } from "../../../../models/member.model";
-import { Confirm, StoredValue } from "../../../../models/ui-actions";
+import { Confirm, StoredValue } from "../../../../models/ui-actions.model";
 import { ActivatedRoute, Router } from "@angular/router";
 import { kebabCase } from "es-toolkit/compat";
 import { NumberUtilsService } from "../../../../services/number-utils.service";

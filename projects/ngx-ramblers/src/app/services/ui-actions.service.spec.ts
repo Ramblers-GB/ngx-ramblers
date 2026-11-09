@@ -6,7 +6,7 @@ import { keys } from "es-toolkit/compat";
 import { vi } from "vitest";
 import { UiActionsService } from "./ui-actions.service";
 import { LoggerFactory } from "./logger-factory.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 describe("UiActionsService", () => {
     let service: UiActionsService;

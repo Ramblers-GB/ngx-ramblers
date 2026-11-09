@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { saveNativeWalkingSite } from "../../functions/native-walking";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { RouteFollowCacheService } from "./route-follow-cache.service";
 import { CachedFollowRoute, RouteFollowOfflineStatus, RouteFollowPayload } from "../../models/route-follow.model";
 

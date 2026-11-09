@@ -26,7 +26,7 @@ import {
 import { MemberNamingService } from "../member/member-naming.service";
 import { DataQueryOptions } from "../../models/api-request.model";
 import { StringUtilsService } from "../string-utils.service";
-import { Contact, LocationDetails, RamblersEventType, WalkEditField, WalkFieldChange, WalkStatus, WalkUploadColumnHeading } from "../../models/ramblers-walks-manager";
+import { Contact, LocationDetails, RamblersEventType, WalkEditField, WalkFieldChange, WalkStatus, WalkUploadColumnHeading } from "../../models/ramblers-walks-manager.model";
 import { AlertInstance } from "../notifier.service";
 import {
   ExtendedGroupEvent,
@@ -63,7 +63,7 @@ import { isMongoId } from "../mongo-utils";
 import { EventDefaultsService } from "../event-defaults.service";
 import { DistanceValidationService } from "./distance-validation.service";
 import { AddressQueryService } from "./address-query.service";
-import { GridReferenceLookupResponse } from "../../models/address-model";
+import { GridReferenceLookupResponse } from "../../models/address.model";
 import { MediaQueryService } from "../committee/media-query.service";
 import { WalksConfigService } from "../system/walks-config.service";
 import { WalksConfig } from "../../models/walks-config.model";

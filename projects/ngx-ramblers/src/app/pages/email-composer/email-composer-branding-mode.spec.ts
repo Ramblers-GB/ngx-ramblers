@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EmailComposer } from "./email-composer";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import {
   AddresseeType,
   ComposerFragmentKind,

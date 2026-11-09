@@ -1,4 +1,4 @@
-import { StoredValue } from "./ui-actions";
+import { StoredValue } from "./ui-actions.model";
 
 export enum NamedEventType {
     ADVANCED_SEARCH = "advanced-search",

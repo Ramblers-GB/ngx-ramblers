@@ -14,12 +14,12 @@ import { WalksConfigService } from "../../../services/system/walks-config.servic
 import { SystemConfigService } from "../../../services/system/system-config.service";
 import { WalksConfig } from "../../../models/walks-config.model";
 import { AddressQueryService } from "../../../services/walks/address-query.service";
-import { GridReferenceLookupResponse } from "../../../models/address-model";
+import { GridReferenceLookupResponse } from "../../../models/address.model";
 import { DEFAULT_OS_STYLE, LocationType, MapProvider, OSMapStyle, OSMapStyleKey, UK_MAP_CENTER, UK_MAP_ZOOM } from "../../../models/map.model";
 import { UK_POSTCODE_PATTERN } from "../../../models/locate.model";
 import { formattedUkPostcode } from "../../../functions/locate";
 import { isString } from "es-toolkit/compat";
-import { LocationDetails, WalkStatus } from "../../../models/ramblers-walks-manager";
+import { LocationDetails, WalkStatus } from "../../../models/ramblers-walks-manager.model";
 import { PostcodeMapPreview } from "../../../models/postcode-navigation.model";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { sortBy } from "../../../functions/arrays";

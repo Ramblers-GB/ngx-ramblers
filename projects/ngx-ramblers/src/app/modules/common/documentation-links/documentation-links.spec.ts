@@ -1,4 +1,4 @@
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { Component, signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { ActivatedRoute, convertToParamMap, provideRouter } from "@angular/router";

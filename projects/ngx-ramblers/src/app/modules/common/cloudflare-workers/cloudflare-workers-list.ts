@@ -6,7 +6,7 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { Subscription } from "rxjs";
 import { values } from "es-toolkit/compat";
 import { CloudflareWorkerSortField, CloudflareWorkerRow, WorkerEmailUsageStatus } from "../../../models/cloudflare-email-routing.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { CloudflareUrlService } from "../../../services/cloudflare/cloudflare-url.service";
 import { SortableTableComponent } from "../sortable-table/sortable-table.component";

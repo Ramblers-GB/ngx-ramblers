@@ -12,7 +12,7 @@ import { skip, Subscription } from "rxjs";
 import { uniqBy } from "es-toolkit/compat";
 import { DocumentationLinksService } from "../../../services/documentation-links.service";
 import { DocumentationSite, DOCUMENTATION_SITE_PLACEHOLDER, DOCUMENTATION_SITE_SELECTOR_ID } from "../../../models/documentation-links.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { EnvironmentInfo } from "../../../models/backup-session.model";
 import { documentationLinkTitle, documentationSiteMarked, documentationSiteOrigin, documentationWebsitePickerEnabled } from "../../../functions/documentation-links";
 import { DELAYED_TOOLTIP_PROVIDERS, TOOLTIP_SHOW_DELAY_MS } from "../tooltip-config";

@@ -3,7 +3,7 @@ import { RamblersWalksAndEventsService } from "../../../services/walks-and-event
 import { WalksReferenceService } from "../../../services/walks/walks-reference-data.service";
 import { ExtendedGroupEventQueryService } from "../../../services/walks-and-events/extended-group-event-query.service";
 import { ExtendedGroupEventWithLabel, GroupEventField } from "../../../models/walk.model";
-import { RamblersGroupsApiResponse } from "../../../models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "../../../models/ramblers-walks-manager.model";
 import { sortBy } from "../../../functions/arrays";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { BASIC_FILTER_OPTIONS, FilterCriteria } from "../../../models/api-request.model";

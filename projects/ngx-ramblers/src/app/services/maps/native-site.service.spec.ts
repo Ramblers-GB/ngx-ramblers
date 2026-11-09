@@ -1,7 +1,7 @@
 import { TestBed } from "@angular/core/testing";
 import { Capacitor } from "@capacitor/core";
 import { HealthStatus } from "../../models/health.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { NATIVE_HTTP, NATIVE_SITE_NAVIGATION, NativeSiteService } from "./native-site.service";
 
 function nativeStatus(url: string, status: number, data: unknown) {

@@ -1,5 +1,5 @@
 import { OsMapsImportContext } from "../../../../projects/ngx-ramblers/src/app/models/os-maps-export.model";
-import { Difficulty } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { Difficulty } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import mongoose from "mongoose";
 import { ensureModel } from "../utils/model-utils";
 import { FileNameData } from "../../../../projects/ngx-ramblers/src/app/models/aws-object.model";

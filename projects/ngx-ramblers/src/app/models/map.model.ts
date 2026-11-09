@@ -1,5 +1,5 @@
 import { MapRoute } from "./content-text.model";
-import { GeocodeMatchType } from "./address-model";
+import { GeocodeMatchType } from "./address.model";
 import { values } from "es-toolkit/compat";
 import { KeyValue } from "../functions/enums";
 import { EventEventField } from "./walk.model";

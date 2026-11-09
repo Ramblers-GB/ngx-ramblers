@@ -3,7 +3,7 @@ import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { faCopy, faEnvelope, faFloppyDisk, faFolderOpen, faPencil, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { cloneDeep, first, isNull, isString, values } from "es-toolkit/compat";
 import { PathSegment } from "../../../models/content-text.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { FileUploader, FileUploadModule } from "ng2-file-upload";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -30,7 +30,7 @@ import { CopyIconComponent } from "../../../modules/common/copy-icon/copy-icon";
 import { RootFolder, SystemConfig } from "../../../models/system.model";
 import { ExtendedGroupEvent, InputSource } from "../../../models/group-event.model";
 import { EventDefaultsService } from "../../../services/event-defaults.service";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { EditGroupEventImagesComponent } from "../../../common/walks-and-events/edit-group-event-images";
 import { SystemConfigService } from "../../../services/system/system-config.service";
 import { WalksAndEventsService } from "../../../services/walks-and-events/walks-and-events.service";
@@ -47,7 +47,7 @@ import { SectionToggle } from "../../../shared/components/section-toggle";
 import { enumValueForKey } from "../../../functions/enums";
 import { TiptapMarkdownEditor } from "../../../modules/common/tiptap-editor/tiptap-markdown-editor";
 import { ContentTextUnsavedChangesService } from "../../../services/content-text-unsaved-changes.service";
-import { ConfirmType } from "../../../models/ui-actions";
+import { ConfirmType } from "../../../models/ui-actions.model";
 
 @Component({
     selector: "app-group-event-edit",

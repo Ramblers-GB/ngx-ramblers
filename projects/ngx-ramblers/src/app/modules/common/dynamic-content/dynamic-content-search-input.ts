@@ -6,7 +6,7 @@ import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
 import { isNull } from "es-toolkit/compat";
 import { PageContentColumn } from "../../../models/content-text.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { UiActionsService } from "../../../services/ui-actions.service";
 

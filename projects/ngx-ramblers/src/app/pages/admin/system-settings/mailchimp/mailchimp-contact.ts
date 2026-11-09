@@ -1,5 +1,5 @@
 import { Component, Input } from "@angular/core";
-import { MailchimpContact } from "../../../../models/server-models";
+import { MailchimpContact } from "../../../../models/server.model";
 import { FormsModule } from "@angular/forms";
 
 @Component({

@@ -14,7 +14,7 @@ import { StringUtilsService } from "../../../services/string-utils.service";
 import { faCheck, faCopy, faEraser, faEye, faPaste, faTimes } from "@fortawesome/free-solid-svg-icons";
 import { PageContentService } from "../../../services/page-content.service";
 import { ClipboardService } from "../../../services/clipboard.service";
-import { Confirm, ConfirmType, StoredValue } from "../../../models/ui-actions";
+import { Confirm, ConfirmType, StoredValue } from "../../../models/ui-actions.model";
 import { BadgeButtonComponent } from "../../../modules/common/badge-button/badge-button";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { ImageListSelect } from "./image-list-select";

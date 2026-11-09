@@ -1,6 +1,6 @@
 import {GroupEventSummary, GroupEventsFilter} from "../models/committee.model";
 import {EmailComposerProgramme, EVENT_EMAIL_IMAGE_HEIGHT, ProgrammeEventFormat, ProgrammeEventSection, ProgrammeEventToken, PROGRAMME_EVENT_TEMPLATES} from "../models/email-composer.model";
-import {LocationDetails} from "../models/ramblers-walks-manager";
+import {LocationDetails} from "../models/ramblers-walks-manager.model";
 import {locatePagePath} from "./locate";
 import {normaliseMarkdownText} from "./markdown";
 import {awsImageResourcePath} from "./aws-image-paths";

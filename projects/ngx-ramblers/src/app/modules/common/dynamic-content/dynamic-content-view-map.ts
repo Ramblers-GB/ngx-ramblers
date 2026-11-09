@@ -51,7 +51,7 @@ import { MemberLoginService } from "../../../services/member/member-login.servic
 import { PageContentService } from "../../../services/page-content.service";
 import { ResizerComponent, ResizerOrientation, ResizerVariant } from "../resizer/resizer";
 import { RouteGuidePanel } from "../../../shared/components/route-guide-panel";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { travelBearingAt } from "../../../functions/route-turns";
 import { milesFromStart, ROUTE_STEP_POPUP_OPTIONS, routeStepPopupHtml } from "../../../functions/route-step-popup";
 import { travelAlongRoute } from "../../../services/maps/route-travel";

@@ -1,6 +1,6 @@
-import { RouteContributor } from "./audit";
+import { RouteContributor } from "./audit.model";
 import { FileNameData, ServerFileNameData } from "./aws-object.model";
-import { Difficulty } from "./ramblers-walks-manager";
+import { Difficulty } from "./ramblers-walks-manager.model";
 import { RouteFollowWaypoint } from "./route-follow.model";
 
 export enum RouteVisibility {

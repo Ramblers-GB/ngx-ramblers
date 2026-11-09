@@ -18,12 +18,12 @@ import { ExtendedGroupEvent } from "../../../models/group-event.model";
 import { BroadcastService } from "../../../services/broadcast-service";
 import { NamedEventType } from "../../../models/broadcast.model";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
-import { WalkStatus } from "../../../models/ramblers-walks-manager";
+import { WalkStatus } from "../../../models/ramblers-walks-manager.model";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { isBoolean, isNull, isUndefined } from "es-toolkit/compat";
 import { enumValues } from "../../../functions/enums";
 import { SectionToggle } from "../../../shared/components/section-toggle";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { OsMapsImportGpxButtonComponent } from "./os-maps-import-gpx-button";
 
 @Component({

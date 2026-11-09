@@ -8,7 +8,7 @@ import { AlertTarget } from "../models/alert-target.model";
 import { ResetPasswordModalComponent } from "../pages/login/reset-password-modal/reset-password-modal.component";
 import { Logger, LoggerFactory } from "../services/logger-factory.service";
 import { MemberService } from "../services/member/member.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 @Component({
     selector: "app-set-password",

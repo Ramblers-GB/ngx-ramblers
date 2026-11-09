@@ -2,7 +2,7 @@ import { HttpClient } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subject } from "rxjs";
-import { GridReferenceLookupApiResponse, GridReferenceLookupResponse } from "../../models/address-model";
+import { GridReferenceLookupApiResponse, GridReferenceLookupResponse } from "../../models/address.model";
 import { CommonDataService } from "../common-data-service";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { LatLng, LatLngLiteral } from "leaflet";

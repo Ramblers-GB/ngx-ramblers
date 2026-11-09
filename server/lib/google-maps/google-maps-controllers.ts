@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import debug from "debug";
 import { isNumber } from "es-toolkit/compat";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
-import { GridReferenceLookupResponse } from "../../../projects/ngx-ramblers/src/app/models/address-model";
+import { GridReferenceLookupResponse } from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import { DrivingDistanceResponse } from "../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { envConfig } from "../env-config/env-config";
 import * as config from "../mongo/controllers/config";

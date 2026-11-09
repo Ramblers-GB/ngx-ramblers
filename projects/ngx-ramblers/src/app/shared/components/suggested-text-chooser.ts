@@ -5,7 +5,7 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { MarkdownComponent } from "ngx-markdown";
 import { DescriptionTidyView } from "../../models/text-diff.model";
 import { SectionToggleTab } from "../../models/section-toggle.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { NormaliseMarkdownPipe } from "../../pipes/normalise-markdown.pipe";
 import { SectionToggle } from "./section-toggle";
 

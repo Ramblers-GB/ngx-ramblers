@@ -7,7 +7,7 @@ import { Subscription } from "rxjs";
 import { faArrowLeft, faDownload, faFileLines, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { CommitteeFile } from "../../../models/committee.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { CommitteeFileService } from "../../../services/committee/committee-file.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { MemberLoginService } from "../../../services/member/member-login.service";

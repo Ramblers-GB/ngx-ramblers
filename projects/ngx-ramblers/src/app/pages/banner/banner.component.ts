@@ -54,7 +54,7 @@ import { BannerPapercutOutputComponent } from "./banner-papercut-output.componen
 import { BannerLogoAndTextLinesOutputComponent } from "./banner-logo-and-text-lines-output";
 import { FocalPointPickerComponent } from "../../modules/common/focal-point-picker/focal-point-picker";
 import { FocalPoint } from "../../models/image-cropper.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 
 @Component({
     selector: "app-banner",

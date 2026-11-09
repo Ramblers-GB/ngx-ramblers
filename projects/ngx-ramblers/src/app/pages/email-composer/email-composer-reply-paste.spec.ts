@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 import {convertToParamMap} from "@angular/router";
-import {StoredValue} from "../../models/ui-actions";
+import {StoredValue} from "../../models/ui-actions.model";
 import {BrandingMode} from "../../models/mail.model";
 import {defaultEmailComposerState} from "../../functions/email-composer";
 import {ComposerFragmentKind, EmailComposerState, RecipientMode, RecipientAddressMode} from "../../models/email-composer.model";

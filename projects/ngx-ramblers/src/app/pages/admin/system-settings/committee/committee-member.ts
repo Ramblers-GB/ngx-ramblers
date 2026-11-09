@@ -61,7 +61,7 @@ import { MemberNamingService } from "projects/ngx-ramblers/src/app/services/memb
 import { UrlService } from "../../../../services/url.service";
 import { InboxService } from "../../../../services/inbox/inbox.service";
 import { InboxAliasConnectionStatus } from "../../../../models/inbox.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { FormsModule } from "@angular/forms";
 import { CommitteeMemberLookupComponent } from "./committee-member-lookup";
 import { CreateOrAmendSenderComponent } from "../../send-emails/create-or-amend-sender";

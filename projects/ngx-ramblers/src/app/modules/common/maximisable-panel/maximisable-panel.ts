@@ -5,7 +5,7 @@ import { faCompress, faExpand } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { SiteLogoComponent } from "../site-logo/site-logo";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { MaximisablePanelService } from "../../../services/maximisable-panel.service";
 
 @Component({

@@ -3,7 +3,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { Observable, Subject } from "rxjs";
 import { NamedEvent, NamedEventType } from "../models/broadcast.model";
 import { Logger, LoggerFactory } from "../services/logger-factory.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 @Injectable({
   providedIn: "root"

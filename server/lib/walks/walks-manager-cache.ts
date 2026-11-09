@@ -9,7 +9,7 @@ import {
   GroupEvent,
   InputSource
 } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { Contact, DateFormat, RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { Contact, DateFormat, RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { EventField, GroupEventField, LinkSource } from "../../../projects/ngx-ramblers/src/app/models/walk.model";
 import {
   isMeetupUrl,

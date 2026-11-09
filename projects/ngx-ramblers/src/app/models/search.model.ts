@@ -1,6 +1,6 @@
 import { AccessLevelData } from "./member-resource.model";
 import { FilterCriteria } from "./api-request.model";
-import { StoredValue } from "./ui-actions";
+import { StoredValue } from "./ui-actions.model";
 import { SortDirection } from "./sort.model";
 import { DateTime } from "luxon";
 
@@ -100,9 +100,25 @@ export interface DateRangePreset extends SelectablePreset {
   localWalkPopulationOnly?: boolean;
 }
 
+export interface RelativeDuration {
+  hours?: number;
+  days?: number;
+  months?: number;
+  years?: number;
+}
+
 export interface RelativeDateRange {
   direction: DateDirection;
-  duration: { days?: number; months?: number; years?: number };
+  duration: RelativeDuration;
+}
+
+export function relativeDateRangeBounds(range: RelativeDateRange, now: DateTime): { from: DateTime; to: DateTime } {
+  const origin = range.duration.hours ? now : now.startOf("day");
+  if (range.direction === DateDirection.FUTURE) {
+    return {from: origin, to: origin.plus(range.duration)};
+  } else {
+    return {from: origin.minus(range.duration), to: origin};
+  }
 }
 
 export interface SavedSearchCriteria {
@@ -275,29 +291,29 @@ export interface SyncStatusResponse {
   lastSyncedAt?: string;
 }
 
-export function createFuturePreset(label: string, duration: { days?: number; months?: number; years?: number }): AdvancedSearchPreset {
+export function createFuturePreset(label: string, duration: RelativeDuration): AdvancedSearchPreset {
   return {
     label,
     relativeDateRange: { direction: DateDirection.FUTURE, duration },
     range: () => {
-      const start = DateTime.now().startOf("day");
+      const bounds = relativeDateRangeBounds({direction: DateDirection.FUTURE, duration}, DateTime.now());
       return {
-        from: start.toMillis(),
-        to: start.plus(duration).toMillis()
+        from: bounds.from.toMillis(),
+        to: bounds.to.toMillis()
       };
     }
   };
 }
 
-export function createPastPreset(label: string, duration: { days?: number; months?: number; years?: number }): AdvancedSearchPreset {
+export function createPastPreset(label: string, duration: RelativeDuration): AdvancedSearchPreset {
   return {
     label,
     relativeDateRange: { direction: DateDirection.PAST, duration },
     range: () => {
-      const now = DateTime.now().startOf("day");
+      const bounds = relativeDateRangeBounds({direction: DateDirection.PAST, duration}, DateTime.now());
       return {
-        from: now.minus(duration).toMillis(),
-        to: now.toMillis()
+        from: bounds.from.toMillis(),
+        to: bounds.to.toMillis()
       };
     }
   };

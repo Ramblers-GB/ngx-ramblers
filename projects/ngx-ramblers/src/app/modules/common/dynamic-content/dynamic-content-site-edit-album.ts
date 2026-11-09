@@ -30,7 +30,7 @@ import { GroupEventSummary, GroupEventType } from "../../../models/committee.mod
 import { enumKeyValues, enumValueForKey, KeyValue } from "../../../functions/enums";
 import { AlbumEditRole, LazyLoadingMetadata } from "../../../models/content-metadata.model";
 import { UrlService } from "../../../services/url.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ActivatedRoute, Router } from "@angular/router";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { FormsModule } from "@angular/forms";

@@ -2,7 +2,7 @@ import expect from "expect";
 import { describe, it } from "mocha";
 import { buildRamblersUploadJob } from "./ramblers-upload-job-builder";
 import { RamblersUploadJobState } from "../../../projects/ngx-ramblers/src/app/models/ramblers-upload-job.model";
-import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 
 describe("buildRamblersUploadJob", () => {
   it("builds a queued job with walks upload data", () => {

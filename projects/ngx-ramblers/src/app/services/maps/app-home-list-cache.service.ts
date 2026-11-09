@@ -2,7 +2,7 @@ import { MemberLoginService } from "../member/member-login.service";
 import { inject, Injectable } from "@angular/core";
 import { AppHomeListSnapshot } from "../../models/app-home-list-cache.model";
 import { nativeWalkingStorageKey } from "../../functions/native-walking";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 
 @Injectable({
   providedIn: "root"

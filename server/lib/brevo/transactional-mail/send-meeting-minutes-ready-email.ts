@@ -11,7 +11,7 @@ import {
   SendPurpose,
   SendSmtpEmailRequest
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette";
+import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette.model";
 import { CommitteeConfig, CommitteeFile, CommitteeMember } from "../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { committeeRoleForMemberId, memberRecordId, outboundEmailForMember } from "../../../../projects/ngx-ramblers/src/app/functions/committee-members";
 import { SystemConfig } from "../../../../projects/ngx-ramblers/src/app/models/system.model";

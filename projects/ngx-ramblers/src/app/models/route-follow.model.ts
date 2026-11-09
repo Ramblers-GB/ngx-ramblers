@@ -1,10 +1,10 @@
 import { OsMapsImportContext } from "./os-maps-export.model";
 import { FileNameData } from "./aws-object.model";
-import { RouteAudit } from "./audit";
+import { RouteAudit } from "./audit.model";
 import * as L from "leaflet";
 import { toKebabCase } from "../functions/strings";
 import { ExtendedGroupEvent } from "./group-event.model";
-import { Difficulty, LocationDetails, Metadata } from "./ramblers-walks-manager";
+import { Difficulty, LocationDetails, Metadata } from "./ramblers-walks-manager.model";
 import { Feature } from "./walk-feature.model";
 import { PageContentColumn, PageContentRow } from "./content-text.model";
 export enum AppPath {

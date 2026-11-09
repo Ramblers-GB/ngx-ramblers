@@ -11,7 +11,7 @@ import { pageContent } from "../models/page-content";
 import { extendedGroupEvent } from "../models/extended-group-event";
 import { PageContent } from "../../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { EventSource, ExtendedGroupEvent } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { AccessLevel } from "../../../../projects/ngx-ramblers/src/app/models/member-resource.model";
 import {
   PageEntry,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ComposerSenderKind, ComposerSenderIdentity } from "../models/email-composer.model";
-import { RamblersEventType } from "../models/ramblers-walks-manager";
+import { RamblersEventType } from "../models/ramblers-walks-manager.model";
 import { Organisation } from "../models/system.model";
 import { defaultBrandedSenderEmail } from "./email-composer";
 import { notificationConfigIdFor } from "./event-type-notification-config";

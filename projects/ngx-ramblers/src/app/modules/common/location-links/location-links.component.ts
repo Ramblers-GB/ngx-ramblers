@@ -1,5 +1,5 @@
 import { Component, HostBinding, Input, inject } from "@angular/core";
-import { LocationDetails } from "../../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../../models/ramblers-walks-manager.model";
 import { RelatedLinkComponent } from "../related-links/related-link";
 import { CopyIconComponent } from "../copy-icon/copy-icon";
 import { WalkDisplayService } from "../../../pages/walks/walk-display.service";

@@ -1,4 +1,4 @@
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { EventPopulation, SystemConfig } from "../../models/system.model";
 import { walksManagerSyncEnabled, walksManagerSyncEventTypes } from "./walks-manager-sync-config";
 

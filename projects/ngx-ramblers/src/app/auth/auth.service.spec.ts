@@ -7,7 +7,7 @@ import { AuthService } from "./auth.service";
 import { BroadcastService } from "../services/broadcast-service";
 import { SiteEditService } from "../site-edit/site-edit.service";
 import { DateUtilsService } from "../services/date-utils.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 function token(memberId: string, memberAdmin: boolean): string {
   return `header.${btoa(JSON.stringify({memberId, memberAdmin, iat: 1, exp: 4000000000}))}.signature`;

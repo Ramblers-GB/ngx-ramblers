@@ -3,7 +3,7 @@ import debug from "debug";
 import inquirer from "inquirer";
 import mongoose from "mongoose";
 import { envConfig } from "../../env-config/env-config";
-import { ProgressCallback } from "../types";
+import { ProgressCallback } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { error as logError, log } from "../cli-logger";
 import { BackupAndRestoreService, BackupOptions, RestoreOptions } from "../../backup/backup-and-restore-service";

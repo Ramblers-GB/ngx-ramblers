@@ -1,5 +1,5 @@
 import { gridReference10From, gridReference6From, gridReference8From, parseGridReference } from "./grid-reference";
-import { GridReferenceLookupApiResponse, GridReferenceLookupResponse } from "../../../projects/ngx-ramblers/src/app/models/address-model";
+import { GridReferenceLookupApiResponse, GridReferenceLookupResponse } from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import { ApiAction } from "../../../projects/ngx-ramblers/src/app/models/api-response.model";
 import { ApiRequest } from "../../../projects/ngx-ramblers/src/app/models/api-request.model";
 import { envConfig } from "../env-config/env-config";

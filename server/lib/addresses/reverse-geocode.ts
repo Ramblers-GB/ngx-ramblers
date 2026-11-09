@@ -6,7 +6,7 @@ import {
   GridReferenceLookupResponse,
   PostcodeLookupResponse,
   PostcodeLookupServiceResponse
-} from "../../../projects/ngx-ramblers/src/app/models/address-model";
+} from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import { envConfig } from "../env-config/env-config";
 import debug from "debug";
 import { ENDPOINT, postcodeLookupServiceResponsesMapper } from "./shared";

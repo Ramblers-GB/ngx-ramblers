@@ -1,4 +1,4 @@
-import { ForwardableEmailMessage, NgxInboxEnv } from "./types";
+import { ForwardableEmailMessage, NgxInboxEnv } from "./worker-templates.model";
 import { encodeRawMimeBase64, signAndPostWebhook } from "./shared";
 
 declare const __WEBHOOK_URL__: string;

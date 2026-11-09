@@ -53,7 +53,7 @@ import { MailProviderStats } from "../../models/system.model";
 import { cloneDeep } from "es-toolkit/compat";
 import { FullNamePipe } from "../../pipes/full-name.pipe";
 import { MailListAuditService } from "./mail-list-audit.service";
-import { AuditStatus } from "../../models/audit";
+import { AuditStatus } from "../../models/audit.model";
 import { omit } from "es-toolkit/compat";
 import { first } from "es-toolkit/compat";
 import { MailMessagingService } from "./mail-messaging.service";

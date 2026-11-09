@@ -15,7 +15,7 @@ import { FormsModule } from "@angular/forms";
 import { EventsRow } from "../events/events-row";
 import { DatePicker } from "../../../date-and-time/date-picker";
 import { DateUtilsService } from "../../../services/date-utils.service";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { NgSelectComponent } from "@ng-select/ng-select";
 import { DynamicContentMaxColumnsEditorComponent } from "./dynamic-content-max-columns-editor";
 import { BroadcastService } from "../../../services/broadcast-service";

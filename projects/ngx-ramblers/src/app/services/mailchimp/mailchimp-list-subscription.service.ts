@@ -1,7 +1,7 @@
 import { inject, Injectable } from "@angular/core";
 import { cloneDeep } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
-import { AuditStatus } from "../../models/audit";
+import { AuditStatus } from "../../models/audit.model";
 import {
   MailchimpBatchSubscriptionResponse,
   MailchimpEmailWithError,

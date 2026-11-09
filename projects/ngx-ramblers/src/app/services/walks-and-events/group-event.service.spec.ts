@@ -11,11 +11,11 @@ import { DateUtilsService } from "../date-utils.service";
 import { WalkChangeIntroField } from "../../models/walk-notification-field.model";
 import { EventField, EventType, GroupEventField, LinkSource } from "../../models/walk.model";
 import { ExtendedGroupEvent, InputSource } from "../../models/group-event.model";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { WalksConfigService } from "../system/walks-config.service";
 import { createExtendedGroupEvent } from "../../testing/create-extended-group-event";
 import { AUDITED_FIELDS } from "../../models/walk-event.model";
-import { WALK_NOTIFICATION_FIELDS } from "../../models/walk-notification-fields";
+import { WALK_NOTIFICATION_FIELDS } from "../../models/walk-notification-fields.model";
 import { WalkNotificationValueService } from "./walk-notification-value.service";
 
 const memberLoginServiceStub = {

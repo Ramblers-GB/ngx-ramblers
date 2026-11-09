@@ -4,7 +4,7 @@ import { Subscription } from "rxjs";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faCalendarPlus, faCopy } from "@fortawesome/free-solid-svg-icons";
 import { faApple, faGoogle, faMicrosoft } from "@fortawesome/free-brands-svg-icons";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { CalendarApp } from "../../../models/inbox.model";
 import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { SectionToggle } from "../../../shared/components/section-toggle";

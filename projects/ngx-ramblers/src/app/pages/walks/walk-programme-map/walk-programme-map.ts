@@ -12,7 +12,7 @@ import { DateRangeDirectionSelector } from "../../../components/date-range-selec
 import { WalksMapView } from "../walk-list/walks-map-view";
 import { DateRange } from "../../../components/date-range-slider/date-range-slider";
 import { DateRangeSelector } from "../../../components/date-range-selector/date-range-selector";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { DATE_RANGE_DIRECTION_TABS, DateRangeDirection, defaultProgrammeRange } from "../../../models/search.model";
 import {
   displayedWalkProgrammeStatus,

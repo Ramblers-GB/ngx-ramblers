@@ -6,7 +6,7 @@ import { AlertInstance } from "../../../services/notifier.service";
 import { GroupEventDisplayService } from "../group-event-display.service";
 import { EventDatesAndTimesPipe } from "../../../pipes/event-times-and-dates.pipe";
 import { ExtendedGroupEvent } from "../../../models/group-event.model";
-import { BasicMedia } from "../../../models/ramblers-walks-manager";
+import { BasicMedia } from "../../../models/ramblers-walks-manager.model";
 import { MediaQueryService } from "../../../services/committee/media-query.service";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { CardImageOrMap } from "../../../modules/common/card/image/card-image-or-map";

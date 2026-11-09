@@ -15,7 +15,7 @@ import {
 import { EventSource, ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { DocumentField, EventField, GroupEventField } from "../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { values } from "es-toolkit/compat";
-import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { renderMarkdownToHtml } from "../shared/markdown-renderer";
 import { siteBaseUrl } from "../config/site-base-url";
 import {

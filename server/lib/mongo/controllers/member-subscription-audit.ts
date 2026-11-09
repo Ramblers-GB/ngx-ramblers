@@ -7,7 +7,7 @@ import { mailListAudit } from "../models/mail-list-audit";
 import { brevoClient } from "../../brevo/brevo-config";
 import { scheduleBrevo } from "../../brevo/common/rate-limiting";
 import { dateTimeNowAsValue } from "../../shared/dates";
-import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { MailListAuditListType, MailSubscription, MemberSubscriptionChange, SubscriptionTransition } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 
 const debugLog = debug(envConfig.logNamespace("member:subscription-audit"));

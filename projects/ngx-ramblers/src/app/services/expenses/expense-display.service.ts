@@ -5,7 +5,7 @@ import { isEmpty } from "es-toolkit/compat";
 import { last } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Member } from "../../models/member.model";
-import { Confirm, EditMode } from "../../models/ui-actions";
+import { Confirm, EditMode } from "../../models/ui-actions.model";
 import {
   ExpenseClaim,
   ExpenseEvent,

@@ -4,7 +4,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "./logger-factory.service";
 import { HealthResponse, HealthStatus } from "../models/health.model";
 import { DateUtilsService } from "./date-utils.service";
-import { MigrationRetryResult } from "../models/mongo-migration-model";
+import { MigrationRetryResult } from "../models/mongo-migration.model";
 
 @Injectable({
   providedIn: "root"

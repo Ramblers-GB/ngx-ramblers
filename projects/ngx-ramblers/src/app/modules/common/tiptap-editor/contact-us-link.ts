@@ -1,7 +1,7 @@
 import { isUndefined } from "es-toolkit/compat";
 import { CommitteeMember } from "../../../models/committee.model";
 import { BuiltInPath } from "../../../models/content-text.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 export interface ContactUsLinkParts {
   role: string;

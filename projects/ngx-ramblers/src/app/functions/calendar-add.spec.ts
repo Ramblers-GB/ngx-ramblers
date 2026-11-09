@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 import { CalendarApp, CalendarPreviewEvent, DeviceKind, OrganiserLabel } from "../models/inbox.model";
 import { ExtendedGroupEvent } from "../models/group-event.model";
-import { RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager";
+import { RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager.model";
 import {
   calendarAppLabel,
   calendarAppsForDevice,

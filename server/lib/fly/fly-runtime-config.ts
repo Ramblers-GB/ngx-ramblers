@@ -190,13 +190,16 @@ async function namedEnvironmentFallback(environmentName: string): Promise<FlyRun
     const environmentsConfig = await configuredEnvironments();
     const named = (environmentsConfig.environments || []).find(environment => environment.environment === environmentName);
     const appName = named?.flyio?.appName || "";
-    if (!appName) {
-      debugLog(`No Fly app configured for environment ${environmentName}`);
-      return emptyFlyConfig;
-    } else {
+    if (appName) {
       const apiToken = named.flyio?.apiKey || await metricsToken();
       debugLog(`Resolved fly config for named environment ${environmentName}: appName ${appName}`);
       return {...emptyFlyConfig, apiToken, appName};
+    } else if (environmentName === envConfig.env) {
+      debugLog(`Environment ${environmentName} is the local process; resolving Fly config from the connected database`);
+      return currentEnvironmentConfig();
+    } else {
+      debugLog(`No Fly app configured for environment ${environmentName}`);
+      return emptyFlyConfig;
     }
   } catch (error) {
     debugLog(`Named environment fly config resolution failed for ${environmentName}:`, error);

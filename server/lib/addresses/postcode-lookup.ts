@@ -8,7 +8,7 @@ import {
   GridReferenceLookupApiResponse,
   PostcodeLookupResponse,
   PostcodeLookupServiceResponse
-} from "../../../projects/ngx-ramblers/src/app/models/address-model";
+} from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import { gridReference10From, gridReference6From, gridReference8From } from "./grid-reference";
 import { ENDPOINT, normalisePostcode, postcodeLookupServiceResponseMapper } from "./shared";
 

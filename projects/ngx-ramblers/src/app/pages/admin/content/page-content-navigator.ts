@@ -19,7 +19,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { FormControl, FormGroup } from "@angular/forms";
 import { VisibilityObserverDirective } from "../../../notifications/common/visibility-observer.directive";
 import { ActivatedRoute, Router } from "@angular/router";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { sortBy } from "../../../functions/arrays";
 import { toPairs, isNull, isUndefined } from "es-toolkit/compat";

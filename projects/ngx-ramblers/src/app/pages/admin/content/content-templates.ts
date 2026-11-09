@@ -12,7 +12,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { PageContentActionsService } from "../../../services/page-content-actions.service";
 import { ActivatedRoute, Router } from "@angular/router";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { toPairs, isNull, isUndefined } from "es-toolkit/compat";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faCircleExclamation, faSpinner } from "@fortawesome/free-solid-svg-icons";

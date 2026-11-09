@@ -1,5 +1,5 @@
 import { inject, Injectable } from "@angular/core";
-import { MailchimpContact, MailchimpListCreateRequest } from "../models/server-models";
+import { MailchimpContact, MailchimpListCreateRequest } from "../models/server.model";
 import { ConfigKey } from "../models/config.model";
 import { MailchimpCampaignDefaults, MailchimpConfig } from "../models/mailchimp.model";
 import { ConfigService } from "./config.service";

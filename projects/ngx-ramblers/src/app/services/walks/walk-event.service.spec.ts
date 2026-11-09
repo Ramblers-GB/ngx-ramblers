@@ -10,7 +10,7 @@ import { MemberIdToFullNamePipe } from "../../pipes/member-id-to-full-name.pipe"
 import { StringUtilsService } from "../string-utils.service";
 
 import { GroupEventService } from "../walks-and-events/group-event.service";
-import { LocationDetails } from "../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../models/ramblers-walks-manager.model";
 import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
 import { DateUtilsService } from "../date-utils.service";

@@ -29,7 +29,7 @@ import {
   WALK_PUBLISHED_WITH_PROBLEMS,
   WalkEditField,
   WalkUploadColumnHeading
-} from "../../models/ramblers-walks-manager";
+} from "../../models/ramblers-walks-manager.model";
 import { vi } from "vitest";
 
 describe("RamblersWalksAndEventsService", () => {

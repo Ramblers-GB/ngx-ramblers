@@ -57,7 +57,7 @@ import { videoMeetingCancellationPeople } from "../../functions/video-meeting-ca
 import { videoMeetingRsvpLabel, videoMeetingRsvpPeople } from "../../functions/video-meeting-rsvp";
 import { ASCENDING, DESCENDING } from "../../models/table-filtering.model";
 import { SortDirection } from "../../models/sort.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { UiActionsService } from "../../services/ui-actions.service";
 import { UIDateFormat } from "../../models/date-format.model";
 import { suggestedVideoMeetingTitle, videoMeetingDateSlug } from "../../functions/video-meeting-join";

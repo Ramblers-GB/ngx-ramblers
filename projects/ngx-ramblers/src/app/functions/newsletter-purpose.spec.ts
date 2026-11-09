@@ -1,7 +1,7 @@
 import { NewsletterIntroEvent, NewsletterIntroPurpose, WalkTimeOfDay } from "../models/ai.model";
 import { composerIncludesEvent, emptyDraftPurposeCopy, emptyDraftPurposeMessage, eventsMatchingDraftPurpose, introPurposeFrom, RESEND_WITHIN_PERIOD_LABEL, walkTimeOfDayFromHour } from "./newsletter-purpose";
 import { ProgrammeOverviewStatus } from "../models/walk-programme.model";
-import { RamblersEventType } from "../models/ramblers-walks-manager";
+import { RamblersEventType } from "../models/ramblers-walks-manager.model";
 
 describe("walkTimeOfDayFromHour", () => {
   it("treats hours before midday as morning", () => {

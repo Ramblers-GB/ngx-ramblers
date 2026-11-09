@@ -7,13 +7,13 @@ import {
   AwsCustomerCredentials,
   EnvironmentSetupRequest,
   MongoDbConnectionParams,
-  SetupStepStatus
-} from "./types";
+  SetupStepStatus,
+  ProgressCallback
+} from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { AWS_DEFAULTS, EnvironmentConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { InboxAliasConnectionStatus } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 import { connectToDatabase } from "./database-initialiser";
 import { createAdminMember } from "./templates/sample-data/admin-member-template";
-import { ProgressCallback } from "./types";
 import { dateTimeNowAsValue } from "../shared/dates";
 import { buildMongoUri } from "../shared/mongodb-uri";
 import { configuredEnvironments } from "../environments/environments-config";

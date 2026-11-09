@@ -30,7 +30,7 @@ import {
   ManageAction,
   SetupMode
 } from "../../../models/environment-setup.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { PageComponent } from "../../../page/page.component";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { NgClass } from "@angular/common";

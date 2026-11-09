@@ -16,7 +16,7 @@ import { SystemConfig } from "../../../models/system.model";
 import { DisplayDatePipe } from "../../../pipes/display-date.pipe";
 import { WalkGroupAdminService } from "../walk-import/walk-group-admin-service";
 import { EditableEventStats, ExtendedGroupEvent, InputSource } from "../../../models/group-event.model";
-import { Confirm, ConfirmType } from "../../../models/ui-actions";
+import { Confirm, ConfirmType } from "../../../models/ui-actions.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { ContentTextEditor } from "../../../modules/common/tiptap-editor/content-text-editor";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
@@ -33,7 +33,7 @@ import {
   CsvZipRequest,
   WalkUploadColumnHeading,
   WalkUploadRow
-} from "../../../models/ramblers-walks-manager";
+} from "../../../models/ramblers-walks-manager.model";
 import { HttpClient } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
 

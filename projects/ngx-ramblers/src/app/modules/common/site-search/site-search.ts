@@ -13,7 +13,7 @@ import { UrlService } from "../../../services/url.service";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { RecentSearchesComponent } from "../../../shared/components/recent-searches";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 const MIN_QUERY_LENGTH = 2;
 const INDEXING_POLL_MS = 1000;

@@ -309,7 +309,7 @@ If the index page isn't found:
 
 ```
 server/lib/release-notes/
-├── types.ts                    # TypeScript interfaces
+├── release-notes.model.ts       # TypeScript interfaces
 ├── commit-parser.ts            # Git commit parsing
 ├── content-generator.ts        # Markdown and page content generation
 ├── cms-client.ts               # CMS API client with JWT auth

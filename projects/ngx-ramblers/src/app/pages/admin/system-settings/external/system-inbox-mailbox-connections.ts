@@ -9,7 +9,7 @@ import { StringUtilsService } from "../../../../services/string-utils.service";
 import { DateUtilsService } from "../../../../services/date-utils.service";
 import { AlertInstance, NotifierService } from "../../../../services/notifier.service";
 import { AlertTarget } from "../../../../models/alert-target.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import {
   InboxAccessMode,
   InboxAliasConfigView,

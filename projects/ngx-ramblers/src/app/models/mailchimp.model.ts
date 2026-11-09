@@ -1,6 +1,6 @@
-import { MailchimpContact } from "./server-models";
+import { MailchimpContact } from "./server.model";
 import { ApiResponse } from "./api-response.model";
-import { AuditStatus } from "./audit";
+import { AuditStatus } from "./audit.model";
 import { MergeFields } from "./mail.model";
 
 export const EmailType = {

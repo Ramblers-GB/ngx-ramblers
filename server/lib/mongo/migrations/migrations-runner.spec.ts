@@ -9,7 +9,7 @@ import * as migrationWorkflow from "./shared/zone-inbox-router";
 import * as system from "../../config/system-config";
 import * as mongooseClient from "../mongoose-client";
 import * as indexes from "../utils/collection-indexes";
-import { MigrationFileStatus } from "../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+import { MigrationFileStatus } from "../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 import { closeMigrationConnection, isMigrationSourceFile, MigrationRunner } from "./migrations-runner";
 
 describe("isMigrationSourceFile", () => {

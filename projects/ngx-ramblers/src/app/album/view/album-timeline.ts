@@ -21,7 +21,7 @@ import { UrlService } from "../../services/url.service";
 import { DateUtilsService } from "../../services/date-utils.service";
 import { UiActionsService } from "../../services/ui-actions.service";
 import { UIDateFormat } from "../../models/date-format.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { YoutubeEmbed } from "../../modules/common/youtube-embed/youtube-embed";
 import { LazyLoadDirective } from "../../notifications/common/lazy-load.directive";
 import { LazyLoadingMetadataService } from "../../services/lazy-loading-metadata.service";

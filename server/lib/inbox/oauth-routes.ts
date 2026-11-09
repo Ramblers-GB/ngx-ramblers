@@ -17,7 +17,7 @@ import { inboxMailboxConnection as inboxMailboxConnectionModel } from "../mongo/
 import { InboxAliasConnectionStatus } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 import { dateTimeNow } from "../shared/dates";
 import { AdminPath } from "../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
-import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { isString } from "es-toolkit/compat";
 import { encryptInboxRefreshToken } from "./inbox-oauth-token-crypto";
 import { requireInboxConfigurationAdministrator } from "./inbox-access";

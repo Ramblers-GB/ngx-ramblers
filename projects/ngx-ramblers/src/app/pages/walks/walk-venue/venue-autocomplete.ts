@@ -9,7 +9,7 @@ import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faGoogle } from "@fortawesome/free-brands-svg-icons";
 import { RecentSearchesComponent } from "../../../shared/components/recent-searches";
 import { SearchHistoryDirective } from "../../../shared/directives/search-history.directive";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { VenueService } from "../../../services/venue/venue.service";
 import { GeoDistanceService } from "../../../services/maps/geo-distance.service";

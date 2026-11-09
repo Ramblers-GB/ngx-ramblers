@@ -1,5 +1,5 @@
 import { SerenityFeature } from "../../../projects/ngx-ramblers/src/app/models/serenity-feature.model";
-import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { isNumber } from "es-toolkit/compat";
 import { ramblersUploadAudit } from "../mongo/models/ramblers-upload-audit";
 import { dateTimeNowAsValue } from "../shared/dates";

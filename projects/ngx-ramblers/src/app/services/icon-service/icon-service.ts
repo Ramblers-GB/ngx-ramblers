@@ -17,7 +17,7 @@ import { KeyValue } from "../../functions/enums";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { FontAwesomeIcon } from "../../models/images.model";
 import { MemberAction } from "../../models/member.model";
-import { WalkStatus } from "../../models/ramblers-walks-manager";
+import { WalkStatus } from "../../models/ramblers-walks-manager.model";
 
 
 @Injectable({

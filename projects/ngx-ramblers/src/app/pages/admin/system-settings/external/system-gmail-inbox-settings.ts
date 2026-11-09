@@ -49,7 +49,7 @@ import {
   faUserPlus
 } from "@fortawesome/free-solid-svg-icons";
 import { StepperModule } from "primeng/stepper";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { isUndefined, kebabCase } from "es-toolkit/compat";
 import { Subject, Subscription } from "rxjs";
 import { InboxVisibilityComponent } from "./inbox-visibility";

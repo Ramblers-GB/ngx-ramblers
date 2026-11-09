@@ -45,7 +45,7 @@ import {
   WalkLeaderOption
 } from "../../../models/search.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { AdvancedSearchPane } from "./advanced-search-pane";
 import {

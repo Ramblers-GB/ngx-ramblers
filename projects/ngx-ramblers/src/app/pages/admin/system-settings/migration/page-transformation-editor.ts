@@ -12,7 +12,7 @@ import { FragmentService } from "../../../../services/fragment.service";
 import { EM_DASH_WITH_SPACES, FragmentWithLabel, IndexContentType, IndexRenderMode, PageContentType } from "../../../../models/content-text.model";
 import { UIDateFormat } from "../../../../models/date-format.model";
 import { DateUtilsService } from "../../../../services/date-utils.service";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { PageContentService } from "../../../../services/page-content.service";
 import {
   ColumnConfig,

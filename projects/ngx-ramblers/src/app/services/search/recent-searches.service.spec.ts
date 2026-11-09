@@ -1,6 +1,6 @@
 import { TestBed } from "@angular/core/testing";
 import { RecentSearchesService } from "./recent-searches.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { LoggerFactory } from "../logger-factory.service";
 
 describe("Shared recent searches", () => {

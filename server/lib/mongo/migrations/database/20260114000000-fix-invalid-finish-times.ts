@@ -2,7 +2,7 @@ import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
 import { EventType, GroupEventField, EventField } from "../../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { InputSource } from "../../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { WalkEvent } from "../../../../../projects/ngx-ramblers/src/app/models/walk-event.model";
 import { dateTimeFromIso, dateTimeFromMillis, dateTimeNowAsValue } from "../../../shared/dates";
 import { walkEventDataFrom } from "../migration-walk-event";

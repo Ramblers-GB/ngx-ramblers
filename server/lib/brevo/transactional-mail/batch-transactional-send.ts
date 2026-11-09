@@ -38,7 +38,7 @@ import { CommitteeConfig, CommitteeMember, committeeRoleMatchingEmail, roleEmail
 import { outboundEmailForMember } from "../../../../projects/ngx-ramblers/src/app/functions/committee-members";
 import { batchSendRecipientSplit, composerContentHasPersonalisation, composerRecipientKeepsRoleMailbox, composerRecipientIsExpandableSet, composerSharesRecipientHeaders } from "../../../../projects/ngx-ramblers/src/app/functions/email-composer";
 import { joinNotificationSubject } from "../../../../projects/ngx-ramblers/src/app/functions/notification-subject";
-import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette";
+import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette.model";
 import { BannerConfig } from "../../../../projects/ngx-ramblers/src/app/models/banner-configuration.model";
 import { ADMIN_SET_PASSWORD_PATH, SystemConfig } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { ConfigKey } from "../../../../projects/ngx-ramblers/src/app/models/config.model";

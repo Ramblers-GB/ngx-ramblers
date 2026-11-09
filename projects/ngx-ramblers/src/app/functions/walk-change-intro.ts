@@ -1,7 +1,7 @@
 import { toPairs, uniq } from "es-toolkit/compat";
 import { ComposerDrafting } from "../models/mail.model";
 import { WalkChangeIntroField, WalkNotificationLocationFormat } from "../models/walk-notification-field.model";
-import { WALK_LOCATION_NOTIFICATION_FIELDS, WALK_NOTIFICATION_FIELDS } from "../models/walk-notification-fields";
+import { WALK_LOCATION_NOTIFICATION_FIELDS, WALK_NOTIFICATION_FIELDS } from "../models/walk-notification-fields.model";
 
 export const WALK_CHANGE_INTRO_LOOKBACK_DAYS = 7;
 

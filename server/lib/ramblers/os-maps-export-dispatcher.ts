@@ -1,6 +1,6 @@
 import { OsMapsImportContext } from "../../../projects/ngx-ramblers/src/app/models/os-maps-export.model";
 import { personalOsMapsCredentials } from "../os-maps/os-maps-personal-account-store";
-import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { systemConfig } from "../config/system-config";

@@ -7,7 +7,7 @@ import { dateTimeNow } from "../lib/shared/dates";
 import {
   RamblersWalksManagerDateFormat as DateFormat
 } from "../../projects/ngx-ramblers/src/app/models/date-format.model";
-import type { BackupOptions, EnvironmentConfig, RestoreOptions } from "./types.js";
+import type { BackupOptions, EnvironmentConfig, RestoreOptions } from "./deploy.model.js";
 import { buildMongoUri } from "../lib/shared/mongodb-uri";
 import { isUndefined } from "es-toolkit/compat";
 import { uploadDirectoryToS3 } from "../lib/aws/s3-utils";

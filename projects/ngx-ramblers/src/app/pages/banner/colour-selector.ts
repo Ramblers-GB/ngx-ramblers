@@ -122,7 +122,7 @@ export class ColourSelectorComponent implements OnInit {
   }
 
   audit() {
-    this.logger.info("audit", this.hasClass(this.itemWithClassOrColour) ? "class:" : "colour:", this.hasClass(this.itemWithClassOrColour) ? this.itemWithClassOrColour.class : this.itemWithClassOrColour.colour, "itemWithClassOrColour:", this.itemWithClassOrColour);
+    this.logger.info("audit.model", this.hasClass(this.itemWithClassOrColour) ? "class:" : "colour:", this.hasClass(this.itemWithClassOrColour) ? this.itemWithClassOrColour.class : this.itemWithClassOrColour.colour, "itemWithClassOrColour:", this.itemWithClassOrColour);
   }
 
   change(value: any) {

@@ -6,7 +6,7 @@ import { FullNamePipe } from "../../pipes/full-name.pipe";
 import { Member, MemberWithLabel } from "../../models/member.model";
 import { ParishFeatureProperties } from "../../models/parish-map.model";
 import { AdminMembersPath } from "../../models/admin-route-paths.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { VolunteerAssignmentStatus, VolunteerMapAssignment, VolunteerWorkspaceView } from "../../models/volunteer-management.model";
 
 @Component({

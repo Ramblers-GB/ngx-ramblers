@@ -1,6 +1,6 @@
 import {asNumber} from "../../../projects/ngx-ramblers/src/app/functions/numbers";
 import {pathSuffixFor} from "./release-paths";
-import type {ConventionalCommit, ReleaseGroup} from "./models";
+import type {ConventionalCommit, ReleaseGroup} from "./release-notes.model";
 
 function assignFallbackIssues(commits: ConventionalCommit[]): Map<string, string | null> {
   return commits.reduce<{assignments: Map<string, string | null>; lastIssue: string | null}>((state, commit) => {

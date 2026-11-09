@@ -11,10 +11,10 @@ import {
   GeocodeMatchType,
   GridReferenceLookupApiResponse,
   GridReferenceLookupResponse
-} from "../../../../../projects/ngx-ramblers/src/app/models/address-model";
+} from "../../../../../projects/ngx-ramblers/src/app/models/address.model";
 import { EventField, EventType, GroupEventField } from "../../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { InputSource } from "../../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { WalkEvent } from "../../../../../projects/ngx-ramblers/src/app/models/walk-event.model";
 import { EPSG_27700_PROJ4 } from "../../../../../projects/ngx-ramblers/src/app/common/maps/map-projection.constants";
 import { LatLngLiteral } from "leaflet";

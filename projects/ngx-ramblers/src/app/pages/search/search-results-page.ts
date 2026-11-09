@@ -15,7 +15,7 @@ import { Logger, LoggerFactory } from "../../services/logger-factory.service";
 import { PageService } from "../../services/page.service";
 import { SiteSearchService } from "../../services/search/site-search.service";
 import { StringUtilsService } from "../../services/string-utils.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 
 const MIN_QUERY_LENGTH = 2;
 const INDEXING_POLL_MS = 1000;

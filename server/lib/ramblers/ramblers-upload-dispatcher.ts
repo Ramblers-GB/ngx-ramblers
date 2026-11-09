@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import debug from "debug";
-import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersWalksUploadRequest } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { buildRamblersUploadJob } from "./ramblers-upload-job-builder";
 import { registerUploadStart, reportErrorAndClose, sendAudit } from "./ramblers-upload-audit-notifier";
 import { MessageType } from "../../../projects/ngx-ramblers/src/app/models/websocket.model";

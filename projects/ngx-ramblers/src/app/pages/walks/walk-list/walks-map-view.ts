@@ -32,7 +32,7 @@ import { MapControls, MapControlsConfig, MapControlsState } from "../../../share
 import { MapControlsStateService } from "../../../shared/services/map-controls-state.service";
 import { MapRecreationService } from "../../../shared/services/map-recreation.service";
 import { MapOverlay } from "../../../shared/components/map-overlay";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ResizerComponent } from "../../../modules/common/resizer/resizer";
 import { jointWalkLeaderNames } from "../../../functions/walks/joint-walk-leaders";
 import { escapeHtml } from "../../../functions/strings";

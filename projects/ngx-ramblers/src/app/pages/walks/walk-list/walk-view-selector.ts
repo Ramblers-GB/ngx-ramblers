@@ -14,13 +14,13 @@ import { Status } from "../../../models/ramblers-upload-audit.model";
 import { HumanisePipe } from "../../../pipes/humanise.pipe";
 import { EventDispatchService } from "../../group-events/group-event-view/event-dispatch-service";
 import { DisplayedWalk } from "../../../models/walk.model";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { ActivatedRoute, NavigationEnd, Router } from "@angular/router";
 import { Subscription } from "rxjs";
 import { filter } from "rxjs/operators";
 import { GroupEventViewPage } from "../../group-events/group-event-view-page/group-event-view-page";
 import { CommitteeDocumentPage } from "../../committee/document/committee-document-page";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 @Component({
   selector: "app-walks-selector",

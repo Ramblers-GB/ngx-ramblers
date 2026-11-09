@@ -11,7 +11,7 @@ import {
   WalkProgrammeSummaryRow
 } from "../../../models/walk-programme.model";
 import { WalkLeadEditAppearance } from "../../../models/walk-edit-mode.model";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { WalksReferenceService } from "../../../services/walks/walks-reference-data.service";
 import { WalkDisplayService } from "../walk-display.service";
 import { DateUtilsService } from "../../../services/date-utils.service";

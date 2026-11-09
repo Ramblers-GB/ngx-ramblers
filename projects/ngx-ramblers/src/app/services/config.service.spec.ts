@@ -7,7 +7,7 @@ import { ConfigService } from "./config.service";
 import { CommonDataService } from "./common-data-service";
 import { ConfigKey } from "../models/config.model";
 import { saveNativeWalkingSite } from "../functions/native-walking";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 describe("configuration before native group selection", () => {
   beforeEach(() => {

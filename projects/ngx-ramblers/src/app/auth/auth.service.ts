@@ -5,13 +5,13 @@ import { firstValueFrom, Observable, Subject } from "rxjs";
 import { tap } from "rxjs/operators";
 import { isObject, isString } from "es-toolkit/compat";
 import { AuthPayload, AuthResponse } from "../models/auth-data.model";
-import { AuthTokens } from "../models/auth-tokens";
+import { AuthTokens } from "../models/auth-tokens.model";
 import { NamedEvent, NamedEventType } from "../models/broadcast.model";
 import { LoginResponse, MemberCookie } from "../models/member.model";
 import { BroadcastService } from "../services/broadcast-service";
 import { Logger, LoggerFactory } from "../services/logger-factory.service";
 import { SiteEditService } from "../site-edit/site-edit.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { DateUtilsService } from "../services/date-utils.service";
 
 @Injectable({

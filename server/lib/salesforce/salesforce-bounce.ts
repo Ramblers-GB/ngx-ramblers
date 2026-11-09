@@ -1,4 +1,4 @@
-import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { MailListAuditListType, MailListAuditSource } from "../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { systemConfig } from "../config/system-config";
 import { mailListAudit } from "../mongo/models/mail-list-audit";

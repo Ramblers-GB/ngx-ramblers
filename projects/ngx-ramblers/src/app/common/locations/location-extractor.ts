@@ -1,5 +1,5 @@
 import { ExtractedLocation } from "../../models/map.model";
-import { GeocodeMatchType } from "../../models/address-model";
+import { GeocodeMatchType } from "../../models/address.model";
 
 const commonWords = [
   "March", "April", "June", "July", "August", "September", "October", "November", "December",

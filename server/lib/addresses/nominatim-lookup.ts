@@ -5,7 +5,7 @@ import {
   NominatimLookupOptions,
   NominatimLookupResult,
   NominatimPlaceResult
-} from "../../../projects/ngx-ramblers/src/app/models/address-model";
+} from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import * as messageHandlers from "../shared/message-handlers";
 import url from "url";
 import querystring from "querystring";

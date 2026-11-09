@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { saveNativeWalkingSite } from "../../functions/native-walking";
 import { RouteFollowMode, RouteFollowSession } from "../../models/route-follow.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { LegacyWalkingRecoveryService } from "./legacy-walking-recovery.service";
 
 const session = {mode: RouteFollowMode.RECORDING, recordingId: "fictional-recording", recordedPoints: [{latitude: 51, longitude: 0}]} as RouteFollowSession;

@@ -1,7 +1,7 @@
 import { Injectable, inject } from "@angular/core";
 import { MapControlsStateService } from "./map-controls-state.service";
 import { UiActionsService } from "../../services/ui-actions.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 
 export interface MapVisibilityState {
   showControls: boolean;

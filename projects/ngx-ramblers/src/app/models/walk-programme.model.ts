@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import { EventSource, ExtendedGroupEvent } from "./group-event.model";
 import { WalksAdminSegment, WALKS_ADMIN_SEGMENT, WALKS_LEADER_SEGMENT } from "./walks-route-paths.model";
 import { DisplayedWalk, LinkSource } from "./walk.model";
-import { RamblersEventType, WalkStatus } from "./ramblers-walks-manager";
+import { RamblersEventType, WalkStatus } from "./ramblers-walks-manager.model";
 
 export enum ProgrammeOverviewStatus {
   AWAITING_LEADER = "awaitingLeader",

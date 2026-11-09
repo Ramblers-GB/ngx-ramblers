@@ -1,15 +1,13 @@
 import { Command } from "commander";
 import debug from "debug";
 import { keys } from "es-toolkit/compat";
-import { EnvironmentSetupRequest } from "../../environment-setup/types";
+import { EnvironmentResult, EnvironmentSetupRequest, FlyDeployConfig, ProgressCallback, SetupStep, SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { healMissingRequiredSecrets, loadSecretsForEnvironment, loadSecretsWithFallback, updateSecretsFile } from "../../shared/secrets";
 import { parseMongoUri } from "../../shared/mongodb-uri";
 import { findEnvironmentFromDatabase, listEnvironmentSummariesFromDatabase } from "../../environments/environments-config";
 import { normaliseMemory } from "../../shared/spelling";
 import { reinitDatabase, seedDatabase } from "./database";
 import { deployToFlyio } from "./fly";
-import { EnvironmentResult, FlyDeployConfig, ProgressCallback } from "../types";
-import { SetupStep, SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { ResumeEnvironmentOptions } from "../cli.model";
 import { log } from "../cli-logger";
 import { envConfig } from "../../env-config/env-config";

@@ -3,6 +3,7 @@ import { MemberCookie } from "../../../projects/ngx-ramblers/src/app/models/memb
 import { Express, Request, Response } from "express";
 import { envConfig } from "../env-config/env-config";
 import morgan, { TokenIndexer } from "morgan";
+import { installSystemLogCapture } from "./system-log-buffer";
 
 morgan.token("id", req => req.headers["x-request-id"] as string || "-");
 
@@ -24,6 +25,7 @@ const debugLog = debug(envConfig.logNamespace("configure-logging"));
 debugLog.enabled = false;
 
 export function configureLogging(app: Express): void {
+  installSystemLogCapture();
   app.use(morgan((tokens: TokenIndexer, req: Request, res: Response) => {
     const status = Number(tokens.status(req, res));
     const user: any = req.user;

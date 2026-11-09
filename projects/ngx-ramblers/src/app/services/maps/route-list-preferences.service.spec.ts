@@ -9,7 +9,7 @@ import { CachedMemberRoutePreferences, MemberRoutePreferences, RoutePreferenceAc
 import { routePreferencesAfterChange } from "../../functions/route-preferences";
 import { TestBed } from "@angular/core/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { UiActionsService } from "../ui-actions.service";
 import { RouteListPreferencesService } from "./route-list-preferences.service";
 

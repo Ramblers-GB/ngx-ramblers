@@ -10,7 +10,7 @@ import {
   RamblersEventSummaryResponse,
   RamblersEventType,
   RamblersGroupEventsRawApiResponse
-} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { envConfig } from "../env-config/env-config";
 import { httpRequest, optionalParameter } from "../shared/message-handlers";

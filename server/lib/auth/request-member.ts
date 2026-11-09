@@ -1,6 +1,6 @@
 import { currentMemberSession } from "./member-session";
 import { VIEW_AS_MEMBER_HEADER } from "../../../projects/ngx-ramblers/src/app/functions/member-cookie";
-import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { Request } from "express";
 import jwt from "jsonwebtoken";
 import { MemberCookie } from "../../../projects/ngx-ramblers/src/app/models/member.model";

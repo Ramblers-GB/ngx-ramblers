@@ -1,5 +1,5 @@
 import { LocationRenderingMode, LocationRowData, MapMarker, PageContent, PageContentRow, PageContentType } from "../models/content-text.model";
-import { LocationDetails } from "../models/ramblers-walks-manager";
+import { LocationDetails } from "../models/ramblers-walks-manager.model";
 import { RouteWaypointKind } from "../models/route-follow.model";
 import { formatGridReference, parseGridReference } from "./grid-reference";
 

@@ -3,7 +3,7 @@ import { inject, Injectable, Injector } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { BehaviorSubject, Observable, throwError } from "rxjs";
 import { catchError, filter, switchMap, take } from "rxjs/operators";
-import { AuthTokens } from "../models/auth-tokens";
+import { AuthTokens } from "../models/auth-tokens.model";
 import { Logger, LoggerFactory } from "../services/logger-factory.service";
 import { AuthService } from "./auth.service";
 import { isOurSessionUnauthorised } from "./session-unauthorised";

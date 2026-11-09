@@ -1,7 +1,7 @@
 import { ApiResponse, Identifiable } from "./api-response.model";
 import { HasMedia } from "./group-events.model";
 import { ImageConfig, RiskAssessmentRecord, ValueAndFormatted, WalkType } from "./walk.model";
-import { LocationDetails, Metadata, RamblersEventType } from "./ramblers-walks-manager";
+import { LocationDetails, Metadata, RamblersEventType } from "./ramblers-walks-manager.model";
 import { WalkEvent } from "./walk-event.model";
 import { MeetupConfig } from "./meetup-config.model";
 import { Venue } from "./event-venue.model";

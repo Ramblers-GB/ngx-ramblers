@@ -5,7 +5,7 @@ import {
   WALK_EDIT_FIELD_STEPS,
   WalkEditStep,
   WalkFieldChange
-} from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+} from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { WalksPageElements } from "../../../ui/ramblers/walks-page-elements";
 import { ClickWhenReady } from "../../common/click-when-ready";
 import { Accept } from "../common/accept-cookie-prompt";

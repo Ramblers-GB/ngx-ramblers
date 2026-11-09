@@ -7,6 +7,7 @@ import {
   ADVANCED_SEARCH_CRITERIA_FIELDS,
   DateDirection,
   DateRangePresetLabel,
+  RelativeDateRange,
   isUnboundedDateRangeLabel,
   PRESET_MATCH_THRESHOLD_MS,
   resolvePresetByLabel,
@@ -14,7 +15,7 @@ import {
   WalkLeaderOption
 } from "../../models/search.model";
 import { UIDateFormat } from "../../models/date-format.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { StringUtilsService } from "../../services/string-utils.service";
 import { DateUtilsService } from "../../services/date-utils.service";
 
@@ -286,7 +287,7 @@ export function savedCriteriaToAdvancedCriteria(saved: SavedSearchCriteria | und
   return hasAdvancedCriteria(criteria) ? criteria : null;
 }
 
-export function advancedCriteriaToSavedCriteria(criteria: AdvancedSearchCriteria | null, dateRange?: { direction: DateDirection; duration: { days?: number; months?: number; years?: number } }, presetLabel?: string): SavedSearchCriteria | null {
+export function advancedCriteriaToSavedCriteria(criteria: AdvancedSearchCriteria | null, dateRange?: RelativeDateRange, presetLabel?: string): SavedSearchCriteria | null {
   if (!criteria || !hasAdvancedCriteria(criteria)) {
     return dateRange ? { presetLabel, dateRange } : null;
   }

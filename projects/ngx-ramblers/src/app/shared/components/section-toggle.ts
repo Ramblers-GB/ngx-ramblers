@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { Subscription } from "rxjs";
 import { isString, kebabCase } from "es-toolkit/compat";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { SectionToggleTab } from "../../models/section-toggle.model";
 
 @Component({

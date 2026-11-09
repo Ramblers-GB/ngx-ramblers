@@ -7,7 +7,7 @@ import { COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT, composerCcFieldAvailable, compos
 import { ListInfo, MemberSelection, NotificationConfig } from "../../models/mail.model";
 import { MailListUpdaterService } from "../mail/mail-list-updater.service";
 import { ExternalRecipient } from "../../models/external-recipient.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { Injectable } from "@angular/core";
 import { EmailComposerSessionService } from "./email-composer-session.service";
 import { EmailComposerRecipientSourcesService } from "./email-composer-recipient-sources.service";

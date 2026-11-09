@@ -7,7 +7,7 @@ import {BrandingMode, EmailCompositionKind, EmailComposerStepKey, EmailComposerS
 import {composerApiErrorMessage, defaultEmailComposerState} from "../../functions/email-composer";
 import {InboxReplyOutboundContext} from "../../models/inbox.model";
 import {Injectable} from "@angular/core";
-import {StoredValue} from "../../models/ui-actions";
+import {StoredValue} from "../../models/ui-actions.model";
 import {UiActionsService} from "../ui-actions.service";
 
 @Injectable()

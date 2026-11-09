@@ -1,7 +1,7 @@
 import { ApiResponse, Identifiable } from "./api-response.model";
 import { ContactDetails } from "./group-event.model";
 import { EmailAddress, NotificationConfig } from "./mail.model";
-import { RamblersEventType } from "./ramblers-walks-manager";
+import { RamblersEventType } from "./ramblers-walks-manager.model";
 
 export enum BookingStatus {
   ACTIVE = "active",

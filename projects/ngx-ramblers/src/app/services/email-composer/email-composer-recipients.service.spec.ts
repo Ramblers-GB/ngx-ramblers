@@ -3,7 +3,7 @@ import {TestBed} from "@angular/core/testing";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {composerCommitteeRoleSendOffered, composerListToken, composerRecipientFromMember, defaultEmailComposerState} from "../../functions/email-composer";
 import {BrandingMode, ComposerExternalRecipient, RecipientAddressMode, RecipientField, RecipientMode, SendingChannel} from "../../models/email-composer.model";
-import {StoredValue} from "../../models/ui-actions";
+import {StoredValue} from "../../models/ui-actions.model";
 import {CommitteeMember} from "../../models/committee.model";
 import {Member} from "../../models/member.model";
 import {ListInfo, MemberSelection, NotificationConfig, WorkflowAction} from "../../models/mail.model";

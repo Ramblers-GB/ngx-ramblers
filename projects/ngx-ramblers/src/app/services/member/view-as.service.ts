@@ -5,7 +5,7 @@ import { BehaviorSubject, Subscription } from "rxjs";
 import { AuthService } from "../../auth/auth.service";
 import { Member, MemberCookie } from "../../models/member.model";
 import { CommitteeMember } from "../../models/committee.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { MemberService } from "./member.service";
 import { canViewAsMember, toMemberCookie, VIEW_AS_MEMBER_HEADER } from "../../functions/member-cookie";
 import { roleRecipientMemberIds } from "../../models/committee.model";

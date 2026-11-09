@@ -1,5 +1,5 @@
 import { LatLngLiteral } from "leaflet";
-import { LocationDetails } from "./ramblers-walks-manager";
+import { LocationDetails } from "./ramblers-walks-manager.model";
 
 export const POSTCODE_WARNING_DISTANCE_METRES = 200;
 export const POSTCODE_ROUTE_CHECK_MINIMUM_METRES = 50;

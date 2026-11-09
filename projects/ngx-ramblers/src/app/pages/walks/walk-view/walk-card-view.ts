@@ -27,7 +27,7 @@ import { faPersonWalking } from "@fortawesome/free-solid-svg-icons/faPersonWalki
 import { EventLeaderContactLinkComponent } from "./event-leader-contact-link";
 import { EventLeaderPhoneLinkComponent } from "./event-leader-phone-link";
 import { EventGroupComponent } from "./event-group";
-import { WalkStatus } from "../../../models/ramblers-walks-manager";
+import { WalkStatus } from "../../../models/ramblers-walks-manager.model";
 import { eventHasWalkWorkflow } from "../../../models/walk-programme.model";
 import { Router, RouterLink } from "@angular/router";
 import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";

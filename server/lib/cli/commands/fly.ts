@@ -14,11 +14,9 @@ import {
   upsertEnvironmentInDatabase
 } from "../../environments/environments-config";
 import { normaliseMemory } from "../../shared/spelling";
-import { DeployResult, FlyDeployConfig, ProgressCallback } from "../types";
-import { SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
+import { DeployResult, FlyDeployConfig, ProgressCallback, SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { DeployToFlyioOptions } from "../cli.model";
-import { FLYIO_DEFAULTS } from "../../../deploy/types";
-import { DEPLOYMENT_DEFAULTS } from "../../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { DEPLOYMENT_DEFAULTS, FLYIO_DEFAULTS } from "../../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { log } from "../cli-logger";
 import { envConfig } from "../../env-config/env-config";
 import { keys } from "es-toolkit/compat";

@@ -1,7 +1,7 @@
 import { Component, EventEmitter, inject, Input, OnChanges, Output } from "@angular/core";
 import { ActivatedRoute } from "@angular/router";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { FormsModule } from "@angular/forms";
 import { StepperModule } from "primeng/stepper";
 import { PrimeTemplate } from "primeng/api";

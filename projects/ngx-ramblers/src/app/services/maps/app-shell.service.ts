@@ -6,7 +6,7 @@ import { BehaviorSubject } from "rxjs";
 import { filter } from "rxjs/operators";
 import { environment } from "../../../environments/environment";
 import { AppAppearance, appAppearanceFromStored, AppInstallPlatform, AppPath, nextAppAppearance, NGX_RAMBLERS_APP_NAME } from "../../models/route-follow.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 

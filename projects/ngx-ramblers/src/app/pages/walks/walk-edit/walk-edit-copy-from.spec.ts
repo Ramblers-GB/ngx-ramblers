@@ -1,4 +1,4 @@
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { ChangeDetectorRef } from "@angular/core";
 import { ExtendedGroupEvent } from "../../../models/group-event.model";
 import { DisplayedWalk, EventField, GroupEventField, LinkSource, WalkCopyOption } from "../../../models/walk.model";

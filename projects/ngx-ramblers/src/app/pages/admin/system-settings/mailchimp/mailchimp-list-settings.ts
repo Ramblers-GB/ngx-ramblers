@@ -1,7 +1,7 @@
 import { Component, inject, Input, OnInit } from "@angular/core";
 import { isEmpty } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
-import { MailchimpListCreateRequest } from "../../../../models/server-models";
+import { MailchimpListCreateRequest } from "../../../../models/server.model";
 import { NamedEvent, NamedEventType } from "../../../../models/broadcast.model";
 import {
   CustomMergeFieldTag,
@@ -10,7 +10,7 @@ import {
   MergeFieldAddResponse,
   MergeFieldType
 } from "../../../../models/mailchimp.model";
-import { Confirm } from "../../../../models/ui-actions";
+import { Confirm } from "../../../../models/ui-actions.model";
 import { BroadcastService } from "../../../../services/broadcast-service";
 import { enumValues } from "../../../../functions/enums";
 import { Logger, LoggerFactory } from "../../../../services/logger-factory.service";

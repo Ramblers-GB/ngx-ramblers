@@ -1,4 +1,4 @@
-import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 
 export function brevoMigrationSkipReason(message: string): string {
   return `Brevo-related work skipped: ${message}`;

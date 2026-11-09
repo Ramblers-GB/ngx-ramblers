@@ -1,4 +1,4 @@
-import { RouteAudit, RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { RouteAudit, RouteContributor } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { dateTimeNowAsValue } from "../shared/dates";
 import { RootFolder } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { ServerFileNameData } from "../../../projects/ngx-ramblers/src/app/models/aws-object.model";

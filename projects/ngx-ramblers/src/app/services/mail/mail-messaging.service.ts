@@ -40,7 +40,7 @@ import { committeeRoleForMemberId, memberRecordId, outboundEmailForMember } from
 import { ramblersAccountMergeFields } from "../../models/ramblers-legal.model";
 import { resolveContactUsRecipientAddresses } from "../../functions/contact-us-delivery";
 import { joinNotificationSubject } from "../../functions/notification-subject";
-import { resolveAccentColor } from "../../models/email-accent-palette";
+import { resolveAccentColor } from "../../models/email-accent-palette.model";
 import { DateRangeUnit } from "../../models/search.model";
 import { DateUtilsService } from "../date-utils.service";
 import { CommitteeConfigService } from "../committee/commitee-config.service";

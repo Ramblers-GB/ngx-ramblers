@@ -10,7 +10,7 @@ import { WalkLeadEditAppearance } from "../../../../models/walk-edit-mode.model"
 import { WalkLeadEditButton } from "../../../../pages/walks/walk-view/walk-lead-edit-button";
 import { MapEditComponent } from "../../../../pages/walks/walk-edit/map-edit";
 import { AlertInstance } from "../../../../services/notifier.service";
-import { BasicMedia, RamblersEventType } from "../../../../models/ramblers-walks-manager";
+import { BasicMedia, RamblersEventType } from "../../../../models/ramblers-walks-manager.model";
 import { GroupEventDisplayService } from "../../../../pages/group-events/group-event-display.service";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { isEqual } from "es-toolkit/compat";

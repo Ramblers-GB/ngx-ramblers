@@ -1,6 +1,6 @@
 import { Db } from "mongodb";
 import { GroupEventField, WALK_GRADES, WalkType } from "../../../../../projects/ngx-ramblers/src/app/models/walk.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { pluraliseWithCount } from "../../../shared/string-utils";
 import createMigrationLogger from "../migrations-logger";
 

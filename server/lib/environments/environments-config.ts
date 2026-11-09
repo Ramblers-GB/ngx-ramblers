@@ -12,7 +12,7 @@ import { MongoClient } from "mongodb";
 import { envConfig } from "../env-config/env-config";
 import * as config from "../mongo/controllers/config";
 import { connect as connectToDatabase } from "../mongo/mongoose-client";
-import type { EnvironmentConfig as DeployEnvironmentConfig } from "../../deploy/types";
+import type { EnvironmentConfig as DeployEnvironmentConfig } from "../../deploy/deploy.model";
 import { resolveClientPath } from "../shared/path-utils";
 import { parseMongoUri } from "../shared/mongodb-uri";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";

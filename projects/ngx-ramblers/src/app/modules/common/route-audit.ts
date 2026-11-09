@@ -4,7 +4,7 @@ import { UIDateFormat } from "../../models/date-format.model";
 import { DateUtilsService } from "../../services/date-utils.service";
 import { Component, inject, Input } from "@angular/core";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
-import { RouteAudit } from "../../models/audit";
+import { RouteAudit } from "../../models/audit.model";
 import { DisplayDateAndTimePipe } from "../../pipes/display-date-and-time.pipe";
 import { DisplayDateAbbreviatedTimePipe } from "../../pipes/display-date-abbreviated-time.pipe";
 

@@ -7,7 +7,7 @@ import { firstValueFrom, timeout } from "rxjs";
 import { isNumber, isString } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
 import { FileNameData, ServerFileNameData } from "../../models/aws-object.model";
-import { LocationDetails } from "../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../models/ramblers-walks-manager.model";
 import { MapData, MapMarker, MapRoute, PageContent, PageContentRow, PageContentType, PaletteColor } from "../../models/content-text.model";
 import { OsMapsListedRoute } from "../../models/os-maps-export.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";

@@ -1,6 +1,6 @@
 import { ExtendedFields, ExtendedGroupEvent, GroupEvent, InputSource } from "../../models/group-event.model";
 import { LinkSource, LinkWithSource } from "../../models/walk.model";
-import { Contact, RamblersEventType } from "../../models/ramblers-walks-manager";
+import { Contact, RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { isArray } from "es-toolkit/compat";
 import { jointWalkLeaderDisplayName } from "./joint-walk-leaders";
 

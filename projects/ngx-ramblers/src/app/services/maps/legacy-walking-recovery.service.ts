@@ -4,7 +4,7 @@ import { nativeWalkingSite } from "../../functions/native-walking";
 import { routeVisibleToMember } from "../../functions/route-access";
 import { LegacyWalkingRecoveryState } from "../../models/legacy-walking-recovery.model";
 import { followCacheKey, isLiveFollowMode, RouteFollowSession } from "../../models/route-follow.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { LoggerFactory } from "../logger-factory.service";
 import { MemberLoginService } from "../member/member-login.service";
 import { UiActionsService } from "../ui-actions.service";

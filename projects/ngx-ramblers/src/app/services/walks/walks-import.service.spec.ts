@@ -6,7 +6,7 @@ import { of } from "rxjs";
 import { vi } from "vitest";
 import { InputSource } from "../../models/group-event.model";
 import { Member, MemberAction } from "../../models/member.model";
-import { RamblersEventType, WalkEditField } from "../../models/ramblers-walks-manager";
+import { RamblersEventType, WalkEditField } from "../../models/ramblers-walks-manager.model";
 import { EventType, WalkImportMatchType } from "../../models/walk.model";
 import { LoggerFactory } from "../logger-factory.service";
 import { MemberService } from "../member/member.service";

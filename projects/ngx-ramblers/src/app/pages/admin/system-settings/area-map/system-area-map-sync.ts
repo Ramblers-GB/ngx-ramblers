@@ -39,14 +39,14 @@ import { SelectAllHeaderComponent } from "../../../../modules/common/selectors/s
 import { ColourPaletteSelectorComponent, COLOUR_PALETTE_COLOURS } from "../../../../modules/common/selectors/colour-palette-selector";
 import { ResizerComponent } from "../../../../modules/common/resizer/resizer";
 import { UiActionsService } from "../../../../services/ui-actions.service";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { isString } from "es-toolkit/predicate";
 import { isArray, values } from "es-toolkit/compat";
 import { asNumber } from "../../../../functions/numbers";
 import { AreaMap } from "../../../area-map/area-map";
 import { ActivatedRoute, Router } from "@angular/router";
 import { RamblersWalksAndEventsService } from "../../../../services/walks-and-events/ramblers-walks-and-events.service";
-import { RamblersGroupsApiResponse } from "../../../../models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "../../../../models/ramblers-walks-manager.model";
 import { StringUtilsService } from "../../../../services/string-utils.service";
 import { SystemConfigService } from "../../../../services/system/system-config.service";
 import { SharedDistrictStyleSelectorComponent } from "../../../../shared/components/shared-district-style-selector";

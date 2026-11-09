@@ -1,4 +1,4 @@
-import { RamblersEventType } from "./ramblers-walks-manager";
+import { RamblersEventType } from "./ramblers-walks-manager.model";
 
 export enum BookingEmailType {
   CONFIRMATION = "confirmation",

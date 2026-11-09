@@ -2,16 +2,6 @@ export interface SecretsConfig {
   [key: string]: string;
 }
 
-export const FLYIO_DEFAULTS = {
-  MEMORY: "512mb",
-  SCALE_COUNT: 1,
-  ORGANISATION: "personal"
-} as const;
-
-export const AWS_DEFAULTS = {
-  REGION: "eu-west-2"
-} as const;
-
 export interface MongoConfig {
   cluster: string;
   db: string;

@@ -14,7 +14,7 @@ import {
   SortDirection
 } from "../../../models/legacy-url-redirect.model";
 import { ActivatedRoute } from "@angular/router";
-import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";

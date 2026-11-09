@@ -30,7 +30,6 @@ import {
   BackupRestoreTab,
   BackupSession,
   BackupSessionHistoryRow,
-  BackupSessionLogLine,
   BackupSessionStatus,
   BackupSessionTrigger,
   BackupSessionType,
@@ -51,12 +50,12 @@ import { Logger, LoggerFactory } from "../../../services/logger-factory.service"
 import { NotifierService } from "../../../services/notifier.service";
 import { AlertTarget } from "../../../models/alert-target.model";
 import { BackupAndRestoreService } from "../../../services/backup-and-restore.service";
-import { Confirm, StoredValue } from "../../../models/ui-actions";
+import { Confirm, StoredValue } from "../../../models/ui-actions.model";
 import { WebSocketClientService } from "../../../services/websockets/websocket-client.service";
 import { EventType, MessageType } from "../../../models/websocket.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { DateUtilsService } from "../../../services/date-utils.service";
-import { reversed, sortBy } from "../../../functions/arrays";
+import { sortBy } from "../../../functions/arrays";
 import { AWS_DEFAULTS, EnvironmentsConfig } from "../../../models/environment-config.model";
 import { EnvironmentSelectComponent } from "../../../modules/common/selectors/environment-select";
 import { CollectionsMultiSelectComponent } from "../../../modules/common/selectors/collections-multi-select";
@@ -71,7 +70,7 @@ import {
 } from "../../../modules/common/sortable-table/sortable-table-cell.directive";
 import { SortableTableColumn, SortableTableGroup } from "../../../modules/common/sortable-table/sortable-table.model";
 import { DESCENDING } from "../../../models/table-filtering.model";
-import { CopyIconComponent } from "../../../modules/common/copy-icon/copy-icon";
+import { SessionLogsComponent } from "../../../shared/components/session-logs";
 
 const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
 
@@ -89,7 +88,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
     SortableTableCellDirective,
     SortableTableExpandedRowDirective,
     SortableTableGroupHeaderDirective,
-    CopyIconComponent,
+    SessionLogsComponent,
     EnvironmentSelectComponent,
     CollectionsMultiSelectComponent,
     BackupsMultiSelectComponent,
@@ -117,49 +116,6 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
 
       &:hover, &:focus-visible
         filter: none
-        opacity: 1
-
-    .session-logs-copy
-      position: absolute
-      top: 0.5rem
-      right: 1.25rem
-      color: #e2e8f0
-      font-size: 1.1rem
-
-      &:hover
-        color: #ffffff
-
-    .session-logs
-      background-color: #1e293b
-      color: #e2e8f0
-      padding: 1rem
-      border-radius: 0.375rem
-      font-family: monospace
-      font-size: 0.875rem
-      max-height: 400px
-      max-width: 100%
-      overflow-y: auto
-      overflow-x: hidden
-      white-space: pre-wrap
-      word-break: break-word
-      overflow-wrap: anywhere
-
-      &.session-logs-live
-        min-height: 400px
-
-      div
-        margin-bottom: 0.25rem
-        white-space: pre-wrap
-        word-break: break-word
-        overflow-wrap: anywhere
-
-    .session-log-line
-      animation: session-log-line-appear 400ms ease-out
-
-    @keyframes session-log-line-appear
-      0%
-        opacity: 0
-      100%
         opacity: 1
 
     .manifest-analysis-header
@@ -537,19 +493,10 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         @if (row.error) {
                           <div class="alert alert-danger mb-2"><strong>Error:</strong> {{ row.error }}</div>
                         }
-                        <div class="position-relative">
-                          <div class="session-logs" [class.session-logs-live]="row.status === BackupSessionStatus.IN_PROGRESS">
-                            @if (logLines(row).length === 0 && row.status === BackupSessionStatus.IN_PROGRESS) {
-                              <div><fa-icon [icon]="faSpinner" animation="spin" class="me-1"></fa-icon>Waiting for log output...</div>
-                            }
-                            @for (line of logLines(row); track line.index) {
-                              <div class="session-log-line">{{ line.text }}</div>
-                            }
-                          </div>
-                          <div class="session-logs-copy">
-                            <app-copy-icon [value]="sessionLogsText(row)" elementName="session logs"/>
-                          </div>
-                        </div>
+                        <app-session-logs
+                          [messages]="row.logs || []"
+                          [live]="row.status === BackupSessionStatus.IN_PROGRESS"
+                          [waitingMessage]="row.status === BackupSessionStatus.IN_PROGRESS ? 'Waiting for log output...' : null"/>
                       }
                       @if (manifestForSession(row); as manifest) {
                         @if (isAnalysing(manifest)) {
@@ -1178,14 +1125,6 @@ export class BackupAndRestore implements OnInit, OnDestroy {
       title: "Operation Error",
       message: data.message || "An error occurred"
     });
-  }
-
-  logLines(session: BackupSession): BackupSessionLogLine[] {
-    return reversed((session?.logs || []).map((text, index) => ({index, text})));
-  }
-
-  sessionLogsText(session: BackupSession): string {
-    return this.logLines(session).map(line => line.text).join("\n");
   }
 
   private ensureInProgressExpanded(sessions: BackupSession[]) {

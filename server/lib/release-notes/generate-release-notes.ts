@@ -21,8 +21,8 @@ import {
 } from "./content-generator.js";
 import { syncReleaseNotesIndexImages } from "./index-image-sync.js";
 import type { PageContent } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
-import type { ConventionalCommit, GenerateOptions, ReleaseGroup, ReleaseNotesConfig, ReleaseNotesData } from "./models.js";
-import { DEFAULT_CMS_BASE_URL } from "./models.js";
+import type { ConventionalCommit, GenerateOptions, ReleaseGroup, ReleaseNotesConfig, ReleaseNotesData } from "./release-notes.model.js";
+import { DEFAULT_CMS_BASE_URL } from "./release-notes.model.js";
 import type { CMSAuth } from "./cms-client.js";
 import { dateTimeFromIso, dateTimeFromMillis, dateTimeInTimezone, dateTimeNow } from "../shared/dates";
 import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";

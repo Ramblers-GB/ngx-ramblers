@@ -1,5 +1,5 @@
-import type { PageToDelete } from "./models.js";
-import { DEFAULT_CMS_BASE_URL } from "./models.js";
+import type { PageToDelete } from "./release-notes.model.js";
+import { DEFAULT_CMS_BASE_URL } from "./release-notes.model.js";
 import type { CMSAuth } from "./cms-client.js";
 import * as cms from "./cms-client.js";
 import debug from "debug";

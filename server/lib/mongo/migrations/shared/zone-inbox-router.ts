@@ -2,7 +2,7 @@ import { Db } from "mongodb";
 import { ConfigKey } from "../../../../../projects/ngx-ramblers/src/app/models/config.model";
 import { EmailRoutingActionType, SHARED_INBOX_ROUTER_WORKER_NAME, inboxRouterFallbackAddress, inboxRouterWorkerName } from "../../../../../projects/ngx-ramblers/src/app/models/cloudflare-email-routing.model";
 import { InboxReaderProvider } from "../../../../../projects/ngx-ramblers/src/app/models/inbox.model";
-import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 import { SystemConfig } from "../../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { apexHostFromUrl } from "../../../../../projects/ngx-ramblers/src/app/functions/hosts";
 import { configuredCloudflare } from "../../../cloudflare/cloudflare-config";

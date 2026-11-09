@@ -1,7 +1,7 @@
 import { OsMapsListedRoute, RouteWalkReference, osMapsRouteIdFromUrl } from "../../../projects/ngx-ramblers/src/app/models/os-maps-export.model";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { AppPath, followRouteIdFromQuery } from "../../../projects/ngx-ramblers/src/app/models/route-follow.model";
-import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { eventSlug } from "../../../projects/ngx-ramblers/src/app/functions/walks/event-slug";
 import { extendedGroupEvent } from "../mongo/models/extended-group-event";
 import * as mongooseClient from "../mongo/mongoose-client";

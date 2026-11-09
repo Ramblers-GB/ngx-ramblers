@@ -2,7 +2,7 @@ import {
   PostcodeLookupResponse,
   PostcodeLookupResult,
   PostcodeLookupServiceResponse
-} from "../../../projects/ngx-ramblers/src/app/models/address-model";
+} from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import { isArray, padStart } from "es-toolkit/compat";
 import debug from "debug";
 import { postcodeDescription } from "./location-description";

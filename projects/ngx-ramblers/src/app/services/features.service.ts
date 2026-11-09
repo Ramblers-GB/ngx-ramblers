@@ -2,7 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "./logger-factory.service";
 import { GroupEvent } from "../models/group-event.model";
-import { Metadata } from "../models/ramblers-walks-manager";
+import { Metadata } from "../models/ramblers-walks-manager.model";
 import { sortBy } from "../functions/arrays";
 
 @Injectable({

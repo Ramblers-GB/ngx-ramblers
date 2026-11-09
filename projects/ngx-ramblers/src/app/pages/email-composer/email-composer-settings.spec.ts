@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EmailComposer } from "./email-composer";
-import { Confirm, StoredValue } from "../../models/ui-actions";
+import { Confirm, StoredValue } from "../../models/ui-actions.model";
 import { ComposerShowAction, EmailComposerStepKey } from "../../models/email-composer.model";
 import {defaultEmailComposerState} from "../../functions/email-composer";
 import { BrandingMode } from "../../models/mail.model";

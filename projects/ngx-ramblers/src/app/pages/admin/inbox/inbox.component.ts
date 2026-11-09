@@ -53,7 +53,7 @@ import { BrandingMode, MailSettingsTab } from "../../../models/mail.model";
 import { EmailComposerStepKey, EmailCompositionStatus, EmailCompositionSummary } from "../../../models/email-composer.model";
 import { EmailCompositionsService } from "../../../services/email-composer/email-compositions.service";
 import { MemberLoginService } from "../../../services/member/member-login.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { DeviceSize } from "../../../models/page.model";
 import { UrlService } from "../../../services/url.service";

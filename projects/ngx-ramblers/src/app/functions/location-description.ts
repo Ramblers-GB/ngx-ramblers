@@ -1,4 +1,4 @@
-import { PostcodeLookupResult } from "../models/address-model";
+import { PostcodeLookupResult } from "../models/address.model";
 
 const UNPARISHED = "unparished";
 const POLICE_FORCE_AREA = /\b(police|constabulary)\b/i;

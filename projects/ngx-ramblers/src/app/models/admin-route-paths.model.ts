@@ -93,6 +93,7 @@ export enum AdminPlatformPath {
   ENVIRONMENT_MANAGEMENT_ESTATE_REBUILD = "admin/platform/environment-management/estate-rebuild-capture",
   CONTRIBUTOR_ENVIRONMENT = "admin/platform/contributor-environment",
   LITE_TEMPLATES = "admin/platform/lite-templates",
+  SYSTEM_LOGS = "admin/platform/system-logs",
 }
 
 export const ADMIN_PATH_REDIRECTS: Record<LegacyAdminPath, string> = {

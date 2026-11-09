@@ -10,7 +10,7 @@ import { SortableTableComponent } from "../../../../modules/common/sortable-tabl
 import { SortableTableCellDirective } from "../../../../modules/common/sortable-table/sortable-table-cell.directive";
 import { SortableTableColumn, SortableTableSortState } from "../../../../modules/common/sortable-table/sortable-table.model";
 import { MailSendRefusal, MailSendRefusalColumn, SEND_PURPOSE_DESCRIPTIONS, SendStatus } from "../../../../models/mail.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { ASCENDING, DESCENDING } from "../../../../models/table-filtering.model";
 import { SortDirection } from "../../../../models/sort.model";
 import { Logger, LoggerFactory } from "../../../../services/logger-factory.service";

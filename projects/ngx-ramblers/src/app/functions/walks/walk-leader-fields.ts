@@ -1,5 +1,5 @@
 import { ExtendedGroupEvent, GroupEvent } from "../../models/group-event.model";
-import { Contact, RamblersEventType } from "../../models/ramblers-walks-manager";
+import { Contact, RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { isArray } from "es-toolkit/compat";
 import { jointWalkLeaderNames, normalisedWalkLeaderName } from "./joint-walk-leaders";
 

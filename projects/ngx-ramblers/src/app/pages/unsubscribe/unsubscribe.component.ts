@@ -6,7 +6,7 @@ import { Subscription } from "rxjs";
 import { Logger, LoggerFactory } from "../../services/logger-factory.service";
 import { UnsubscribeService } from "./unsubscribe.service";
 import { UnsubscribeState } from "../../models/mail.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 
 @Component({
   selector: "app-unsubscribe",

@@ -35,7 +35,7 @@ import { MapRecreationService } from "../../shared/services/map-recreation.servi
 import { MapProvider, OUTDOOR_OS_STYLE } from "../../models/map.model";
 import { MapDefaultsService } from "../../services/maps/map-defaults.service";
 import { UiActionsService } from "../../services/ui-actions.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { Logger, LoggerFactory } from "../../services/logger-factory.service";
 import { NgxLoggerLevel } from "ngx-logger";
 import {

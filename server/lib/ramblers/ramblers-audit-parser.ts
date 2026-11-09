@@ -7,7 +7,7 @@ import {
   Status,
   DomainEventData
 } from "../../../projects/ngx-ramblers/src/app/models/ramblers-upload-audit.model";
-import { isRamblersAuditNoise } from "../../../projects/ngx-ramblers/src/app/models/ramblers-audit-noise";
+import { isRamblersAuditNoise } from "../../../projects/ngx-ramblers/src/app/models/ramblers-audit-noise.model";
 import { dateTimeInTimezone, dateTimeNowAsValue } from "../shared/dates";
 
 const errorIcons = ["⨯", "✗", "✖"];

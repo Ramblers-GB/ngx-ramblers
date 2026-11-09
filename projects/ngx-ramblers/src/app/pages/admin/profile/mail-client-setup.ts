@@ -7,7 +7,7 @@ import {faEnvelope} from "@fortawesome/free-solid-svg-icons";
 import {Subscription} from "rxjs";
 import {MailClientConnectionSettings, MailClientSetupApp, MailClientSetupPlatform} from "../../../models/mail-client.model";
 import {OutlookCalendarPlatform} from "../../../models/walk-programme.model";
-import {StoredValue} from "../../../models/ui-actions";
+import {StoredValue} from "../../../models/ui-actions.model";
 import {SectionToggleTab} from "../../../models/section-toggle.model";
 import {SectionToggle} from "../../../shared/components/section-toggle";
 import {SecretInputComponent} from "../../../modules/common/secret-input/secret-input.component";

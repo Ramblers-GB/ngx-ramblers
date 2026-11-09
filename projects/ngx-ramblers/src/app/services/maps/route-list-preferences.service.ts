@@ -1,7 +1,7 @@
 import { inject, Injectable, OnDestroy } from "@angular/core";
 import { Subscription } from "rxjs";
 import { NgxLoggerLevel } from "ngx-logger";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { CachedMemberRoutePreferences, MemberRoutePreferences, RoutePreferenceAction, RoutePreferenceChange } from "../../models/member.model";
 import { NamedEventType } from "../../models/broadcast.model";
 import { nativeWalkingSite } from "../../functions/native-walking";

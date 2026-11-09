@@ -2,7 +2,7 @@ import expect from "expect";
 import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
 import { Request, Response } from "express";
-import { DEFAULT_CMS_BASE_URL } from "./models";
+import { DEFAULT_CMS_BASE_URL } from "./release-notes.model";
 import { versionReleases } from "./version-releases";
 
 describe("versionReleases", () => {

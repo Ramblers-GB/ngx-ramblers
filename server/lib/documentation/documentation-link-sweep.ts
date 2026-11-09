@@ -5,7 +5,7 @@ import { DOCUMENTATION_SITE_PLACEHOLDER, DocumentationLinkChange, DocumentationM
 import { MailSettingsTab, MAIL_SETTINGS_TAB_REDIRECTS } from "../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { SystemSettingsTab, ExternalSystemsSubTab } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { ScheduledTaskSubTab } from "../../../projects/ngx-ramblers/src/app/models/scheduled-task.model";
-import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { DEFAULT_WALKS_AREA, WalksAdminSegment, walksAdminPath } from "../../../projects/ngx-ramblers/src/app/models/walks-route-paths.model";
 import { apexHostFromUrl } from "../../../projects/ngx-ramblers/src/app/functions/hosts";
 import { documentationHrefParts, documentationLinkPath } from "../../../projects/ngx-ramblers/src/app/functions/documentation-links";

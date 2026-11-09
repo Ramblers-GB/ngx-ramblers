@@ -1,5 +1,5 @@
 import { isArray, isObject, isUndefined, keys } from "es-toolkit/compat";
-import { DeepPartial } from "../models/utility-types";
+import { DeepPartial } from "../models/utility.model";
 
 export function assignDeep<T>(target: T, source?: DeepPartial<T>): T {
   if (!source) {

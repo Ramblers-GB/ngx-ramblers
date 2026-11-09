@@ -7,7 +7,7 @@ import {faGear} from "@fortawesome/free-solid-svg-icons";
 import {kebabCase} from "es-toolkit/compat";
 import {EmailComposerStepKey, ProgrammeEventFormat, PROGRAMME_EVENT_FORMATS, PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX} from "../../models/email-composer.model";
 import {MailSettingsTab} from "../../models/mail.model";
-import {StoredValue} from "../../models/ui-actions";
+import {StoredValue} from "../../models/ui-actions.model";
 import {PageContent} from "../../models/content-text.model";
 import {TemplateSelectorComponent} from "../../modules/common/dynamic-content/template-selector";
 import {EmailComposerProgrammeService} from "../../services/email-composer/email-composer-programme.service";

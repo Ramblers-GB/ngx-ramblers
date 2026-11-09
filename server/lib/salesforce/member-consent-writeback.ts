@@ -2,7 +2,7 @@ import debug from "debug";
 import { isString } from "es-toolkit/compat";
 import { Member } from "../../../projects/ngx-ramblers/src/app/models/member.model";
 import { MailListAuditListType, MailListAuditSource, MailSubscription } from "../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { envConfig } from "../env-config/env-config";
 import { mailListAudit } from "../mongo/models/mail-list-audit";
 import { dateTimeNowAsValue } from "../shared/dates";

@@ -11,7 +11,7 @@ import { CommitteeDisplayService } from "../committee/committee-display.service"
 import { DateRangeUnit } from "../../models/search.model";
 import { AdminPath, AdminSettingsPath } from "../../models/admin-route-paths.model";
 import { UIDateFormat } from "../../models/date-format.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { CommitteeFile, CommitteeFileType } from "../../models/committee.model";
 import { UpcomingBookedMeeting } from "../../models/video-meeting.model";
 import { lastMeetingEventDate, upcomingBookedMeetings } from "../../functions/upcoming-booked-meetings";

@@ -8,7 +8,7 @@ import { notificationConfigIdFieldFor } from "../../../../functions/event-type-n
 import { EventLeaderContactMethod, EventPopulation, Organisation, SystemConfig } from "../../../../models/system.model";
 import { StringUtilsService } from "../../../../services/string-utils.service";
 import { enumKeyValues, enumValues, KEY_NULL_VALUE_NONE, KeyValue } from "../../../../functions/enums";
-import { RamblersEventType } from "../../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../models/ramblers-walks-manager.model";
 import { CommitteeConfigService } from "../../../../services/committee/commitee-config.service";
 import { CommitteeMember } from "../../../../models/committee.model";
 import { CommitteeReferenceData } from "../../../../services/committee/committee-reference-data";

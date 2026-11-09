@@ -7,7 +7,7 @@ import {
   walksManagerContactDisclosed
 } from "./ramblers-event.mapper";
 import { ExtendedFields, GroupEvent, InputSource } from "../../models/group-event.model";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { LinkSource, LinkWithSource } from "../../models/walk.model";
 
 function baseEvent(overrides: Partial<GroupEvent> = {}): GroupEvent {

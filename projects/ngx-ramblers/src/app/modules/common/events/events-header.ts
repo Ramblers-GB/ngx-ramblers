@@ -20,7 +20,7 @@ import { EventsData } from "../../../models/group-events.model";
 import { ExtendedGroupEvent, HasStartAndEndTime } from "../../../models/group-event.model";
 import { UrlService } from "../../../services/url.service";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 @Component({
   selector: "app-events-header",

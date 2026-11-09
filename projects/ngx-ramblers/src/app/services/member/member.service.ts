@@ -23,7 +23,7 @@ import { CommonDataService } from "../common-data-service";
 import { DbUtilsService } from "../db-utils.service";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { NumberUtilsService } from "../number-utils.service";
-import { DeletionResponse, DeletionResponseApiResponse } from "../../models/mongo-models";
+import { DeletionResponse, DeletionResponseApiResponse } from "../../models/mongo.model";
 import { PostSendActionsResult, WorkflowAction } from "../../models/mail.model";
 import { MEMBER_TYPEAHEAD_LIMIT, mongoMemberSearchCriteria } from "../../functions/member-search";
 

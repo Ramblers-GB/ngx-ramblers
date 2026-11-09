@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { ensureModel } from "../utils/model-utils";
 import uniqueValidator from "mongoose-unique-validator";
-import { SocialEvent } from "../../../../projects/ngx-ramblers/src/app/models/deprecated";
+import { SocialEvent } from "../../../../projects/ngx-ramblers/src/app/models/deprecated.model";
 
 const attendee = new mongoose.Schema({
   id: {type: String}

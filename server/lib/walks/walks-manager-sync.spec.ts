@@ -2,7 +2,7 @@ import expect from "expect";
 import sinon from "sinon";
 import {afterEach, describe, it} from "mocha";
 import {checkedSyncPage, syncWalksManagerData} from "./walks-manager-sync";
-import {RamblersEventsApiResponse} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import {RamblersEventsApiResponse} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import {EventPopulation, SystemConfig} from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import * as cache from "./walks-manager-cache";
 import * as messages from "../shared/message-handlers";

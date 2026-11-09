@@ -4,7 +4,7 @@ import debug from "debug";
 import { exec, execSync, spawn, ChildProcess } from "child_process";
 import { promisify } from "util";
 import { isArray } from "es-toolkit/compat";
-import { DeploymentConfig, EnvironmentConfig, RuntimeConfig, VolumeInformation } from "../../deploy/types";
+import { DeploymentConfig, EnvironmentConfig, RuntimeConfig, VolumeInformation } from "../../deploy/deploy.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { resolveClientPath } from "../shared/path-utils";
 import { envConfig } from "../env-config/env-config";

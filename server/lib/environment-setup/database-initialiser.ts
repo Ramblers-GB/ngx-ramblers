@@ -8,8 +8,7 @@ import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.
 import { BuiltInRole } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { BUILT_IN_PROCESS_NOTIFICATION_MAPPINGS, NOTIFICATION_CONFIG_DEFAULTS, PLATFORM_PROCESS_MAPPING_KEYS } from "../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { AdminUserConfig, SetupStepStatus } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
-import { CopiedAssets, EnvironmentSetupRequest, InitialiseDatabaseResult, MongoDbConnectionParams, ProgressCallback, ReinitDatabaseParams, SeedDatabaseParams, ValidationResult } from "./types";
+import { AdminUserConfig, CopiedAssets, EnvironmentSetupRequest, InitialiseDatabaseResult, MongoDbConnectionParams, ProgressCallback, ReinitDatabaseParams, SeedDatabaseParams, SetupStepStatus, ValidationResult } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { createSystemConfig, SystemConfigTemplateParams } from "./templates/system-config-template";
 import { createBrevoConfig } from "./templates/brevo-config-template";
 import { createBookingConfig } from "./templates/booking-config-template";

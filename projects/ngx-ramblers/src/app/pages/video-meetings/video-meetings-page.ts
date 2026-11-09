@@ -25,7 +25,7 @@ import { MEETING_MINUTES_TEMPLATE_ID, MeetingMinutesSummary, MeetingMinutesTable
 import { meetingMinutesDocumentSlug } from "../../functions/committee-documents-page";
 import { AdminPath, AdminSettingsPath } from "../../models/admin-route-paths.model";
 import { SystemSettingsTab } from "../../models/system.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { UIDateFormat } from "../../models/date-format.model";
 import { SortDirection } from "../../models/sort.model";
 import { ASCENDING, DESCENDING } from "../../models/table-filtering.model";

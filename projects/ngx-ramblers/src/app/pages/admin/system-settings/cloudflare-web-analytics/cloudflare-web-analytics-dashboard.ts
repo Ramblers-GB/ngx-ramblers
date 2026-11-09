@@ -18,7 +18,7 @@ import { SectionToggle } from "../../../../shared/components/section-toggle";
 import { DateRange, DateRangeSlider } from "../../../../components/date-range-slider/date-range-slider";
 import { AnalyticsBreakdownTable } from "./analytics-breakdown-table";
 import { DateTime } from "luxon";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 
 interface PresetRange {
   label: string;

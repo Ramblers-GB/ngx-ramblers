@@ -7,10 +7,12 @@ import { Upload } from "@aws-sdk/lib-storage";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { dateTimeNow } from "../shared/dates";
-import { DateFormat } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { DateFormat } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { flyMachineMemoryStats, flyMetricHistory } from "../fly/fly-metrics";
 import { isIntegrationWorkerAvailable, isJitsiAvailable } from "../fly/fly-runtime-config";
 import { currentMachineState, restartCurrentMachine } from "../fly/fly-machines";
+import { currentEnvironmentName, flyAppLogs } from "../fly/fly-logs";
+
 import { toMb } from "../shared/units";
 
 const debugLog = debug(envConfig.logNamespace("health:memory"));
@@ -96,6 +98,28 @@ function targetAppFrom(req: Request): FlyTargetApp {
 function environmentNameFrom(req: Request): string | null {
   const value = isString(req.query.environment) ? req.query.environment.trim() : "";
   return value || null;
+}
+
+function millisQuery(req: Request, key: string): number | null {
+  const value = isString(req.query[key]) ? Number(req.query[key]) : NaN;
+  if (Number.isFinite(value) && value > 0) {
+    return value;
+  } else {
+    return null;
+  }
+}
+
+export async function systemLogs(req: Request, res: Response): Promise<void> {
+  const environment = environmentNameFrom(req) || currentEnvironmentName();
+  const toMillis = millisQuery(req, "to") || dateTimeNow().toMillis();
+  const fromMillis = millisQuery(req, "from") || toMillis - 7 * 24 * 60 * 60 * 1000;
+  try {
+    const lines = await flyAppLogs(environment, fromMillis, toMillis);
+    res.status(200).json({environment, lines, from: fromMillis, to: toMillis});
+  } catch (error) {
+    debugLog("System logs query failed:", error);
+    res.status(500).json({error: error?.message || "Failed to query system logs"});
+  }
 }
 
 export async function flyStats(req: Request, res: Response): Promise<void> {

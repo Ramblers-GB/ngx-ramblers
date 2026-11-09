@@ -282,7 +282,7 @@ import {
   NotificationItem,
   roleEmailAddresses
 } from "../../models/committee.model";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { DocumentConversionService } from "../../services/committee/document-conversion.service";
 import { CONVERTIBLE_DOCUMENT_EXTENSIONS } from "../../models/aws-object.model";
 import { CommitteeDisplayService } from "../committee/committee-display.service";
@@ -296,7 +296,7 @@ import {
 } from "../../notifications/committee/templates/committee-notification-details.component";
 import { DisplayDatePipe } from "../../pipes/display-date.pipe";
 import { FullNameWithAliasPipe } from "../../pipes/full-name-with-alias.pipe";
-import { Confirm, ConfirmType, EditMode, StoredValue } from "../../models/ui-actions";
+import { Confirm, ConfirmType, EditMode, StoredValue } from "../../models/ui-actions.model";
 import { UiActionsService } from "../../services/ui-actions.service";
 import { BsModalService } from "ngx-bootstrap/modal";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";

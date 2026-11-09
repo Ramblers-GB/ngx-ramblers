@@ -1,5 +1,5 @@
 import { BehaviorSubject } from "rxjs";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ActivatedRoute, Router } from "@angular/router";
 import { CalendarApp } from "../../../models/inbox.model";
 import { TestBed } from "@angular/core/testing";

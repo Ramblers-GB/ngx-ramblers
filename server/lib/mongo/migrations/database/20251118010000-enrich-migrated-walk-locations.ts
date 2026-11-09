@@ -4,9 +4,9 @@ import { postcodeLookupFromPostcodesIo } from "../../../addresses/postcode-looku
 import {
   GridReferenceLookupApiResponse,
   GridReferenceLookupResponse
-} from "../../../../../projects/ngx-ramblers/src/app/models/address-model";
+} from "../../../../../projects/ngx-ramblers/src/app/models/address.model";
 import { GroupEventField, EventField } from "../../../../../projects/ngx-ramblers/src/app/models/walk.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { InputSource } from "../../../../../projects/ngx-ramblers/src/app/models/group-event.model";
 
 const debugLog = createMigrationLogger("enrich-migrated-walk-locations");

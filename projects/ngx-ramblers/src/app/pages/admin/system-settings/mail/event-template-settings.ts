@@ -6,7 +6,7 @@ import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
 import {faCircleCheck, faCircleExclamation, faCopy, faSave, faSpinner} from "@fortawesome/free-solid-svg-icons";
 import {PageContent} from "../../../../models/content-text.model";
 import {EVENT_EMAIL_IMAGE_HEIGHT, MergeFieldGroup, PROGRAMME_EVENT_MERGE_FIELDS} from "../../../../models/email-composer.model";
-import {StoredValue} from "../../../../models/ui-actions";
+import {StoredValue} from "../../../../models/ui-actions.model";
 import {TiptapMarkdownEditor} from "../../../../modules/common/tiptap-editor/tiptap-markdown-editor";
 import {EventTemplateService} from "../../../../services/mail/event-template.service";
 import {EventTemplatePreviewComponent} from "./event-template-preview";

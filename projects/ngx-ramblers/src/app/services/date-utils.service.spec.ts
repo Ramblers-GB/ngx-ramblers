@@ -4,7 +4,7 @@ import { LoggerTestingModule } from "ngx-logger/testing";
 import { DateUtilsService } from "./date-utils.service";
 import { DateValue } from "../models/date.model";
 import { ExtendedGroupEvent } from "../models/group-event.model";
-import { DateFormat } from "../models/ramblers-walks-manager";
+import { DateFormat } from "../models/ramblers-walks-manager.model";
 
 function dateTimeFor(startDate: string): DateTime {
     return TestBed.inject(DateUtilsService).asDateTime(startDate);

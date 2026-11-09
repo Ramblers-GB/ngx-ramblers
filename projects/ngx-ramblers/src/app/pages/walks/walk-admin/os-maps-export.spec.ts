@@ -18,7 +18,7 @@ import { UrlService } from "../../../services/url.service";
 import { WalkDisplayService } from "../walk-display.service";
 import { SystemConfigService } from "../../../services/system/system-config.service";
 import { RamblersUploadAuditService } from "../../../services/walks/ramblers-upload-audit.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { SerenityFeature } from "../../../models/serenity-feature.model";
 import { OsMapsAccountScope, OsMapsExportTab, OsMapsListedRoute } from "../../../models/os-maps-export.model";
 import { OS_MAPS_EXPORT_POLL_INTERVAL_MS, OsMapsExportJobResult, OsMapsExportJobStatus } from "../../../models/os-maps-export.model";

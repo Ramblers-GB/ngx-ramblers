@@ -7,7 +7,7 @@ import {
   EventCaptionToken
 } from "../../../projects/ngx-ramblers/src/app/models/social-publish.model";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";
 import { dateTimeFromIsoWithZone, formatDateTime } from "../shared/dates";
 import { withLink } from "./caption-builder";

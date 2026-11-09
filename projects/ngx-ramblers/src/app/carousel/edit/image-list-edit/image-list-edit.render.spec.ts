@@ -15,7 +15,7 @@ import { FileSizeSelectorComponent } from "../file-size-selector/file-size-selec
 import { TagManagerComponent } from "../../../pages/tag/tag-manager.component";
 import { AlbumEditRole, AlbumEditorView, ContentMetadataItem } from "../../../models/content-metadata.model";
 import { RootFolder } from "../../../models/system.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ContentMetadataService } from "../../../services/content-metadata.service";
 import { SystemConfigService } from "../../../services/system/system-config.service";
 import { PageContentService } from "../../../services/page-content.service";

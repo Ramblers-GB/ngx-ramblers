@@ -1,4 +1,4 @@
-import { LocationDetails } from "./ramblers-walks-manager";
+import { LocationDetails } from "./ramblers-walks-manager.model";
 import { WalkType } from "./walk.model";
 
 export interface GpxDerivedValues {

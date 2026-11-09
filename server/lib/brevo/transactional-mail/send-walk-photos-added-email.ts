@@ -12,13 +12,13 @@ import {
   WalkPhotosAddedNotificationRequest,
   WalkPhotosAddedNotificationResponse
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette";
+import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette.model";
 import { CommitteeConfig, CommitteeMember } from "../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { SystemConfig } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { BannerConfig } from "../../../../projects/ngx-ramblers/src/app/models/banner-configuration.model";
 import { Member } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 import { ExtendedGroupEvent } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { StoredValue } from "../../../../projects/ngx-ramblers/src/app/models/ui-actions";
+import { StoredValue } from "../../../../projects/ngx-ramblers/src/app/models/ui-actions.model";
 import { UIDateFormat } from "../../../../projects/ngx-ramblers/src/app/models/date-format.model";
 import { banner } from "../../mongo/models/banner";
 import { member } from "../../mongo/models/member";

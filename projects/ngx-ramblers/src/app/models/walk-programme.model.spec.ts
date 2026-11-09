@@ -1,5 +1,5 @@
 import { LinkSource } from "./walk.model";
-import { RamblersEventType } from "./ramblers-walks-manager";
+import { RamblersEventType } from "./ramblers-walks-manager.model";
 import { displayedWalkProgrammeStatus, ProgrammeOverviewStatus, walkIsMemberFacing, walkNeedsLeader, walkProgrammeSummaryFromDisplayedWalk } from "./walk-programme.model";
 
 describe("displayedWalkProgrammeStatus", () => {

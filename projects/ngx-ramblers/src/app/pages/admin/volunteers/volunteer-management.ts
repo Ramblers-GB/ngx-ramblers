@@ -54,7 +54,7 @@ import { VolunteerManagementService } from "../../../services/volunteer-manageme
 import { SortableTableSortState } from "../../../modules/common/sortable-table/sortable-table.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { SortDirection } from "../../../models/sort.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { kebabCase } from "es-toolkit/compat";
 import { VOLUNTEER_NOTIFICATION_SUBJECT_TEXT } from "../../../models/mail.model";
 import { UiActionsService } from "../../../services/ui-actions.service";

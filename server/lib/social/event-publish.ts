@@ -4,7 +4,7 @@ import { extendedGroupEvent } from "../mongo/models/extended-group-event";
 import { socialPublication } from "../mongo/models/social-publication";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
-import { WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import {
   EventPublishOutcome,
   EventPublishResult,

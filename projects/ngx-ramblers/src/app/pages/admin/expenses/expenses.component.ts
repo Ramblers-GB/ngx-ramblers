@@ -33,7 +33,7 @@ import { chain } from "../../../functions/chain";
 import { AlertTarget } from "../../../models/alert-target.model";
 import { ApiAction, ApiResponse } from "../../../models/api-response.model";
 import { Member } from "../../../models/member.model";
-import { Confirm, ConfirmType } from "../../../models/ui-actions";
+import { Confirm, ConfirmType } from "../../../models/ui-actions.model";
 import { NotificationDirective } from "../../../notifications/common/notification.directive";
 import {
   ExpenseClaim,

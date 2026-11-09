@@ -23,7 +23,7 @@ import { CommitteeConfigService } from "./commitee-config.service";
 import { CommitteeFileService } from "./committee-file.service";
 import { CommitteeReferenceData } from "./committee-reference-data";
 import { MediaQueryService } from "./media-query.service";
-import { EventQueryParameters, RamblersEventType } from "../../models/ramblers-walks-manager";
+import { EventQueryParameters, RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { EventSource, ExtendedGroupEvent, InputSource } from "../../models/group-event.model";
 import { displayedWalkProgrammeStatus, eventHasWalkWorkflow, ProgrammeOverviewStatus, walkProgrammeSummaryFromDisplayedWalk } from "../../models/walk-programme.model";
 import { DisplayedWalk } from "../../models/walk.model";

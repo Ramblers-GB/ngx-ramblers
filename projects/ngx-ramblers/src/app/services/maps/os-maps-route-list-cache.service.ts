@@ -1,7 +1,7 @@
 import { MemberLoginService } from "../member/member-login.service";
 import { inject, Injectable } from "@angular/core";
 import { OsMapsAccountScope, OsMapsRouteListing, OsMapsRouteListSnapshot } from "../../models/os-maps-export.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 
 @Injectable({
   providedIn: "root"

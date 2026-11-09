@@ -7,7 +7,7 @@ import { LoggerFactory } from "../../../services/logger-factory.service";
 import { AdminPath } from "../../../models/admin-route-paths.model";
 import { CreateSenderResponse, MailSettingsTab, Sender, SendersResponse } from "../../../models/mail.model";
 import { RouterLink } from "@angular/router";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { sendingDomainAuthenticated } from "../../../functions/committee-senders";
 import { NonSensitiveCloudflareConfig } from "../../../models/cloudflare-email-routing.model";
 import { MailService } from "../../../services/mail/mail.service";

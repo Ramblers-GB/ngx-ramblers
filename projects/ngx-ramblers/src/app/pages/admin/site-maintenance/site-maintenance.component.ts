@@ -11,7 +11,7 @@ import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { NgClass, DatePipe } from "@angular/common";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { StringUtilsService } from "../../../services/string-utils.service";
-import { MaintenanceMigrationFile, MigrationFileStatus, MigrationSortColumn } from "../../../models/mongo-migration-model";
+import { MaintenanceMigrationFile, MigrationFileStatus, MigrationSortColumn } from "../../../models/mongo-migration.model";
 import { sortBy } from "../../../functions/arrays";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { isNull } from "es-toolkit/compat";

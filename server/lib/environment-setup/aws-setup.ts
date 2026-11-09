@@ -27,11 +27,10 @@ import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { AssetToCopy, AwsAdminConfig, AwsCustomerCredentials, CopyAssetsResult, ValidationResult } from "./types";
+import { AssetToCopy, AwsAdminConfig, AwsCustomerCredentials, CopiedImage, CopyAssetsResult, ValidationResult } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { RootFolder } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { systemConfig } from "../config/system-config";
-import { CopiedImage } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { BannerPictureStore } from "./banner-picture.model";
 import { findRamblersDirectoryLogo } from "../site-registration/registration-logos";
 

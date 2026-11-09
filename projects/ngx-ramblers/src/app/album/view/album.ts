@@ -1,7 +1,7 @@
 import { Component, EventEmitter, inject, Input, OnInit, Output } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Location } from "@angular/common";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { LoggerFactory } from "../../services/logger-factory.service";
 import { NgxLoggerLevel } from "ngx-logger";
 import { take } from "es-toolkit/compat";

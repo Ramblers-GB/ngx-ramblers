@@ -3,7 +3,7 @@ import debug from "debug";
 import { keys } from "es-toolkit/compat";
 import { envConfig } from "../env-config/env-config";
 import { MessageType } from "../../../projects/ngx-ramblers/src/app/models/websocket.model";
-import { EnvironmentSetupRequest } from "./types";
+import { EnvironmentSetupRequest } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { findEnvironmentFromDatabase } from "../environments/environments-config";
 import { loadSecretsWithFallback } from "../shared/secrets";
 import { resumeEnvironment } from "../cli/commands/environment";

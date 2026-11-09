@@ -1,7 +1,7 @@
 import { isString } from "es-toolkit/compat";
 import { LinkStyle, ListStyle } from "../../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { AccessLevel } from "../../../../projects/ngx-ramblers/src/app/models/member-resource.model";
-import { RamblersGroupsApiResponse } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import {
   defaultHeaderBar,
   defaultNavbar,
@@ -13,10 +13,9 @@ import {
   SystemConfig
 } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { WalkListView } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
-import { RamblersApiConfig } from "../types";
+import { CopiedAssets, CopiedImage, RamblersApiConfig } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { ramblersNationalUrl } from "../../../../projects/ngx-ramblers/src/app/functions/hosts";
 import { toGroupShortName } from "../database-initialiser";
-import { CopiedAssets, CopiedImage } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { PRIVACY_POLICY_PATH } from "./sample-data/page-content-templates";
 
 export type { CopiedAssets };

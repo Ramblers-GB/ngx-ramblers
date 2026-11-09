@@ -2,7 +2,7 @@ import { Injectable } from "@angular/core";
 import * as L from "leaflet";
 import { MapProvider } from "../../models/map.model";
 import { FOLLOW_LOCATION_POINTER_PATH, FollowPointerSize, followPointerPixels, HEADING_RING_CLASS, RouteWaypointKind } from "../../models/route-follow.model";
-import { WalkStatus } from "../../models/ramblers-walks-manager";
+import { WalkStatus } from "../../models/ramblers-walks-manager.model";
 import { escapeHtml } from "../../functions/strings";
 
 @Injectable({ providedIn: "root" })

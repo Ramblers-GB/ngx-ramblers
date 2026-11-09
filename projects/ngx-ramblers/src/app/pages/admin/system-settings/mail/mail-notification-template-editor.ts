@@ -58,7 +58,7 @@ import { AwsFileData } from "../../../../models/aws-object.model";
 import { RootFolder } from "../../../../models/system.model";
 import { ActivatedRoute, RouterLink } from "@angular/router";
 import { Location } from "@angular/common";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { DateRangeUnit, NO_DATE_FILTER, NOTIFICATION_TIME_UNIT_OPTIONS } from "../../../../models/search.model";
 import { PathSegment } from "../../../../models/content-text.model";
 import { ContentBlockEditorComponent } from "./content-block-editor";

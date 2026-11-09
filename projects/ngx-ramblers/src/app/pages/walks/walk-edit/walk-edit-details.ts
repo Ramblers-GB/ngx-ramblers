@@ -8,7 +8,7 @@ import { GpxProposalsComponent } from "../../../shared/components/gpx-proposals"
 import { FormsModule } from "@angular/forms";
 import { WalkLocationEditComponent } from "./walk-location-edit";
 import { EventAscentEdit } from "./event-ascent-edit.component";
-import { LocationDetails } from "../../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../../models/ramblers-walks-manager.model";
 import { WalkDisplayService } from "../walk-display.service";
 import { AlertInstance } from "../../../services/notifier.service";
 import { cloneDeep, isEmpty, isNumber, isString, values } from "es-toolkit/compat";
@@ -31,7 +31,7 @@ import { VenueService } from "../../../services/venue/venue.service";
 import { VenueWithUsageStats } from "../../../models/event-venue.model";
 import { TimePicker } from "../../../date-and-time/time-picker";
 import { LocationType, MapProvider } from "../../../models/map.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { AppPath, RouteFollowPoint, RouteFollowWaypoint } from "../../../models/route-follow.model";
 import { MapEditComponent } from "./map-edit";
 import { RouteDirectionsEditor } from "../../../shared/components/route-directions-editor";

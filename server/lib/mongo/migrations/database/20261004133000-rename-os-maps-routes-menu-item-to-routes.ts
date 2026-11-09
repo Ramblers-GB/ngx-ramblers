@@ -1,6 +1,6 @@
 import { Db, MongoClient } from "mongodb";
 import { BuiltInAnchor, PageContentType } from "../../../../../projects/ngx-ramblers/src/app/models/content-text.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import {
   DEFAULT_WALKS_AREA,
   walksAdminPath,

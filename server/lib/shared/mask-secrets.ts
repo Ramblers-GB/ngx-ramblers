@@ -1,5 +1,5 @@
 import { values } from "es-toolkit/compat";
-import { OAuthWireParameter } from "../../../projects/ngx-ramblers/src/app/models/server-models";
+import { OAuthWireParameter } from "../../../projects/ngx-ramblers/src/app/models/server.model";
 
 const MASKED_VALUE = "***";
 const SECRET_QUERY_PARAMETER_PATTERN = new RegExp(`([?&](?:${values(OAuthWireParameter).join("|")})=)[^&#]*`, "gi");

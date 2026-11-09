@@ -72,7 +72,7 @@ import {
 } from "../../../models/content-metadata.model";
 import { Tag } from "../../../models/tag.model";
 import { MemberResourcesPermissions } from "../../../models/member-resource.model";
-import { Confirm, StoredValue } from "../../../models/ui-actions";
+import { Confirm, StoredValue } from "../../../models/ui-actions.model";
 import { move, sortBy } from "../../../functions/arrays";
 import { ContentMetadataService } from "../../../services/content-metadata.service";
 import { CreateWalkAlbumService } from "../../../services/walks/create-walk-album.service";

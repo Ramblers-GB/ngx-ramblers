@@ -3,7 +3,7 @@ import debug from "debug";
 import * as cms from "./cms-client.js";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { envConfig } from "../env-config/env-config";
-import { DEFAULT_CMS_BASE_URL } from "./models.js";
+import { DEFAULT_CMS_BASE_URL } from "./release-notes.model.js";
 import { syncReleaseNotesIndexImages } from "./index-image-sync.js";
 
 const debugLog = debug(envConfig.logNamespace("refresh-camera-markers"));

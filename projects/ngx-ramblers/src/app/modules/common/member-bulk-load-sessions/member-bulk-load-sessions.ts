@@ -8,7 +8,7 @@ import { memberBulkLoadSessionMemberCount } from "../../../functions/member-bulk
 import { MemberBulkLoadAudit, MemberBulkLoadSessionRow } from "../../../models/member.model";
 import { memberBulkLoadSourceLabel } from "../../../models/salesforce.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { DisplayDateAndTimePipe } from "../../../pipes/display-date-and-time.pipe";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { SortableTableComponent } from "../sortable-table/sortable-table.component";

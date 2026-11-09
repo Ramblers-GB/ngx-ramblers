@@ -13,7 +13,7 @@ import {
   MailListAuditListType,
   MailListAuditSource
 } from "../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { bounceTypeForBrevoEvent, reportSalesforceBounce } from "../salesforce/salesforce-bounce";
 import { writeBackConsentForEmailBlock } from "../salesforce/member-consent-writeback";
 import {

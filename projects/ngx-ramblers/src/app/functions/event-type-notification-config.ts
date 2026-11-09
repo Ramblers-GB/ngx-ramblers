@@ -1,6 +1,6 @@
 import { isString } from "es-toolkit/compat";
 import { Organisation } from "../models/system.model";
-import { RamblersEventType } from "../models/ramblers-walks-manager";
+import { RamblersEventType } from "../models/ramblers-walks-manager.model";
 
 export function notificationConfigIdFieldFor(eventType: RamblersEventType | string | null | undefined): keyof Organisation {
   return eventType === RamblersEventType.GROUP_WALK ? "groupWalkNotificationConfigId" : "groupEventNotificationConfigId";

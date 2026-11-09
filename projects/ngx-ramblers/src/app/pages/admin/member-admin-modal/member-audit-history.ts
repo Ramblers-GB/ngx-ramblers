@@ -1,7 +1,7 @@
 import { Component, inject, Input } from "@angular/core";
 import { startCase } from "es-toolkit/compat";
 import { memberFullName } from "../../../functions/member-names";
-import { AUDIT_FIELDS } from "../../../models/ramblers-insight-hub";
+import { AUDIT_FIELDS } from "../../../models/ramblers-insight-hub.model";
 import { DisplayDateAndTimePipe } from "../../../pipes/display-date-and-time.pipe";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { MemberService } from "../../../services/member/member.service";

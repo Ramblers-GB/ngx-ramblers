@@ -4,7 +4,7 @@ import { isError } from "es-toolkit/compat";
 import debug from "debug";
 import { envConfig } from "../../../../env-config/env-config";
 import { dateTimeNowAsValue } from "../../../../shared/dates";
-import { WalkEditSaveAction } from "../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkEditSaveAction } from "../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 
 const debugLog = debug(envConfig.logNamespace("WalkEditForm"));
 debugLog.enabled = true;

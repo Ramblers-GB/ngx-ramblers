@@ -1,8 +1,8 @@
 import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
-import { GeocodeMatchData } from "../../../../../projects/ngx-ramblers/src/app/models/address-model";
+import { GeocodeMatchData } from "../../../../../projects/ngx-ramblers/src/app/models/address.model";
 import { EventField, EventType, GroupEventField } from "../../../../../projects/ngx-ramblers/src/app/models/walk.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { InputSource } from "../../../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { WalkEvent } from "../../../../../projects/ngx-ramblers/src/app/models/walk-event.model";
 import { gridReferenceAudit, walkEventDataFrom } from "../migration-walk-event";

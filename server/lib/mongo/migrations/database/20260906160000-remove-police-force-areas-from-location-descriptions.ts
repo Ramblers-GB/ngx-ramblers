@@ -3,7 +3,7 @@ import { isArray, isString } from "es-toolkit/compat";
 import createMigrationLogger from "../migrations-logger";
 import { mentionsPoliceForceArea, withoutPoliceForceAreas } from "../../../addresses/location-description";
 import { postcodeLookupFromPostcodesIo } from "../../../addresses/postcode-lookup";
-import { GridReferenceLookupResponse } from "../../../../../projects/ngx-ramblers/src/app/models/address-model";
+import { GridReferenceLookupResponse } from "../../../../../projects/ngx-ramblers/src/app/models/address.model";
 
 const debugLog = createMigrationLogger("remove-police-force-areas-from-location-descriptions");
 const POLICE_FORCE_AREA = /\b(police|constabulary)\b/i;

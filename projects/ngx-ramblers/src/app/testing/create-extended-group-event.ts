@@ -1,5 +1,5 @@
 import { InputSource } from "../models/group-event.model";
-import { LocationDetails, RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager";
+import { LocationDetails, RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager.model";
 import { DateUtilsService } from "../services/date-utils.service";
 
 export function createExtendedGroupEvent(dateUtilsService: DateUtilsService, dateValue: number, expectedEvent: any, walkLeaderMemberId: string, startLocation?: LocationDetails) {

@@ -37,7 +37,7 @@ import { ContentTextEditor } from "../../../../../modules/common/tiptap-editor/c
 import { ExternalAlbumGroupComponent } from "./external-album-group";
 import { UrlService } from "../../../../../services/url.service";
 import { groupBy } from "es-toolkit/compat";
-import { StoredValue } from "../../../../../models/ui-actions";
+import { StoredValue } from "../../../../../models/ui-actions.model";
 
 @Component({
   selector: "app-external-album-import",

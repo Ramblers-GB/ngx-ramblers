@@ -2,7 +2,7 @@ import { TestBed } from "@angular/core/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MemberLoginService } from "../member/member-login.service";
 import { OsMapsAccountScope, OsMapsRouteListing } from "../../models/os-maps-export.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { OsMapsRouteListCacheService } from "./os-maps-route-list-cache.service";
 
 describe("OS Maps route list cache", () => {

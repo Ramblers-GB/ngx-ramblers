@@ -5,7 +5,7 @@ import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 import { kebabCase } from "es-toolkit/compat";
 import { AdminSettingsPath } from "../../../models/admin-route-paths.model";
 import { ExternalSystemsSubTab, SystemSettingsTab } from "../../../models/system.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 @Component({
   selector: "app-os-maps-login-required-alert",

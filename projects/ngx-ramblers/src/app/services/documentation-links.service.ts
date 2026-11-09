@@ -4,7 +4,7 @@ import { inject, Injectable } from "@angular/core";
 import { BehaviorSubject, firstValueFrom } from "rxjs";
 import { documentationFeaturePath, documentationFeatureUrl } from "../functions/documentation-links";
 import { DocumentationSite } from "../models/documentation-links.model";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { UiActionsService } from "./ui-actions.service";
 
 @Injectable({providedIn: "root"})

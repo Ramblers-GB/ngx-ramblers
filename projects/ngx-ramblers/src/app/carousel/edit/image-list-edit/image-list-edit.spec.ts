@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { AlbumEditorView, AlbumPhotoSort, ContentMetadata, ContentMetadataItem } from "../../../models/content-metadata.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ImageListEditComponent } from "./image-list-edit";
 
 describe("ImageListEditComponent photo preparation", () => {

@@ -1,7 +1,7 @@
 import expect from "expect";
 import { describe, it } from "mocha";
 import { InputSource } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { EventField, GroupEventField } from "../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { dateTimeFromIso } from "../shared/dates";

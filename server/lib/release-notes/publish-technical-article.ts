@@ -6,7 +6,7 @@ import { envConfig } from "../env-config/env-config";
 import { dateTimeFromObject } from "../shared/dates";
 import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";
 import { login, createOrUpdatePageContent, pageContent } from "./cms-client.js";
-import { DEFAULT_CMS_BASE_URL } from "./models.js";
+import { DEFAULT_CMS_BASE_URL } from "./release-notes.model.js";
 import { PageContent, PageContentType, PageContentColumn } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { cliLogger } from "../cli/cli-logger";
 

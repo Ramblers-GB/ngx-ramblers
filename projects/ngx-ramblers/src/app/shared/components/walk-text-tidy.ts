@@ -2,7 +2,7 @@ import { Component, EventEmitter, inject, Input, Output } from "@angular/core";
 import { DescriptionTidyView } from "../../models/text-diff.model";
 import { TidyTextApplied, TidyTextItem, TidyTextState } from "../../models/ai.model";
 import { SectionToggleTab } from "../../models/section-toggle.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { WalkTextTidyService } from "../../services/ai/walk-text-tidy.service";
 import { SuggestedTextChooserComponent } from "./suggested-text-chooser";
 

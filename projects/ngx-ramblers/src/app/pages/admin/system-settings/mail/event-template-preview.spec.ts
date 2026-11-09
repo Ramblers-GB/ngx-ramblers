@@ -1,4 +1,4 @@
-import {StoredValue} from "../../../../models/ui-actions";
+import {StoredValue} from "../../../../models/ui-actions.model";
 import {ProgrammeOverviewStatus} from "../../../../models/walk-programme.model";
 import {Component, Input} from "@angular/core";
 import {By} from "@angular/platform-browser";

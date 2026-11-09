@@ -1,7 +1,7 @@
 import { Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { UrlService } from "../../../services/url.service";
 import { Subscription } from "rxjs";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ActivatedRoute } from "@angular/router";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { NgxLoggerLevel } from "ngx-logger";

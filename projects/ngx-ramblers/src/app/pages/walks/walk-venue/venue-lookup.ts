@@ -18,7 +18,7 @@ import { VenueParserService } from "../../../services/venue/venue-parser.service
 import { VenueScraperService } from "../../../services/venue/venue-scraper.service";
 import { StoredVenueService } from "../../../services/venue/stored-venue.service";
 import { Venue, VenueParseResult, VenueType, VenueWithUsageStats } from "../../../models/event-venue.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { isEmpty } from "es-toolkit/compat";
 import { VenueAutocompleteComponent } from "./venue-autocomplete";
 import { VenueMapSelectorComponent } from "./venue-map-selector";

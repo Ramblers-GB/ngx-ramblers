@@ -45,7 +45,7 @@ import {
 } from "../../../models/os-maps-export.model";
 import { SortDirection } from "../../../models/sort.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { UIDateFormat } from "../../../models/date-format.model";
 import { LoggerFactory } from "../../../services/logger-factory.service";

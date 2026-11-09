@@ -4,7 +4,7 @@ import { socialEvent } from "../models/social-event";
 import { memberBulkLoadAudit } from "../models/member-bulk-load-audit";
 import { deletedMember } from "../models/deleted-member";
 import { EventField, GroupEventField } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
-import { CsvZipRequest, RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { CsvZipRequest, RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import AdmZip from "adm-zip";
 import debug from "debug";
 import { envConfig } from "../../env-config/env-config";

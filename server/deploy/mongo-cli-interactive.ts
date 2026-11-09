@@ -7,8 +7,8 @@ import { DateTime } from "luxon";
 import {
   RamblersWalksManagerDateFormat as DateFormat
 } from "../../projects/ngx-ramblers/src/app/models/date-format.model";
-import type { EnvironmentConfig } from "./types.js";
-import { AWS_DEFAULTS } from "./types.js";
+import type { EnvironmentConfig } from "./deploy.model.js";
+import { AWS_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { getAwsConfigForEnvironment, loadConfigs } from "./config-loader.js";
 import { isUndefined } from "es-toolkit/compat";
 import { dateTimeFromJsDate, dateTimeNow } from "../lib/shared/dates";

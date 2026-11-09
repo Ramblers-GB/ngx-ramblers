@@ -2,7 +2,7 @@ import { DirectionsApp, DirectionsLink, LOCATE_PAGE_PATH, LocateLinkParams, OS_M
 import { AppInstallPlatform } from "../models/route-follow.model";
 import { parseGridReference } from "./grid-reference";
 import { LocateSuggestion, UK_POSTCODE_PATTERN } from "../models/locate.model";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { stripTrailingSlash } from "./strings";
 
 export function locateParentPath(path: string): string {

@@ -28,7 +28,7 @@ import { DisplayDateAndTimePipe } from "../../pipes/display-date-and-time.pipe";
 import { UrlService } from "../../services/url.service";
 import { ContactInteractionService } from "../../services/contact-interaction.service";
 import { ContactInteractionStatus } from "../../models/booking.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { redirectPathFrom } from "../../functions/redirect-path";
 import { contactUsDeliveryProblem, effectiveContactUsTarget, withContactUsRecipientMergeFields } from "../../functions/contact-us-delivery";
 

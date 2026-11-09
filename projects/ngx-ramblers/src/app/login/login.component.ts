@@ -5,7 +5,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import { LoginModalComponent } from "../pages/login/login-modal/login-modal.component";
 import { Logger, LoggerFactory } from "../services/logger-factory.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 @Component({
     selector: "app-login",

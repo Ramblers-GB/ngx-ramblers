@@ -44,7 +44,7 @@ import {
 } from "../../../../models/mail.model";
 import { ALERT_ERROR } from "../../../../models/alert-target.model";
 import { SortDirection } from "../../../../models/sort.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { BrevoButtonComponent } from "../../../../modules/common/third-parties/brevo-button";
 import { BrevoDropdownItem } from "../../../../models/brevo-dropdown.model";
 import { SectionToggle } from "../../../../shared/components/section-toggle";

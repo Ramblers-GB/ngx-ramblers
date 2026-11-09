@@ -13,7 +13,7 @@ import {
   MailListAuditSource,
   MatchedMemberSubscriptions
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { buildUnsubscribeToken, contactUsParentSegment, verifyUnsubscribeToken } from "./unsubscribe-token";
 import { dateTimeNowAsValue } from "../../shared/dates";
 import { systemConfig } from "../../config/system-config";

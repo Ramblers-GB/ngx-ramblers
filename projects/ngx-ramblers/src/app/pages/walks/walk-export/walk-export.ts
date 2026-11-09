@@ -14,7 +14,7 @@ import {
   Status
 } from "../../../models/ramblers-upload-audit.model";
 import { SerenityFeature } from "../../../models/serenity-feature.model";
-import { RamblersEventType, RamblersWalksUploadRequest, WalkUploadRow } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType, RamblersWalksUploadRequest, WalkUploadRow } from "../../../models/ramblers-walks-manager.model";
 import {
   DownloadConflictResponse,
   GroupEventField,
@@ -61,7 +61,7 @@ import { EventDatesAndTimesPipe } from "../../../pipes/event-times-and-dates.pip
 import { ServerDownloadStatusService } from "../../../services/walks/download-status.service";
 import { BroadcastService } from "../../../services/broadcast-service";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
-import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-actions.model";
 import { SortDirection } from "../../../models/sort.model";
 import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
 import { SortableTableComponent } from "../../../modules/common/sortable-table/sortable-table.component";

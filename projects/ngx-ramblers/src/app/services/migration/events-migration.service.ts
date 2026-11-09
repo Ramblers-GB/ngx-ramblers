@@ -1,12 +1,12 @@
 import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
-import { LocationDetails, Media, RamblersEventType } from "../../models/ramblers-walks-manager";
+import { LocationDetails, Media, RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { GroupEventField, ImageSource, LinkSource, LinkWithSource, WalkType } from "../../models/walk.model";
 import { WalkDisplayService } from "../../pages/walks/walk-display.service";
 import { DateUtilsService } from "../date-utils.service";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { ExtendedFields, ExtendedGroupEvent, GroupEvent, InputSource } from "../../models/group-event.model";
-import { SocialEvent, Walk } from "../../models/deprecated";
+import { SocialEvent, Walk } from "../../models/deprecated.model";
 import { WalksLocalLegacyService } from "../walks/walks-local-legacy.service";
 import { Time } from "@angular/common";
 import { DateTime } from "luxon";

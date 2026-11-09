@@ -14,9 +14,9 @@ import {
 import { ImageCropperAndResizerComponent } from "../../image-cropper-and-resizer/image-cropper-and-resizer";
 import { AwsFileData } from "../../models/aws-object.model";
 import { AlertInstance } from "../../services/notifier.service";
-import { Media } from "../../models/ramblers-walks-manager";
+import { Media } from "../../models/ramblers-walks-manager.model";
 import { MediaQueryService } from "../../services/committee/media-query.service";
-import { EditMode } from "../../models/ui-actions";
+import { EditMode } from "../../models/ui-actions.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
 import { EventDefaultsService } from "../../services/event-defaults.service";
 import { isArray, isNull, isObject, isUndefined, keys } from "es-toolkit/compat";

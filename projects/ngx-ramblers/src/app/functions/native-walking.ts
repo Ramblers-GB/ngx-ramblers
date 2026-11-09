@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { NativeWalkingWindow } from "../models/native-route.model";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 export function parseHttpsOrigin(value: string): string | null {
   const trimmed = (value || "").trim();

@@ -1,7 +1,7 @@
 import { inject } from "@angular/core";
 import { Router, RouterStateSnapshot } from "@angular/router";
 import { MemberLoginService } from "../services/member/member-login.service";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 
 export function LoggedInGuard(_route: unknown, state: RouterStateSnapshot): boolean {
   const memberLoginService: MemberLoginService = inject(MemberLoginService);

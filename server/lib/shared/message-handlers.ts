@@ -3,7 +3,7 @@ import https from "https";
 import isEmpty from "lodash/isEmpty";
 import querystring from "querystring";
 import { envConfig } from "../env-config/env-config";
-import { MessageHandlerOptions } from "../../../projects/ngx-ramblers/src/app/models/server-models";
+import { MessageHandlerOptions } from "../../../projects/ngx-ramblers/src/app/models/server.model";
 import { isArray, isString } from "es-toolkit/compat";
 import { maskedApiRequest, maskOAuthWireParameters } from "./mask-secrets";
 

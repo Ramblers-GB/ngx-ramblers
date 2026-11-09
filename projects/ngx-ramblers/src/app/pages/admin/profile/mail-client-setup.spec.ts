@@ -4,7 +4,7 @@ import {BehaviorSubject} from "rxjs";
 import {vi} from "vitest";
 import {MailClientSetupComponent} from "./mail-client-setup";
 import {MailClientConnectionSettings, MailClientSetupApp, MailClientSetupPlatform} from "../../../models/mail-client.model";
-import {StoredValue} from "../../../models/ui-actions";
+import {StoredValue} from "../../../models/ui-actions.model";
 import {OutlookCalendarPlatform} from "../../../models/walk-programme.model";
 import {ClipboardService} from "../../../services/clipboard.service";
 

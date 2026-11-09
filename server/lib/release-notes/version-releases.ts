@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
-import { DEFAULT_CMS_BASE_URL } from "./models";
+import { DEFAULT_CMS_BASE_URL } from "./release-notes.model";
 
 const debugLog = debug(envConfig.logNamespace("release-notes:version"));
 

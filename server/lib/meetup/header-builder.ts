@@ -1,4 +1,4 @@
-import { ContentType, Header } from "./models";
+import { ContentType, Header } from "./meetup.model";
 import querystring from "querystring";
 
 export class HeaderBuilder {

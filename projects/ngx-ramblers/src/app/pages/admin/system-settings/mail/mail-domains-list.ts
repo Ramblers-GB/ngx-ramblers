@@ -23,7 +23,7 @@ import { SortableTableCellDirective } from "../../../../modules/common/sortable-
 import { SortableTableAlignment, SortableTableColumn, SortableTableSortState } from "../../../../modules/common/sortable-table/sortable-table.model";
 import { SortDirection } from "../../../../models/sort.model";
 import { ASCENDING, DESCENDING } from "../../../../models/table-filtering.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { StringUtilsService } from "../../../../services/string-utils.service";
 import {
   faCheck,

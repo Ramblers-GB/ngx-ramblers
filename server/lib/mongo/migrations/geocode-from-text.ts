@@ -3,7 +3,7 @@ import {
   GeocodeMatchType,
   GeocodeSourceField,
   GridReferenceLookupResponse
-} from "../../../../projects/ngx-ramblers/src/app/models/address-model";
+} from "../../../../projects/ngx-ramblers/src/app/models/address.model";
 import { EventType, GroupEventField } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { WalkEvent } from "../../../../projects/ngx-ramblers/src/app/models/walk-event.model";
 import { nominatimGridReferenceLookup } from "../../addresses/nominatim-lookup";

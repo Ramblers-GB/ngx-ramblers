@@ -12,7 +12,7 @@ import { MailchimpConfig } from "../../../models/mailchimp.model";
 import { HEAD_OFFICE_SUPPORTER_FIELDS, Member, MemberTerm, MemberUpdateAudit } from "../../../models/member.model";
 import { SalesforceConfig } from "../../../models/salesforce.model";
 import { MailProvider, SystemConfig } from "../../../models/system.model";
-import { EditMode, StoredValue } from "../../../models/ui-actions";
+import { EditMode, StoredValue } from "../../../models/ui-actions.model";
 import { FullNamePipe } from "../../../pipes/full-name.pipe";
 import { FullNameWithAliasPipe } from "../../../pipes/full-name-with-alias.pipe";
 import { DateUtilsService } from "../../../services/date-utils.service";

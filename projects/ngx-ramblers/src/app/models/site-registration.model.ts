@@ -2,7 +2,7 @@ import { AdminUserConfig, SetupProgress } from "./environment-setup.model";
 import { SiteMigrationConfig } from "./migration-config.model";
 import { MigratedAlbum } from "./migration-scraping.model";
 import { PageContent } from "./content-text.model";
-import { RamblersGroupsApiResponse } from "./ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "./ramblers-walks-manager.model";
 import { ComposerExternalRecipient } from "./email-composer.model";
 
 export enum RegistrationPlan {

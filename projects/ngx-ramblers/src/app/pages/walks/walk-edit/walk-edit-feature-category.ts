@@ -6,7 +6,7 @@ import { RamblersWalksAndEventsService } from "../../../services/walks-and-event
 import { sortBy } from "../../../functions/arrays";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { NgxLoggerLevel } from "ngx-logger";
-import { Metadata } from "../../../models/ramblers-walks-manager";
+import { Metadata } from "../../../models/ramblers-walks-manager.model";
 
 @Component({
   selector: "app-walk-edit-feature-category",

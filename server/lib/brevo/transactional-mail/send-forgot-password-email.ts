@@ -22,7 +22,7 @@ import {
   NotificationConfig,
   SendPurpose,
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette";
+import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette.model";
 import { CommitteeConfig, CommitteeMember } from "../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { ADMIN_SET_PASSWORD_PATH, SystemConfig } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { BannerConfig } from "../../../../projects/ngx-ramblers/src/app/models/banner-configuration.model";

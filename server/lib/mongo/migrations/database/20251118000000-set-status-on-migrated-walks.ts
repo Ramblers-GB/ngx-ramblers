@@ -1,6 +1,6 @@
 import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
-import { WalkStatus } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkStatus } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { EventType, EventField, GroupEventField } from "../../../../../projects/ngx-ramblers/src/app/models/walk.model";
 
 const debugLog = createMigrationLogger("set-status-on-migrated-walks");

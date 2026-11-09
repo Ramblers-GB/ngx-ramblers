@@ -1,4 +1,4 @@
-import { isRamblersAuditNoise } from "./ramblers-audit-noise";
+import { isRamblersAuditNoise } from "./ramblers-audit-noise.model";
 
 describe("isRamblersAuditNoise", () => {
 

@@ -3,11 +3,11 @@ import { compact, groupBy, isArray, isBoolean, isNull, isObject, isUndefined, st
 import { FileNameData, isAwsGeneratedFileName } from "../../models/aws-object.model";
 import { ContactDetails, Publishing } from "../../models/group-event.model";
 import { MeetupConfig } from "../../models/meetup-config.model";
-import { Contact, LocationDetails, Media, Metadata } from "../../models/ramblers-walks-manager";
+import { Contact, LocationDetails, Media, Metadata } from "../../models/ramblers-walks-manager.model";
 import { ImageConfig, ImageSource, LINK_CONFIG, LinkSource, LinkWithSource, RiskAssessmentRecord } from "../../models/walk.model";
 import { Venue } from "../../models/event-venue.model";
 import { RouteFollowWaypoint, RouteWaypointKind } from "../../models/route-follow.model";
-import { WALK_NOTIFICATION_FIELDS } from "../../models/walk-notification-fields";
+import { WALK_NOTIFICATION_FIELDS } from "../../models/walk-notification-fields.model";
 import { WalkNotificationLocationFormat, WalkNotificationValueFormat as Format } from "../../models/walk-notification-field.model";
 import { DateUtilsService } from "../date-utils.service";
 import { DistanceValidationService } from "../walks/distance-validation.service";

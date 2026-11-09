@@ -1,6 +1,5 @@
-import type { EnvironmentConfig, MongoConfig } from "./types.js";
-import { FLYIO_DEFAULTS } from "./types.js";
-import type { AwsConfig } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import type { EnvironmentConfig, MongoConfig } from "./deploy.model.js";
+import { FLYIO_DEFAULTS, type AwsConfig } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import type { BackupConfig } from "../../projects/ngx-ramblers/src/app/models/backup-session.model";
 import { configuredBackup } from "../lib/backup/backup-config.js";
 

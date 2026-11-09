@@ -92,7 +92,7 @@ export const FLY_METRIC_DEFINITIONS: FlyMetricDefinition[] = [
   }
 ];
 
-async function organisationSlug(apiToken: string, appName: string, configured: string): Promise<string> {
+export async function organisationSlug(apiToken: string, appName: string, configured: string): Promise<string> {
   const cached = resolvedOrganisations.get(appName);
   if (cached) {
     return cached;

@@ -3,7 +3,7 @@ import {
   WalkLeaderContact,
   EventsListRequest,
   RamblersGroupEventsRawApiResponse
-} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { GroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { omit, isEmpty, groupBy, map, first, kebabCase } from "es-toolkit/compat";
 import { Request, Response } from "express";

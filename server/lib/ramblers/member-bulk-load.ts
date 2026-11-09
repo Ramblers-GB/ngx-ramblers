@@ -10,7 +10,7 @@ import {
   MemberBulkLoadAuditApiResponse,
   RamblersMember
 } from "../../../projects/ngx-ramblers/src/app/models/member.model";
-import { DateFormat } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { DateFormat } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import * as aws from "../aws/aws-controllers";
 import { envConfig } from "../env-config/env-config";
 import { isAwsUploadErrorResponse } from "../aws/aws-utils";

@@ -1,5 +1,5 @@
 import { isObject, map } from "es-toolkit/compat";
-import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../projects/ngx-ramblers/src/app/models/audit.model";
 import {
   AwsFileUploadResponse,
   AwsFileUploadResponseData,

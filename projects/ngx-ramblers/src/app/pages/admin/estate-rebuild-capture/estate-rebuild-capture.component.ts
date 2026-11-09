@@ -55,7 +55,7 @@ import {
 import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { VendorSystemSelectItem } from "../../../models/vendor-brand.model";
 import { AlertTarget } from "../../../models/alert-target.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { toKebabCase } from "../../../functions/strings";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";

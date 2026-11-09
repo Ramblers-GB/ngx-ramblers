@@ -28,7 +28,7 @@ import { EnvironmentGlobalSettings } from "./environment-global-settings";
 import { EnvironmentPerEnvSettings } from "./environment-per-env-settings";
 import { EnvironmentConfigTools } from "./environment-config-tools";
 import { Environment } from "../../../models/environment.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { FormSaveActionsComponent } from "../form-save-actions/form-save-actions";
 import { FormSaveActions } from "../../../models/form-save-actions.model";
 import { AlertPanelComponent } from "../alert-panel/alert-panel";

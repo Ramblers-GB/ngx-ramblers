@@ -5,7 +5,7 @@ import { isEmpty, isString } from "es-toolkit/compat";
 import { extendedGroupEvent } from "../models/extended-group-event";
 import * as crudController from "./crud-controller";
 import { EventSource, ExtendedGroupEvent } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { ApiAction } from "../../../../projects/ngx-ramblers/src/app/models/api-response.model";
 import {
   DocumentField,

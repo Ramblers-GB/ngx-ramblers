@@ -27,7 +27,7 @@ import {
   UnsubscribeHistoryEntry
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { SortDirection } from "../../../../projects/ngx-ramblers/src/app/models/sort.model";
-import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { writeBackConsentForEmailBlock } from "../../salesforce/member-consent-writeback";
 import { unsubscribeAllMailSubscriptions } from "./email-block-from-event";
 import {

@@ -1,7 +1,7 @@
 import { inject, Injectable } from "@angular/core";
 import { DistanceUnit, WalkDistance } from "../../models/walk.model";
 import { NumberUtilsService } from "../number-utils.service";
-import { Walk } from "../../models/deprecated";
+import { Walk } from "../../models/deprecated.model";
 import { isNull } from "es-toolkit/compat";
 
 @Injectable({

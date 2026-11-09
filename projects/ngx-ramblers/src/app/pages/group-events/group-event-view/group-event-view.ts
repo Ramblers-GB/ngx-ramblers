@@ -36,7 +36,7 @@ import { LinksService } from "../../../services/links.service";
 import { FALLBACK_MEDIA, Links } from "../../../models/walk.model";
 import { MediaQueryService } from "../../../services/committee/media-query.service";
 import { WalksAndEventsService } from "../../../services/walks-and-events/walks-and-events.service";
-import { BasicMedia } from "../../../models/ramblers-walks-manager";
+import { BasicMedia } from "../../../models/ramblers-walks-manager.model";
 import { BookingFormComponent } from "../../admin/bookings/booking-form.component";
 import { EventLeaderComponent } from "../../walks/walk-view/event-leader";
 import { WalkAlbumPanelComponent } from "../../walks/walk-view/walk-album-panel";
@@ -44,7 +44,7 @@ import { CreateWalkAlbumService } from "../../../services/walks/create-walk-albu
 import { eventSlug } from "../../../functions/walks/event-slug";
 
 import { AlbumEditRole, AlbumPanelPresentation } from "../../../models/content-metadata.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 @Component({
   selector: "app-group-event-view",

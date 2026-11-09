@@ -11,7 +11,7 @@ import {
 } from "../../../../models/cloudflare-email-routing.model";
 import { SectionToggle } from "../../../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../../../models/section-toggle.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { CloudflareEmailRoutingService } from "../../../../services/cloudflare/cloudflare-email-routing.service";
 import { DateUtilsService } from "../../../../services/date-utils.service";
 import { StringUtilsService } from "../../../../services/string-utils.service";

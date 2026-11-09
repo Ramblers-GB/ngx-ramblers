@@ -2,7 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { isEmpty, isNull } from "es-toolkit/compat";
 import { DistanceUnit } from "../../models/walk.model";
 import { NumberUtilsService } from "../number-utils.service";
-import { LegacyWalkAscent, Walk } from "../../models/deprecated";
+import { LegacyWalkAscent, Walk } from "../../models/deprecated.model";
 import { FEET_TO_METRES_FACTOR } from "../../models/group-event.model";
 
 @Injectable({

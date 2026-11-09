@@ -6,7 +6,7 @@ import { envConfig } from "../../env-config/env-config";
 import * as transforms from "./transforms";
 import debug from "debug";
 import { createErrorDebugLog } from "../../shared/error-debug-log";
-import { ControllerRequest, DeletionResponse } from "../../../../projects/ngx-ramblers/src/app/models/mongo-models";
+import { ControllerRequest, DeletionResponse } from "../../../../projects/ngx-ramblers/src/app/models/mongo.model";
 import { ApiAction } from "../../../../projects/ngx-ramblers/src/app/models/api-response.model";
 import { DeleteDocumentsRequest } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 import { pluraliseWithCount } from "../../shared/string-utils";

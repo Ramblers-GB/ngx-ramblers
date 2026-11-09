@@ -14,7 +14,7 @@ import {
   EmailRoutingStatus,
   NonSensitiveCloudflareConfig
 } from "../../../../models/cloudflare-email-routing.model";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import {
   destinationVerificationStatusFor,
   multiRecipientVerificationDetails,

@@ -7,7 +7,7 @@ import debug from "debug";
 import {
   MailchimpCampaignSearchRequestOptions,
   MailchimpConfigData
-} from "../../../../projects/ngx-ramblers/src/app/models/server-models";
+} from "../../../../projects/ngx-ramblers/src/app/models/server.model";
 import {
   MailchimpApiError,
   MailchimpCampaignGetContentResponse

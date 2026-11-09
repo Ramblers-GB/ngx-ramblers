@@ -4,7 +4,7 @@ import { values } from "es-toolkit/compat";
 import { LoggerFactory } from "../../services/logger-factory.service";
 import { ContentText, PageContent, PageContentPath, PageContentType } from "../../models/content-text.model";
 import { ContentTextService } from "../../services/content-text.service";
-import { LegacyStoredValue } from "../../models/ui-actions";
+import { LegacyStoredValue } from "../../models/ui-actions.model";
 import { DEFAULT_CONTENT_ENTRIES } from "./default-content";
 
 @Injectable({

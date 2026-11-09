@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, it } from "@serenity-js/playwright-tes
 import debug from "debug";
 import { envConfig } from "../../env-config/env-config";
 import { dateTimeNow } from "../../shared/dates";
-import { DateFormat } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { DateFormat } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { CheckAndReportOn } from "../screenplay/tasks/ramblers/walks/check-and-report-on";
 import { SaveBrowserSource } from "../screenplay/tasks/common/save-browser-source";
 import { RequestParameterExtractor } from "../screenplay/tasks/ramblers/common/request-parameter-extractor";

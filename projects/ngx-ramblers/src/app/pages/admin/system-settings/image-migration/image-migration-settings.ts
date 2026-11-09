@@ -30,7 +30,7 @@ import { kebabCase, values } from "es-toolkit/compat";
 import { ContentMigrationGroupComponent } from "./image-migration-group";
 import { ExternalAlbumImportComponent } from "./external-album-import/external-album-import";
 import { ActivatedRoute, Router } from "@angular/router";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { enumValueForKey } from "../../../../functions/enums";
 import { StringUtilsService } from "../../../../services/string-utils.service";
 import { FileSizeSelectorComponent } from "../../../../carousel/edit/file-size-selector/file-size-selector";

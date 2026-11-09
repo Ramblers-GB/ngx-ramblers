@@ -1,6 +1,6 @@
 import { ApiResponse, Identifiable } from "./api-response.model";
 import { RootFolder } from "./system.model";
-import { WithMongoId } from "./mongo-models";
+import { WithMongoId } from "./mongo.model";
 import { OutputFormat } from "ngx-image-cropper";
 import { ImageCropperPosition } from "./image-cropper.model";
 import { Tag } from "./tag.model";

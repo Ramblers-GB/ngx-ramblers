@@ -11,7 +11,7 @@ import { NamedEventType } from "../../../models/broadcast.model";
 import { CommitteeDocumentsData, PageContent, PageContentRow, PathSegment } from "../../../models/content-text.model";
 import { SortDirection } from "../../../models/sort.model";
 import { FALLBACK_MEDIA } from "../../../models/walk.model";
-import { ConfirmType, StoredValue } from "../../../models/ui-actions";
+import { ConfirmType, StoredValue } from "../../../models/ui-actions.model";
 import { AlertTarget } from "../../../models/alert-target.model";
 import { CommitteeFileService } from "../../../services/committee/committee-file.service";
 import { DocumentConversionService } from "../../../services/committee/document-conversion.service";

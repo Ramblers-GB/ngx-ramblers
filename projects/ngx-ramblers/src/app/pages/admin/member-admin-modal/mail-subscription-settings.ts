@@ -30,7 +30,7 @@ import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { SortableTableComponent } from "../../../modules/common/sortable-table/sortable-table.component";
 import { SortableTableCellDirective } from "../../../modules/common/sortable-table/sortable-table-cell.directive";
 import { SortableTableColumn } from "../../../modules/common/sortable-table/sortable-table.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { DESCENDING } from "../../../models/table-filtering.model";
 
 @Component({

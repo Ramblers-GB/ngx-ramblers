@@ -21,7 +21,7 @@ import {
 import { AccessLevel } from "../../../projects/ngx-ramblers/src/app/models/member-resource.model";
 import { WalkListView } from "../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { dateTimeNow, dateTimeNowAsValue } from "../shared/dates";
-import { DateFormat, RamblersGroupsApiResponse } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { DateFormat, RamblersGroupsApiResponse } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { fetchAllRamblersAreas, fetchRamblersGroupsFromApi } from "../ramblers/list-groups";
 import { isBlob } from "es-toolkit";
 import { idleCached } from "../shared/idle-cache";

@@ -4,7 +4,7 @@ import { PostcodeNavigationService } from "./postcode-navigation.service";
 import { AddressQueryService } from "../walks/address-query.service";
 import { GoogleMapsService } from "../google-maps.service";
 import { LoggerFactory } from "../logger-factory.service";
-import { LocationDetails } from "../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../models/ramblers-walks-manager.model";
 import { PostcodeNavigationStatus, PostcodeRoadCheckStatus } from "../../models/postcode-navigation.model";
 
 describe("Automatic postcode navigation checks", () => {

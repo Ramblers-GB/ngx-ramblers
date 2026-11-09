@@ -7,7 +7,7 @@ import debugLib from "debug";
 import { configuredMeetup } from "./meetup-config";
 import { Meetup } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { isEmpty } from "es-toolkit/compat";
-import { ContentType, HTTPRequestOptions } from "./models";
+import { ContentType, HTTPRequestOptions } from "./meetup.model";
 import { HeaderBuilder } from "./header-builder";
 
 export async function requestAccess(req: Request, res: Response): Promise<void> {

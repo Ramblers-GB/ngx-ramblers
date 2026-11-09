@@ -32,7 +32,7 @@ import {
 } from "../../../models/social-publish.model";
 import { ExternalSystemsSubTab, SystemConfig, SystemSettingsTab } from "../../../models/system.model";
 import { AdminSettingsPath } from "../../../models/admin-route-paths.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { facebookPublishingEnabled, instagramPublishingEnabled } from "../../../functions/social-publishing";
 import { RouterLink } from "@angular/router";
 import { kebabCase } from "es-toolkit/compat";

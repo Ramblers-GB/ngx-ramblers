@@ -29,7 +29,7 @@ import { chunk, first, last, uniq } from "es-toolkit/compat";
 import { SectionToggle } from "../../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { WalkProgrammePageComponent } from "../walk-programme-view-selector/walk-programme-page";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { CalendarColourBy } from "../../../models/walks-config.model";
 import {
   CalendarDay,
@@ -46,7 +46,7 @@ import {
 import { DisplayedWalk, EventType } from "../../../models/walk.model";
 import { ExtendedGroupEvent } from "../../../models/group-event.model";
 import { walkLeaderDisplayName } from "../../../functions/walks/walk-leader-fields";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
 import { WalkProgrammeService } from "../../../services/walks-and-events/walk-programme.service";
 import { ScrollPositionService } from "../../../services/scroll-position.service";

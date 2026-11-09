@@ -1,4 +1,4 @@
-import { Media } from "../models/ramblers-walks-manager";
+import { Media } from "../models/ramblers-walks-manager.model";
 import { HasMedia } from "../models/group-events.model";
 
 export const MEDIUM_STYLE = "medium";

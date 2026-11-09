@@ -2,7 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import { saveNativeWalkingSite } from "../../functions/native-walking";
 import { AppHomeListSnapshot } from "../../models/app-home-list-cache.model";
 import { RouteFollowSummary } from "../../models/route-follow.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { AppHomeListCacheService } from "./app-home-list-cache.service";
 
 describe("group home list isolation", () => {

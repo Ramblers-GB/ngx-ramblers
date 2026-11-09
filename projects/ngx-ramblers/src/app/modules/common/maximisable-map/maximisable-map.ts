@@ -5,7 +5,7 @@ import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faCompress, faExpand, faMaximize } from "@fortawesome/free-solid-svg-icons";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { DELAYED_TOOLTIP_PROVIDERS } from "../tooltip-config";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 
 export interface MaximisableMapState {

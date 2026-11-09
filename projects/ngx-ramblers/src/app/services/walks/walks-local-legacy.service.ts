@@ -8,7 +8,7 @@ import { CommonDataService } from "../common-data-service";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { UrlService } from "../url.service";
 
-import { Walk, WalkApiResponse } from "../../models/deprecated";
+import { Walk, WalkApiResponse } from "../../models/deprecated.model";
 
 @Injectable({
   providedIn: "root"

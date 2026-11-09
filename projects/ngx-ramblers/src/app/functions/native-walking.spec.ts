@@ -1,6 +1,6 @@
 import { NativeWalkingWindow } from "../models/native-route.model";
 import { Capacitor } from "@capacitor/core";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { nativeApiUrl, nativeBuildLabel, nativeWalkingSite, parseHttpsOrigin, saveNativeWalkingSite } from "./native-walking";
 
 describe("nativeApiUrl", () => {

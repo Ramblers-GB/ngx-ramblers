@@ -3,7 +3,7 @@ import { faQuestion, faPencil } from "@fortawesome/free-solid-svg-icons";
 import { AdminPath } from "../../../../models/admin-route-paths.model";
 import { Router } from "@angular/router";
 import { kebabCase } from "es-toolkit";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 import { DockedTo } from "../../../../models/docking.model";
 import { NgxLoggerLevel } from "ngx-logger";
 import { HelpInfo } from "../../../../models/member.model";

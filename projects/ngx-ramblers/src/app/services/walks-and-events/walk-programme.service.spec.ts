@@ -6,7 +6,7 @@ import { LocalWalksAndEventsService } from "./local-walks-and-events.service";
 import { ExtendedGroupEventQueryService } from "./extended-group-event-query.service";
 import { DateUtilsService } from "../date-utils.service";
 import { GroupEventField } from "../../models/walk.model";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 
 describe("calendar event criteria", () => {
   it("combines list filters with the visible period and deleted-event exclusion", async () => {

@@ -6,7 +6,7 @@ import { DateUtilsService } from "../../../services/date-utils.service";
 import { AlertInstance } from "../../../services/notifier.service";
 import { GroupEventCard } from "../../../pages/group-events/group-event-card/group-event-card";
 import { ExtendedGroupEvent } from "../../../models/group-event.model";
-import { RamblersEventType } from "../../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../models/ramblers-walks-manager.model";
 import { WalkCardViewComponent } from "../../../pages/walks/walk-view/walk-card-view";
 import { WalkDisplayService } from "../../../pages/walks/walk-display.service";
 import { StringUtilsService } from "../../../services/string-utils.service";

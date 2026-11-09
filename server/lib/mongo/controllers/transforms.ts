@@ -9,7 +9,7 @@ import {
   CriteriaAndDocument,
   HasBody,
   SetUnSetDocument
-} from "../../../../projects/ngx-ramblers/src/app/models/mongo-models";
+} from "../../../../projects/ngx-ramblers/src/app/models/mongo.model";
 import { Identifiable } from "../../../../projects/ngx-ramblers/src/app/models/api-response.model";
 
 const debugLog: debug.Debugger = debug(envConfig.logNamespace("transforms"));

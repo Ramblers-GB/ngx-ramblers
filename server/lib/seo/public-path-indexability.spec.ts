@@ -2,7 +2,7 @@ import expect from "expect";
 import { describe, it } from "mocha";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { Organisation } from "../../../projects/ngx-ramblers/src/app/models/system.model";
-import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import {
   eventHasIndexablePublicSlug,
   eventListRootsFrom,

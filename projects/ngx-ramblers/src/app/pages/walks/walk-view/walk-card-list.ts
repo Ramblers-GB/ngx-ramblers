@@ -13,7 +13,7 @@ import { SystemConfigService } from "../../../services/system/system-config.serv
 import { Organisation, SystemConfig } from "../../../models/system.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { MediaQueryService } from "../../../services/committee/media-query.service";
-import { BasicMedia } from "../../../models/ramblers-walks-manager";
+import { BasicMedia } from "../../../models/ramblers-walks-manager.model";
 import { BsModalService, ModalOptions } from "ngx-bootstrap/modal";
 import { LoginModalComponent } from "../../login/login-modal/login-modal.component";
 import { SvgComponent } from "../../../modules/common/svg/svg";

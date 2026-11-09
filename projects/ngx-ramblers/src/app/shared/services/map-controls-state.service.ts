@@ -1,7 +1,7 @@
 import { inject, Injectable } from "@angular/core";
 import { DEFAULT_OS_STYLE, MapProvider, OUTDOOR_OS_STYLE } from "../../models/map.model";
 import { UiActionsService } from "../../services/ui-actions.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { MapTilesService } from "../../services/maps/map-tiles.service";
 import { MapControlsState } from "../components/map-controls";
 import { isUndefined } from "es-toolkit/compat";

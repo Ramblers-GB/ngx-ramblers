@@ -6,7 +6,7 @@ import * as crudController from "../controllers/crud-controller";
 import { bulkDeleteEvents, bulkUpdateEvents, eventStats, agmStats, earliestDate, csvZip } from "../controllers/walk-admin";
 import { agmStatsExcel } from "../controllers/agm-stats-excel";
 import { queryWalkLeaders } from "../controllers/extended-group-event";
-import { Walk } from "../../../../projects/ngx-ramblers/src/app/models/deprecated";
+import { Walk } from "../../../../projects/ngx-ramblers/src/app/models/deprecated.model";
 import { importWalkGpx, receiveWalkGpx, uploadWalkGpx } from "../../walks/walk-gpx-upload";
 import { listWalkGpxFiles } from "../../walks/walk-gpx-list";
 import { notifyWalkPhotosAdded } from "../../walks/walk-album-photos-added";

@@ -6,7 +6,7 @@ import { Logger, LoggerFactory } from "../logger-factory.service";
 import { LocalWalksAndEventsService } from "./local-walks-and-events.service";
 import { Organisation } from "../../models/system.model";
 import { SystemConfigService } from "../system/system-config.service";
-import { EventQueryParameters } from "../../models/ramblers-walks-manager";
+import { EventQueryParameters } from "../../models/ramblers-walks-manager.model";
 import { ExtendedGroupEvent, ExtendedGroupEventApiResponse } from "../../models/group-event.model";
 import { SearchDateRange } from "../../models/search.model";
 import { DateUtilsService } from "../date-utils.service";

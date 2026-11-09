@@ -4,7 +4,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { EventLeaderContactMethod, Organisation } from "../../models/system.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
 import { eventSlug } from "../../functions/walks/event-slug";
-import { RamblersEventType } from "../../models/ramblers-walks-manager";
+import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { SystemConfigService } from "../system/system-config.service";
 import { UrlService } from "../url.service";

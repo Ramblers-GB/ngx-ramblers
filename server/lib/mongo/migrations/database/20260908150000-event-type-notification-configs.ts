@@ -3,7 +3,7 @@ import { keys } from "es-toolkit/compat";
 import createMigrationLogger from "../migrations-logger";
 import { CONFIG_COLLECTION, NOTIFICATION_CONFIG_COLLECTION } from "../shared/collection-names";
 import { ConfigKey } from "../../../../../projects/ngx-ramblers/src/app/models/config.model";
-import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { notificationConfigIdFieldFor } from "../../../../../projects/ngx-ramblers/src/app/functions/event-type-notification-config";
 
 const debugLog = createMigrationLogger("event-type-notification-configs");

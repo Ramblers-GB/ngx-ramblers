@@ -41,7 +41,7 @@ import { MigrationHistoryService } from "../../../../services/migration/migratio
 import { ContentTemplateType, EM_DASH_WITH_SPACES, PageContent } from "../../../../models/content-text.model";
 import { ClipboardService } from "../../../../services/clipboard.service";
 import { UiActionsService } from "../../../../services/ui-actions.service";
-import { StoredValue, StoredValueQueryParameters } from "../../../../models/ui-actions";
+import { StoredValue, StoredValueQueryParameters } from "../../../../models/ui-actions.model";
 import { PageContentService } from "../../../../services/page-content.service";
 import { SortableTableComponent } from "../../../../modules/common/sortable-table/sortable-table.component";
 import { SortableTableCellDirective } from "../../../../modules/common/sortable-table/sortable-table-cell.directive";

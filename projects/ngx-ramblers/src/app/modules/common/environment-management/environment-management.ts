@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { values } from "es-toolkit/compat";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { sortBy } from "../../../functions/arrays";
 import { NgxLoggerLevel } from "ngx-logger";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";

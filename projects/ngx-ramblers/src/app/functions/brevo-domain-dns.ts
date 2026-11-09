@@ -1,5 +1,5 @@
 import { AdminPath } from "../models/admin-route-paths.model";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { kebabCase } from "es-toolkit/compat";
 import { BrevoDnsRecord, BrevoDomainDnsRecords, MailSettingsTab } from "../models/mail.model";
 

@@ -11,7 +11,7 @@ import {
   SendPurpose,
   SendSmtpEmailRequest
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
-import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette";
+import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette.model";
 import { CommitteeConfig } from "../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import {emailAddressForRole, emailAddressesForRoles} from "./send-member-bulk-load-digest-email";
 import { joinNotificationSubject } from "../../../../projects/ngx-ramblers/src/app/functions/notification-subject";
@@ -27,7 +27,7 @@ import {
   BookingEmailType,
   templatesIncludeSalutation
 } from "../../../../projects/ngx-ramblers/src/app/models/booking-config.model";
-import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { buildBookingMergeFields, resolveBookingBody, subjectForType } from "./booking-template-resolver";
 import { signoffHtmlForConfig } from "./signoff-names";
 import { ramblersAccountMergeFields } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-legal.model";

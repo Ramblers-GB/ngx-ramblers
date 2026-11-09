@@ -3,7 +3,7 @@
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { login, CMSAuth } from "../release-notes/cms-client";
-import { ConfigUpdateArguments, DEFAULT_CMS_BASE_URL } from "../release-notes/models";
+import { ConfigUpdateArguments, DEFAULT_CMS_BASE_URL } from "../release-notes/release-notes.model";
 import { isObject } from "es-toolkit/compat";
 
 const debugLog = debug(envConfig.logNamespace("scripts:update-config"));

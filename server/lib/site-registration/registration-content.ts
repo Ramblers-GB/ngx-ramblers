@@ -18,7 +18,7 @@ import { isDocumentUrl } from "./registration-documents";
 import { httpRequest, optionalParameter } from "../shared/message-handlers";
 import { systemConfig } from "../config/system-config";
 import * as requestDefaults from "../ramblers/request-defaults";
-import { DateFormat, RamblersEventType, RamblersEventsApiResponse } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { DateFormat, RamblersEventType, RamblersEventsApiResponse } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { dateTimeNow } from "../shared/dates";
 import { chunk, isEmpty } from "es-toolkit/compat";
 import { toKebabCase } from "../../../projects/ngx-ramblers/src/app/functions/strings";

@@ -48,7 +48,7 @@ import { ConfigService } from "../../../services/config.service";
 import { ConfigKey } from "../../../models/config.model";
 import { SiteEditService } from "../../../site-edit/site-edit.service";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { PasteDetectionService } from "../../../services/paste-detection.service";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";

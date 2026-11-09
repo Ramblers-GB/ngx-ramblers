@@ -24,7 +24,7 @@ import { SortableTableAlignment, SortableTableColumn, SortableTableSortState } f
 import { SortDirection } from "../../../../models/sort.model";
 import { ASCENDING, DESCENDING } from "../../../../models/table-filtering.model";
 import { DisplayDateAndTimePipe } from "../../../../pipes/display-date-and-time.pipe";
-import { StoredValue } from "../../../../models/ui-actions";
+import { StoredValue } from "../../../../models/ui-actions.model";
 
 @Component({
   selector: "app-mail-mx-records",

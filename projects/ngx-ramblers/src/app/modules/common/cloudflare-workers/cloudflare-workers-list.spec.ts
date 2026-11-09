@@ -4,7 +4,7 @@ import { BehaviorSubject } from "rxjs";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { CloudflareWorkersList } from "./cloudflare-workers-list";
 import { CloudflareWorkerSortField, WorkerEmailUsageStatus } from "../../../models/cloudflare-email-routing.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 
 describe("shared Cloudflare workers list", () => {

@@ -20,8 +20,8 @@ import { debounceTime } from "rxjs/operators";
 import { UIDateFormat } from "../../models/date-format.model";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { PresetSelect } from "../../modules/common/preset-select/preset-select";
-import { DATE_RANGE_SLIDER_PRESETS, DateRangeSliderAxisTick, DateRangeSliderPreset } from "../../models/date.model";
-import { DateDirection } from "../../models/search.model";
+import { DATE_RANGE_SLIDER_PRESETS, DateRangeSliderAxisTick, DateRangeSliderPreset, DateRangeSliderUnit } from "../../models/date.model";
+import { relativeDateRangeBounds } from "../../models/search.model";
 
 export interface DateRange {
   from: number;
@@ -41,24 +41,27 @@ export function dateRangeSliderBounds(fromDate: DateTime, toDate: DateTime, padd
 export function dateRangeSliderAxisTicks(
   minDate: DateTime | null,
   span: number,
-  labelFor: (date: DateTime) => string
+  labelFor: (date: DateTime) => string,
+  unit: DateRangeSliderUnit = DateRangeSliderUnit.DAYS
 ): DateRangeSliderAxisTick[] {
   const empty: DateRangeSliderAxisTick[] = [];
   if (!minDate || span <= 0) {
     return empty;
   } else {
-    const step = span <= 10 ? 1 : span <= 45 ? 7 : span <= 180 ? 14 : 30;
+    const step = unit === DateRangeSliderUnit.HOURS
+      ? (span <= 12 ? 1 : span <= 24 ? 3 : span <= 48 ? 6 : 12)
+      : (span <= 10 ? 1 : span <= 45 ? 7 : span <= 180 ? 14 : 30);
     const rawCount = Math.floor(span / step);
     const values = Array.from({length: rawCount + 1}, (_, index) => index * step);
     const withEnd = values[values.length - 1] === span ? values : [...values, span];
-    const minPercent = 12;
+    const minPercent = unit === DateRangeSliderUnit.HOURS ? 18 : 12;
     const kept = withEnd.reduce((ticks: DateRangeSliderAxisTick[], value: number) => {
       const percent = (value / span) * 100;
       const previous = ticks[ticks.length - 1];
       const candidate: DateRangeSliderAxisTick = {
         value,
         percent,
-        label: labelFor(minDate.plus({days: value})),
+        label: labelFor(minDate.plus({[unit]: value})),
         start: value === 0,
         end: value === span
       };
@@ -380,13 +383,46 @@ export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
   }
 
   get fromDateDisplay(): string {
-    const date = this.minDate?.plus({ days: this.fromValue });
-    return date ? this.dateUtils.asString(date, undefined, UIDateFormat.DAY_MONTH_YEAR_ABBREVIATED) : "";
+    return this.displayForOffset(this.fromValue);
   }
 
   get toDateDisplay(): string {
-    const date = this.minDate?.plus({ days: this.toValue });
-    return date ? this.dateUtils.asString(date, undefined, UIDateFormat.DAY_MONTH_YEAR_ABBREVIATED) : "";
+    return this.displayForOffset(this.toValue);
+  }
+
+  private get sliderUnit(): DateRangeSliderUnit {
+    if (!this.minDate || !this.maxDate) {
+      return DateRangeSliderUnit.DAYS;
+    } else if (this.maxDate.diff(this.minDate, "hours").hours <= 48) {
+      return DateRangeSliderUnit.HOURS;
+    } else {
+      return DateRangeSliderUnit.DAYS;
+    }
+  }
+
+  private get displayFormat(): UIDateFormat {
+    if (this.sliderUnit === DateRangeSliderUnit.HOURS) {
+      return UIDateFormat.DAY_MONTH_YEAR_ABBREVIATED_TIME;
+    } else {
+      return UIDateFormat.DAY_MONTH_YEAR_ABBREVIATED;
+    }
+  }
+
+  private get axisLabelFormat(): UIDateFormat {
+    if (this.sliderUnit === DateRangeSliderUnit.HOURS) {
+      return UIDateFormat.RAMBLERS_TIME;
+    } else {
+      return UIDateFormat.DAY_MONTH_YEAR_ABBREVIATED;
+    }
+  }
+
+  private displayForOffset(offset: number): string {
+    const date = this.minDate?.plus({[this.sliderUnit]: offset});
+    if (date) {
+      return this.dateUtils.asString(date, undefined, this.displayFormat);
+    } else {
+      return "";
+    }
   }
 
   get fillLeft(): number {
@@ -428,8 +464,8 @@ export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
       const boundedFrom = fromDate < this.minDate ? this.minDate : fromDate;
       const boundedTo = toDate > this.maxDate ? this.maxDate : toDate;
 
-      this.fromValue = Math.max(0, Math.floor(boundedFrom.diff(this.minDate!, "days").days));
-      this.toValue = Math.max(this.fromValue, Math.floor(boundedTo.diff(this.minDate!, "days").days));
+      this.fromValue = Math.max(0, Math.floor(boundedFrom.diff(this.minDate!, this.sliderUnit)[this.sliderUnit]));
+      this.toValue = Math.max(this.fromValue, Math.floor(boundedTo.diff(this.minDate!, this.sliderUnit)[this.sliderUnit]));
       if (emit) {
         this.emitChange();
       }
@@ -450,11 +486,7 @@ export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
     this.selectedPreset = preset;
     this.presetChange.emit(preset);
     if (preset?.relativeDateRange) {
-      const today = this.dateUtils.dateTimeNow().startOf("day");
-      const offset = preset.relativeDateRange.duration;
-      const bounds = preset.relativeDateRange.direction === DateDirection.FUTURE
-        ? {from: today, to: today.plus(offset)}
-        : {from: today.minus(offset), to: today};
+      const bounds = relativeDateRangeBounds(preset.relativeDateRange, this.dateUtils.dateTimeNow());
       this.runWithoutViewChange(() => {
         this.minDate = bounds.from;
         this.maxDate = bounds.to;
@@ -484,8 +516,8 @@ export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
   private emitChange() {
     const lowValue = Math.min(this.fromValue, this.toValue);
     const highValue = Math.max(this.fromValue, this.toValue);
-    const fromDate = this.minDate?.plus({ days: lowValue });
-    const toDate = this.minDate?.plus({ days: highValue });
+    const fromDate = this.minDate?.plus({[this.sliderUnit]: lowValue});
+    const toDate = this.minDate?.plus({[this.sliderUnit]: highValue});
 
     if (fromDate && toDate) {
       this.rangeChangeSubject.next({
@@ -519,9 +551,10 @@ export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
       this.maxDate = this.minDate.plus({ days: 1 });
     }
     const totalDays = Math.max(0, Math.ceil(this.maxDate.diff(this.minDate, "days").days));
-    this.maxValue = totalDays;
+    const totalHours = Math.max(0, Math.ceil(this.maxDate.diff(this.minDate, "hours").hours));
+    this.maxValue = this.sliderUnit === DateRangeSliderUnit.HOURS ? Math.max(1, totalHours) : totalDays;
     this.axisTicks = dateRangeSliderAxisTicks(this.minDate, this.maxValue, date =>
-      this.dateUtils.asString(date, undefined, UIDateFormat.DAY_MONTH_YEAR_ABBREVIATED));
+      this.dateUtils.asString(date, undefined, this.axisLabelFormat), this.sliderUnit);
     this.runWithoutViewChange(() => {
       this.fromValue = Math.min(this.fromValue, this.maxValue);
       this.toValue = Math.max(this.fromValue, Math.min(this.toValue, this.maxValue));

@@ -13,7 +13,7 @@ import { AlertTarget } from "../../../models/alert-target.model";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
 import { ContentText, ContentTextCategory, View } from "../../../models/content-text.model";
 import { MeetupConfig } from "../../../models/meetup-config.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import {
   CalendarColourBy,
   DEFAULT_WALK_START_TIME,
@@ -44,7 +44,7 @@ import { MeetupService } from "../../../services/meetup.service";
 import { WalksConfigService } from "../../../services/system/walks-config.service";
 import { SystemConfigService } from "../../../services/system/system-config.service";
 import { MapEditComponent } from "../walk-edit/map-edit";
-import { LocationDetails } from "../../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../../models/ramblers-walks-manager.model";
 import { CardImageComponent } from "../../../modules/common/card/image/card-image";
 import { ResizerComponent } from "../../../modules/common/resizer/resizer";
 import { RelatedLinksPanelComponent } from "../../../modules/common/related-links/related-links-panel";

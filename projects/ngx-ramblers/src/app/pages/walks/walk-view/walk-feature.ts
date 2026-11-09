@@ -3,7 +3,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { GoogleMapsService } from "../../../services/google-maps.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { WalkDisplayService } from "../walk-display.service";
-import { Metadata } from "../../../models/ramblers-walks-manager";
+import { Metadata } from "../../../models/ramblers-walks-manager.model";
 import { SvgComponent } from "../../../modules/common/svg/svg";
 
 @Component({

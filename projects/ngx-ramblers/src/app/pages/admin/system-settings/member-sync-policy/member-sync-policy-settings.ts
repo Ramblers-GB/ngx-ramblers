@@ -2,7 +2,7 @@ import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
-import { AUDIT_FIELDS } from "../../../../models/ramblers-insight-hub";
+import { AUDIT_FIELDS } from "../../../../models/ramblers-insight-hub.model";
 import {
   DEFAULT_MEMBER_SYNC_POLICY,
   MemberSyncPolicy,

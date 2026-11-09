@@ -20,11 +20,11 @@ import {
   RamblersApiConfig,
   RamblersInfo,
   SetupOptions
-} from "../lib/environment-setup/types";
+} from "../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { adminConfigFromEnvironment, validateAwsAdminCredentials } from "../lib/environment-setup/aws-setup";
 import { error as logError, log } from "../lib/cli/cli-logger";
-import { RamblersGroupsApiResponse } from "../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
-import { AWS_DEFAULTS, FLYIO_DEFAULTS } from "./types";
+import { RamblersGroupsApiResponse } from "../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
+import { AWS_DEFAULTS, FLYIO_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { envConfig } from "../lib/env-config/env-config";
 
 const defaults = {

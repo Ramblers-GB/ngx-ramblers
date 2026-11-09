@@ -9,7 +9,7 @@ import { VenueTypeValue } from "../../../models/event-venue.model";
 import { By } from "@angular/platform-browser";
 import { NgSelectComponent } from "@ng-select/ng-select";
 import { RecentSearchesService } from "../../../services/search/recent-searches.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 
 describe("Venue search selection prompt", () => {
   const venueSearch = vi.fn();

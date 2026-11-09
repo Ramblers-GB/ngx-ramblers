@@ -52,7 +52,7 @@ import {
 import { SortDirection } from "../../../models/sort.model";
 import { TextMatchPattern } from "../../../models/page-transformation.model";
 import { AccessLevel } from "../../../models/member-resource.model";
-import { LocationDetails } from "../../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../../models/ramblers-walks-manager.model";
 import { BroadcastService } from "../../../services/broadcast-service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { MemberResourcesReferenceDataService } from "../../../services/member/member-resources-reference-data.service";
@@ -73,7 +73,7 @@ import { assignDeep } from "../../../functions/object-utils";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { RoutePageEditor } from "./route-page-editor";
 import { routeRowIn } from "../../../functions/map-location-markers";
-import { Confirm, StoredValue } from "../../../models/ui-actions";
+import { Confirm, StoredValue } from "../../../models/ui-actions.model";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { BadgeButtonComponent } from "../badge-button/badge-button";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";

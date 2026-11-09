@@ -14,7 +14,7 @@ import { NgClass } from "@angular/common";
 import { first } from "es-toolkit/compat";
 import { ExtendedGroupEvent, HasGroupCodeAndName } from "../../../models/group-event.model";
 import { GroupSelector } from "../walk-edit/group-selector";
-import { RamblersGroupsApiResponse } from "../../../models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse } from "../../../models/ramblers-walks-manager.model";
 import { ImportData, ImportStage, ImportType, ImportTypeOptions } from "../../../models/walk.model";
 import { SystemConfig } from "../../../models/system.model";
 import { SystemConfigService } from "../../../services/system/system-config.service";

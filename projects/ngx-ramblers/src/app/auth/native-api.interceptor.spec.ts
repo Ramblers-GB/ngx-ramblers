@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from "@angular/common
 import { TestBed } from "@angular/core/testing";
 import { Capacitor } from "@capacitor/core";
 import { firstValueFrom } from "rxjs";
-import { StoredValue } from "../models/ui-actions";
+import { StoredValue } from "../models/ui-actions.model";
 import { NATIVE_HTTP } from "../services/maps/native-site.service";
 import { NativeApiInterceptor } from "./native-api.interceptor";
 

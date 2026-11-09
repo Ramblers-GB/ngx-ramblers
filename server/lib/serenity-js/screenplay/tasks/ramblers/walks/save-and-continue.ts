@@ -14,7 +14,7 @@ import {
   walkEditFormSettled,
   walkEditSaveProgress
 } from "../../../questions/ramblers/walk-edit-form";
-import { WalkEditSaveAction } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkEditSaveAction } from "../../../../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 
 const debugLog = debug(envConfig.logNamespace("SaveAndContinue"));
 debugLog.enabled = true;

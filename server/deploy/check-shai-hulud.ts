@@ -8,7 +8,7 @@ import debug from "debug";
 import * as semver from "semver";
 import * as yaml from "js-yaml";
 import { isArray, isString, keys, values } from "es-toolkit/compat";
-import { PackageManager } from "./types";
+import { PackageManager } from "./deploy.model";
 import { envConfig } from "../lib/env-config/env-config";
 
 const debugLog = debug(envConfig.logNamespace("check-shai-hulud"));

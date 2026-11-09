@@ -11,8 +11,8 @@ import { SearchDateRange } from "../../models/search.model";
 import { DateUtilsService } from "../date-utils.service";
 import { ExtendedGroupEvent, ExtendedGroupEventApiResponse } from "../../models/group-event.model";
 import { DeleteDocumentsRequest } from "../../models/member.model";
-import { DeletionResponse, DeletionResponseApiResponse } from "../../models/mongo-models";
-import { EventQueryParameters } from "../../models/ramblers-walks-manager";
+import { DeletionResponse, DeletionResponseApiResponse } from "../../models/mongo.model";
+import { EventQueryParameters } from "../../models/ramblers-walks-manager.model";
 import { ExtendedGroupEventQueryService } from "./extended-group-event-query.service";
 import { toSlug } from "../../functions/strings";
 

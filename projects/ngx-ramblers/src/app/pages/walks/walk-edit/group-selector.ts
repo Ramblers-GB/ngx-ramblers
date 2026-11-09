@@ -1,7 +1,7 @@
 import { Component, EventEmitter, inject, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { RamblersWalksAndEventsService } from "../../../services/walks-and-events/ramblers-walks-and-events.service";
 import { GroupEventField } from "../../../models/walk.model";
-import { RamblersGroupsApiResponse, RamblersGroupWithLabel } from "../../../models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse, RamblersGroupWithLabel } from "../../../models/ramblers-walks-manager.model";
 import { DropdownPosition, NgSelectComponent } from "@ng-select/ng-select";
 import { FormsModule } from "@angular/forms";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";

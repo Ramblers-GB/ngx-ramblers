@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import debug from "debug";
 import { keys } from "es-toolkit/compat";
-import { SecretsFile } from "../environment-setup/types";
+import { SecretsFile } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { envConfig } from "../env-config/env-config";
 import { resolveClientPath } from "./path-utils";
 import {
@@ -118,7 +118,7 @@ export function buildSecretsFromDatabaseConfig(
     });
   }
 
-  if (!secrets.INTEGRATION_WORKER_CALLBACK_BASE_URL && envConfig.flyio?.appName) {
+  if (envConfig.flyio?.appName) {
     secrets.INTEGRATION_WORKER_CALLBACK_BASE_URL = `https://${envConfig.flyio.appName}.fly.dev`;
   }
 

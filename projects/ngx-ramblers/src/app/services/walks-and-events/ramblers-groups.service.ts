@@ -2,7 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { ReplaySubject } from "rxjs";
 import { NgxLoggerLevel } from "ngx-logger";
-import { GroupListRequest, MAXIMUM_PAGE_SIZE, RamblersGroupsApiResponse, RamblersGroupsApiResponseApiResponse } from "../../models/ramblers-walks-manager";
+import { GroupListRequest, MAXIMUM_PAGE_SIZE, RamblersGroupsApiResponse, RamblersGroupsApiResponseApiResponse } from "../../models/ramblers-walks-manager.model";
 import { sortBy } from "../../functions/arrays";
 import { CommonDataService } from "../common-data-service";
 import { LoggerFactory } from "../logger-factory.service";

@@ -1,6 +1,6 @@
 import { AlbumTimelineComponent } from "./album-timeline";
 import { TimelinePlayDirection } from "../../models/content-text.model";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import { RECENT_PHOTOS } from "../../models/content-metadata.model";
 import { ElementRef } from "@angular/core";
 

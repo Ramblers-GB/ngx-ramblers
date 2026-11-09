@@ -16,7 +16,7 @@ import { MemberLoginService } from "../../services/member/member-login.service";
 import { WalksReferenceService } from "../../services/walks/walks-reference-data.service";
 import { WalkDisplayService } from "./walk-display.service";
 import { EventPopulation, Organisation } from "../../models/system.model";
-import { LocationDetails, RamblersEventType, WalkStatus } from "../../models/ramblers-walks-manager";
+import { LocationDetails, RamblersEventType, WalkStatus } from "../../models/ramblers-walks-manager.model";
 import { GroupEventService } from "../../services/walks-and-events/group-event.service";
 import { EventType } from "../../models/walk.model";
 import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";

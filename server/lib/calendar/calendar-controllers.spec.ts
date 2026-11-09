@@ -8,7 +8,7 @@ import { extendedGroupEvent } from "../mongo/models/extended-group-event";
 import { eventsCalendarFeed } from "./calendar-controllers";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { EventField, GroupEventField } from "../../../projects/ngx-ramblers/src/app/models/walk.model";
-import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { RamblersEventType } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 
 describe("eventsCalendarFeed", () => {
   const sandbox = sinon.createSandbox();

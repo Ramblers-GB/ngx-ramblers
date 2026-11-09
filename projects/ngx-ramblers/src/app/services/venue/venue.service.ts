@@ -8,7 +8,7 @@ import { DateUtilsService } from "../date-utils.service";
 import { isEmpty, isString, isUndefined } from "es-toolkit/compat";
 import { StoredVenueService } from "./stored-venue.service";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
-import { LocationDetails } from "../../models/ramblers-walks-manager";
+import { LocationDetails } from "../../models/ramblers-walks-manager.model";
 
 export enum VenueLocationSource {
   START_LOCATION = "start_location",

@@ -6,7 +6,7 @@ import { ensureEmailAuthRecords, queryEmailAuthStatus } from "../../../cloudflar
 import { listDomains } from "../../../brevo/domains/domain-management";
 import { BrevoDomainInfo } from "../../../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { apexHost } from "../../../../../projects/ngx-ramblers/src/app/functions/hosts";
-import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration-model";
+import { MigrationUpResult } from "../../../../../projects/ngx-ramblers/src/app/models/mongo-migration.model";
 import { withBrevoMigrationSafety } from "../shared/brevo-migration-safety";
 
 const debugLog = createMigrationLogger("ensure-email-auth-records");

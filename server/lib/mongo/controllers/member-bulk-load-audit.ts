@@ -35,7 +35,7 @@ import { previewMemberBulkLoadDigestEmail, sendMemberBulkLoadDigestEmail } from 
 import { assertSendAllowed, SendRefusedError } from "../../brevo/send-permission";
 import { NotificationConfig, SendPurpose } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { ApiAction } from "../../../../projects/ngx-ramblers/src/app/models/api-response.model";
-import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit";
+import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit.model";
 
 const debugLog = debug(envConfig.logNamespace("member-bulk-load-audit"));
 

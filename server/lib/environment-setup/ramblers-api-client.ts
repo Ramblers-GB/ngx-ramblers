@@ -3,9 +3,9 @@ import https from "https";
 import {
   MAXIMUM_PAGE_SIZE,
   RamblersGroupsApiResponse
-} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+} from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import { envConfig } from "../env-config/env-config";
-import { RamblersAreaLookup, RamblersGroupLookup, ValidationResult } from "./types";
+import { RamblersAreaLookup, RamblersGroupLookup, ValidationResult } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { isArray } from "es-toolkit/compat";
 
 const debugLog = debug(envConfig.logNamespace("environment-setup:ramblers-api"));

@@ -1,7 +1,7 @@
 import expect from "expect";
 import { describe, it } from "mocha";
 import { ExtendedGroupEvent } from "../../../projects/ngx-ramblers/src/app/models/group-event.model";
-import { WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { WalkStatus } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import {
   eventHasNonIndexableStatus,
   eventHasNonIndexableTitleOrSlug,

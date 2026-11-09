@@ -2,7 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "./logger-factory.service";
 import { ContactDetails, ExtendedGroupEvent, InputSource } from "../models/group-event.model";
-import { Contact, LocationDetails, RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager";
+import { Contact, LocationDetails, RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager.model";
 import { SystemConfig } from "../models/system.model";
 import { ImageConfig, ImageSource, MODERATE, WalkType } from "../models/walk.model";
 import { DateUtilsService } from "./date-utils.service";
@@ -17,7 +17,7 @@ import { Observable, ReplaySubject } from "rxjs";
 import { shareReplay } from "rxjs/operators";
 import { StringUtilsService } from "./string-utils.service";
 import { has, isNull, isUndefined } from "es-toolkit/compat";
-import { DeepPartial } from "../models/utility-types";
+import { DeepPartial } from "../models/utility.model";
 import { assignDeep } from "../functions/object-utils";
 import { eventHasWalkWorkflow } from "../models/walk-programme.model";
 

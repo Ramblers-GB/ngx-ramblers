@@ -40,7 +40,7 @@ import { BackupAndRestoreService } from "../../../services/backup-and-restore.se
 import { EnvironmentConfigService } from "../../../services/environment-config.service";
 import { EnvironmentMigrationService } from "../../../services/environment-migration.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { InputSize } from "../../../models/ui-size.model";
 import { DESCENDING } from "../../../models/table-filtering.model";
 import { AWS_DEFAULTS, EnvironmentsConfig } from "../../../models/environment-config.model";

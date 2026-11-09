@@ -6,7 +6,7 @@ import { vi } from "vitest";
 import { WalksViewSelector } from "./walk-view-selector";
 import { EventDispatchService } from "../../group-events/group-event-view/event-dispatch-service";
 import { EventViewDispatch } from "../../../models/group-event.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { NotifierService } from "../../../services/notifier.service";
 import { UrlService } from "../../../services/url.service";
 import { StringUtilsService } from "../../../services/string-utils.service";

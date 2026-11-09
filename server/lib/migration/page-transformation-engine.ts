@@ -44,16 +44,16 @@ import {
   ScrapedSegment
 } from "../../../projects/ngx-ramblers/src/app/models/migration-scraping.model";
 import { AccessLevel } from "../../../projects/ngx-ramblers/src/app/models/member-resource.model";
-import { LocationDetails } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager";
+import { LocationDetails } from "../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import * as exclusions from "./text-exclusions";
 import { humaniseFileStemFromUrl, pluraliseWithCount } from "../shared/string-utils";
 import { DateTime } from "luxon";
 import { dateTimeNow, dateTimeNowAsValue } from "../shared/dates";
 import { bestLocation, extractLocations } from "../../../projects/ngx-ramblers/src/app/common/locations/location-extractor";
 import { DEFAULT_OS_STYLE, ExtractedLocation } from "../../../projects/ngx-ramblers/src/app/models/map.model";
-import { GeocodeMatchType } from "../../../projects/ngx-ramblers/src/app/models/address-model";
+import { GeocodeMatchType } from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import { isArray, isNull, isObject, isUndefined, values } from "es-toolkit/compat";
-import { ExtractedContentKind } from "./migration-types";
+import { ExtractedContentKind } from "./migration.model";
 import { committeeMembersFromCandidates, registrationCommitteeCandidatesFromMarkdown, registrationContactUsRows } from "../site-registration/registration-committee";
 import { RegistrationMigrationTemplate } from "../../../projects/ngx-ramblers/src/app/models/site-registration.model";
 

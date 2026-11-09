@@ -44,7 +44,7 @@ import { CommitteeConfigService } from "../../services/committee/commitee-config
 import { Observable, ReplaySubject } from "rxjs";
 import { StringUtilsService } from "../../services/string-utils.service";
 import { DateUtilsService } from "../../services/date-utils.service";
-import { Difficulty, LocationDetails, RamblersEventType } from "../../models/ramblers-walks-manager";
+import { Difficulty, LocationDetails, RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { EventsData } from "../../models/group-events.model";
 import { BuiltInRole } from "../../models/committee.model";
 import { MediaQueryService } from "../../services/committee/media-query.service";
@@ -57,7 +57,7 @@ import { validEmail } from "../../functions/strings";
 import { eventSlug } from "../../functions/walks/event-slug";
 import { memberLeadsWalk } from "../../functions/walks/walk-leader-fields";
 import { PageService } from "../../services/page.service";
-import { StoredValue } from "../../models/ui-actions";
+import { StoredValue } from "../../models/ui-actions.model";
 import {
   ContactAccessField,
   ContactAccessLevelFieldKeys,

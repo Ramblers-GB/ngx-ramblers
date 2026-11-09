@@ -5,7 +5,7 @@ import { Observable, Subject } from "rxjs";
 import { DataQueryOptions } from "../../models/api-request.model";
 import { CommonDataService } from "../common-data-service";
 import { Logger, LoggerFactory } from "../logger-factory.service";
-import { SocialEvent, SocialEventApiResponse } from "../../models/deprecated";
+import { SocialEvent, SocialEventApiResponse } from "../../models/deprecated.model";
 
 @Injectable({
   providedIn: "root"

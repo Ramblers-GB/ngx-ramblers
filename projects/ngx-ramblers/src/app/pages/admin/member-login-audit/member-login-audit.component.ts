@@ -17,7 +17,7 @@ import { Logger, LoggerFactory } from "../../../services/logger-factory.service"
 import { MemberAuthAuditService } from "../../../services/member/member-auth-audit.service";
 import { MemberService } from "../../../services/member/member.service";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { UrlService } from "../../../services/url.service";
 import { StringUtilsService } from "../../../services/string-utils.service";

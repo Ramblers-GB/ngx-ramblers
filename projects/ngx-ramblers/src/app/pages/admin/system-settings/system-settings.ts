@@ -26,7 +26,7 @@ import { SystemConfigService } from "../../../services/system/system-config.serv
 import { UrlService } from "../../../services/url.service";
 import { isString, kebabCase } from "es-toolkit/compat";
 import { ActivatedRoute, Router } from "@angular/router";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { PageComponent } from "../../../page/page.component";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { FormsModule } from "@angular/forms";
@@ -62,6 +62,7 @@ import { SalesforceConfigService } from "../../../services/salesforce/salesforce
 import { MemberSyncPolicySettings } from "./member-sync-policy/member-sync-policy-settings";
 import { MemberSyncPolicyService } from "../../../services/member/member-sync-policy.service";
 import { ScheduledTasksComponent } from "./scheduled-tasks/scheduled-tasks";
+import { SystemLogsSettingsComponent } from "./diagnostics/system-logs-settings";
 import { SystemMemorySettingsComponent } from "./diagnostics/system-memory-settings";
 import { IntegrationWorkerQueueComponent } from "./diagnostics/integration-worker-queue";
 import { MemberBulkLoadAuditSettingsComponent } from "./diagnostics/member-bulk-load-audit-settings";
@@ -415,6 +416,7 @@ import { MemberResourcesReferenceDataService } from "../../../services/member/me
                      [active]="tabActive(SystemSettingsTab.DIAGNOSTICS)"
                      (selectTab)="selectTab(SystemSettingsTab.DIAGNOSTICS)">
                   <div class="img-thumbnail thumbnail-admin-edit">
+                    <app-system-logs-settings/>
                     <app-system-memory-settings/>
                     <app-integration-worker-queue/>
                     <app-member-bulk-load-audit-settings class="d-block mt-3"/>
@@ -443,7 +445,7 @@ import { MemberResourcesReferenceDataService } from "../../../services/member/me
           </div>
         </div>
       </app-page>`,
-  imports: [PageComponent, TabsetComponent, TabDirective, FormsModule, LinksEditComponent, ImageSettings, ColourSelectorComponent, InstagramSettings, FlickrSettings, SystemRecaptchaSettingsComponent, SystemGoogleAnalyticsSettings, SystemGoogleSearchConsoleSettings, SystemOsMapsSettings, SystemGoogleMapsSettingsComponent, FontAwesomeModule, AreaAndGroupSettingsComponent, ImageSettings, ImageCollectionSettingsComponent, RamblersSettings, InstagramSettings, SystemMeetupSettingsComponent, RamblersSettings, GlobalStyles, SystemAreaMapSyncComponent, SectionToggle, SystemCloudflareSettingsComponent, SystemCloudflareWebAnalyticsSettings, CloudflareWebAnalyticsDashboard, FooterLinkSetting, SalesforceSettings, MemberSyncPolicySettings, ScheduledTasksComponent, SystemMemorySettingsComponent, IntegrationWorkerQueueComponent, MemberBulkLoadAuditSettingsComponent, FormSaveActionsComponent, SystemSocialPublishingSettings, VolunteerSettings, SystemVideoMeetingsSettings, ReleaseNoteUpdateSettings]
+  imports: [PageComponent, TabsetComponent, TabDirective, FormsModule, LinksEditComponent, ImageSettings, ColourSelectorComponent, InstagramSettings, FlickrSettings, SystemRecaptchaSettingsComponent, SystemGoogleAnalyticsSettings, SystemGoogleSearchConsoleSettings, SystemOsMapsSettings, SystemGoogleMapsSettingsComponent, FontAwesomeModule, AreaAndGroupSettingsComponent, ImageSettings, ImageCollectionSettingsComponent, RamblersSettings, InstagramSettings, SystemMeetupSettingsComponent, RamblersSettings, GlobalStyles, SystemAreaMapSyncComponent, SectionToggle, SystemCloudflareSettingsComponent, SystemCloudflareWebAnalyticsSettings, CloudflareWebAnalyticsDashboard, FooterLinkSetting, SalesforceSettings, MemberSyncPolicySettings, ScheduledTasksComponent, SystemLogsSettingsComponent, SystemMemorySettingsComponent, IntegrationWorkerQueueComponent, MemberBulkLoadAuditSettingsComponent, FormSaveActionsComponent, SystemSocialPublishingSettings, VolunteerSettings, SystemVideoMeetingsSettings, ReleaseNoteUpdateSettings]
 })
 export class SystemSettingsComponent implements OnInit, OnDestroy {
 

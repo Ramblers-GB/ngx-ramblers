@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from "vitest";
 import {InboxComponent} from "./inbox.component";
 import {InboxMessageDirection} from "../../../models/inbox.model";
-import {StoredValue} from "../../../models/ui-actions";
+import {StoredValue} from "../../../models/ui-actions.model";
 
 describe("replying to an earlier conversation message", () => {
   it("replies repeatedly through the original inbound thread after a sent thread becomes selected", async () => {

@@ -6,7 +6,7 @@ import { DataQueryOptions } from "../../models/api-request.model";
 import { CommonDataService } from "../common-data-service";
 import { LoggerFactory } from "../logger-factory.service";
 import { MailListAudit, MailListAuditApiResponse } from "../../models/mail.model";
-import { AuditStatus } from "../../models/audit";
+import { AuditStatus } from "../../models/audit.model";
 import { DateUtilsService } from "../date-utils.service";
 import { MemberLoginService } from "../member/member-login.service";
 

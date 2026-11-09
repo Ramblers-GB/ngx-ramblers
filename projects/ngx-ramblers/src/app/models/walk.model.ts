@@ -12,7 +12,7 @@ import {
   WalkFieldChange,
   WalkLeaderContact,
   WalkStatus
-} from "./ramblers-walks-manager";
+} from "./ramblers-walks-manager.model";
 import { HasBasicEventSelection } from "./search.model";
 import { Link } from "./page.model";
 import { faHouse } from "@fortawesome/free-solid-svg-icons";

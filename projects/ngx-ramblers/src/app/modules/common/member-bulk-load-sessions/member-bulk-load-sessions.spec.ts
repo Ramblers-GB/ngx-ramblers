@@ -4,7 +4,7 @@ import { BehaviorSubject } from "rxjs";
 import { MemberBulkLoadSessionsComponent } from "./member-bulk-load-sessions";
 import { MemberBulkLoadAudit } from "../../../models/member.model";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { UiActionsService } from "../../../services/ui-actions.service";
 

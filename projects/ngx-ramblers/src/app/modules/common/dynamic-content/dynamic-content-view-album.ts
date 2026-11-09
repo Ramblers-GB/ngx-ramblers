@@ -23,7 +23,7 @@ import { EventSlugResolverService } from "../../../services/walks-and-events/eve
 import { NamedEventType } from "../../../models/broadcast.model";
 import { SocialPublishService } from "../../../services/social/social-publish.service";
 import { CreateWalkAlbumService } from "../../../services/walks/create-walk-album.service";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { WalkAlbumWorkflow } from "./walk-album-workflow";
 
 @Component({
