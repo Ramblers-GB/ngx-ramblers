@@ -206,7 +206,7 @@ export enum EnvironmentConfigSection {
 export const FLYIO_DEFAULTS = {
   MEMORY: FlyioMemory.MB_512,
   SCALE_COUNT: 1,
-  ORGANISATION: "personal"
+  ORGANISATION: "ramblers-association"
 } as const;
 
 export const DEPLOYMENT_DEFAULTS = {
@@ -214,10 +214,52 @@ export const DEPLOYMENT_DEFAULTS = {
   REGION: "lhr"
 } as const;
 
+export enum AwsRegion {
+  EU_WEST_1 = "eu-west-1",
+  EU_WEST_2 = "eu-west-2",
+  US_EAST_1 = "us-east-1"
+}
+
 export const AWS_DEFAULTS = {
-  REGION: "eu-west-2",
+  REGION: AwsRegion.EU_WEST_2,
   OBJECT_ACL: "public-read"
 } as const;
+
+export function awsRegionFromAny(region: string | null | undefined): AwsRegion | null {
+  if (!region) {
+    return null;
+  } else {
+    const normalised = region.includes("_") ? region.toLowerCase().replace(/_/g, "-") : region;
+    if (normalised === AwsRegion.EU_WEST_1) {
+      return AwsRegion.EU_WEST_1;
+    } else if (normalised === AwsRegion.EU_WEST_2) {
+      return AwsRegion.EU_WEST_2;
+    } else if (normalised === AwsRegion.US_EAST_1) {
+      return AwsRegion.US_EAST_1;
+    } else {
+      return null;
+    }
+  }
+}
+
+export function awsRegionLabel(region: string | null | undefined): string {
+  const value = awsRegionFromAny(region);
+  if (value === AwsRegion.EU_WEST_1) {
+    return "eu-west-1 (Ireland)";
+  } else if (value === AwsRegion.EU_WEST_2) {
+    return "eu-west-2 (London)";
+  } else if (value === AwsRegion.US_EAST_1) {
+    return "us-east-1 (N. Virginia)";
+  } else if (region) {
+    return region;
+  } else {
+    return "—";
+  }
+}
+
+export function atlasApiRegionName(region: AwsRegion): string {
+  return region.replace(/-/g, "_").toUpperCase();
+}
 
 export function createEmptyAwsConfig(): AwsConfig {
   return {

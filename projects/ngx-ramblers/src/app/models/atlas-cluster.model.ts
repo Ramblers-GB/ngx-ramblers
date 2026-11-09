@@ -1,3 +1,5 @@
+import { AwsRegion } from "./environment-config.model";
+
 export enum AtlasClusterSortField {
   DEFAULT_FOR_NEW_SITES = "isDefault",
   NAME = "name",
@@ -29,11 +31,6 @@ export enum AtlasClusterTier {
   M30 = "M30",
   FLEX = "FLEX",
   UNKNOWN = "UNKNOWN"
-}
-
-export enum AtlasAwsRegion {
-  EU_WEST_1 = "EU_WEST_1",
-  EU_WEST_2 = "EU_WEST_2"
 }
 
 export enum AtlasClusterState {
@@ -125,7 +122,7 @@ export interface AtlasClusterCreateRequest {
   separateProject?: boolean;
   name: string;
   tier: AtlasClusterTier;
-  region: AtlasAwsRegion;
+  region: AwsRegion;
   setAsDefault: boolean;
   allowAllNetworkAccess: boolean;
 }

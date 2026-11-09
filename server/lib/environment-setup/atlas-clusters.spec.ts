@@ -1,7 +1,8 @@
 import expect from "expect";
 import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
-import { AtlasAwsRegion, AtlasClusterTier, clusterCapacity } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { AtlasClusterTier, clusterCapacity } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { atlasClusterCreateBody, clusterHostFromSrv, createAtlasCluster, registrationMongoCluster } from "./atlas-clusters";
 import * as environmentsConfig from "../environments/environments-config";
 import * as registrationStore from "../site-registration/registration-store";
@@ -29,7 +30,7 @@ describe("atlas-clusters", () => {
       fetchStub.onCall(2).resolves(new Response(JSON.stringify({results: [cluster]}), {status: 200}));
       fetchStub.onCall(3).resolves(new Response(JSON.stringify({results: []}), {status: 200}));
 
-      const result = await createAtlasCluster({name: "group-sites", tier, region: AtlasAwsRegion.EU_WEST_1, setAsDefault: false, allowAllNetworkAccess: false});
+      const result = await createAtlasCluster({name: "group-sites", tier, region: AwsRegion.EU_WEST_1, setAsDefault: false, allowAllNetworkAccess: false});
 
       const [url, init] = fetchStub.secondCall.args as [string, RequestInit];
       expect(url).toBe("https://cloud.mongodb.com/api/atlas/v2/groups/project-1/clusters");
@@ -52,7 +53,7 @@ describe("atlas-clusters", () => {
   });
 
   it("builds a free London cluster as a tenant on AWS", () => {
-    expect(atlasClusterCreateBody("ngx-ramblers-nonprod", AtlasClusterTier.M0, AtlasAwsRegion.EU_WEST_2)).toEqual({
+    expect(atlasClusterCreateBody("ngx-ramblers-nonprod", AtlasClusterTier.M0, AwsRegion.EU_WEST_2)).toEqual({
       name: "ngx-ramblers-nonprod",
       clusterType: "REPLICASET",
       replicationSpecs: [{
@@ -68,7 +69,7 @@ describe("atlas-clusters", () => {
   });
 
   it("builds a dedicated London cluster on AWS", () => {
-    const body = atlasClusterCreateBody("ngx-ramblers-prod", AtlasClusterTier.M20, AtlasAwsRegion.EU_WEST_2) as any;
+    const body = atlasClusterCreateBody("ngx-ramblers-prod", AtlasClusterTier.M20, AwsRegion.EU_WEST_2) as any;
     expect(body.replicationSpecs[0].regionConfigs[0]).toEqual({
       electableSpecs: {instanceSize: "M20", nodeCount: 3},
       providerName: "AWS",

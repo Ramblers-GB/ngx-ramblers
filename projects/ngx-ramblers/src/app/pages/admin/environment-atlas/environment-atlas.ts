@@ -8,7 +8,6 @@ import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import {
-  AtlasAwsRegion,
   AtlasClusterCreateRequest,
   AtlasClusterSortField,
   AtlasEnvironmentSortField,
@@ -23,7 +22,8 @@ import {
 import { AdminPlatformPath } from "../../../models/admin-route-paths.model";
 import { EnvironmentSetupTab } from "../../../models/environment-setup.model";
 import { EnvironmentSettingsSubTab } from "../../../models/system.model";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
+import { AwsRegion, awsRegionLabel } from "../../../models/environment-config.model";
 import { toKebabCase } from "../../../functions/strings";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { SortableTableAlignment, SortableTableColumn, SortableTableSortState } from "../../../modules/common/sortable-table/sortable-table.model";
@@ -220,8 +220,8 @@ import { AlertTarget } from "../../../models/alert-target.model";
           <div class="col-md-4 mb-2">
             <label class="form-label">Region</label>
             <select class="form-control" name="clusterRegion" [(ngModel)]="createRequest.region">
-              <option [value]="AtlasAwsRegion.EU_WEST_1">AWS Ireland (EU_WEST_1)</option>
-              <option [value]="AtlasAwsRegion.EU_WEST_2">AWS London (EU_WEST_2)</option>
+              <option [value]="AwsRegion.EU_WEST_1">{{ awsRegionLabel(AwsRegion.EU_WEST_1) }}</option>
+              <option [value]="AwsRegion.EU_WEST_2">{{ awsRegionLabel(AwsRegion.EU_WEST_2) }}</option>
             </select>
           </div>
         </div>
@@ -265,20 +265,25 @@ import { AlertTarget } from "../../../models/alert-target.model";
           emptyMessage="No clusters yet. Choose Create cluster above, or existing group clusters will appear here from environment configuration."
           (sortChange)="clusterSortChanged($event)">
           <ng-template [appSortableTableCell]="AtlasClusterSortField.NAME" let-row>
-            {{ row.name }}
+            <div>{{ row.name }}</div>
             @if (row.isDefault) {
-              <span class="badge-mintcake ms-1">Default for new sites</span>
+              <div><span class="badge-mintcake">Default for new sites</span></div>
             }
             @if (!row.inProvisioningProject) {
-              <span class="badge-cloudy ms-1">External project</span>
+              <div><span class="badge-cloudy">External project</span></div>
             }
-            <app-console-access-links [links]="clusterConsoleLinks(row)" [showEmpty]="false"/>
+            <div class="d-flex align-items-center flex-wrap gap-2">
+              <app-console-access-links class="d-inline-flex" [links]="clusterConsoleLinks(row)" [showEmpty]="false"/>
+              @if (row.region) {
+                <span class="text-muted text-nowrap">{{ awsRegionLabel(row.region) }}</span>
+              }
+            </div>
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.HOST" let-row>
-            <code>{{ row.host }}</code>
+            {{ row.host }}
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.SIZE" let-row>
-            <span [tooltip]="row.region + ' ' + row.stateName">{{ row.instanceSize === AtlasClusterTier.UNKNOWN ? "—" : row.instanceSize }}</span>
+            <span [tooltip]="row.stateName">{{ row.instanceSize === AtlasClusterTier.UNKNOWN ? "—" : row.instanceSize }}</span>
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.ENVIRONMENTS" let-row>
             {{ row.environmentNames || "—" }}
@@ -319,7 +324,7 @@ import { AlertTarget } from "../../../models/alert-target.model";
             {{ row.environment }}
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.CLUSTER" let-row>
-            <code>{{ row.cluster }}</code>
+            {{ row.cluster }}
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.DATABASE" let-row>
             {{ row.database }}
@@ -363,7 +368,8 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly EnvironmentAtlasClusterTab = EnvironmentAtlasClusterTab;
   protected readonly environmentSetupGlobalQueryParams = {[StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS), [StoredValue.SUB_TAB]: EnvironmentSettingsSubTab.GLOBAL};
   protected readonly AtlasClusterTier = AtlasClusterTier;
-  protected readonly AtlasAwsRegion = AtlasAwsRegion;
+  protected readonly AwsRegion = AwsRegion;
+  protected readonly awsRegionLabel = awsRegionLabel;
   protected readonly AtlasClusterState = AtlasClusterState;
   protected readonly AtlasClusterSortField = AtlasClusterSortField;
   protected readonly AtlasEnvironmentSortField = AtlasEnvironmentSortField;
@@ -390,15 +396,15 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   createRequest: AtlasClusterCreateRequest = {
     name: "group-sites",
     tier: AtlasClusterTier.M0,
-    region: AtlasAwsRegion.EU_WEST_1,
+    region: AwsRegion.EU_WEST_1,
     separateProject: true,
     setAsDefault: true,
     allowAllNetworkAccess: true
   };
 
   clusterColumns: SortableTableColumn<AtlasClusterRow>[] = [
-    {key: AtlasClusterSortField.NAME, label: "Cluster", sortKey: AtlasClusterSortField.NAME, cellClass: "text-nowrap"},
-    {key: AtlasClusterSortField.HOST, label: "Host", sortKey: AtlasClusterSortField.HOST, cellClass: "text-nowrap"},
+    {key: AtlasClusterSortField.NAME, label: "Host", sortKey: AtlasClusterSortField.NAME},
+    {key: AtlasClusterSortField.HOST, label: "Cluster", sortKey: AtlasClusterSortField.HOST, cellClass: "text-nowrap"},
     {key: AtlasClusterSortField.SIZE, label: "Size", sortKey: AtlasClusterSortField.SIZE, cellClass: "text-nowrap"},
     {key: AtlasClusterSortField.ENVIRONMENTS, label: "Sites", sortKey: AtlasClusterSortField.ENVIRONMENTS},
     {key: AtlasClusterSortField.COLLECTIONS, label: "Collections", sortKey: AtlasClusterSortField.COLLECTIONS, align: SortableTableAlignment.RIGHT, cellClass: "text-nowrap"},

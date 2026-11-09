@@ -7,8 +7,8 @@ import {
   createAtlasCluster,
   saveAtlasProvisioning
 } from "./atlas-clusters";
-import { AtlasAwsRegion, AtlasClusterCreateRequest, AtlasClusterTier } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
-import { AtlasConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { AtlasClusterCreateRequest, AtlasClusterTier } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { AtlasConfig, AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { EmptyCollectionCandidate } from "../../../projects/ngx-ramblers/src/app/models/environment-collection-cleanup.model";
 import { emptyCollectionCleanupPreview, removeEmptyCollections } from "./collection-cleanup";
 
@@ -31,7 +31,7 @@ export async function createAtlasClusterRequest(req: Request, res: Response): Pr
       name: body.name,
       separateProject: body.separateProject === true,
       tier: body.tier || AtlasClusterTier.M0,
-      region: body.region || AtlasAwsRegion.EU_WEST_2,
+      region: body.region || AwsRegion.EU_WEST_2,
       setAsDefault: body.setAsDefault === true,
       allowAllNetworkAccess: body.allowAllNetworkAccess !== false
     };

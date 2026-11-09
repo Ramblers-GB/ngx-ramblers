@@ -30,14 +30,14 @@ import {
   SetupWarning,
   ValidationResult
 } from "../../../models/environment-setup.model";
-import { FLYIO_DEFAULTS, FlyioMemory } from "../../../models/environment-config.model";
+import { AwsRegion, awsRegionLabel, FLYIO_DEFAULTS, FlyioMemory } from "../../../models/environment-config.model";
 import { ATLAS_CLUSTER_BUSY_DATABASE_COUNT } from "../../../models/atlas-cluster.model";
 import { AdminPlatformPath } from "../../../models/admin-route-paths.model";
 import { enumKeyValues } from "../../../functions/enums";
-import { StoredValue } from "../../../models/ui-actions";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { SystemConfigService } from "../../../services/system/system-config.service";
 import { AvailableArea, SystemConfig } from "../../../models/system.model";
-import { RamblersGroupsApiResponse, RamblersGroupWithLabel } from "../../../models/ramblers-walks-manager";
+import { RamblersGroupsApiResponse, RamblersGroupWithLabel } from "../../../models/ramblers-walks-manager.model";
 import { LoggerFactory } from "../../../services/logger-factory.service";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
 import { EnvironmentSetupService } from "../../../services/environment-setup/environment-setup.service";
@@ -633,9 +633,9 @@ import { AreaSelector } from "../../walks/walk-edit/area-selector";
                                     <label for="aws-region">Region</label>
                                     <select class="form-control" id="aws-region"
                                             [(ngModel)]="request.serviceConfigs.aws.region">
-                                      <option value="eu-west-1">eu-west-1 (Ireland)</option>
-                                      <option value="eu-west-2">eu-west-2 (London)</option>
-                                      <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                                      <option [value]="AwsRegion.EU_WEST_1">{{ awsRegionLabel(AwsRegion.EU_WEST_1) }}</option>
+                                      <option [value]="AwsRegion.EU_WEST_2">{{ awsRegionLabel(AwsRegion.EU_WEST_2) }}</option>
+                                      <option [value]="AwsRegion.US_EAST_1">{{ awsRegionLabel(AwsRegion.US_EAST_1) }}</option>
                                     </select>
                                   </div>
                                 </div>
@@ -1041,6 +1041,8 @@ export class EnvironmentSetupComponent implements OnInit, OnDestroy {
   private environmentDefaults: EnvironmentDefaults;
   private tab: EnvironmentSetupTab = EnvironmentSetupTab.CREATE;
 
+  protected readonly AwsRegion = AwsRegion;
+  protected readonly awsRegionLabel = awsRegionLabel;
   protected readonly CloneType = CloneType;
   protected readonly EnvironmentSetupTab = EnvironmentSetupTab;
   protected readonly SetupMode = SetupMode;

@@ -7,7 +7,6 @@ import { registrationSettings } from "../site-registration/registration-store";
 import { buildMongoUri, extractClusterFromUri } from "../shared/mongodb-uri";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
 import {
-  AtlasAwsRegion,
   AtlasClusterCreateRequest,
   AtlasClusterEnvironmentRow,
   AtlasClusterRow,
@@ -20,7 +19,15 @@ import {
   atlasTierFromInstanceSize,
   clusterCapacity
 } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
-import { AtlasConfig, ConsoleAccessService, EnvironmentsConfig, MongoConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import {
+  AtlasConfig,
+  atlasApiRegionName,
+  AwsRegion,
+  awsRegionFromAny,
+  ConsoleAccessService,
+  EnvironmentsConfig,
+  MongoConfig
+} from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { atlasRequest } from "./atlas-admin-api";
 import { AtlasAccessList, AtlasApiAccess, AtlasApiVersion, AtlasClusterDescription, AtlasClusterList, AtlasError } from "./atlas-admin-api.model";
 import { atlasProjectForCluster } from "./atlas-projects";
@@ -40,7 +47,7 @@ export function clusterHostFromSrv(standardSrv: string): string {
   }
 }
 
-export function atlasClusterCreateBody(name: string, tier: AtlasClusterTier, region: AtlasAwsRegion): Record<string, unknown> {
+export function atlasClusterCreateBody(name: string, tier: AtlasClusterTier, region: AwsRegion): Record<string, unknown> {
   const tenant = tier === AtlasClusterTier.M0 || tier === AtlasClusterTier.FLEX;
   return {
     name,
@@ -50,7 +57,7 @@ export function atlasClusterCreateBody(name: string, tier: AtlasClusterTier, reg
         electableSpecs: tenant ? {instanceSize: tier} : {instanceSize: tier, nodeCount: 3},
         providerName: tenant ? "TENANT" : "AWS",
         ...(tenant ? {backingProviderName: "AWS"} : {}),
-        regionName: region,
+        regionName: atlasApiRegionName(region),
         priority: 7
       }]
     }]
@@ -82,7 +89,8 @@ function instanceSizeFrom(cluster: AtlasClusterDescription): AtlasClusterTier {
 }
 
 function regionFrom(cluster: AtlasClusterDescription): string {
-  return cluster.replicationSpecs?.[0]?.regionConfigs?.[0]?.regionName || "";
+  const atlasName = cluster.replicationSpecs?.[0]?.regionConfigs?.[0]?.regionName || "";
+  return awsRegionFromAny(atlasName) || atlasName;
 }
 
 async function countDatabaseUsage(mongo: MongoConfig): Promise<{collections: number; indexes: number}> {
@@ -311,10 +319,10 @@ export async function createAtlasCluster(request: AtlasClusterCreateRequest): Pr
     throw new Error("Choose M0, Flex, M10, M20 or M30.");
   } else {
     const name = request.name.trim();
-    const region = request.region || AtlasAwsRegion.EU_WEST_1;
-    if (![AtlasAwsRegion.EU_WEST_1, AtlasAwsRegion.EU_WEST_2].includes(region)) {
+    const region = awsRegionFromAny(request.region) || AwsRegion.EU_WEST_1;
+    if (region !== AwsRegion.EU_WEST_1 && region !== AwsRegion.EU_WEST_2) {
       throw new Error("Choose AWS Ireland or London.");
-    } else if (request.tier === AtlasClusterTier.M0 && region === AtlasAwsRegion.EU_WEST_2) {
+    } else if (request.tier === AtlasClusterTier.M0 && region === AwsRegion.EU_WEST_2) {
       throw new Error("Atlas does not offer a free M0 in AWS London. Choose Ireland.");
     }
     const targetAtlas = request.separateProject ? await atlasProjectForCluster(atlas, name) : atlas;
