@@ -1,4 +1,4 @@
-import { AdminContentPath, AdminPath, adminParentPath, adminRelativePath } from "./admin-route-paths.model";
+import { AdminContentPath, AdminPath, adminParentPath, adminPathAllowedInNgxLite, adminRelativePath } from "./admin-route-paths.model";
 
 describe("admin-route-paths", () => {
 
@@ -22,6 +22,18 @@ describe("admin-route-paths", () => {
 
     it("returns admin for top-level admin child routes", () => {
       expect(adminParentPath("admin/mail-settings")).toEqual(AdminPath.ADMIN);
+    });
+
+  });
+
+  describe("adminPathAllowedInNgxLite", () => {
+
+    it("allows contributor environment on the admin landing", () => {
+      expect(adminPathAllowedInNgxLite(AdminPath.CONTRIBUTOR_ENVIRONMENT)).toEqual(true);
+    });
+
+    it("does not allow platform administration", () => {
+      expect(adminPathAllowedInNgxLite("admin/platform")).toEqual(false);
     });
 
   });

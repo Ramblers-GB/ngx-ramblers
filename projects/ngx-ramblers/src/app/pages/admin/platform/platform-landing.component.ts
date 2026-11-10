@@ -8,7 +8,6 @@ import { LoginResponse } from "../../../models/member.model";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { MemberLoginService } from "../../../services/member/member-login.service";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
-import { NgxLiteService } from "../../../services/ngx-lite.service";
 import { PageComponent } from "../../../page/page.component";
 import { LoginRequiredComponent } from "../../../modules/common/login-required/login-required";
 import { DynamicContentComponent } from "../../../modules/common/dynamic-content/dynamic-content";
@@ -19,16 +18,10 @@ import { DynamicContentComponent } from "../../../modules/common/dynamic-content
     <app-page>
       <app-login-required/>
       @if (loggedIn) {
-        @if (ngxLiteService.ngxLite) {
-          <div class="alert alert-warning" role="alert">
-            Platform administration is not available in NGX-Lite mode. Switch to full mode in Environment Management to manage environments, setup, and contributor tools.
-          </div>
-        } @else {
-          <app-dynamic-content [anchor]="BuiltInAnchor.ACTION_BUTTONS" contentPathReadOnly
-                               [defaultPageContent]="defaultPageContent"
-                               [notifier]="notify">
-          </app-dynamic-content>
-        }
+        <app-dynamic-content [anchor]="BuiltInAnchor.ACTION_BUTTONS" contentPathReadOnly
+                             [defaultPageContent]="defaultPageContent"
+                             [notifier]="notify">
+        </app-dynamic-content>
       }
     </app-page>
   `,
@@ -40,7 +33,6 @@ export class PlatformLandingComponent implements OnInit, OnDestroy {
   private memberLoginService = inject(MemberLoginService);
   private notifierService = inject(NotifierService);
   private authService = inject(AuthService);
-  ngxLiteService = inject(NgxLiteService);
 
   private subscriptions: Subscription[] = [];
   notify: AlertInstance;

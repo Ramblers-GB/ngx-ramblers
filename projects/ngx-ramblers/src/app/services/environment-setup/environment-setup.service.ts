@@ -82,6 +82,12 @@ export class EnvironmentSetupService {
     return response as unknown as SetupStatusResponse;
   }
 
+  async contributorBundleContext(): Promise<{environment: string; database: string}> {
+    return firstValueFrom(
+      this.http.get<{environment: string; database: string}>(`${this.BASE_URL}/contributor-bundle/context`, this.opts)
+    );
+  }
+
   async generateContributorBundle(environmentName: string, schema: string, clone: boolean): Promise<Blob> {
     const options = {...this.opts, responseType: "blob" as const};
     try {

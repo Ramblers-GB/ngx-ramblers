@@ -1,5 +1,7 @@
 # Producing a contributor environment bundle
 
+A member admin on the group's own site can generate the bundle from Admin → Contributor Environment. That works without platform-admin access. The rest of this page is for a maintainer assembling a bundle by hand.
+
 How a maintainer prepares a group-scoped bundle so an external contributor can run
 NGX-Ramblers locally against one group's data, holding no credential that reaches
 any other group or the live platform.

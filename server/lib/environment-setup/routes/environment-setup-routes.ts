@@ -54,13 +54,14 @@ router.post("/move-inbound-to-estate/:environmentName", controllers.requireSetup
 router.post("/seed-sample-pages/:environmentName", controllers.seedSamplePagesRequest);
 router.post("/seed-notification-configs/:environmentName", controllers.seedNotificationConfigsRequest);
 router.post("/admin-password-reset/:environmentName", controllers.adminPasswordResetRequest);
-router.get("/schema-exists", controllers.schemaExists);
+router.get("/schema-exists", controllers.requireContributorBundleAccess, controllers.schemaExists);
 router.get("/estate-rebuild-capture/inventory", controllers.requireSetupAccess, controllers.estateRebuildCaptureInventory);
 router.get("/estate-rebuild-capture/summary", controllers.requireSetupAccess, controllers.estateRebuildCaptureSummary);
 router.get("/estate-rebuild-capture", controllers.requireSetupAccess, controllers.downloadEstateRebuildCapture);
 router.get("/console-access/environments", controllers.requireSetupAccess, controllers.listConsoleAccessEnvironments);
 router.get("/console-access", controllers.requireSetupAccess, controllers.getConsoleAccess);
 router.put("/console-access", controllers.requireSetupAccess, controllers.saveConsoleAccess);
-router.post("/contributor-bundle", controllers.contributorBundleRequest);
+router.get("/contributor-bundle/context", controllers.requireContributorBundleAccess, controllers.contributorBundleContext);
+router.post("/contributor-bundle", controllers.requireContributorBundleAccess, controllers.contributorBundleRequest);
 
 export const environmentSetupRoutes = router;

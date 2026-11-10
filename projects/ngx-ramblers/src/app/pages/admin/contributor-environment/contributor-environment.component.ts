@@ -102,15 +102,15 @@ export class ContributorEnvironmentComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      const defaults = await this.environmentSetupService.defaults();
-      if (defaults?.environment) {
-        this.environmentName = defaults.environment;
+      const context = await this.environmentSetupService.contributorBundleContext();
+      if (context?.environment) {
+        this.environmentName = context.environment;
       }
-      if (defaults?.database) {
-        this.currentDatabase = defaults.database;
+      if (context?.database) {
+        this.currentDatabase = context.database;
       }
     } catch (error) {
-      this.logger.error("Could not load environment defaults:", error);
+      this.logger.error("Could not load contributor bundle context:", error);
     }
     this.recomputeSchema();
   }

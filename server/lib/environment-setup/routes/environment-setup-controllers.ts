@@ -112,6 +112,14 @@ export const requireSetupAccess = (req: Request, res: Response, next: NextFuncti
   }
 };
 
+export const requireContributorBundleAccess = (req: Request, res: Response, next: NextFunction): void => {
+  if ((req.user as MemberCookie)?.memberAdmin) {
+    next();
+  } else {
+    requireSetupAccess(req, res, next);
+  }
+};
+
 async function localSocialEventsExist(): Promise<boolean> {
   try {
     const count = await extendedGroupEvent.countDocuments({
@@ -1333,8 +1341,6 @@ export async function adminPasswordResetRequest(req: Request, res: Response) {
 }
 
 export async function schemaExists(req: Request, res: Response) {
-  if (!validateSetupAccess(req, res)) return;
-
   try {
     const name = String(req.query?.name || "").trim();
     if (!name) {
@@ -1349,9 +1355,20 @@ export async function schemaExists(req: Request, res: Response) {
   }
 }
 
-export async function contributorBundleRequest(req: Request, res: Response) {
-  if (!validateSetupAccess(req, res)) return;
+export async function contributorBundleContext(req: Request, res: Response) {
+  try {
+    const parsedMongo = parseMongoUri(envConfig.mongo().uri);
+    res.json({
+      environment: (parsedMongo?.database || "").replace(/^ngx-ramblers-/, ""),
+      database: parsedMongo?.database || ""
+    });
+  } catch (error) {
+    errorDebugLog("contributor-bundle context failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
 
+export async function contributorBundleRequest(req: Request, res: Response) {
   try {
     const environmentName: string = req.body?.environmentName;
     const requestedSchema: string = req.body?.schema;

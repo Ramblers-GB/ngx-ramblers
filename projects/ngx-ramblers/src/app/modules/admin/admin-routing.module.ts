@@ -45,6 +45,17 @@ const rp = adminRelativePath;
         .then(m => m.BannerComponent),
       canActivate: [SystemHealthyGuard]
     },
+    {
+      path: rp(AdminPath.CONTRIBUTOR_ENVIRONMENT),
+      loadComponent: () => import("../../pages/admin/contributor-environment/contributor-environment.component")
+        .then(m => m.ContributorEnvironmentComponent),
+      canActivate: [SystemHealthyGuard, MemberAdminAuthGuard]
+    },
+    {
+      path: rp(LegacyAdminPath.CONTRIBUTOR_ENVIRONMENT),
+      redirectTo: rp(AdminPath.CONTRIBUTOR_ENVIRONMENT),
+      pathMatch: "full"
+    },
 
     {
       path: rp(AdminProfilePath.CONTACT_DETAILS), loadComponent: () => import("../../pages/admin/profile/contact-details.component")
@@ -319,12 +330,6 @@ const rp = adminRelativePath;
       canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
     },
     {
-      path: rp(AdminPlatformPath.CONTRIBUTOR_ENVIRONMENT),
-      loadComponent: () => import("../../pages/admin/contributor-environment/contributor-environment.component")
-        .then(m => m.ContributorEnvironmentComponent),
-      canActivate: [SystemHealthyGuard, AdminAuthGuard]
-    },
-    {
       path: rp(AdminPlatformPath.LITE_TEMPLATES),
       loadComponent: () => import("../../pages/admin/platform/lite-templates.component")
         .then(m => m.LiteTemplatesComponent),
@@ -352,7 +357,7 @@ const rp = adminRelativePath;
     { path: "environment-setup", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_SETUP), pathMatch: "full" },
     { path: "backup-and-restore", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_BACKUP), pathMatch: "full" },
     { path: "migration-health", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH), pathMatch: "full" },
-    { path: "contributor-environment", redirectTo: rp(AdminPlatformPath.CONTRIBUTOR_ENVIRONMENT), pathMatch: "full" },
+
 
     {
       path: rp(AdminPath.SET_PASSWORD) + "/:password-reset-id", loadComponent: () => import("../../login/set-password.component")

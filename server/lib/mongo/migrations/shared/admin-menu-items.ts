@@ -16,10 +16,10 @@ import {
 } from "../../../../../projects/ngx-ramblers/src/app/models/walks-route-paths.model";
 
 export const CONTRIBUTOR_ENVIRONMENT_MENU_ITEM: ActionButtonColumn = {
-  accessLevel: "committee",
+  accessLevel: "memberAdmin",
   title: "Contributor Environment",
   icon: "faLaptopCode",
-  href: AdminPlatformPath.CONTRIBUTOR_ENVIRONMENT,
+  href: AdminPath.CONTRIBUTOR_ENVIRONMENT,
   contentText: "Generate a developer environment bundle so a contributor can run NGX on their own machine against this group's environment"
 };
 
@@ -352,6 +352,7 @@ export const ADMIN_CATEGORY_MENU_ITEMS: ActionButtonColumn[] = [
     contentText: "View Brevo campaign and transactional email statistics with configurable date range"
   },
   INBOX_MENU_ITEM,
+  CONTRIBUTOR_ENVIRONMENT_MENU_ITEM,
   {
     accessLevel: "environmentAdmin",
     title: "Platform Administration",
@@ -555,8 +556,7 @@ export const PLATFORM_MENU_ITEMS: ActionButtonColumn[] = [
     icon: "faServer",
     href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT,
     contentText: "Manage environment setup, backups, environments monitoring, and maintenance"
-  },
-  CONTRIBUTOR_ENVIRONMENT_MENU_ITEM
+  }
 ];
 
 export const MAIL_PROVIDER_MENU_ITEMS: { [key: string]: ActionButtonColumn } = {

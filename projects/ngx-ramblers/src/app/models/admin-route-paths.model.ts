@@ -26,10 +26,12 @@ export enum AdminPath {
   MAINTENANCE = "admin/maintenance",
   SET_PASSWORD = "admin/set-password",
   VERSION = "admin/version",
+  CONTRIBUTOR_ENVIRONMENT = "admin/contributor-environment",
 }
 
 export enum LegacyAdminPath {
-  FRAGMENT_INDEX = "admin/fragment-index"
+  FRAGMENT_INDEX = "admin/fragment-index",
+  CONTRIBUTOR_ENVIRONMENT = "admin/platform/contributor-environment"
 }
 
 export function adminRelativePath(fullPath: string): string {
@@ -91,13 +93,13 @@ export enum AdminPlatformPath {
   ENVIRONMENT_MANAGEMENT_ATLAS = "admin/platform/environment-management/atlas",
   ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP = "admin/platform/environment-management/collection-cleanup",
   ENVIRONMENT_MANAGEMENT_ESTATE_REBUILD = "admin/platform/environment-management/estate-rebuild-capture",
-  CONTRIBUTOR_ENVIRONMENT = "admin/platform/contributor-environment",
   LITE_TEMPLATES = "admin/platform/lite-templates",
   SYSTEM_LOGS = "admin/platform/system-logs",
 }
 
 export const ADMIN_PATH_REDIRECTS: Record<LegacyAdminPath, string> = {
-  [LegacyAdminPath.FRAGMENT_INDEX]: AdminContentPath.CONTENT_TEMPLATES
+  [LegacyAdminPath.FRAGMENT_INDEX]: AdminContentPath.CONTENT_TEMPLATES,
+  [LegacyAdminPath.CONTRIBUTOR_ENVIRONMENT]: AdminPath.CONTRIBUTOR_ENVIRONMENT
 };
 
 const NGX_LITE_ADMIN_PATHS: string[] = [
@@ -114,6 +116,7 @@ const NGX_LITE_ADMIN_PATHS: string[] = [
   AdminSettingsPath.SYSTEM_SETTINGS,
   AdminSettingsPath.COMMITTEE_SETTINGS,
   AdminSettingsPath.MAINTENANCE,
+  AdminPath.CONTRIBUTOR_ENVIRONMENT,
 ];
 
 export function volunteerManagementHref(href: string): boolean {
