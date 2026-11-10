@@ -551,7 +551,8 @@ export class WalkEditComponent implements OnInit, OnDestroy {
 
   allowDelete() {
     return !this.saveInProgress && this.confirmAction === ConfirmType.NONE && this.memberLoginService.allowWalkAdminEdits()
-      && this.displayedWalk.walkAccessMode && this.displayedWalk?.walkAccessMode?.walkWritable;
+      && this.displayedWalk.walkAccessMode && this.displayedWalk?.walkAccessMode?.walkWritable
+      && this.status() !== EventType.DELETED;
   }
 
   walkIsInPast(): boolean {
@@ -953,7 +954,8 @@ export class WalkEditComponent implements OnInit, OnDestroy {
     this.notify.hide();
     this.logger.info("isWalkReadyForStatusChangeTo ->", eventType);
     const walkValidations = this.validateWalk().validationMessages;
-    if (eventType.mustHaveLeader && !this.displayedWalk.walk?.fields?.contactDetails?.memberId) {
+    const restoringDeletedWalk = this.priorStatus === EventType.DELETED && eventType.eventType === EventType.AWAITING_LEADER;
+    if (eventType.mustHaveLeader && !restoringDeletedWalk && !this.displayedWalk.walk?.fields?.contactDetails?.memberId) {
       this.notify.warning(
         {
           title: "Walk leader needed",
@@ -1297,25 +1299,22 @@ export class WalkEditComponent implements OnInit, OnDestroy {
     if (this.displayedWalk.status === status) {
       this.logger.info("Status is already =>", status);
     } else {
+      this.priorStatus = this.displayedWalk.status;
       this.displayedWalk.status = status;
-      this.priorStatus = cloneDeep(this.displayedWalk.status);
       this.logger.info("Setting status =>", status, "this.priorStatus", this.priorStatus);
     }
   }
 
   onWalkStatusChange(eventTypeChange: EventType) {
     this.notify.hide();
-    this.logger.info("walkStatusChange - previous status:", this.displayedWalk.status, "eventTypeChange:", eventTypeChange);
+    this.logger.info("walkStatusChange - previous status:", this.priorStatus, "eventTypeChange:", eventTypeChange);
     const eventType: WalkEventType = this.walksReferenceService.toWalkEventType(this.displayedWalk.status);
     if (this.isWalkReadyForStatusChangeTo(eventType)) {
       this.setStatus(eventType.eventType);
-      switch (eventType.eventType) {
-        case EventType.AWAITING_LEADER: {
-          return this.requestClearWalkLeader();
-        }
-        case EventType.APPROVED: {
-          return this.approveWalkDetails();
-        }
+      if (eventType.eventType === EventType.AWAITING_LEADER && this.priorStatus !== EventType.DELETED) {
+        this.requestClearWalkLeader();
+      } else if (eventType.eventType === EventType.APPROVED) {
+        this.approveWalkDetails();
       }
     } else {
       setTimeout(() => {

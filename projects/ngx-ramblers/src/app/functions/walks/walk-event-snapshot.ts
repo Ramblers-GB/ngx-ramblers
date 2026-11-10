@@ -1,32 +1,31 @@
-import { cloneDeep, get, isArray, isEqual, isNull, isObject, isString, isUndefined, keys, pick, set } from "es-toolkit/compat";
+import { cloneDeep, isEqual, isNil, isNotNil } from "es-toolkit";
+import { get, isArray, isObject, isString, keys, pick, set } from "es-toolkit/compat";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
 import { AUDITED_FIELDS, WalkEvent } from "../../models/walk-event.model";
 import { EventType, LinkSource } from "../../models/walk.model";
 
 export function normaliseWalkEventSnapshot(value: any): any {
-  if (isUndefined(value) || isNull(value)) {
+  if (isNil(value)) {
     return null;
-  }
-  if (isString(value)) {
+  } else if (isString(value)) {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
-  }
-  if (isArray(value)) {
+  } else if (isArray(value)) {
     return value
       .map(item => normaliseWalkEventSnapshot(item))
-      .filter(item => !isNull(item) && !isUndefined(item));
-  }
-  if (isObject(value)) {
+      .filter(isNotNil);
+  } else if (isObject(value)) {
     const response = {};
     keys(value).forEach(key => {
       const normalisedValue = normaliseWalkEventSnapshot(value[key]);
-      if (!isNull(normalisedValue) && !isUndefined(normalisedValue)) {
+      if (isNotNil(normalisedValue)) {
         response[key] = normalisedValue;
       }
     });
     return keys(response).length > 0 ? response : null;
+  } else {
+    return value;
   }
-  return value;
 }
 
 export function walkEventDataSnapshot(event: ExtendedGroupEvent): object {
@@ -36,6 +35,16 @@ export function walkEventDataSnapshot(event: ExtendedGroupEvent): object {
     set(snapshot, ["fields", "links"], links.filter(link => link?.source !== LinkSource.RAMBLERS));
   }
   return normaliseWalkEventSnapshot(snapshot);
+}
+
+export function applyWalkEventSnapshot(walk: ExtendedGroupEvent, snapshot: object): void {
+  AUDITED_FIELDS.forEach(fieldName => {
+    const fieldPath = fieldName.split(".");
+    const value = get(snapshot, fieldPath);
+    if (isNotNil(value)) {
+      set(walk, fieldPath, cloneDeep(value));
+    }
+  });
 }
 
 export function walkEventSnapshotEvent(event: ExtendedGroupEvent, eventType: EventType, date: number, memberId: string, reason: string): WalkEvent {

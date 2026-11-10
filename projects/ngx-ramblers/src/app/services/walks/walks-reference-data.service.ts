@@ -24,7 +24,7 @@ export class WalksReferenceService {
     {value: FilterCriteria.FUTURE_EVENTS, description: "Walks Today Onwards", selected: true},
     {value: FilterCriteria.PAST_EVENTS, description: "Past Walks"},
     {value: FilterCriteria.ALL_EVENTS, description: "All Walks"},
-    {value: FilterCriteria.DELETED_EVENTS, description: "Deleted Walks", adminOnly: true, localWalkPopulationOnly: true}
+    {value: FilterCriteria.DELETED_EVENTS, description: "Deleted Walks", adminOnly: true}
   ];
 
   walkEventTypeMappings = {

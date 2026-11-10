@@ -1,5 +1,6 @@
 import { EventType } from "../../models/walk.model";
 import {
+  applyWalkEventSnapshot,
   publishedToRamblersEvent,
   systemWalkDetailsUpdatedEvent,
   walkEventDataSnapshot,
@@ -24,6 +25,33 @@ describe("walk event snapshots", () => {
     groupEvent: {title: "Test walk"},
     events: [{eventType: EventType.APPROVED}]
   } as any;
+
+  it("applies a snapshot onto a walk including title", () => {
+    const target = {
+      fields: {
+        contactDetails: {memberId: "other"},
+        publishing: {ramblers: {publish: false}}
+      },
+      groupEvent: {title: "Deleted walk walk-1"}
+    } as any;
+    applyWalkEventSnapshot(target, walkEventDataSnapshot(walk));
+    expect(target.groupEvent.title).toEqual("Test walk");
+    expect(target.fields.contactDetails.memberId).toEqual("member-1");
+  });
+
+  it("leaves walk fields that the snapshot does not contain", () => {
+    const target = {
+      fields: {
+        contactDetails: {memberId: "other"},
+        milesPerHour: 2.5
+      },
+      groupEvent: {title: "Deleted walk walk-1"}
+    } as any;
+    applyWalkEventSnapshot(target, {groupEvent: {title: "Saturday walk"}});
+    expect(target.groupEvent.title).toEqual("Saturday walk");
+    expect(target.fields.contactDetails.memberId).toEqual("other");
+    expect(target.fields.milesPerHour).toEqual(2.5);
+  });
 
   it("creates a snapshot containing audited walk data but not event history", () => {
     expect(walkEventDataSnapshot(walk)).toEqual({

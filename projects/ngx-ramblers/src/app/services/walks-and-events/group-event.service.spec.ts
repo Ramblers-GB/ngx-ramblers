@@ -81,6 +81,18 @@ describe("GroupEventService", () => {
         return { eventType: EventType.AWAITING_APPROVAL, memberId: "member-id", date: 1, data: eventData };
     }
 
+    it("statusAtOrBefore uses the latest status change at that history point", () => {
+        const service = TestBed.inject(GroupEventService);
+        const walk = walkWithContact("leader");
+        walk.events = [
+            {eventType: EventType.APPROVED, memberId: "member-id", date: 1000, data: {}},
+            {eventType: EventType.WALK_DETAILS_UPDATED, memberId: "member-id", date: 1500, data: {}},
+            {eventType: EventType.DELETED, memberId: "member-id", date: 2000, data: {}}
+        ];
+        expect(service.statusAtOrBefore(walk, 1500)).toEqual(EventType.APPROVED);
+        expect(service.statusAtOrBefore(walk, 2000)).toEqual(EventType.DELETED);
+    });
+
     it("treats missing contactId and null contactId as equal", () => {
         const service = TestBed.inject(GroupEventService);
         const previousWalk = walkWithContact(null);

@@ -48,7 +48,24 @@ export class GroupEventService {
     const latestEventWithStatusChange = this.latestEventWithStatusChange(extendedGroupEvent);
     if (latestEventWithStatusChange) {
       return latestEventWithStatusChange.eventType;
+    } else {
+      return this.defaultStatus(extendedGroupEvent);
     }
+  }
+
+  public statusAtOrBefore(extendedGroupEvent: ExtendedGroupEvent, date: number): EventType {
+    const previous = this.eventsLatestFirst(extendedGroupEvent).find((event) => {
+      const walkEventType = this.walksReferenceService.toWalkEventType(event.eventType);
+      return event.date <= date && walkEventType && walkEventType.statusChange;
+    });
+    if (previous) {
+      return previous.eventType;
+    } else {
+      return this.defaultStatus(extendedGroupEvent);
+    }
+  }
+
+  private defaultStatus(extendedGroupEvent: ExtendedGroupEvent): EventType {
     const importedWalk = [InputSource.WALKS_MANAGER_CACHE, InputSource.FILE_IMPORT].includes(extendedGroupEvent?.fields?.inputSource);
     if (!eventHasWalkWorkflow(extendedGroupEvent?.groupEvent?.item_type)) {
       return EventType.APPROVED;

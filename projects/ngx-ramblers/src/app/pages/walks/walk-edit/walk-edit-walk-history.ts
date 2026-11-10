@@ -9,9 +9,9 @@ import { EventNotePipe } from "../../../pipes/event-note.pipe";
 import { WalksReferenceService } from "../../../services/walks/walks-reference-data.service";
 import { sortBy } from "../../../functions/arrays";
 import { GroupEventService } from "../../../services/walks-and-events/group-event.service";
-import { set } from "es-toolkit/compat";
-import { AUDITED_FIELDS, WalkEvent } from "../../../models/walk-event.model";
+import { WalkEvent } from "../../../models/walk-event.model";
 import { DescribedChangedItem } from "../../../models/changed-item.model";
+import { applyWalkEventSnapshot } from "../../../functions/walks/walk-event-snapshot";
 import { VisibilityToggleButton } from "../../../shared/components/visibility-toggle-button";
 import { HumanisePipe } from "../../../pipes/humanise.pipe";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -203,7 +203,7 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
                 <div class="history-member">{{ event.member }}</div>
                 <div class="history-event-type">{{ event.eventType }}</div>
                 <div class="history-notes">
-                  @if (event.data && display.walkPopulationLocal() && event.changes.length > 0) {
+                  @if (canRevert(event)) {
                     <fa-icon class="history-revert" [icon]="faRotateLeft"
                              tooltip="Revert to this version" placement="bottom" container="body"
                              (click)="revertToVersion(event); $event.stopPropagation()"/>
@@ -212,7 +212,7 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
                 </div>
               </div>
               @if (detailsOpen(event.id)) {
-                <div class="history-details" [class.with-revert]="event.data && display.walkPopulationLocal()">
+                <div class="history-details" [class.with-revert]="canRevert(event)">
                   @if (event.changes.length > 0) {
                     <table class="history-changes-table">
                       <thead>
@@ -265,6 +265,7 @@ export class WalkEditHistoryComponent {
         id: `${event.date}-${event.eventType}-${event.memberId || "system"}`,
         member: this.memberIdToFullNamePipe.transform(event.memberId, this.display.members),
         date: this.displayDateAndTime.transform(event.date),
+        dateValue: event.date,
         eventType: this.walksReferenceService.toWalkEventType(event.eventType)?.description,
         notes: this.notesFor(event, changes),
         changes,
@@ -273,19 +274,15 @@ export class WalkEditHistoryComponent {
     });
   }
 
-  revertToVersion(event: DisplayedEvent) {
-    if (event.data) {
-      AUDITED_FIELDS.forEach(field => {
-        const value = this.getNestedValue(event.data, field);
-        if (value !== undefined) {
-          set(this.displayedWalk.walk, field, value);
-        }
-      });
-    }
+  canRevert(event: DisplayedEvent): boolean {
+    return !!event.data && !!this.displayedWalk?.walkAccessMode?.walkWritable;
   }
 
-  private getNestedValue(obj: object, path: string): any {
-    return path.split(".").reduce((current, key) => current?.[key], obj);
+  revertToVersion(event: DisplayedEvent) {
+    if (event.data) {
+      applyWalkEventSnapshot(this.displayedWalk.walk, event.data);
+      this.displayedWalk.status = this.groupEventService.statusAtOrBefore(this.displayedWalk.walk, event.dateValue);
+    }
   }
 
   toggleDetails(eventId: string) {

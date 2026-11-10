@@ -2,6 +2,7 @@ import { Component, inject, Input, ViewChild } from "@angular/core";
 import { PageContent, PageContentRow } from "../../../models/content-text.model";
 import { ExtendedGroupEvent } from "../../../models/group-event.model";
 import { PageContentActionsService } from "../../../services/page-content-actions.service";
+import { PageService } from "../../../services/page.service";
 import { RouteFollowService } from "../../../services/maps/route-follow.service";
 import { FeaturesService } from "../../../services/features.service";
 import { DynamicContentViewMap } from "./dynamic-content-view-map";
@@ -49,6 +50,7 @@ export class DynamicContentViewRoute {
   protected actions = inject(PageContentActionsService);
   protected followService = inject(RouteFollowService);
   private featuresService = inject(FeaturesService);
+  private pageService = inject(PageService);
   @Input() row!: PageContentRow;
   @Input() pageContent?: PageContent;
   @ViewChild(DynamicContentViewMap) map?: DynamicContentViewMap;
@@ -56,7 +58,9 @@ export class DynamicContentViewRoute {
   get showTitle(): boolean {
     const title = this.row?.routeGuide?.title?.trim();
     const headingLines = rowsWithin(this.pageContent?.rows).flatMap(row => (row.columns || []).flatMap(column => (column.contentText || "").split("\n").filter(line => line.startsWith("#"))));
-    return !!title && !headingLines.some(line => line.replace(/^#+\s*/, "").trim() === title);
+    const liftedTitle = this.pageService.contentPageTitle()?.trim();
+    const alreadyShown = headingLines.some(line => line.replace(/^#+\s*/, "").trim() === title) || (!!liftedTitle && liftedTitle === title);
+    return !!title && !alreadyShown;
   }
 
   get showWrittenDirections(): boolean {

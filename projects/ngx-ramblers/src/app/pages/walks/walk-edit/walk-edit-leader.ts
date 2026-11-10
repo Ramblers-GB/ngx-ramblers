@@ -1,5 +1,6 @@
 import { Component, EventEmitter, inject, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { DisplayedWalk, EventType } from "../../../models/walk.model";
+import { WalkEventType } from "../../../models/walk-event-type.model";
 import { FormsModule } from "@angular/forms";
 import { WalkDisplayService } from "../walk-display.service";
 import { MemberLoginService } from "../../../services/member/member-login.service";
@@ -240,7 +241,7 @@ export class WalkEditLeaderComponent implements OnInit, OnDestroy {
   allMembers: Member[] = [];
   memberLookupItems: MemberWithLabel[] = [];
   selectedWalkLeaderIds: string[] = [];
-  walkStatuses: any[] = [];
+  walkStatuses: WalkEventType[] = [];
   myContactId: string;
   walkLeadContactId: string;
   private subscriptions: Subscription[] = [];
@@ -256,7 +257,7 @@ export class WalkEditLeaderComponent implements OnInit, OnDestroy {
   async ngOnInit() {
     this.logger.info("ngOnInit:displayedWalk:", this.displayedWalk);
     const previousWalkLeaderIds = await this.walksAndEventsService.queryWalkLeaders();
-    this.walkStatuses = this.walksReferenceService.walkEventTypes();
+    this.walkStatuses = this.walksReferenceService.walkStatuses();
     this.refreshMembers(this.display.members, previousWalkLeaderIds);
     this.subscriptions.push(this.display.memberEvents().subscribe(members => {
       this.refreshMembers(members, previousWalkLeaderIds);
