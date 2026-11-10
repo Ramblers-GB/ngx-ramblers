@@ -76,18 +76,21 @@ export class EventTemplateSettingsComponent implements OnInit {
   protected readonly faSpinner = faSpinner;
 
   async ngOnInit(): Promise<void> {
+    const requested = this.route.snapshot.queryParamMap.get(StoredValue.EVENT_FORMAT);
+    this.available = this.templates.suppliedFormats();
+    this.selectedPath = this.available.some(template => template.path === requested) ? requested : this.available[0]?.path || "";
+    this.select(false);
+    this.loading = false;
+    this.changes.markForCheck();
     try {
       this.available = await this.templates.available();
-      const requested = this.route.snapshot.queryParamMap.get(StoredValue.EVENT_FORMAT);
-      this.selectedPath = this.available.some(template => template.path === requested) ? requested : this.available[0]?.path || "";
+      this.selectedPath = this.available.some(template => template.path === this.selectedPath) ? this.selectedPath : this.available[0]?.path || "";
       this.select(false);
-    } catch (error) {
+    } catch {
       this.failed = true;
-      this.message = error.message;
-    } finally {
-      this.loading = false;
-      this.changes.markForCheck();
+      this.message = "Saved formats could not be loaded from the database. The built-in formats are shown.";
     }
+    this.changes.markForCheck();
   }
 
   protected select(remember = true): void {

@@ -29,11 +29,12 @@ describe("document printing", () => {
     TestBed.configureTestingModule({providers: [DocumentPrintService, {provide: DOCUMENT, useValue: source}]});
     const content = document.createElement("section");
     content.textContent = "Hillside Park programme";
-    await TestBed.inject(DocumentPrintService).print(content, "Winter programme");
+    await TestBed.inject(DocumentPrintService).print(content, "Winter programme", "A5");
     expect(print).toHaveBeenCalledOnce();
     expect(target.title).toBe("Winter programme");
     expect(target.body.textContent).toBe("Hillside Park programme");
-    expect(target.head.querySelector("style")?.textContent).toBe(style.textContent);
+    expect([...target.head.querySelectorAll("style")].map(item => item.textContent).join("")).toContain("@page { size: A5; margin: 0; }");
+    expect([...target.head.querySelectorAll("style")].map(item => item.textContent).join("")).toContain(style.textContent);
     expect(target.head.querySelector("base")?.href).toBe("https://group.example.org.uk/");
     expect(remove).toHaveBeenCalledOnce();
   });

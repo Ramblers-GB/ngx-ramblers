@@ -1,16 +1,18 @@
 import {IconDefinition} from "@fortawesome/fontawesome-svg-core";
-import {Component, EventEmitter, Input, Output} from "@angular/core";
+import {Component, EventEmitter, Input, Output, inject} from "@angular/core";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
 import {faArrowRight, faTriangleExclamation, faXmark} from "@fortawesome/free-solid-svg-icons";
 import {TooltipDirective} from "ngx-bootstrap/tooltip";
 import {DELAYED_TOOLTIP_PROVIDERS} from "../tooltip-config";
 import {EM_DASH_WITH_SPACES} from "../../../models/content-text.model";
 
+import {ComposerMessagePreferencesService} from "../../../services/email-composer/composer-message-preferences.service";
+
 @Component({
   selector: "app-alert-message",
   imports: [FontAwesomeModule, TooltipDirective],
   providers: DELAYED_TOOLTIP_PROVIDERS,
-  host: {"[hidden]": "dismissed", "[attr.title]": "null"},
+  host: {"[hidden]": "hidden()", "[attr.title]": "null"},
   styles: `
     :host
       display: block
@@ -137,6 +139,18 @@ import {EM_DASH_WITH_SPACES} from "../../../models/content-text.model";
   `
 })
 export class AlertMessageComponent {
+  private preferences = inject(ComposerMessagePreferencesService, {optional: true});
+
+  private preferenceRevision = this.preferences?.revision ?? 0;
+
+  hidden(): boolean {
+    if (this.preferenceRevision !== (this.preferences?.revision ?? 0)) {
+      this.dismissed = false;
+      this.preferenceRevision = this.preferences?.revision ?? 0;
+    }
+    return this.preferences?.blocking() ? false : this.dismissed || !!this.preferences?.hidden(this.title);
+  }
+
   protected readonly EM_DASH_WITH_SPACES = EM_DASH_WITH_SPACES;
   @Input({required: true}) title = "";
   @Input() icon: IconDefinition = faTriangleExclamation;
@@ -157,6 +171,7 @@ export class AlertMessageComponent {
   }
 
   dismiss(): void {
+    this.preferences?.dismiss(this.title);
     this.dismissed = true;
     this.dismissedChange.emit();
   }

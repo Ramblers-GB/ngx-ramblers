@@ -61,11 +61,13 @@ export function programmeMarkdown(events: GroupEventSummary[], settings: EmailCo
         [ProgrammeEventToken.DESCRIPTION]: filter?.includeDescription === false ? "" : normaliseMarkdownText(event.description) || "",
         [ProgrammeEventToken.IMAGE]: filter?.includeImage && event.image ? markdownLink(event.title || "Event image", awsImageResourcePath(event.image), true) : ""
       };
-      const markdown = format === ProgrammeEventFormat.EMAIL ? emailMarkdown[event.id] : template.replace(/\{\{\s*[a-z-]+(?::\d+)?\s*}}(?:[ \t]*·[ \t]*\{\{\s*[a-z-]+(?::\d+)?\s*}})*/g, group => {
+      const emailBody = (emailMarkdown[event.id] || "").trim();
+      const printableTemplate = template || PROGRAMME_EVENT_TEMPLATES[ProgrammeEventFormat.DETAILED];
+      const markdown = format === ProgrammeEventFormat.EMAIL && emailBody ? emailBody : printableTemplate.replace(/\{\{\s*[a-z-]+(?::\d+)?\s*}}(?:[ \t]*·[ \t]*\{\{\s*[a-z-]+(?::\d+)?\s*}})*/g, group => {
         const value = [...group.matchAll(/\{\{\s*([a-z-]+(?::\d+)?)\s*}}/g)]
           .map(([match, token]) => tokens[programmeEventFieldName(token) as ProgrammeEventToken] ?? match)
           .filter(value => value.trim()).join(" · ");
-        return template.startsWith("|")
+        return printableTemplate.startsWith("|")
           ? value.replace(/\|/g, "&#124;").replace(/\r?\n/g, "<br>")
           : value;
       });
@@ -83,7 +85,15 @@ export function programmeMarkdown(events: GroupEventSummary[], settings: EmailCo
       } else {
         return [...sections, event];
       }
-    }, []).map(section => section.markdown).join("\n\n");
+    }, []).map(section => keepTogetherMarkdown(section.markdown)).join("\n\n");
+}
+
+function keepTogetherMarkdown(markdown: string): string {
+  if (/^\|/.test(markdown.trim())) {
+    return markdown;
+  } else {
+    return `<div class="committee-document-keep">\n\n${markdown}\n\n</div>`;
+  }
 }
 
 function markdownText(value: string | null): string {

@@ -1,3 +1,4 @@
+import {DocumentAppearanceSettingsComponent} from "./document-appearance-settings";
 import {EventTemplateSettingsComponent} from "./event-template-settings";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -87,6 +88,9 @@ import { ramblersRegisteredOfficeAddress } from "../../../../models/ramblers-leg
                     <div class="text-center py-4"><fa-icon [icon]="faSpinner" animation="spin" class="me-2"></fa-icon>Loading...</div>
                   }
                 </div>
+              </tab>
+              <tab [active]="tabActive(MailSettingsTab.DOCUMENT_APPEARANCE)" (selectTab)="selectTab(MailSettingsTab.DOCUMENT_APPEARANCE)" [heading]="MailSettingsTab.DOCUMENT_APPEARANCE">
+                @if (tabActive(MailSettingsTab.DOCUMENT_APPEARANCE)) {<div class="img-thumbnail thumbnail-admin-edit"><app-document-appearance-settings/></div>}
               </tab>
               <tab [active]="tabActive(MailSettingsTab.EVENT_TEMPLATES)"
                    (selectTab)="selectTab(MailSettingsTab.EVENT_TEMPLATES)" [heading]="MailSettingsTab.EVENT_TEMPLATES">
@@ -541,7 +545,7 @@ import { ramblersRegisteredOfficeAddress } from "../../../../models/ramblers-leg
               </tab>
             </tabset>
           </div>
-          @if (!tabActive(MailSettingsTab.EVENT_TEMPLATES)) {
+          @if (!tabActive(MailSettingsTab.EVENT_TEMPLATES) && !tabActive(MailSettingsTab.DOCUMENT_APPEARANCE)) {
           <div class="col-sm-12">
             <app-form-save-actions
               [disabled]="notReady()"
@@ -551,7 +555,7 @@ import { ramblersRegisteredOfficeAddress } from "../../../../models/ramblers-leg
         </div>
       </app-page>
     `,
-    imports: [EventTemplateSettingsComponent, PageComponent, TabsetComponent, TabDirective, MailNotificationTemplateEditor, NotificationConfigToProcessMappingComponent, ContentTextEditor, FormsModule, BrevoButtonComponent, NgStyle, MailListEditorComponent, MailListSettingsComponent, MailSendersListComponent, MailDomainsListComponent, MailUnsubscribesListComponent, MailSendRefusalsComponent, FontAwesomeModule, SecretInputComponent, SystemGmailInboxSettingsComponent, ListSubscriptionImportExportComponent, FormSaveActionsComponent]
+    imports: [DocumentAppearanceSettingsComponent, EventTemplateSettingsComponent, PageComponent, TabsetComponent, TabDirective, MailNotificationTemplateEditor, NotificationConfigToProcessMappingComponent, ContentTextEditor, FormsModule, BrevoButtonComponent, NgStyle, MailListEditorComponent, MailListSettingsComponent, MailSendersListComponent, MailDomainsListComponent, MailUnsubscribesListComponent, MailSendRefusalsComponent, FontAwesomeModule, SecretInputComponent, SystemGmailInboxSettingsComponent, ListSubscriptionImportExportComponent, FormSaveActionsComponent]
 })
 export class MailSettingsComponent implements OnInit, OnDestroy {
   public deletedConfigs: string[] = [];

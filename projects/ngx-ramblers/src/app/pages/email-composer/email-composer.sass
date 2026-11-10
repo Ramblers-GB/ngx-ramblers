@@ -260,9 +260,7 @@
 .composer-workspace-actions
   display: grid
   grid-auto-flow: column
-  grid-auto-columns: max-content
-  justify-content: start
-  justify-items: start
+  grid-auto-columns: minmax(0, 1fr)
   align-items: stretch
   gap: 0.5rem
   width: 100%
@@ -285,7 +283,7 @@
 
 .composer-workspace-actions > app-button-dropdown
   display: flex
-  width: auto
+  width: 100%
 
 .composer-flow-tools
   display: contents
@@ -690,3 +688,17 @@
 
   .stepper-nav
     flex-wrap: wrap
+
+.composer-restore-messages
+  background: transparent
+  border: 0
+  color: inherit
+  flex-shrink: 0
+  &:hover
+    background: transparent
+    color: var(--bs-body-color)
+
+.composer-remember-messages-label
+  flex: 0 0 auto
+  width: auto
+  margin-right: 0

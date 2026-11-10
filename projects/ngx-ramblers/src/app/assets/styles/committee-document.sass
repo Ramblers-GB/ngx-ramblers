@@ -36,8 +36,11 @@
       bottom: 0.02em
       height: 0.42em
       background-color: rgb(249, 177, 4)
+      box-shadow: inset 0 0 0 1em rgb(249, 177, 4)
       z-index: -1
       transform: skewY(-0.5deg)
+      print-color-adjust: exact
+      -webkit-print-color-adjust: exact
   table
     width: 100%
     border-collapse: collapse
@@ -60,20 +63,36 @@
     display: block
     width: 100%
     max-width: 100%
-    height: 480px
+    height: var(--document-image-height, 240px)
     object-fit: cover
     object-position: center
     margin: 0 0 1rem
     border: 0
+  [data-layout="a5-portrait"] &,
+  [data-layout="a5-booklet"] &
+    font-size: 0.95rem
+    img
+      height: var(--document-image-height, 240px)
 
 .committee-document-backdrop
   background-color: #525659
   padding: 2.5rem 1.5rem
   position: relative
+  overflow: clip
+
+.committee-document-scroll
+  max-height: 75vh
+  overflow-y: auto
+  overflow-x: hidden
+  scrollbar-gutter: stable
 
 .committee-document-pages
   max-width: 1000px
   margin: 0 auto
+  &[data-layout="a5-portrait"]
+    max-width: 148mm
+  &[data-layout="a5-booklet"]
+    max-width: 297mm
 
 .committee-document-measure
   position: absolute
@@ -83,6 +102,58 @@
   right: 0
   margin: 0 auto
   max-width: 1000px
+  &[data-layout="a5-portrait"]
+    max-width: 148mm
+  &[data-layout="a5-booklet"]
+    max-width: 148.5mm
+
+.committee-document-measure-sheet
+  width: 210mm
+  height: 297mm
+  min-height: 297mm
+  max-width: none
+  &[data-layout="a5-portrait"]
+    width: 148mm
+    height: 210mm
+    min-height: 210mm
+  &[data-layout="a5-booklet"]
+    width: 148.5mm
+    height: 210mm
+    min-height: 210mm
+  .committee-document-page-body
+    flex: none
+    height: auto
+    min-height: 0
+    overflow: visible
+
+.committee-document-spread-slot
+  width: calc(297mm * var(--booklet-scale, 1))
+  height: calc(210mm * var(--booklet-scale, 1))
+  max-width: 100%
+  margin: 0 auto 2.5rem
+  overflow: hidden
+
+.committee-document-spread
+  display: grid
+  grid-template-columns: 148.5mm 148.5mm
+  gap: 0
+  width: 297mm
+  height: 210mm
+  transform-origin: top left
+  transform: scale(var(--booklet-scale, 1))
+  background-color: #ffffff
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55)
+  .committee-document-sheet
+    margin: 0
+    width: 148.5mm
+    max-width: none
+    height: 210mm
+    min-height: 210mm
+    box-shadow: none
+    &[data-layout="a5-booklet"]
+      width: 148.5mm
+      height: 210mm
+      min-height: 210mm
 
 .committee-document-sheet
   background-color: #ffffff
@@ -91,19 +162,51 @@
   flex-direction: column
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55)
   margin-bottom: 2.5rem
+  margin-left: auto
+  margin-right: auto
   overflow: hidden
+  width: 210mm
+  height: 297mm
+  min-height: 297mm
+  max-width: 100%
+  &[data-layout="a5-portrait"]
+    width: 148mm
+    height: 210mm
+    min-height: 210mm
+    margin-left: auto
+    margin-right: auto
+  &[data-layout="a5-booklet"]
+    width: 148.5mm
+    height: 210mm
+    min-height: 210mm
+    margin-left: auto
+    margin-right: auto
   &:last-child
     margin-bottom: 0
 
+.committee-document-keep,
+.committee-document-page-body tr,
+.committee-document-page-body h2,
+.committee-document-page-body h3
+  break-inside: avoid
+  page-break-inside: avoid
+
 .committee-document-page-body
-  flex: 1 1 auto
+  display: flow-root
+  flex: 1 1 0
+  min-height: 0
+  overflow: hidden
   margin: 0 2.5rem 1.5rem
   .committee-document-title-block
     margin-left: 0
     margin-right: 0
 
 .committee-document-sheet-footer
+  flex-shrink: 0
   margin-top: auto
+  position: relative
+  z-index: 2
+  background-color: #ffffff
 
 .committee-document-shell
   background-color: #ffffff
@@ -126,14 +229,21 @@
     border: none
 
 .committee-document-page-header
+  flex-shrink: 0
   position: relative
+  print-color-adjust: exact
+  -webkit-print-color-adjust: exact
 
 .committee-document-band
   width: 100%
+  line-height: 0
+
+.committee-document-band-image
   aspect-ratio: 1600 / 385
-  background-image: url("/assets/images/ramblers/committee-document-papercut.png")
-  background-size: 100% 100%
-  background-repeat: no-repeat
+  object-fit: cover
+  display: block
+  width: 100%
+  height: auto
 
 .committee-document-header
   position: absolute
@@ -199,8 +309,11 @@
   background-size: 100% 0.42em
   background-position: 0 100%
   background-repeat: no-repeat
+  box-shadow: inset 0 -0.42em 0 rgb(249, 177, 4)
   box-decoration-break: clone
   -webkit-box-decoration-break: clone
+  print-color-adjust: exact
+  -webkit-print-color-adjust: exact
 
 .committee-document-title span
   display: inline
@@ -208,7 +321,7 @@
     display: none
 
 @media screen
-  .committee-document-body
+  .committee-document-body:not(.committee-document-page-body)
     min-height: 45vh
 
 .committee-document-editing .tiptap-editor-shell .ProseMirror
@@ -218,8 +331,11 @@
   width: 100%
   padding-top: 0.5rem
   padding-bottom: 1.5rem
+  overflow-x: auto
   .btn + .btn
     margin-left: 0
+  app-section-toggle
+    flex: 0 0 auto
 
 .committee-document-editing .tiptap-toolbar.tiptap-toolbar-sticky
   background-color: #ffffff
@@ -293,13 +409,59 @@
   border-radius: 4px
 
 @media print
+  .committee-document-measure
+    display: none
+  .committee-document-backdrop
+    overflow: visible
+  .committee-document-scroll
+    max-height: none
+    overflow: visible
+    scrollbar-gutter: auto
   .committee-document-page-break
-    display: block
-    break-after: page
-    page-break-after: always
+    display: none
   .committee-document-backdrop
     background-color: transparent
     padding: 0
+  .committee-document-pages
+    max-width: none
+  .committee-document-spread-slot
+    width: 297mm
+    height: 210mm
+    max-width: none
+    margin: 0
+    overflow: visible
+  .committee-document-spread
+    display: grid
+    grid-template-columns: 148.5mm 148.5mm
+    gap: 0
+    margin: 0
+    transform: none
+    break-after: page
+    page-break-after: always
+    width: 297mm
+    height: 210mm
+    max-width: none
+    box-shadow: none
+  .committee-document-sheet
+    box-shadow: none
+    margin: 0
+    break-after: page
+    page-break-after: always
+    width: 210mm
+    min-height: 297mm
+    height: 297mm
+    print-color-adjust: exact
+    -webkit-print-color-adjust: exact
+    &[data-layout="a5-portrait"]
+      width: 148mm
+      min-height: 210mm
+      height: 210mm
+    &[data-layout="a5-booklet"]
+      width: 148.5mm
+      min-height: 210mm
+      height: 210mm
+      break-after: auto
+      page-break-after: auto
   .committee-document-shell
     max-width: none
     box-shadow: none
@@ -319,4 +481,4 @@
 
 @page
   size: A4
-  margin: 12mm
+  margin: 0

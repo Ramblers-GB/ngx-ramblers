@@ -13,6 +13,7 @@ import { kebabCase } from "es-toolkit/compat";
 export enum MailSettingsTab {
   EMAIL_CONFIGURATIONS = "Email Configurations",
   EVENT_TEMPLATES = "Event Templates",
+  DOCUMENT_APPEARANCE = "Document Appearance",
   BUILT_IN_PROCESS_MAPPINGS = "Built-in Processes",
   MAIL_LIST_SETTINGS = "Lists",
   GMAIL_INBOX = "Inbox",

@@ -15,7 +15,7 @@ import {
 } from "./mail.model";
 import { VolunteerAudienceCriteria } from "./volunteer-management.model";
 import { ApiResponse } from "./api-response.model";
-import { GroupEventSummary, GroupEventsFilter } from "./committee.model";
+import { CommitteeDocumentLayout, GroupEventSummary, GroupEventsFilter } from "./committee.model";
 import { ExtendedGroupEvent } from "./group-event.model";
 import { EM_DASH_WITH_SPACES } from "./content-text.model";
 import { DateRangeUnit } from "./search.model";
@@ -93,7 +93,9 @@ export enum EventInclusionMode {
 
 export enum EventListingPreview {
   EMAIL = "email",
-  PDF = "pdf"
+  PDF = "pdf",
+  WORD = "word",
+  DOCUMENT = "document"
 }
 
 export enum ProgrammeEventFormat {
@@ -152,6 +154,8 @@ export interface EmailComposerProgramme {
   customTemplate: string;
   eventFormats: Record<string, ProgrammeEventFormat | null>;
   markdown: string | null;
+  documentMarkdown?: string | null;
+  layout?: CommitteeDocumentLayout;
   imageHeight?: number;
 }
 

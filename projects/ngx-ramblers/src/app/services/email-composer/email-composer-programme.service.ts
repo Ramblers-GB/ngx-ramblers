@@ -1,11 +1,13 @@
+import {renderEmailComposerMarkdown} from "../../functions/email-composer-markdown";
+import {MailMessagingService} from "../mail/mail-messaging.service";
 import {inject, Injectable} from "@angular/core";
 import {DOCUMENT} from "@angular/common";
 import {EmailComposerSessionService} from "./email-composer-session.service";
-import {ComposerFragmentKind, EmailComposerProgramme, ProgrammeEventFormat, PROGRAMME_EVENT_TEMPLATES} from "../../models/email-composer.model";
-import {CommitteeFile} from "../../models/committee.model";
+import {EmailComposerProgramme, ProgrammeEventFormat, PROGRAMME_EVENT_TEMPLATES} from "../../models/email-composer.model";
+import {CommitteeDocumentLayout, CommitteeFile} from "../../models/committee.model";
 import {normaliseMarkdownText} from "../../functions/markdown";
 import {Subject} from "rxjs";
-import {TemplateRenderRequest} from "../../models/mail.model";
+import {BrandingMode, TemplateRenderRequest} from "../../models/mail.model";
 import {PageContent} from "../../models/content-text.model";
 import {EventTemplateRenderingService} from "../mail/event-template-rendering.service";
 import {EventTemplateService} from "../mail/event-template.service";
@@ -13,6 +15,7 @@ import {EventTemplateService} from "../mail/event-template.service";
 @Injectable()
 export class EmailComposerProgrammeService {
   readonly edited = new Subject<void>();
+  private mail = inject(MailMessagingService);
   private session = inject(EmailComposerSessionService);
   private rendering = inject(EventTemplateRenderingService);
   private documentRef = inject(DOCUMENT);
@@ -27,7 +30,9 @@ export class EmailComposerProgrammeService {
         format: ProgrammeEventFormat.EMAIL,
         customTemplate: PROGRAMME_EVENT_TEMPLATES[ProgrammeEventFormat.CUSTOM],
         eventFormats: {},
-        markdown: null
+        markdown: null,
+        documentMarkdown: null,
+        layout: CommitteeDocumentLayout.A4_PORTRAIT
       };
     }
     return this.session.state.programme;
@@ -63,11 +68,13 @@ export class EmailComposerProgrammeService {
   }
 
   private liveMarkdown(firstEventOnly = false): string {
-    const emailMarkdown = [...this.documentRef.querySelectorAll<HTMLElement>("[data-composer-event-id]")]
-      .reduce((markdown, element) => ({...markdown, [element.dataset.composerEventId]: normaliseMarkdownText(element.innerHTML) || ""}), {} as Record<string, string>);
     const selected = this.session.state.groupEvents.filter(event => event.selected && !event.deleted)
       .sort((left, right) => left.eventDate - right.eventDate);
     const events = firstEventOnly ? selected.slice(0, 1) : selected;
+    const emailIds = new Set(events.filter(event => (this.settings().eventFormats[event.id] || this.settings().format) === ProgrammeEventFormat.EMAIL).map(event => event.id));
+    const emailMarkdown = emailIds.size > 0 ? [...this.documentRef.querySelectorAll<HTMLElement>("[data-composer-event-id]")]
+      .filter(element => emailIds.has(element.dataset.composerEventId))
+      .reduce((markdown, element) => ({...markdown, [element.dataset.composerEventId]: normaliseMarkdownText(element.innerHTML) || ""}), {} as Record<string, string>) : {};
     return this.rendering.markdown(events, this.settings(), this.session.state.groupEventsFilter,
       events.reduce((result, event) => ({...result, [event.id]: emailMarkdown[event.id] || ""}), {} as Record<string, string>));
   }
@@ -114,6 +121,31 @@ export class EmailComposerProgrammeService {
 
   useLiveEvents(): void {
     this.settings().markdown = null;
+    this.settings().documentMarkdown = null;
+    this.edited.next();
+    this.session.contentChanged.next();
+  }
+
+  updateDocumentMarkdown(value: string): void {
+    const live = this.composedMarkdown();
+    if ((value || "").trim() === live.trim()) {
+      this.settings().documentMarkdown = null;
+    } else {
+      this.settings().documentMarkdown = value;
+    }
+    this.edited.next();
+    this.session.contentChanged.next();
+  }
+
+  selectImageHeight(height: number): void {
+    this.settings().imageHeight = height;
+    this.edited.next();
+    this.session.contentChanged.next();
+  }
+
+  selectLayout(layout: CommitteeDocumentLayout): void {
+    this.settings().layout = layout;
+    this.previewSignature = "";
     this.edited.next();
     this.session.contentChanged.next();
   }
@@ -135,21 +167,51 @@ export class EmailComposerProgrammeService {
     return this.rendering.emailHtml(this.contentMarkdown(), this.settings().imageHeight);
   }
 
-  document(): CommitteeFile {
-    const state = this.session.state;
-    const kinds = new Set((state.fragmentOrder || []).map(fragment => fragment.kind));
-    const title = state.subject || "Events programme";
-    const markdown = [
-      `# ${title.replace(/[\r\n]+/g, " ")}`,
-      kinds.has(ComposerFragmentKind.INTRO) ? state.introMarkdown : "",
-      this.contentMarkdown(),
-      kinds.has(ComposerFragmentKind.SIGNOFF) ? state.signoffTextMarkdown : ""
-    ].filter(Boolean).join("\n\n");
-    const signature = JSON.stringify([title, markdown]);
+  document(preferStored = true): CommitteeFile {
+    const title = this.session.state.subject || "Events programme";
+    const stored = this.settings().documentMarkdown || "";
+    const storedHasContent = !!stored.trim() && stored.trim() !== `# ${title.replace(/[\r\n]+/g, " ")}`;
+    const source = preferStored && storedHasContent ? stored : this.composedMarkdown();
+    const signoff = this.signoffParts();
+    const layout = this.settings().layout || CommitteeDocumentLayout.A4_PORTRAIT;
+    const signature = JSON.stringify([title, source, signoff, layout, preferStored]);
     if (signature !== this.previewSignature) {
       this.previewSignature = signature;
-      this.previewDocument = {fileType: "Events programme", document: {title, markdown}};
+      const markdown = this.withSignoff(source, signoff);
+      this.previewDocument = {fileType: "Events programme", document: {title, markdown, layout}};
     }
     return this.previewDocument;
+  }
+
+  private signoffParts(): string[] {
+    const state = this.session.state;
+    const roles = state.brandingMode === BrandingMode.UNBRANDED ? [] : state.signoffRoles || [];
+    return [
+      ...(state.signoffTextMarkdown || "").trim().split(/\n\s*\n/),
+      ...roles.map(role => normaliseMarkdownText(this.mail.signoffNames([role])) || "")
+    ].filter(part => part.trim());
+  }
+
+  private withSignoff(markdown: string, parts: string[]): string {
+    const existing = this.markdownText(markdown);
+    const missing = parts.filter(part => !existing.includes(this.markdownText(part)));
+    return [markdown, ...missing].filter(Boolean).join("\n\n");
+  }
+
+  private markdownText(markdown: string): string {
+    const content = this.documentRef.createElement("div");
+    content.innerHTML = renderEmailComposerMarkdown(markdown);
+    return (content.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  private composedMarkdown(): string {
+    const state = this.session.state;
+    const title = state.subject || "Events programme";
+    return [
+      `# ${title.replace(/[\r\n]+/g, " ")}`,
+      (state.introMarkdown || "").trim(),
+      this.contentMarkdown(),
+      ...this.signoffParts()
+    ].filter(Boolean).join("\n\n");
   }
 }

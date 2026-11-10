@@ -32,12 +32,89 @@ describe("programme draft and output", () => {
         {provide: PageContentService, useValue: pages},
         {provide: PageContentActionsService, useValue: {defaultRowFor: () => ({type: PageContentType.TEXT, columns: [{}]})}},
         {provide: DateUtilsService, useValue: {displayDate: () => "Monday"}},
-        {provide: MailMessagingService, useValue: {currentConfig: () => ({notificationConfigs: []}), createSendSmtpEmailParams: (_member, _config, html) => ({messageMergeFields: {BODY_CONTENT: html}})}},
+        {provide: MailMessagingService, useValue: {signoffNames: () => "<p>Alex Reed — Programme coordinator</p>", currentConfig: () => ({notificationConfigs: []}), createSendSmtpEmailParams: (_member, _config, html) => ({messageMergeFields: {BODY_CONTENT: html}})}},
         {provide: EmailComposerRenderingService, useValue: {tableSection: value => value, markdownToHtml: (value: string) => value}}]
     });
     TestBed.inject(EmailComposerProgrammeService).settings().format = ProgrammeEventFormat.LISTING;
     return {state, pages, programme: TestBed.inject(EmailComposerProgrammeService), storage: TestBed.inject(EmailCompositionsService)};
   }
+
+  it("includes selected sign-off names in the programme", () => {
+    const {state, programme} = setup();
+    state.signoffRoles = ["programme-coordinator"];
+    expect(programme.document().document.markdown).toContain("Alex Reed");
+  });
+
+  it("includes the complete email sign-off when an older editable copy is missing it", () => {
+    const {state, programme} = setup();
+    const stored = "# Winter programme\n\nCoordinator's edited walk descriptions.\n\nContact the team with any questions.";
+    state.signoffTextMarkdown = "Contact the team with any questions.\n\nBest regards,";
+    state.signoffRoles = ["programme-coordinator"];
+    programme.settings().documentMarkdown = stored;
+    const markdown = programme.document().document.markdown;
+    expect(markdown).toContain("Coordinator's edited walk descriptions.");
+    expect(markdown).toContain("Best regards,");
+    expect(markdown).toContain("Alex Reed");
+    expect(markdown.match(/Contact the team with any questions\./g)).toHaveLength(1);
+    expect(programme.settings().documentMarkdown).toBe(stored);
+  });
+
+  it("does not duplicate a sign-off that was reformatted in the editable document", () => {
+    const {state, programme} = setup();
+    state.signoffTextMarkdown = "Best regards,";
+    state.signoffRoles = ["programme-coordinator"];
+    programme.settings().documentMarkdown = "# Winter programme\n\nEdited walk descriptions.\n\n**Best regards,**\n\n- **Alex Reed — Programme coordinator**";
+    const markdown = programme.document().document.markdown;
+    expect(markdown.match(/Alex Reed/g)).toHaveLength(1);
+    expect(markdown.match(/Best regards,/g)).toHaveLength(1);
+  });
+
+  it("retains the sign-off email link in generated document content", () => {
+    const {state, programme} = setup();
+    state.signoffRoles = ["programme-coordinator"];
+    programme.settings().documentMarkdown = "# Winter programme\n\nEdited walk descriptions.";
+    vi.spyOn(TestBed.inject(MailMessagingService), "signoffNames").mockReturnValue('<ul><li>Alex Reed — Programme coordinator — <a href="mailto:alex.reed@example.com">alex.reed@example.com</a></li></ul>');
+    expect(programme.document().document.markdown).toContain("[alex.reed@example.com](mailto:alex.reed@example.com)");
+  });
+
+  it("includes intro and sign-off in the printable programme when the fragment list is empty", () => {
+    const {state, programme} = setup();
+    state.subject = "Winter programme";
+    state.introMarkdown = "Bring suitable footwear.";
+    state.signoffTextMarkdown = "The walks team";
+    state.fragmentOrder = [];
+    programme.updateMarkdown("## Hillside Park\n\nMeet at the green.");
+    expect(programme.document().document.markdown).toContain("Bring suitable footwear.");
+    expect(programme.document().document.markdown).toContain("The walks team");
+    state.introMarkdown = "Eleven new walks this fortnight.";
+    expect(programme.document().document.markdown).toContain("Eleven new walks this fortnight.");
+    expect(programme.document().document.markdown).not.toContain("Bring suitable footwear.");
+  });
+
+  it("rebuilds PDF content from selected events when a stored document is only the title", () => {
+    const {state, programme} = setup();
+    state.subject = "Newsletter";
+    state.introMarkdown = "We have a busy start to 2027.";
+    state.groupEvents = [{id: "walk-1", selected: true, title: "Hillside Park", eventDate: 1000} as GroupEventSummary];
+    programme.settings().documentMarkdown = "# Newsletter";
+    expect(programme.document(true).document.markdown).toContain("We have a busy start to 2027.");
+    expect(programme.document(true).document.markdown).toContain("Hillside Park");
+  });
+
+  it("keeps a live intro until the printable document is actually edited", () => {
+    const {state, programme} = setup();
+    state.subject = "Winter programme";
+    state.introMarkdown = "First draft of the intro.";
+    programme.updateDocumentMarkdown(programme.document().document.markdown);
+    expect(programme.settings().documentMarkdown).toBeNull();
+    state.introMarkdown = "Updated intro after Preview.";
+    expect(programme.document().document.markdown).toContain("Updated intro after Preview.");
+    programme.updateDocumentMarkdown("# Winter programme\n\nCoordinator rewrite of the programme.");
+    expect(programme.settings().documentMarkdown).toContain("Coordinator rewrite of the programme.");
+    state.introMarkdown = "Later intro that must not replace the rewrite.";
+    expect(programme.document().document.markdown).toContain("Coordinator rewrite of the programme.");
+    expect(programme.document().document.markdown).not.toContain("Later intro that must not replace the rewrite.");
+  });
 
   it("uses the same edited event content for email and printable output and saves it with the draft", () => {
     const {state, programme, storage} = setup();
@@ -56,6 +133,7 @@ describe("programme draft and output", () => {
     expect(document.document.markdown).toContain("Coordinator's updated meeting instructions.");
     expect(document.document.markdown).toContain("The walks team");
     expect(document.document.markdown).toContain("PAGEBREAK");
+    expect(document.document.layout).toBe("a4-portrait");
     const stored = storage.serialiseStateForStorage(state);
     expect(stored.programme).toEqual(state.programme);
     expect(stored.programme).not.toBe(state.programme);

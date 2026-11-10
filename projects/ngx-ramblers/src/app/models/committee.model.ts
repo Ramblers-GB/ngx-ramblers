@@ -97,6 +97,37 @@ export interface CommitteeDocument {
   title?: string;
   markdown?: string;
   templateId?: string;
+  imageHeight?: number;
+  layout?: CommitteeDocumentLayout;
+}
+
+export enum CommitteeDocumentLayout {
+  A4_PORTRAIT = "a4-portrait",
+  A5_PORTRAIT = "a5-portrait",
+  A5_BOOKLET = "a5-booklet"
+}
+
+export const COMMITTEE_DOCUMENT_LAYOUTS = [
+  {value: CommitteeDocumentLayout.A4_PORTRAIT, label: "A4 pages"},
+  {value: CommitteeDocumentLayout.A5_PORTRAIT, label: "A5 pages"},
+  {value: CommitteeDocumentLayout.A5_BOOKLET, label: "A5 booklet (two-up on A4)"}
+];
+
+export function committeeDocumentPageSize(layout: CommitteeDocumentLayout | string | null): string {
+  if (layout === CommitteeDocumentLayout.A5_PORTRAIT) {
+    return "A5";
+  } else if (layout === CommitteeDocumentLayout.A5_BOOKLET) {
+    return "A4 landscape";
+  } else {
+    return "A4";
+  }
+}
+
+export interface DocumentExportRequest {
+  title: string;
+  markdown: string;
+  imageHeight?: number;
+  layout?: CommitteeDocumentLayout | null;
 }
 
 export enum CommitteeFileKind {

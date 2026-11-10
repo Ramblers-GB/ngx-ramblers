@@ -1,3 +1,4 @@
+import {Lexer} from "marked";
 import TurndownService from "turndown";
 import { isString } from "es-toolkit/compat";
 import { unescapeMarkdownLinks } from "./strings";
@@ -22,8 +23,17 @@ export function normaliseMarkdownText(value: string | null): string | null {
 }
 
 export function encodeMarkdownLinkUrls(value: string): string {
-  return (value || "").replace(/(!?\[[^\]]*])\(([^)\n]*)\)/g, (match, label, url) =>
-    `${label}(${url.replace(/\s/g, character => encodeURIComponent(character))})`);
+  return (value || "").replace(/(!?\[[^\]]*])\(([^)\n]*)\)/g, (match, label, destination) => {
+    const token = Lexer.lexInline(match)[0];
+    if (token?.type === "link" || token?.type === "image") {
+      return match;
+    } else {
+      const encoded = destination.replace(/\s/g, character => encodeURIComponent(character));
+      const candidate = `${label}(${encoded})`;
+      const parsed = Lexer.lexInline(candidate)[0];
+      return parsed?.type === "link" || parsed?.type === "image" ? candidate : match;
+    }
+  });
 }
 
 const FLATTENED_LEAD_INS = new Set(["a", "an", "and", "at", "by", "for", "from", "in", "meet", "of", "on", "the", "to", "via", "we"]);

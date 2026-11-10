@@ -1,3 +1,7 @@
+app-tiptap-markdown-editor
+  display: block
+  min-width: 0
+
 .tiptap-show-formatting
   align-self: flex-start
   margin: 0 0 8px
@@ -742,3 +746,8 @@
   color: rgb(110, 112, 115)
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace
   font-size: 0.8rem
+
+.tiptap-content.merge-field-image-sized img
+  width: 100%
+  height: var(--event-image-height, 240px)
+  object-fit: cover

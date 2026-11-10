@@ -1,3 +1,4 @@
+import {DocumentAppearance} from "./document-appearance.model";
 import { InboxCatchAllPolicy, InboxPrivacyMode, InboxReaderProvider } from "./inbox.model";
 import { AccessLevel } from "./member-resource.model";
 import { Link } from "./page.model";
@@ -423,6 +424,7 @@ export interface Images {
 export const defaultImage: Image = {padding: 0, width: 150, originalFileName: null, awsFileName: null};
 
 export interface SystemConfig {
+  documentAppearance?: Partial<DocumentAppearance>;
   globalStyles: HasStyles;
   icons: Images;
   backgrounds: Images

@@ -1,4 +1,8 @@
-import { inject, Injectable, signal } from "@angular/core";
+import {PageContentService} from "./page-content.service";
+import {rowsWithin} from "../functions/map-location-markers";
+import {PageContentType} from "../models/content-text.model";
+import {RamblersEventType} from "../models/ramblers-walks-manager.model";
+import { inject, Injectable, Injector, signal } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { last } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -17,6 +21,7 @@ import { uniq } from "es-toolkit/compat";
 
 export class PageService {
 
+  private injector = inject(Injector);
   private logger: Logger = inject(LoggerFactory).createLogger("PageService", NgxLoggerLevel.ERROR);
   private stringUtils = inject(StringUtilsService);
   private titleService = inject(Title);
@@ -48,6 +53,20 @@ export class PageService {
 
   public groupEventPage(): Link {
     return this.findPageForArea(this.urlService.area());
+  }
+
+  async eventPagesFor(types: RamblersEventType[]): Promise<Map<RamblersEventType, Link>> {
+    const links = this.group?.pages || [];
+    const paths = links.map(link => (link.href || "").replace(/^\/+|\/+$/g, ""));
+    const pages = paths.length ? await this.injector.get(PageContentService).all({criteria: {path: {$in: paths}}}) : [];
+    return types.reduce((result, type) => {
+      const page = links.find(link => pages.some(content => content.path === (link.href || "").replace(/^\/+|\/+$/g, "")
+        && rowsWithin(content.rows).some(row => row.type === PageContentType.EVENTS && row.events?.eventTypes?.includes(type))));
+      if (page) {
+        result.set(type, page);
+      }
+      return result;
+    }, new Map<RamblersEventType, Link>());
   }
 
   walksPage(): Link {

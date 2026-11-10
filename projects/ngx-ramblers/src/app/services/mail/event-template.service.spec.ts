@@ -5,6 +5,7 @@ import {PageContentService} from "../page-content.service";
 import {PageContentActionsService} from "../page-content-actions.service";
 import {ContentTemplateType, PageContent, PageContentType} from "../../models/content-text.model";
 import {PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX} from "../../models/email-composer.model";
+import {fieldStartsWithValue} from "../../functions/mongo";
 
 describe("reusable event templates", () => {
   function setup() {
@@ -21,8 +22,16 @@ describe("reusable event templates", () => {
     const formats = await service.available();
     expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Programme listing (three columns)", "Detailed", "Compact"]);
     expect(formats.every(format => service.content(format).includes("{{title}}"))).toBe(true);
+    expect(pages.all).toHaveBeenCalledWith({criteria: {path: fieldStartsWithValue(PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX)}});
     expect(pages.create).not.toHaveBeenCalled();
     expect(pages.update).not.toHaveBeenCalled();
+  });
+
+  it("still offers supplied formats when the content library cannot be read", async () => {
+    const {service, pages} = setup();
+    pages.all.mockRejectedValue(new Error("MongoNetworkTimeoutError"));
+    const formats = await service.available();
+    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Programme listing (three columns)", "Detailed", "Compact"]);
   });
 
   it("loads a saved supplied-format edit in place of its default", async () => {

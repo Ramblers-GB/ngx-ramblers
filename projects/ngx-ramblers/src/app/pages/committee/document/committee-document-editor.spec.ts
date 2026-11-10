@@ -6,6 +6,8 @@ import {CommitteeFile} from "../../../models/committee.model";
 import {TiptapMarkdownEditor} from "../../../modules/common/tiptap-editor/tiptap-markdown-editor";
 import {StickyControlsDirective} from "../../../modules/common/tiptap-editor/sticky-controls.directive";
 import {DocumentPrintService} from "../../../services/document-print.service";
+import {DocumentExportService} from "../../../services/committee/document-export.service";
+import {DateUtilsService} from "../../../services/date-utils.service";
 import {CommitteeDocumentView} from "./committee-document-view";
 import {CommitteeDocumentEditor} from "./committee-document-editor";
 
@@ -13,12 +15,15 @@ import {CommitteeDocumentEditor} from "./committee-document-editor";
 class MarkdownEditorStub {
   @Input() value: string;
   @Input() placeholder: string;
+  @Input() eventImageHeight: number;
+  @Output() eventImageHeightChange = new EventEmitter<number>();
   @Output() valueChange = new EventEmitter<string>();
 }
 
 @Component({selector: "app-committee-document-view", template: "{{ committeeFile.document.markdown }}"})
 class DocumentViewStub {
   @Input() committeeFile: CommitteeFile;
+  @Input() layout: string;
 }
 
 describe("shared committee document editing", () => {
@@ -28,7 +33,11 @@ describe("shared committee document editing", () => {
   beforeEach(() => {
     printer.print.mockReset().mockResolvedValue(null);
     TestBed.configureTestingModule({imports: [CommitteeDocumentEditor, LoggerTestingModule],
-      providers: [{provide: DocumentPrintService, useValue: printer}]});
+      providers: [
+        {provide: DocumentPrintService, useValue: printer},
+        {provide: DocumentExportService, useValue: {docx: vi.fn()}},
+        {provide: DateUtilsService, useValue: {asString: () => "20260101-120000", dateTimeNow: () => ({toMillis: () => 1})}}
+      ]});
     TestBed.overrideComponent(CommitteeDocumentEditor, {
       remove: {imports: [TiptapMarkdownEditor, CommitteeDocumentView, StickyControlsDirective]},
       add: {imports: [MarkdownEditorStub, DocumentViewStub]}
@@ -42,7 +51,7 @@ describe("shared committee document editing", () => {
     fixture.detectChanges();
     const host: HTMLElement = fixture.nativeElement;
     expect(host.querySelector("app-tiptap-markdown-editor")?.textContent).toBe("Edited programme");
-    expect(host.querySelector("app-committee-document-view")).toBeNull();
+    expect(host.querySelector("app-committee-document-view")).not.toBeNull();
     const previewChanged = vi.spyOn(fixture.componentInstance.previewingChange, "emit");
     host.querySelector<HTMLButtonElement>("button").click();
     fixture.detectChanges();
@@ -52,7 +61,7 @@ describe("shared committee document editing", () => {
     host.querySelector<HTMLButtonElement>("button").click();
     fixture.detectChanges();
     expect(host.querySelector("app-tiptap-markdown-editor")?.textContent).toBe("Edited programme");
-    expect(host.querySelector("app-committee-document-view")).toBeNull();
+    expect(host.querySelector("app-committee-document-view")).not.toBeNull();
   });
 
   it("uses the same print service for read-only documents and reports printing failures", async () => {
@@ -62,9 +71,9 @@ describe("shared committee document editing", () => {
     fixture.detectChanges();
     const host: HTMLElement = fixture.nativeElement;
     expect(host.querySelector("app-tiptap-markdown-editor")).toBeNull();
-    expect(host.querySelectorAll("button")).toHaveLength(1);
+    expect(host.querySelectorAll("button")).toHaveLength(2);
     await fixture.componentInstance.print();
-    expect(printer.print).toHaveBeenCalledWith(host.querySelector("app-committee-document-view").parentElement, "Winter programme");
+    expect(printer.print).toHaveBeenCalledWith(host.querySelector("app-committee-document-view").parentElement, "Winter programme", "A4");
     printer.print.mockRejectedValueOnce(new Error("Printer unavailable"));
     await fixture.componentInstance.print();
     fixture.detectChanges();

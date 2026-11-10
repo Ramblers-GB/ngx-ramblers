@@ -73,6 +73,14 @@ describe("editable event programme", () => {
     expect(markdown).toContain("[Event page](https://group.example.org.uk/walks/hillside-park)");
   });
 
+  it("builds a printable default layout from event fields when the email listing is not on the page", () => {
+    const markdown = programmeMarkdown([first], settings(ProgrammeEventFormat.EMAIL), null, dateLabel);
+    expect(markdown).toContain("Hillside Park");
+    expect(markdown).toContain("A riverside walk");
+    expect(markdown).toContain("committee-document-keep");
+    expect(markdown).not.toContain("{{");
+  });
+
   it("keeps a chosen image height in the design token and still substitutes the image", () => {
     const event = {...first, image: "site-content/walk.jpg"} as GroupEventSummary;
     const custom = {
@@ -87,6 +95,7 @@ describe("editable event programme", () => {
   it("drops missing contact parts when the format joins name, phone and email in the designer", () => {
     const event = {...first, contactPhone: null, contactEmail: null} as GroupEventSummary;
     const markdown = programmeMarkdown([event], settings(ProgrammeEventFormat.DETAILED), null, dateLabel);
+    expect(markdown).toContain("committee-document-keep");
     expect(markdown).toContain("Alex Reed");
     expect(markdown).not.toContain("Alex Reed ·");
     expect(markdown).not.toContain("{{contact");
@@ -118,7 +127,7 @@ describe("editable event programme", () => {
     const markdown = programmeMarkdown([first], settings(ProgrammeEventFormat.EMAIL), null, dateLabel,
       {[first.id]: "## Hillside Park\n\n[View walk](https://group.example.org.uk/walks/hillside-park)"});
     expect(markdown).toContain("[View walk](https://group.example.org.uk/walks/hillside-park)");
-    expect(() => programmeMarkdown([first], settings(ProgrammeEventFormat.EMAIL), null, dateLabel)).toThrow("Choose an email template");
+    expect(programmeMarkdown([first], settings(ProgrammeEventFormat.EMAIL), null, dateLabel)).toContain("Hillside Park");
   });
 
   it("renders stored event images as Markdown images and omits unsupported image URLs", () => {

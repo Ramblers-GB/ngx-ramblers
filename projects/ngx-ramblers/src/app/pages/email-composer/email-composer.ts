@@ -1,3 +1,4 @@
+import {ComposerMessagePreferencesService} from "../../services/email-composer/composer-message-preferences.service";
 import {parseEmailHeadersFromMarkdown, emailHeadersNearTop, formattedPasteMarkdown} from "../../functions/email-composer-intro-paste";
 import { EmailComposerSenderService } from "../../services/email-composer/email-composer-sender.service";
 import {EmailComposerDraftingComponent} from "./email-composer-drafting.component";
@@ -123,10 +124,13 @@ import {
   faArrowRight,
   faArrowRotateLeft,
   faCheckCircle,
+  faRotateLeft,
   faChevronDown,
   faChevronRight,
   faEnvelope,
   faFilePdf,
+  faFileWord,
+  faPenToSquare,
   faCircleInfo,
   faCompress,
   faExpand,
@@ -273,6 +277,8 @@ import { CommitteeReferenceData } from "../../services/committee/committee-refer
 import { CommitteeConfigService } from "../../services/committee/commitee-config.service";
 
 import {
+  COMMITTEE_DOCUMENT_LAYOUTS,
+  CommitteeDocumentLayout,
   CommitteeFile,
   committeeMailboxAddresses,
   CommitteeMailboxKind,
@@ -319,7 +325,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
   host: {
     "[attr.data-sticky-offset-root]": "''"
   },
-  providers: [
+  providers: [ComposerMessagePreferencesService,
     EmailComposerDocumentsService,
     EmailComposerProgrammeService,
     EmailComposerSessionService,
@@ -413,6 +419,15 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
             <div id="composer-settings-panel" class="thumbnail-heading-frame thumbnail-heading-frame-compact mt-2 mb-0 composer-settings-frame"
                  (click)="$event.stopPropagation()">
               <div class="thumbnail-heading">Composer settings</div>
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <label class="form-check mb-0 composer-remember-messages-label">
+                  <input class="form-check-input" type="checkbox" [ngModel]="messagePreferences.remember"
+                         (ngModelChange)="messagePreferences.setRemember($event)">
+                  <span class="form-check-label">Remember dismissed messages</span>
+                </label>
+                <button type="button" class="btn-icon composer-restore-messages" tooltip="Restore dismissed messages" container="body" aria-label="Restore dismissed messages" (click)="restoreComposerMessages()"><fa-icon [icon]="faRotateLeft"/></button>
+              </div>
+              <p class="text-muted small">Dismissed messages stay hidden on this browser. Messages appear again whenever something prevents you from continuing.</p>
               <label class="form-check mb-2">
                 <input class="form-check-input" type="checkbox" id="composer-remember-branding"
                        [ngModel]="rememberBranding"
@@ -812,7 +827,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                     placement="bottom">
               <fa-icon [icon]="faFile"/> New
             </button>
-            <app-button-dropdown label="Save"
+            <app-button-dropdown [fullWidth]="true" label="Save"
                                  [icon]="faLock"
                                  [items]="saveMenuItems()"
                                  [defaultItemId]="ComposerSaveAction.PRIVATE"
@@ -826,7 +841,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                 <fa-icon [icon]="faArrowRotateLeft"/>Revert
               </button>
             }
-            <app-button-dropdown class="composer-show-menu" label="Show"
+            <app-button-dropdown [fullWidth]="true" class="composer-show-menu" label="Show"
                                  [icon]="faFolderOpen"
                                  [items]="showMenuItems()"
                                  (itemSelect)="onShowMenu($event)"/>
@@ -1270,7 +1285,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
             <li>Estimated send time: <strong>{{ estimatedSendTime() }}</strong></li>
           }
         </ul>
-        <p class="text-muted small">Email is the message as recipients will see it. PDF is the same content as a printable programme, including your introduction, events and sign-off.</p>
+        <p class="text-muted small">Email is the message as recipients will see it. PDF, Word and the editable document use the same programme, including your introduction, events and sign-off. Walks stay on one page; if a walk does not fit, it starts on the next page. Choose a page layout to see the grid of pages as they will print.</p>
         @if (listingPreview === EventListingPreview.EMAIL) {
           <div class="d-flex flex-wrap align-items-center mb-3" style="gap: 0.5rem;">
             <button type="button" class="btn btn-primary" (click)="refreshPreview()">Refresh preview</button>
@@ -1304,7 +1319,19 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
             </div>
           </div>
         } @else {
-          <app-committee-document-editor [committeeFile]="programme.document()" [editable]="false"/>
+          @let programmeDocument = programme.document(true);
+          <app-committee-document-editor [committeeFile]="programmeDocument"
+                                         [imageHeight]="programme.settings().imageHeight || 240"
+                                         (imageHeightChange)="programme.selectImageHeight($event)"
+                                         [layout]="programme.settings().layout || CommitteeDocumentLayout.A4_PORTRAIT"
+                                         [editable]="listingPreview === EventListingPreview.DOCUMENT"
+                                         [previewing]="listingPreview !== EventListingPreview.DOCUMENT"
+                                         [value]="programmeDocument.document?.markdown || ''"
+                                         (valueChange)="programme.updateDocumentMarkdown($event)">
+            <app-section-toggle [tabs]="documentLayoutTabs" [selectedTab]="programme.settings().layout || CommitteeDocumentLayout.A4_PORTRAIT"
+                                [queryParamKey]="StoredValue.DOCUMENT_LAYOUT"
+                                (selectedTabChange)="onDocumentLayoutChange($event)"/>
+          </app-committee-document-editor>
         }
       </div>
     </ng-template>
@@ -1498,9 +1525,13 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   protected listingPreview = EventListingPreview.EMAIL;
   protected readonly listingPreviewTabs: SectionToggleTab[] = [
     {value: EventListingPreview.EMAIL, label: "Email", icon: faEnvelope},
-    {value: EventListingPreview.PDF, label: "PDF", icon: faFilePdf}
+    {value: EventListingPreview.PDF, label: "PDF", icon: faFilePdf},
+    {value: EventListingPreview.WORD, label: "Word", icon: faFileWord},
+    {value: EventListingPreview.DOCUMENT, label: "Editable document", icon: faPenToSquare}
   ];
+  protected readonly documentLayoutTabs: SectionToggleTab[] = COMMITTEE_DOCUMENT_LAYOUTS.map(layout => ({value: layout.value, label: layout.label}));
   protected readonly EventListingPreview = EventListingPreview;
+  protected readonly CommitteeDocumentLayout = CommitteeDocumentLayout;
   protected readonly StoredValue = StoredValue;
   private autoPreviewPending = false;
   protected stepperSteps = EMAIL_COMPOSER_STEPS;
@@ -1519,6 +1550,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   protected rememberBranding = true;
   protected confirmSend = true;
   protected warnUnsaved = true;
+  protected messagePreferences = inject(ComposerMessagePreferencesService);
   protected lastSavedAt: number | null = null;
   protected sendInProgress = false;
   protected sendStatus: SendStatus | null = null;
@@ -1575,6 +1607,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   protected readonly faFile = faFile;
   protected readonly faTriangleExclamation = faTriangleExclamation;
   protected readonly faCheckCircle = faCheckCircle;
+  protected readonly faRotateLeft = faRotateLeft;
   protected readonly faTableColumns = faTableColumns;
   protected inboxReplyLoading = false;
   protected membersLoaded = false;
@@ -2163,6 +2196,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
 
   protected onIntroMarkdownChange(value: string): void {
     this.session.state.introMarkdown = value ?? "";
+    this.session.contentChanged.next();
     if (!(this.session.state.addresseeType === AddresseeType.NONE)) {
       const firstLine = (value ?? "")
         .replace(/^[\s>*_`#-]+/, "")
@@ -3511,6 +3545,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
           this.focusComposeEditor();
         }
         if (key === EmailComposerStepKey.REVIEW) {
+          this.flushComposerEditors();
           this.refreshPreview().catch(error => this.logger.error("preview refresh failed", error));
         }
       }
@@ -3715,6 +3750,8 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   private hasUnsavedChanges(): boolean {
     return !!this.session.state.subject?.trim()
       || !!this.session.state.programme?.markdown?.trim()
+      || !!this.session.state.programme?.documentMarkdown?.trim()
+      || !!this.session.state.programme?.layout
       || !!this.session.state.introMarkdown?.trim()
       || !!this.session.state.signoffTextMarkdown?.trim()
       || (this.session.state.articleBlocks ?? []).length > 0
@@ -3913,7 +3950,16 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
   }
 
+  protected restoreComposerMessages(): void {
+    this.messagePreferences.restore();
+    this.unbrandedListSendWarningDismissed = false;
+    this.unbrandedSenderAlertDismissed = false;
+    this.recipientAddressesPrivateAlertDismissed = false;
+    this.postSendActionWarningDismissed = false;
+  }
+
   private loadComposerPrefs(): void {
+    this.messagePreferences.blocking = () => !this.templateStepValid() || !this.recipientsStepValid() || !this.composeStepValid();
     this.rememberBranding = this.uiActions.initialBooleanValueFor(StoredValue.COMPOSER_REMEMBER_BRANDING, true);
     this.confirmSend = this.uiActions.initialBooleanValueFor(StoredValue.COMPOSER_CONFIRM_SEND, true);
     this.warnUnsaved = this.uiActions.initialBooleanValueFor(StoredValue.COMPOSER_WARN_UNSAVED, true);
@@ -4378,11 +4424,16 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   protected onListingPreviewChange(preview: EventListingPreview): void {
+    this.flushComposerEditors();
     this.listingPreview = preview;
     if (preview === EventListingPreview.EMAIL) {
       this.autoPreviewPending = true;
       this.maybeAutoRefreshPreview();
     }
+  }
+
+  protected onDocumentLayoutChange(layout: CommitteeDocumentLayout): void {
+    this.programme.selectLayout(layout);
   }
 
   protected canStepPreview(direction: PreviewStepDirection): boolean {

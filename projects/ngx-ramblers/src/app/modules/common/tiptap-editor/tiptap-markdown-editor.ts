@@ -135,7 +135,7 @@ import { programmeImageMergeToken } from "../../../functions/email-composer-prog
       <fa-icon [icon]="faPaintbrush"/>
     </button>
   }
-  @if (editable && (toolbarExpanded || sourceMode)) {
+  @if (editable && (toolbarExpanded || sourceMode || (stickyToolbar && !phoneLayout()))) {
   <div class="tiptap-toolbar" [class.tiptap-toolbar-sticky]="stickyToolbar"
        role="toolbar" (mousedown)="onToolbarMousedown($event)">
     @if (phoneLayout() && !sourceMode) {
@@ -1289,9 +1289,10 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
   private positionEventImageResizer(): void {
     const shell = this.editor?.view?.dom.closest(".tiptap-editor-shell") as HTMLElement;
     const imageField = this.editor?.view?.dom.querySelector(`merge-field[data-token^="${ProgrammeEventToken.IMAGE}"]`) as HTMLElement;
-    if (shell && imageField) {
+    const target = imageField || (this.imageSelected ? this.editor?.view?.dom.querySelector("img.ProseMirror-selectednode") as HTMLElement : null);
+    if (shell && target) {
       const shellRect = shell.getBoundingClientRect();
-      const imageRect = imageField.getBoundingClientRect();
+      const imageRect = target.getBoundingClientRect();
       this.eventImageResizerTop = imageRect.bottom - shellRect.top;
       this.eventImageResizerLeft = imageRect.left - shellRect.left;
       this.eventImageResizerWidth = imageRect.width;

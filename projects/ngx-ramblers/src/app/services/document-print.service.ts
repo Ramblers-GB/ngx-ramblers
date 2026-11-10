@@ -5,7 +5,7 @@ import {inject, Injectable} from "@angular/core";
 export class DocumentPrintService {
   private document = inject(DOCUMENT);
 
-  async print(element: HTMLElement, title: string): Promise<void> {
+  async print(element: HTMLElement, title: string, pageSize = "A4"): Promise<void> {
     const frame = this.document.createElement("iframe");
     frame.title = "Document print preview";
     frame.setAttribute("aria-hidden", "true");
@@ -36,6 +36,9 @@ export class DocumentPrintService {
           target.head.appendChild(clone);
           return ready;
         }));
+        const page = target.createElement("style");
+        page.textContent = `@page { size: ${pageSize}; margin: 0; }`;
+        target.head.appendChild(page);
         target.body.appendChild(element.cloneNode(true));
         await target.fonts.ready;
         await Promise.all([...target.images].map(image => image.decode()));

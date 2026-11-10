@@ -190,7 +190,10 @@ export class EmailCompositionsService {
         format: state.programme.format,
         customTemplate: state.programme.customTemplate,
         eventFormats: {...state.programme.eventFormats},
-        markdown: state.programme.markdown
+        markdown: state.programme.markdown,
+        documentMarkdown: state.programme.documentMarkdown ?? null,
+        layout: state.programme.layout ?? null,
+        imageHeight: state.programme.imageHeight
       } : null,
       singleEvent: state.singleEvent?.id ? { id: state.singleEvent.id } : null,
       introDividerAfter: state.introDividerAfter,

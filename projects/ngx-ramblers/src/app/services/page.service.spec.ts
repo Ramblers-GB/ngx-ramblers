@@ -1,3 +1,8 @@
+import {vi} from "vitest";
+import {PageContentService} from "./page-content.service";
+import {PageContent, PageContentType} from "../models/content-text.model";
+import {Organisation} from "../models/system.model";
+import {RamblersEventType} from "../models/ramblers-walks-manager.model";
 import { provideHttpClientTesting } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
 import { RouterTestingModule } from "@angular/router/testing";
@@ -23,6 +28,18 @@ describe("PageService", () => {
       ]
     });
     service = TestBed.inject(PageService);
+  });
+
+  it("resolves event destinations from the navbar and its page content", async () => {
+    service.group = {pages: [{href: "our-programme", title: "Programme"}, {href: "gatherings", title: "Gatherings"}]} as Organisation;
+    const all = vi.spyOn(TestBed.inject(PageContentService), "all").mockResolvedValue([
+      {path: "our-programme", rows: [{type: PageContentType.EVENTS, events: {eventTypes: [RamblersEventType.GROUP_WALK]}}]},
+      {path: "gatherings", rows: [{type: PageContentType.EVENTS, events: {eventTypes: [RamblersEventType.GROUP_EVENT]}}]}
+    ] as PageContent[]);
+    const pages = await service.eventPagesFor([RamblersEventType.GROUP_WALK, RamblersEventType.GROUP_EVENT]);
+    expect(pages.get(RamblersEventType.GROUP_WALK)?.href).toBe("our-programme");
+    expect(pages.get(RamblersEventType.GROUP_EVENT)?.href).toBe("gatherings");
+    expect(all).toHaveBeenCalledTimes(1);
   });
 
   describe("titleFromPath", () => {

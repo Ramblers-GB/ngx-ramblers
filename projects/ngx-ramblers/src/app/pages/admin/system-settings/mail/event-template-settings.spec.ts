@@ -30,7 +30,7 @@ describe("existing event format settings", () => {
   const original = {path: "fragments/templates/event-programme/detailed", migrationTemplate: {templateName: "Detailed"}} as PageContent;
 
   async function setup() {
-    const templates = {available: vi.fn().mockResolvedValue([original]), content: () => "{{title}}", imageHeight: () => 240,
+    const templates = {suppliedFormats: () => [original], available: vi.fn().mockResolvedValue([original]), content: () => "{{title}}", imageHeight: () => 240,
       save: vi.fn().mockImplementation(async (name: string, markdown: string, existing: PageContent | null) => ({
         ...original, id: existing ? "saved-format" : "copied-format",
         path: existing ? original.path : "fragments/templates/event-programme/walk-with-image",

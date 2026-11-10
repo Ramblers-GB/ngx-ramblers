@@ -19,7 +19,7 @@ import {EmailComposerSessionService} from "../../services/email-composer/email-c
   template: `
     <div class="thumbnail-heading-frame mt-3">
       <div class="thumbnail-heading">Event listing</div>
-      <p>Choose how each event appears in the email and in the printable programme. Open Preview &amp; Review to see the finished email or switch to PDF there.</p>
+      <p>Choose how each event appears in the email and in the printable programme. Open Preview &amp; Review for Email, PDF, Word and an editable document, with A4, A5 and A5 booklet page grids.</p>
       <div class="row g-3 mb-3">
         <div class="col-md-6">
           <label for="programme-event-format" class="form-label">Event format</label>
@@ -40,7 +40,7 @@ import {EmailComposerSessionService} from "../../services/email-composer/email-c
                                [showActionButtons]="false" [showViewAction]="false" [selectFirstTemplate]="false"
                                [selectedTemplateFragmentId]="programme.settings().templateId || ''" (selectionChanged)="selectTemplate($event)"/>
       }
-      <p class="small text-muted mt-3 mb-0">Save the email draft to keep this format. <a href="javascript:void(0)" (click)="openPreview()">Preview &amp; Review</a> has Email and PDF views of the finished content.</p>
+      <p class="small text-muted mt-3 mb-0">Save the email draft to keep this format and any edits to the printable document. <a href="javascript:void(0)" (click)="openPreview()">Preview &amp; Review</a> has Email, PDF, Word and editable views of the finished content.</p>
     </div>
   `
 })

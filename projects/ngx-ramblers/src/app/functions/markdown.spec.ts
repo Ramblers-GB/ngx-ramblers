@@ -52,3 +52,15 @@ describe("markdown", () => {
     });
   });
 });
+
+describe("Markdown link titles", () => {
+  it("preserves a quoted title separately from the destination", () => {
+    const link = '[View walk](https://group.example.org.uk/our-programme/hillside-loop "View walk")';
+    expect(encodeMarkdownLinkUrls(link)).toBe(link);
+  });
+
+  it("preserves parentheses in valid destinations", () => {
+    const link = '[Route](https://group.example.org.uk/routes/hillside_(loop) "Route")';
+    expect(encodeMarkdownLinkUrls(link)).toBe(link);
+  });
+});

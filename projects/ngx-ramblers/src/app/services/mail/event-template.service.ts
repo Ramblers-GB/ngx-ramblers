@@ -3,6 +3,7 @@ import {kebabCase} from "es-toolkit/compat";
 import {ContentTemplateType, PageContent, PageContentType} from "../../models/content-text.model";
 import {EVENT_EMAIL_IMAGE_HEIGHT, ProgrammeEventFormat, PROGRAMME_EVENT_FORMATS, PROGRAMME_EVENT_TEMPLATES, PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX} from "../../models/email-composer.model";
 import {programmeImageHeightFromMarkdown, programmeImageMergeToken} from "../../functions/email-composer-programme";
+import {fieldStartsWithValue} from "../../functions/mongo";
 import {rowsWithin} from "../../functions/map-location-markers";
 import {PageContentService} from "../page-content.service";
 import {PageContentActionsService} from "../page-content-actions.service";
@@ -21,14 +22,24 @@ export class EventTemplateService {
     return programmeImageHeightFromMarkdown(template ? this.content(template) : "", stored || EVENT_EMAIL_IMAGE_HEIGHT);
   }
 
+  suppliedFormats(): PageContent[] {
+    return PROGRAMME_EVENT_FORMATS.filter(format => format.value !== ProgrammeEventFormat.EMAIL && format.value !== ProgrammeEventFormat.CUSTOM)
+      .map(format => this.page(format.label, PROGRAMME_EVENT_TEMPLATES[format.value], PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + format.value));
+  }
+
   async available(): Promise<PageContent[]> {
-    const saved = (await this.pages.all()).filter(template => template.path?.startsWith(PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX));
-    const supplied = PROGRAMME_EVENT_FORMATS.filter(format => format.value !== ProgrammeEventFormat.EMAIL && format.value !== ProgrammeEventFormat.CUSTOM)
-      .map(format => {
-        const path = PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + format.value;
-        return saved.find(template => template.path === path) || this.page(format.label, PROGRAMME_EVENT_TEMPLATES[format.value], path);
-      });
-    return [...supplied, ...saved.filter(template => !supplied.some(preset => preset.path === template.path))];
+    const supplied = this.suppliedFormats();
+    const saved = await this.savedTemplates();
+    const merged = supplied.map(format => saved.find(template => template.path === format.path) || format);
+    return [...merged, ...saved.filter(template => !merged.some(preset => preset.path === template.path))];
+  }
+
+  private async savedTemplates(): Promise<PageContent[]> {
+    try {
+      return await this.pages.all({criteria: {path: fieldStartsWithValue(PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX)}});
+    } catch {
+      return [];
+    }
   }
 
   private page(name: string, markdown: string, path: string, existing: PageContent | null = null, imageHeight = EVENT_EMAIL_IMAGE_HEIGHT): PageContent {

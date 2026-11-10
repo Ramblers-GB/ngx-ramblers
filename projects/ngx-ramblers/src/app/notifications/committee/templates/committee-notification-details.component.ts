@@ -1,3 +1,4 @@
+import {RamblersEventType} from "../../../models/ramblers-walks-manager.model";
 import { Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { CommitteeFile, GroupEventSummary, Notification, NotificationItem } from "../../../models/committee.model";
@@ -94,6 +95,7 @@ export class CommitteeNotificationDetailsComponent implements OnInit, OnDestroy 
   private sanitizer = inject(DomSanitizer);
   private subscriptions: Subscription[] = [];
   public group: Organisation;
+  private eventPaths = new Map<RamblersEventType, string>();
 
   betweenEventsDividerHtml(): SafeHtml | null {
     const html = dividerHtml(this.betweenEventsDivider, "0 0 18px 0");
@@ -107,7 +109,13 @@ export class CommitteeNotificationDetailsComponent implements OnInit, OnDestroy 
 
   ngOnInit() {
     this.logger.info("ngOnInit:notification ->", this.notification, "committeeFile ->", this.committeeFile);
-    this.subscriptions.push(this.systemConfigService.events().subscribe(item => this.group = item.group));
+    this.subscriptions.push(this.systemConfigService.events().subscribe(item => {
+      this.group = item.group;
+      this.pageService.eventPagesFor([RamblersEventType.GROUP_WALK, RamblersEventType.WELLBEING_WALK, RamblersEventType.GROUP_EVENT])
+        .then(pages => {
+          this.eventPaths = new Map([...pages].map(([type, page]) => [type, page.href]));
+        }).catch(error => this.logger.error("Could not resolve event navigation pages", error));
+    }));
   }
 
   absolutePageUrl(): string {
@@ -124,7 +132,8 @@ export class CommitteeNotificationDetailsComponent implements OnInit, OnDestroy 
   }
 
   toNotificationItem(event: GroupEventSummary, notification: Notification): NotificationItem {
-    const href = this.display.urlService.linkUrl({area: event.eventType.area, id: event.slug || event.id});
+    const area = this.eventPaths.get(event.ramblersEventType as RamblersEventType) || event.eventType.area;
+    const href = this.display.urlService.publicLinkUrl({area, id: event.slug || event.id});
     const title = "View " + this.stringUtils.asTitle(this.stringUtils.asWords(event.ramblersEventType || event.eventType.eventType || ""));
     const image = notification.groupEventsFilter.includeImage ? {
       alt: title,

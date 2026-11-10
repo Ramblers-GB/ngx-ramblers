@@ -20,6 +20,11 @@ export class StickyControlsDirective implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.resizeObserver?.observe(this.el.nativeElement);
+    const root = this.el.nativeElement.closest(`[${STICKY_OFFSET_ROOT_ATTR}]`);
+    const parentRoot = root?.parentElement?.closest(`[${STICKY_OFFSET_ROOT_ATTR}]`);
+    if (parentRoot) {
+      this.resizeObserver?.observe(parentRoot);
+    }
     this.publishOffset();
   }
 
@@ -44,9 +49,11 @@ export class StickyControlsDirective implements AfterViewInit, OnDestroy {
 
   private publishOffset(heightOverride?: number): void {
     const height = heightOverride ?? Math.ceil(this.el.nativeElement.offsetHeight ?? 0);
-    const nextValue = `${height}px`;
     const root = this.el.nativeElement.closest(`[${STICKY_OFFSET_ROOT_ATTR}]`)
       || this.el.nativeElement.parentElement;
+    const parentRoot = root?.parentElement?.closest(`[${STICKY_OFFSET_ROOT_ATTR}]`);
+    this.top = parentRoot ? Number.parseFloat(getComputedStyle(parentRoot).getPropertyValue(TIPTAP_TOOLBAR_OFFSET_VAR)) || 0 : 0;
+    const nextValue = `${this.top + height}px`;
     if (root?.style.getPropertyValue(TIPTAP_TOOLBAR_OFFSET_VAR) !== nextValue) {
       root?.style.setProperty(TIPTAP_TOOLBAR_OFFSET_VAR, nextValue);
     }
