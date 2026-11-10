@@ -1,3 +1,6 @@
+import { withMailClientTlsConfiguration } from "../../fly/mail-client-tls-config";
+import { booleanOf } from "../../shared/string-utils";
+import { Environment } from "../../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { Command } from "commander";
 import debug from "debug";
 import fs from "fs";
@@ -121,13 +124,16 @@ export async function deployToFlyio(config: FlyDeployConfig, onProgressOrOptions
   };
 
   const runDeployCommand = async (command: string, description: string): Promise<void> => {
-    if (onDeployOutput) {
-      report(`${description} (streaming output)...`);
-      await runCommandStreaming(command, onDeployOutput);
-    } else {
-      report(description);
-      await runCommandAsync(command);
-    }
+    await withMailClientTlsConfiguration(getFlyTomlPath(), booleanOf(config.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]), async configurationPath => {
+      const configuredCommand = command.replace(`--config ${getFlyTomlPath()}`, `--config ${configurationPath}`);
+      if (onDeployOutput) {
+        report(`${description} (streaming output)...`);
+        await runCommandStreaming(configuredCommand, onDeployOutput);
+      } else {
+        report(description);
+        await runCommandAsync(configuredCommand);
+      }
+    });
   };
 
   try {

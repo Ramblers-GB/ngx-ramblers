@@ -11,7 +11,7 @@ import {
   EnvironmentsConfig
 } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { entries } from "../../../projects/ngx-ramblers/src/app/functions/object-utils";
-import { pullMissingSecrets } from "../fly/fly-secrets";
+import { pullAllSecretsFromFly, pullMissingSecrets } from "../fly/fly-secrets";
 import { parseEnvContent } from "./env-parser";
 import { encryptCloudflareConfig } from "../cloudflare/cloudflare-crypto";
 import { encryptJsonConfig } from "./config-crypto";
@@ -346,4 +346,31 @@ export async function resolveSecretsForDeploy(
   const secretsFile = await loadSecretsWithFallback(environmentName, appName);
   const afterPull = ensureRequiredSecrets(appName, secretsFile.secrets || {}, flyApiToken);
   return healMissingRequiredSecrets(environmentName, afterPull, onProgress);
+}
+
+export async function resolveSecretsForMigration(environmentName: string, appName: string, flyApiToken: string): Promise<Record<string, string>> {
+  const original = filterSecretsForSiteFlyDeploy(pullAllSecretsFromFly(appName, flyApiToken));
+  if (!original.AUTH_SECRET) {
+    throw new Error(`Cannot migrate ${environmentName}: the running source app's AUTH_SECRET could not be recovered. Migration will not generate or substitute an encryption key.`);
+  } else {
+    const configured = await loadSecretsWithFallback(environmentName, appName);
+    const secrets = {
+      ...STATIC_SECRET_DEFAULTS,
+      ...original,
+      ...configured.secrets,
+      AUTH_SECRET: original.AUTH_SECRET,
+      MAIL_CLIENT_NATIVE_TLS: original.MAIL_CLIENT_NATIVE_TLS || "false"
+    };
+    const missing = REQUIRED_SECRETS.filter(key => !secrets[key]);
+    if (missing.length > 0) {
+      throw new Error(`Cannot migrate ${environmentName}: missing required source secrets [${missing.join(", ")}]. The source app has not been changed.`);
+    } else {
+      const { persistEnvironmentSecret } = await import("../environments/environments-config");
+      for (const key of keys(original).filter(key => key !== "MAIL_CLIENT_NATIVE_TLS" && (!configured.secrets[key] || key === "AUTH_SECRET"))) {
+        await persistEnvironmentSecret(environmentName, key, secrets[key]);
+      }
+      await persistEnvironmentSecret(environmentName, "MAIL_CLIENT_NATIVE_TLS", secrets.MAIL_CLIENT_NATIVE_TLS);
+      return secrets;
+    }
+  }
 }

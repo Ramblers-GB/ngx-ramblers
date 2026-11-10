@@ -56,3 +56,42 @@ describe("classifyMissingRequiredSecrets", () => {
   });
 
 });
+
+describe("migration encryption key preservation", () => {
+  it("stops before reading or changing configuration when the source key cannot be recovered", async () => {
+    const sinon = await import("sinon");
+    const fly = await import("../fly/fly-secrets");
+    const environments = await import("../environments/environments-config");
+    const {resolveSecretsForMigration} = await import("./secrets");
+    const sandbox = sinon.createSandbox();
+    const source = sandbox.stub(fly, "pullAllSecretsFromFly").returns({});
+    const persist = sandbox.stub(environments, "persistEnvironmentSecret").resolves();
+    try {
+      await expect(resolveSecretsForMigration("fictional-group", "fictional-app", "fictional-token")).rejects.toThrow("will not generate or substitute an encryption key");
+      expect(source.calledOnce).toBe(true);
+      expect(persist.called).toBe(false);
+    } finally {
+      sandbox.restore();
+    }
+  });
+});
+
+it("preserves the running source encryption key and native mail TLS mode over stale saved settings", async () => {
+  const sinon = await import("sinon");
+  const fly = await import("../fly/fly-secrets");
+  const environments = await import("../environments/environments-config");
+  const {resolveSecretsForMigration} = await import("./secrets");
+  const sandbox = sinon.createSandbox();
+  sandbox.stub(fly, "pullAllSecretsFromFly").returns({AUTH_SECRET: "original-encryption-key", MAIL_CLIENT_NATIVE_TLS: "true"});
+  sandbox.stub(environments, "environmentsConfigFromDatabase").resolves({environments: [{environment: "fictional-group", secrets: {...allRequiredSecrets(), MAIL_CLIENT_NATIVE_TLS: "false"}}]} as any);
+  const persist = sandbox.stub(environments, "persistEnvironmentSecret").resolves();
+  try {
+    const resolved = await resolveSecretsForMigration("fictional-group", "fictional-app", "fictional-token");
+    expect(resolved.AUTH_SECRET).toBe("original-encryption-key");
+    expect(resolved.MAIL_CLIENT_NATIVE_TLS).toBe("true");
+    expect(persist.calledWithExactly("fictional-group", "AUTH_SECRET", "original-encryption-key")).toBe(true);
+    expect(persist.calledWithExactly("fictional-group", "MAIL_CLIENT_NATIVE_TLS", "true")).toBe(true);
+  } finally {
+    sandbox.restore();
+  }
+});

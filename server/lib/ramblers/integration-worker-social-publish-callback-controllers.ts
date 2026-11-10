@@ -87,5 +87,3 @@ function sendToSession(session: SocialPublishSession, message: object): void {
     debugLog("ws.send failed for jobId:", session.jobId, "error:", (wsError as Error).message);
   }
 }
-
-

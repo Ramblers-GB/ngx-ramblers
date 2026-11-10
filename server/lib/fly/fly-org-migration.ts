@@ -10,7 +10,7 @@ import {
   environmentsConfigFromDatabase
 } from "../environments/environments-config";
 import { flyTomlAbsolutePath, runCommand, runCommandStreaming } from "./fly-commands";
-import { resolveSecretsForDeploy, writeSecretsFile } from "../shared/secrets";
+import { resolveSecretsForMigration, writeSecretsFile } from "../shared/secrets";
 import { normaliseMemory } from "../shared/spelling";
 import { dateTimeNowAsValue } from "../shared/dates";
 import { DEPLOYMENT_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
@@ -25,6 +25,9 @@ import { appIpAddresses, queryCertificates } from "./fly-certificates";
 import * as flyPublicIps from "./fly-public-ips";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 import { holdMemoryWatchdogRestart, releaseMemoryWatchdogRestart } from "../health/memory-watchdog";
+import { withMailClientTlsConfiguration } from "./mail-client-tls-config";
+import { booleanOf } from "../shared/string-utils";
+import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 
 const debugLog = debug(envConfig.logNamespace("fly-org-migration"));
 debugLog.enabled = true;
@@ -173,13 +176,15 @@ async function importSecretsAndDeploy(
       }
     }
     report(`Deploying image to ${appName}`);
-    const deployCommand =
-      `flyctl deploy --app ${appName} --config ${flyTomlPath} --image ${dockerImage} --strategy rolling --wait-timeout 600`;
-    if (options.onDeployOutput) {
-      await runCommandStreaming(deployCommand, options.onDeployOutput);
-    } else {
-      runCommand(deployCommand);
-    }
+    await withMailClientTlsConfiguration(flyTomlPath, booleanOf(secrets[Environment.MAIL_CLIENT_NATIVE_TLS]), async configurationPath => {
+      const deployCommand =
+        `flyctl deploy --app ${appName} --config ${configurationPath} --image ${dockerImage} --strategy rolling --wait-timeout 600`;
+      if (options.onDeployOutput) {
+        await runCommandStreaming(deployCommand, options.onDeployOutput);
+      } else {
+        runCommand(deployCommand);
+      }
+    });
     report(`Scaling ${appName}`);
     runCommand(`flyctl scale count ${scaleCount} --app ${appName} --yes`);
     runCommand(`flyctl scale memory ${memory} --app ${appName}`);
@@ -724,11 +729,10 @@ async function migrateFlyOrganisationUnheld(
     }
 
     report("Resolving app secrets for cutover (same path as CLI start)");
-    const secrets = await resolveSecretsForDeploy(
+    const secrets = await resolveSecretsForMigration(
       environmentName,
-      previousAppName,
-      previousApiKey,
-      message => report(message)
+      initialStatus.sourceExistsUnderOld ? previousAppName : initialStatus.cutoverExistsUnderNew ? cutoverAppName : preferredAppName,
+      initialStatus.sourceExistsUnderOld ? previousApiKey : newApiKey
     );
     report("Secrets ready for cutover", SetupStepStatus.Completed);
 

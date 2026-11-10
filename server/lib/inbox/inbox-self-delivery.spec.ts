@@ -65,6 +65,7 @@ describe("self-addressed inbox delivery", () => {
   });
 
   it("preserves an incoming copy when the sent record arrives afterwards", async () => {
+    sandbox.stub(inboxMessage, "find").returns({lean: async () => []} as any);
     sandbox.stub(inboxMessage, "findOne").returns({lean: async () => null} as any);
     const create = sandbox.stub(inboxMessage, "create").resolves({toObject: () => ({...received, direction: InboxMessageDirection.OUTBOUND})} as any);
     const updateMessage = sandbox.stub(inboxMessage, "updateOne");

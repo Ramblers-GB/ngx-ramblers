@@ -50,4 +50,3 @@ describe("facebook recent posts image counts", () => {
     expect(imageCountFor(post, {"album-2": 86})).toEqual(86);
   });
 });
-
