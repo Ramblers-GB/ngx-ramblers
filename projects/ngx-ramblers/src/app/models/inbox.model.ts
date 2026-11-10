@@ -175,6 +175,10 @@ export function hiddenInboxFolders(): InboxThreadFolder[] {
   return [InboxThreadFolder.JUNK, InboxThreadFolder.DELETED];
 }
 
+export function foldersExcludedFromLiveMatch(): InboxThreadFolder[] {
+  return [...hiddenInboxFolders(), InboxThreadFolder.DRAFTS];
+}
+
 export function foldersExcludedFromInboxList(): InboxThreadFolder[] {
   return [InboxThreadFolder.JUNK, InboxThreadFolder.DELETED, InboxThreadFolder.SENT, InboxThreadFolder.DRAFTS];
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldersExcludedFromInboxList, hiddenInboxFolders, InboxMessage, InboxMessageDirection, InboxReplyComposeResponse, InboxThread, InboxThreadFolder } from "../models/inbox.model";
+import { foldersExcludedFromInboxList, foldersExcludedFromLiveMatch, hiddenInboxFolders, InboxMessage, InboxMessageDirection, InboxReplyComposeResponse, InboxThread, InboxThreadFolder } from "../models/inbox.model";
 import {
   collapseInboxSends,
   inboxFolderMovedToTrash,
@@ -457,6 +457,14 @@ describe("hiddenInboxFolders", () => {
       InboxThreadFolder.JUNK,
       InboxThreadFolder.DELETED,
       InboxThreadFolder.SENT,
+      InboxThreadFolder.DRAFTS
+    ]);
+  });
+
+  it("keeps junk, deleted and drafts out of live conversation matching and Sent", () => {
+    expect(foldersExcludedFromLiveMatch()).toEqual([
+      InboxThreadFolder.JUNK,
+      InboxThreadFolder.DELETED,
       InboxThreadFolder.DRAFTS
     ]);
   });

@@ -56,8 +56,8 @@ describe("IMAP mailbox membership", () => {
     expect(imapMessageMailboxes(thread, {...message, direction: InboxMessageDirection.OUTBOUND, autoReply: true})).toEqual([inbox]);
   });
 
-  it("keeps junk and deleted conversations out of Sent", () => {
-    [InboxThreadFolder.JUNK, InboxThreadFolder.DELETED].forEach(folder => {
+  it("keeps drafts, junk and deleted conversations out of Sent", () => {
+    [InboxThreadFolder.DRAFTS, InboxThreadFolder.JUNK, InboxThreadFolder.DELETED].forEach(folder => {
       expect(imapMessageMailboxes({...thread, folder}, {...message, direction: InboxMessageDirection.OUTBOUND})).toEqual([{...inbox, folder}]);
     });
   });

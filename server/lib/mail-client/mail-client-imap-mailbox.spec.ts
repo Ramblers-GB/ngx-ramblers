@@ -12,7 +12,7 @@ import {MailClientUidMailboxRecord} from "./mail-client-imap-uid.model";
 import {InboxMessage, InboxThread} from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 import { CommitteeMember } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { Member } from "../../../projects/ngx-ramblers/src/app/models/member.model";
-import { foldersExcludedFromInboxList, InboxMessageDirection, InboxThreadFolder } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
+import { foldersExcludedFromInboxList, foldersExcludedFromLiveMatch, InboxMessageDirection, InboxThreadFolder } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 
 const role = {type: "chair"} as CommitteeMember;
 const member = {id: "member-1"} as Member;
@@ -158,7 +158,7 @@ describe("mail application mailbox contents", () => {
     const messages = threads.map((thread, index) => ({_id: `message-${index}`, threadId: thread._id, messageId: `<sent-${index}@group.example.org.uk>`, direction: InboxMessageDirection.OUTBOUND}));
     const messageFind = sandbox.stub(inboxMessage, "find").returns({select: () => ({sort: () => ({lean: async () => messages})})} as any);
     const result = await messagesInMailbox(role, {name: "Sent", folder: InboxThreadFolder.SENT, userFolderId: null}, member);
-    expect(threadFind.firstCall.args[0]).toMatchObject({roleType: "chair", folder: {$nin: [InboxThreadFolder.JUNK, InboxThreadFolder.DELETED]}});
+    expect(threadFind.firstCall.args[0]).toMatchObject({roleType: "chair", folder: {$nin: foldersExcludedFromLiveMatch()}});
     expect(messageFind.firstCall.args[0]).toEqual({threadId: {$in: ["thread-1", "thread-2"]}, direction: InboxMessageDirection.OUTBOUND, autoReply: {$ne: true}});
     expect(result.map(entry => entry.message.messageId)).toEqual(messages.map(message => message.messageId));
     expect(result.map(entry => entry.seq)).toEqual([1, 2]);

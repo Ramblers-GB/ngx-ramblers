@@ -5,7 +5,7 @@ import { envConfig } from "../env-config/env-config";
 import { defaultTenantSlug } from "../inbox/inbox-aliases";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
 import { CommitteeConfig } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
-import { foldersExcludedFromInboxList, hiddenInboxFolders, InboxMessage, InboxMessageDirection, InboxThread, InboxThreadFolder, InboxUserFolder } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
+import { foldersExcludedFromInboxList, foldersExcludedFromLiveMatch, InboxMessage, InboxMessageDirection, InboxThread, InboxThreadFolder, InboxUserFolder } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 import { CONFIG_COLLECTION, INBOX_FOLDERS_COLLECTION, INBOX_MESSAGES_COLLECTION, INBOX_THREADS_COLLECTION } from "../mongo/migrations/shared/collection-names";
 import { IMAP_SHARED_FOLDER_ROLE, MailClientUidCounter, MailClientUidMailbox, MailClientUidMailboxRecord, MailClientUidMembership, MailClientUidState } from "./mail-client-imap-uid.model";
 
@@ -45,7 +45,7 @@ export function imapMessageMailboxes(thread: InboxThread, message: InboxMessage)
     : thread.userFolderId
       ? [{tenantSlug: thread.tenantSlug, roleType: IMAP_SHARED_FOLDER_ROLE, folder: null, userFolderId: thread.userFolderId}]
       : [{...scope, folder: InboxThreadFolder.INBOX, userFolderId: null}];
-  const inSent = !hiddenInboxFolders().includes(folder) && sentMessage;
+  const inSent = !foldersExcludedFromLiveMatch().includes(folder) && sentMessage;
   return inSent && folder !== InboxThreadFolder.SENT ? location.concat({...scope, folder: InboxThreadFolder.SENT, userFolderId: null}) : location;
 }
 

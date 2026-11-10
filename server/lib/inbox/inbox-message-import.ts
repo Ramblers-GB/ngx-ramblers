@@ -9,7 +9,7 @@ import {
   InboxMessageDirection,
   InboxNewMessageEvent,
   InboxThread,
-  hiddenInboxFolders,
+  foldersExcludedFromLiveMatch,
   InboxThreadFolder,
   isInboxGeneralRoleType
 } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
@@ -598,7 +598,7 @@ async function persistOutboundOnThread(aliasConfig: InboxAliasConfig, replyMessa
 async function findExistingThread(aliasConfig: InboxAliasConfig, message: InboxMessage, folder: InboxThreadFolder, counterparty?: InboxAddress): Promise<InboxThread | null> {
   const folderFilter = folder === InboxThreadFolder.JUNK || folder === InboxThreadFolder.DELETED
     ? {folder}
-    : {folder: {$nin: hiddenInboxFolders()}};
+    : {folder: {$nin: foldersExcludedFromLiveMatch()}};
   if (message.conversationKey) {
     const threadByKey = await inboxThreadModel.findOne({
       tenantSlug: aliasConfig.tenantSlug,

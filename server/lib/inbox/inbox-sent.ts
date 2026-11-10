@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-import { hiddenInboxFolders, InboxAddress, InboxMessage, InboxMessageDirection, InboxThread } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
+import { foldersExcludedFromLiveMatch, InboxAddress, InboxMessage, InboxMessageDirection, InboxThread } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 import { inboxThreadId } from "../../../projects/ngx-ramblers/src/app/functions/inbox-thread";
 
 export interface SentMessageRowsResult {
@@ -12,7 +12,7 @@ export function sentMessageFilter(): Record<string, unknown> {
 }
 
 export function sentFolderFilter(): Record<string, unknown> {
-  return {$nin: hiddenInboxFolders()};
+  return {$nin: foldersExcludedFromLiveMatch()};
 }
 
 export function sentThreadObjectIds(threadIds: string[]): Types.ObjectId[] {

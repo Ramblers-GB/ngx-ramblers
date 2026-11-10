@@ -59,9 +59,51 @@ describe("self-addressed inbox delivery", () => {
     });
     expect((await storeInboundMessage(alias, received, InboxThreadFolder.INBOX, internalEmails)).direction).toBe(InboxMessageDirection.INBOUND);
     expect(updates.args.some(([, update]: any) => update.$set?.folder === InboxThreadFolder.INBOX && update.$set?.unread === true)).toBe(true);
+    expect((inboxThread.findOne as sinon.SinonStub).args.every(([query]) => query.folder.$nin.includes(InboxThreadFolder.DRAFTS))).toBe(true);
     await storeInboundMessage(alias, received, InboxThreadFolder.INBOX, internalEmails);
     expect(create.callCount).toBe(1);
     expect(stored.map(item => item.direction)).toEqual([InboxMessageDirection.OUTBOUND, InboxMessageDirection.INBOUND]);
+  });
+
+  it("does not file incoming mail onto a matching draft conversation", async () => {
+    const incoming = {
+      ...received,
+      messageId: "incoming-walk@example.com",
+      from: {name: "Jane Member", email: "jane@example.com"},
+      to: [roleAddress],
+      subject: "Walk notes",
+      inReplyTo: null,
+      references: []
+    } as InboxMessage;
+    sandbox.stub(deleted, "isRecordedDeletedInbound").resolves(false);
+    sandbox.stub(config, "queryKey").resolves(null);
+    sandbox.stub(broadcaster, "broadcast");
+    sandbox.stub(inboxThread, "aggregate").resolves([]);
+    sandbox.stub(inboxThread, "findById").returns({lean: async () => null} as any);
+    sandbox.stub(inboxThread, "findOne").callsFake((query: {folder?: {$nin?: InboxThreadFolder[]}}) => {
+      if ((query.folder?.$nin ?? []).includes(InboxThreadFolder.DRAFTS)) {
+        return Promise.resolve(null);
+      } else {
+        return Promise.resolve({
+          toObject: () => ({id: "draft-thread", folder: InboxThreadFolder.DRAFTS, roleType: alias.roleType, lastSeenAt: 500})
+        });
+      }
+    });
+    const created = sandbox.stub(inboxThread, "create").resolves({
+      _id: "inbox-thread",
+      toObject: () => ({id: "inbox-thread", folder: InboxThreadFolder.INBOX, roleType: alias.roleType})
+    } as any);
+    sandbox.stub(inboxMessage, "findOne").returns({lean: async () => null} as any);
+    sandbox.stub(inboxMessage, "create").resolves({
+      threadId: "inbox-thread",
+      toObject: () => ({...incoming, threadId: "inbox-thread", direction: InboxMessageDirection.INBOUND})
+    } as any);
+    sandbox.stub(inboxThread, "updateOne").resolves({} as any);
+    const stored = await storeInboundMessage(alias, incoming, InboxThreadFolder.INBOX, internalEmails);
+    expect(created.calledOnce).toBe(true);
+    expect(created.firstCall.args[0].folder).toBe(InboxThreadFolder.INBOX);
+    expect(stored.threadId).toBe("inbox-thread");
+    expect((inboxThread.findOne as sinon.SinonStub).args.every(([query]) => query.folder?.$nin?.includes(InboxThreadFolder.DRAFTS))).toBe(true);
   });
 
   it("preserves an incoming copy when the sent record arrives afterwards", async () => {
