@@ -310,10 +310,7 @@ export async function handleMailClientImapCommand(session: ImapSession, tag: str
       if (!session.idleRefreshPending && session.idleTag) {
         session.idleRefreshPending = true;
         session.pending = (session.pending ?? Promise.resolve()).then(() => session.idleTag ? refreshSelectedMailbox(session) : null).catch(error => {
-          sessionLog(session, "IMAP synchronisation failed", error);
-          stopIdle(session);
-          write(session, "* BYE synchronisation failed");
-          session.socket.end();
+          sessionLog(session, "IMAP idle refresh failed", error);
         }).finally(() => session.idleRefreshPending = false);
       }
     }, 5000);
@@ -369,17 +366,21 @@ async function authenticatePlain(session: ImapSession, tag: string, encoded: str
 
 async function refreshSelectedMailbox(session: ImapSession): Promise<void> {
   if (session.selected && session.role && session.member) {
-    const fresh = await messagesInMailbox(session.role, session.selected, session.member);
-    const previous = new Map(session.messages.map(message => [message.uid, message]));
-    const previousCount = session.messages.length;
-    const freshUids = new Set(fresh.map(message => message.uid));
-    session.messages.filter(message => !freshUids.has(message.uid)).reverse().forEach(message => write(session, `* ${message.seq} EXPUNGE`));
-    const flags = new Map(session.messages.map(message => [message.uid, message.deleted]));
-    session.messages = fresh.map((message, index) => ({...message, seq: index + 1, deleted: flags.get(message.uid) ?? false}));
-    if (previousCount !== session.messages.length || session.messages.some(message => !previous.has(message.uid))) {
-      write(session, `* ${session.messages.length} EXISTS`);
+    try {
+      const fresh = await messagesInMailbox(session.role, session.selected, session.member);
+      const previous = new Map(session.messages.map(message => [message.uid, message]));
+      const previousCount = session.messages.length;
+      const freshUids = new Set(fresh.map(message => message.uid));
+      session.messages.filter(message => !freshUids.has(message.uid)).reverse().forEach(message => write(session, `* ${message.seq} EXPUNGE`));
+      const flags = new Map(session.messages.map(message => [message.uid, message.deleted]));
+      session.messages = fresh.map((message, index) => ({...message, seq: index + 1, deleted: flags.get(message.uid) ?? false}));
+      if (previousCount !== session.messages.length || session.messages.some(message => !previous.has(message.uid))) {
+        write(session, `* ${session.messages.length} EXISTS`);
+      }
+      session.messages.filter(message => !previous.has(message.uid) || previous.get(message.uid).seen !== message.seen || previous.get(message.uid).deleted !== message.deleted).forEach(message => write(session, `* ${message.seq} FETCH (UID ${message.uid} FLAGS (${[message.seen ? "\\Seen" : null, message.deleted ? "\\Deleted" : null].filter(Boolean).join(" ")}))`));
+    } catch (error) {
+      sessionLog(session, "IMAP mailbox refresh failed", error);
     }
-    session.messages.filter(message => !previous.has(message.uid) || previous.get(message.uid).seen !== message.seen || previous.get(message.uid).deleted !== message.deleted).forEach(message => write(session, `* ${message.seq} FETCH (UID ${message.uid} FLAGS (${[message.seen ? "\\Seen" : null, message.deleted ? "\\Deleted" : null].filter(Boolean).join(" ")}))`));
   }
 }
 
@@ -394,31 +395,36 @@ async function expungeMessages(session: ImapSession, uidSet: string | null = nul
 }
 
 async function login(session: ImapSession, tag: string, args: string): Promise<void> {
-  if (!(await mailClientAccessEnabled())) {
-    write(session, `${tag} NO Mail application access is switched off`);
-  } else {
-    const [username, password] = splitQuoted(args);
-    sessionLog(session, "IMAP LOGIN user", username);
-    const member = await authenticateMailClient(username, password);
-    if (!member) {
-      sessionLog(session, "IMAP LOGIN failed", username);
-      write(session, `${tag} NO LOGIN failed`);
+  try {
+    if (!(await mailClientAccessEnabled())) {
+      write(session, `${tag} NO Mail application access is switched off`);
     } else {
-      const roles = await committeeRolesForMember(member);
-      const role = selectedRoleForUsername(roles, username);
-      if (!role) {
-        sessionLog(session, "IMAP LOGIN no role mailbox", username);
-        write(session, `${tag} NO no committee role mailbox for this account`);
+      const [username, password] = splitQuoted(args);
+      sessionLog(session, "IMAP LOGIN user", username);
+      const member = await authenticateMailClient(username, password);
+      if (!member) {
+        sessionLog(session, "IMAP LOGIN failed", username);
+        write(session, `${tag} NO LOGIN failed`);
       } else {
-        sessionLog(session, "IMAP LOGIN ok", username, role.type);
-        session.member = member;
-        session.username = username;
-        session.role = role;
-        session.mailboxes = await listMailboxes();
-        write(session, `* CAPABILITY ${imapCapabilities()}`);
-        write(session, `${tag} OK LOGIN completed`);
+        const roles = await committeeRolesForMember(member);
+        const role = selectedRoleForUsername(roles, username);
+        if (!role) {
+          sessionLog(session, "IMAP LOGIN no role mailbox", username);
+          write(session, `${tag} NO no committee role mailbox for this account`);
+        } else {
+          sessionLog(session, "IMAP LOGIN ok", username, role.type);
+          session.member = member;
+          session.username = username;
+          session.role = role;
+          session.mailboxes = await listMailboxes();
+          write(session, `* CAPABILITY ${imapCapabilities()}`);
+          write(session, `${tag} OK LOGIN completed`);
+        }
       }
     }
+  } catch (error) {
+    sessionLog(session, "IMAP LOGIN unavailable", (error as Error).message);
+    write(session, `${tag} NO [UNAVAILABLE] try again later`);
   }
 }
 

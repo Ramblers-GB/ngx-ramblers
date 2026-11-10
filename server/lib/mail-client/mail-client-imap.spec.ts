@@ -411,6 +411,42 @@ describe("mail application IMAP commands", () => {
     expect(outputOf(write)).toContain("a1 NO mailbox is read-only");
   });
 
+  it("keeps the session open when a mailbox refresh fails", async () => {
+    const write = sandbox.spy();
+    const session = sessionFor(write);
+    sandbox.stub(mailboxSource, "messagesInMailbox").rejects(new Error("MongoServerError: buffering timed out"));
+    await handleMailClientImapCommand(session, "a1", "NOOP", "");
+    expect(outputOf(write)).toContain("a1 OK NOOP completed");
+    expect(outputOf(write)).not.toContain("BYE");
+    expect(outputOf(write)).not.toContain("LOGIN failed");
+  });
+
+  it("keeps idling after a failed background refresh instead of asking the client to sign in again", async () => {
+    const clock = sandbox.useFakeTimers();
+    const write = sandbox.spy();
+    const session = sessionFor(write);
+    const contents = sandbox.stub(mailboxSource, "messagesInMailbox").resolves(session.messages);
+    await handleMailClientImapCommand(session, "a1", "IDLE", "");
+    contents.rejects(new Error("MongoServerError: buffering timed out"));
+    clock.tick(5000);
+    await session.pending;
+    expect(session.idleTag).toBe("a1");
+    expect(outputOf(write)).not.toContain("BYE");
+    await handleLine(session, "DONE");
+    expect(outputOf(write)).toContain("a1 OK IDLE completed");
+  });
+
+  it("does not report a failed login when authentication cannot reach the database", async () => {
+    const write = sandbox.spy();
+    const session = sessionFor(write);
+    session.member = null;
+    sandbox.stub(access, "mailClientAccessEnabled").resolves(true);
+    sandbox.stub(credentials, "authenticateMailClient").rejects(new Error("MongoServerError: buffering timed out"));
+    await handleMailClientImapCommand(session, "a1", "LOGIN", "\"chair@group.example.org.uk\" \"application-password\"");
+    expect(outputOf(write)).toContain("a1 NO [UNAVAILABLE] try again later");
+    expect(outputOf(write)).not.toContain("LOGIN failed");
+  });
+
   it("refreshes arrivals and removals on NOOP", async () => {
     const write = sandbox.spy();
     const session = sessionFor(write);
