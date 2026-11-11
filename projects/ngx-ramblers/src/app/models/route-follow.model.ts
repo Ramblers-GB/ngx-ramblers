@@ -296,6 +296,9 @@ export interface RouteFollowSession {
   mapBearing?: number;
   showDirections?: boolean;
   browsedWaypointId?: string | null;
+  pendingNetworkSave?: boolean;
+  pendingSaveAsNew?: boolean;
+  saveAsNewRecordingId?: string | null;
 }
 
 export function isLiveFollowMode(mode: RouteFollowMode): boolean {

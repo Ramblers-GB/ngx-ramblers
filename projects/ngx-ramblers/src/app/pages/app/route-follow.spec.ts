@@ -209,7 +209,11 @@ describe("route follow failed recording upload", () => {
       flushRecording: async () => true,
       pause: () => view["progress"] = {...view["progress"], mode: RouteFollowMode.PAUSED}
     } as unknown as typeof view["followService"];
-    view["routeSave"] = {save: vi.fn().mockRejectedValue(new Error("Network unavailable")), saveStandalone: vi.fn().mockRejectedValue(new Error("Network unavailable"))} as unknown as typeof view["routeSave"];
+    view["routeSave"] = {
+      save: vi.fn().mockRejectedValue(new Error("Network unavailable")),
+      saveStandalone: vi.fn().mockRejectedValue(new Error("Network unavailable")),
+      queueWebsiteSave: vi.fn()
+    } as unknown as typeof view["routeSave"];
     view["logger"] = {error: vi.fn()} as unknown as typeof view["logger"];
     view["persistFollowSession"] = vi.fn();
     view["clearFollowSession"] = vi.fn();
@@ -218,8 +222,34 @@ describe("route follow failed recording upload", () => {
     expect(view["followService"].trackPoints()).toEqual(points);
     expect(view["persistFollowSession"]).toHaveBeenCalledWith(true);
     expect(view["clearFollowSession"]).not.toHaveBeenCalled();
-    expect(view["persistError"]).toBeTruthy();
+    expect(view["persistError"]).toBeNull();
+    expect(view["persistMessage"]).toContain("when the network returns");
+    expect(view["pendingNetworkSave"]).toBe(true);
+    expect(view["routeSave"].queueWebsiteSave).toHaveBeenCalled();
     expect(view["savingRoute"]).toBe(false);
+  });
+
+  it("retries a queued Save as new with the stored recording id", async () => {
+    const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
+    view["pendingNetworkSave"] = true;
+    view["pendingSaveAsNew"] = true;
+    view["savingRoute"] = false;
+    view.saveRoute = vi.fn().mockResolvedValue(undefined);
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    view["retryPendingNetworkSave"]();
+    expect(view.saveRoute).toHaveBeenCalledWith(true);
+    online.mockRestore();
+  });
+
+  it("retries a queued save when the network returns", async () => {
+    const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
+    view["pendingNetworkSave"] = true;
+    view["savingRoute"] = false;
+    view.saveRoute = vi.fn().mockResolvedValue(undefined);
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    view["retryPendingNetworkSave"]();
+    expect(view.saveRoute).toHaveBeenCalledWith(false);
+    online.mockRestore();
   });
 });
 

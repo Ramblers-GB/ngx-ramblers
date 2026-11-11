@@ -1,6 +1,6 @@
-import { inject, Injectable } from "@angular/core";
+import { inject, Injectable, OnDestroy } from "@angular/core";
 import { firstValueFrom } from "rxjs";
-import { isNumber } from "es-toolkit/compat";
+import { isEqual, isNumber } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
 import { FileNameData } from "../../models/aws-object.model";
 import { MapMarker, MapRoute, PageContent } from "../../models/content-text.model";
@@ -9,29 +9,149 @@ import { ExtendedGroupEvent } from "../../models/group-event.model";
 import {
   RouteFollowPayload,
   RouteFollowPoint,
+  RouteFollowSession,
   RouteFollowSource
 } from "../../models/route-follow.model";
 import { generateUid } from "../../functions/numbers";
+import { StoredValue } from "../../models/ui-actions.model";
 import { DateUtilsService } from "../date-utils.service";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { PageContentService } from "../page-content.service";
+import { UiActionsService } from "../ui-actions.service";
 import { WalksAndEventsService } from "../walks-and-events/walks-and-events.service";
 import { WalkGpxService } from "../walks/walk-gpx.service";
+import { RouteFollowCacheService } from "./route-follow-cache.service";
 import { RouteFollowPayloadService } from "./route-follow-payload.service";
 import { OsMapsExportService } from "./os-maps-export.service";
 import { escapeHtml, toSlug } from "../../functions/strings";
 
+interface QueuedWebsiteSave {
+  payload: RouteFollowPayload;
+  points: RouteFollowPoint[];
+  asNew: boolean;
+  saveAsNewRecordingId: string | null;
+}
+
 @Injectable({
   providedIn: "root"
 })
-export class RouteFollowSaveService {
+export class RouteFollowSaveService implements OnDestroy {
   private dateUtils = inject(DateUtilsService);
   private walkGpx = inject(WalkGpxService);
   private walksAndEvents = inject(WalksAndEventsService);
   private pageContent = inject(PageContentService);
   private payloadService = inject(RouteFollowPayloadService);
   private osMapsExport = inject(OsMapsExportService);
+  private uiActions = inject(UiActionsService);
+  private followCache = inject(RouteFollowCacheService);
   private logger = inject(LoggerFactory).createLogger("RouteFollowSaveService", NgxLoggerLevel.ERROR);
+  private queued: QueuedWebsiteSave | null = null;
+  private flushing = false;
+  private followScreenOpen = false;
+  private online = () => void this.flushQueuedWebsiteSave();
+
+  constructor() {
+    window.addEventListener("online", this.online);
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener("online", this.online);
+  }
+
+  setFollowScreenOpen(open: boolean): void {
+    this.followScreenOpen = open;
+  }
+
+  queueWebsiteSave(payload: RouteFollowPayload, points: RouteFollowPoint[], asNew = false, saveAsNewRecordingId: string | null = null): void {
+    this.queued = JSON.parse(JSON.stringify({payload, points, asNew, saveAsNewRecordingId}));
+    void this.flushQueuedWebsiteSave();
+  }
+
+  clearQueuedWebsiteSave(): void {
+    this.queued = null;
+  }
+
+  async flushQueuedWebsiteSave(): Promise<boolean> {
+    const job = this.queued || this.jobFromSession();
+    if (!job || this.flushing || this.followScreenOpen || !navigator.onLine) {
+      return false;
+    } else {
+      this.flushing = true;
+      const inFlight = job;
+      this.queued = job;
+      try {
+        const saved = job.asNew
+          ? await this.saveAsNew(job.payload, job.points, job.saveAsNewRecordingId || generateUid())
+          : job.payload.source === RouteFollowSource.RECORDING
+            ? await this.saveStandalone(job.payload, job.points)
+            : {...job.payload, points: job.points, gpxFile: await this.save(job.payload, job.points)};
+        try {
+          await this.followCache.savePayload(saved);
+        } catch (error) {
+          this.logger.warn("Queued website save could not be cached locally", error);
+        }
+        this.completeQueuedSave(inFlight);
+        return true;
+      } catch (error) {
+        this.logger.error("Queued website save failed", error);
+        return false;
+      } finally {
+        this.flushing = false;
+      }
+    }
+  }
+
+  private completeQueuedSave(inFlight: QueuedWebsiteSave): void {
+    if (this.queued === inFlight) {
+      this.queued = null;
+    }
+    if (this.sessionMatchesJob(inFlight)) {
+      this.clearPendingSession();
+    }
+  }
+
+  private sessionMatchesJob(job: QueuedWebsiteSave): boolean {
+    try {
+      if (!this.uiActions.itemExistsFor(StoredValue.FOLLOW_SESSION)) {
+        return false;
+      } else {
+        const session = this.uiActions.initialObjectValueFor<RouteFollowSession>(StoredValue.FOLLOW_SESSION, null);
+        const points = session?.recordedPoints || [];
+        return !!session?.pendingNetworkSave
+          && !!session.payload
+          && !!session.pendingSaveAsNew === job.asNew
+          && (session.saveAsNewRecordingId || null) === job.saveAsNewRecordingId
+          && isEqual(session.payload, job.payload)
+          && isEqual(points, job.points);
+      }
+    } catch (error) {
+      this.logger.warn("Queued website save session unavailable", error);
+      return false;
+    }
+  }
+
+  private jobFromSession(): QueuedWebsiteSave | null {
+    try {
+      if (!this.uiActions.itemExistsFor(StoredValue.FOLLOW_SESSION)) {
+        return null;
+      } else {
+        const session = this.uiActions.initialObjectValueFor<RouteFollowSession>(StoredValue.FOLLOW_SESSION, null);
+        const points = session?.recordedPoints || [];
+        if (session?.pendingNetworkSave && session.payload && points.length >= 2) {
+          return {payload: session.payload, points, asNew: !!session.pendingSaveAsNew, saveAsNewRecordingId: session.saveAsNewRecordingId || null};
+        } else {
+          return null;
+        }
+      }
+    } catch (error) {
+      this.logger.warn("Queued website save session unavailable", error);
+      return null;
+    }
+  }
+
+  private clearPendingSession(): void {
+    this.uiActions.removeItemFor(StoredValue.FOLLOW_SESSION);
+  }
 
   canPersist(payload: RouteFollowPayload | null): boolean {
     if (!payload) {

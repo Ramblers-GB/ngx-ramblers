@@ -53,6 +53,7 @@ import { PageContentService } from "../../services/page-content.service";
 import { RouteFollowPayloadService } from "../../services/maps/route-follow-payload.service";
 import { RamblersLibraryRouteService } from "../../services/maps/ramblers-library-route.service";
 import { RouteFollowCacheService } from "../../services/maps/route-follow-cache.service";
+import { RouteFollowSaveService } from "../../services/maps/route-follow-save.service";
 import { AppHomeListCacheService } from "../../services/maps/app-home-list-cache.service";
 import { RouteListPreferencesService } from "../../services/maps/route-list-preferences.service";
 import { RouteMapActionsComponent } from "../../modules/common/route-map-actions";
@@ -699,6 +700,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
   private currentLocation = inject(CurrentLocationService);
   private nearby = inject(RouteNearbyService);
   private followCache = inject(RouteFollowCacheService);
+  private routeSave = inject(RouteFollowSaveService);
   private listCache = inject(AppHomeListCacheService);
   protected listPreferences = inject(RouteListPreferencesService);
   private router = inject(Router);
@@ -968,6 +970,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
     if (!coldLaunch || !this.resumeActiveFollowSession()) {
       void this.load();
     }
+    void this.flushQueuedWebsiteSave();
     }
   }
 
@@ -1571,6 +1574,14 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
       const key = followCacheKey(route);
       return list.findIndex(item => followCacheKey(item) === key) === index;
     });
+  }
+
+  private async flushQueuedWebsiteSave(): Promise<void> {
+    const saved = await this.routeSave.flushQueuedWebsiteSave();
+    if (saved) {
+      this.activeSession = this.activeFollowSession();
+      void this.load();
+    }
   }
 
   private async load(): Promise<void> {

@@ -999,7 +999,8 @@
 .follow-actions > .follow-actions-span
   grid-column: 1 / -1
 
-.follow-actions:not(:has(.follow-actions-span)) > .btn:last-child:nth-child(odd)
+.follow-actions:not(:has(.follow-actions-span)) > .btn:last-child:nth-child(odd),
+.follow-actions:has(.follow-actions-span) > .btn:last-child:nth-child(even)
   grid-column: 1 / -1
 
 .follow-sheet .alert

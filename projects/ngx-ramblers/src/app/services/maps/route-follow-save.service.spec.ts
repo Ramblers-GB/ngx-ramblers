@@ -4,18 +4,27 @@ import { provideHttpClient } from "@angular/common/http";
 import { provideHttpClientTesting } from "@angular/common/http/testing";
 import { of } from "rxjs";
 import { LoggerTestingModule } from "ngx-logger/testing";
-import { RouteFollowSource } from "../../models/route-follow.model";
+import { RouteFollowMode, RouteFollowSource } from "../../models/route-follow.model";
 import { DateUtilsService } from "../date-utils.service";
 import { PageContentService } from "../page-content.service";
+import { UiActionsService } from "../ui-actions.service";
 import { WalksAndEventsService } from "../walks-and-events/walks-and-events.service";
 import { WalkGpxService } from "../walks/walk-gpx.service";
 import { UrlService } from "../url.service";
+import { RouteFollowCacheService } from "./route-follow-cache.service";
 import { RouteFollowPayloadService } from "./route-follow-payload.service";
 import { RouteFollowSaveService } from "./route-follow-save.service";
 import { OsMapsExportService } from "./os-maps-export.service";
+import { StoredValue } from "../../models/ui-actions.model";
 
 describe("RouteFollowSaveService", () => {
   let service: RouteFollowSaveService;
+  const uiActions = {
+    itemExistsFor: vi.fn(() => false),
+    initialObjectValueFor: vi.fn(() => null),
+    removeItemFor: vi.fn()
+  };
+  const followCache = {savePayload: vi.fn(async () => undefined)};
   const savedWalks: {fields?: {routeColor?: string; routeWeight?: number; routeOpacity?: number}}[] = [];
   const walksAndEvents = {
     queryById: async () => ({id: "walk-1", fields: {}, groupEvent: {title: "Walk"}}),
@@ -46,6 +55,10 @@ describe("RouteFollowSaveService", () => {
   };
 
   beforeEach(() => {
+    uiActions.itemExistsFor.mockReturnValue(false);
+    uiActions.initialObjectValueFor.mockReturnValue(null);
+    uiActions.removeItemFor.mockReset();
+    followCache.savePayload.mockClear();
     TestBed.configureTestingModule({
       imports: [LoggerTestingModule],
       providers: [
@@ -61,7 +74,9 @@ describe("RouteFollowSaveService", () => {
           isRemoteUrl: () => false,
           resourceRelativePathForAWSFileName: (name: string) => `/api/aws/s3/${name}`
         }},
-        {provide: OsMapsExportService, useValue: osMapsExport}
+        {provide: OsMapsExportService, useValue: osMapsExport},
+        {provide: UiActionsService, useValue: uiActions},
+        {provide: RouteFollowCacheService, useValue: followCache}
       ]
     });
     service = TestBed.inject(RouteFollowSaveService);
@@ -142,6 +157,103 @@ describe("RouteFollowSaveService", () => {
     const args = walkGpx.importGpxFile.mock.calls.at(-1) as unknown as [File, string, string, string];
     expect(args[3]).toBe("copy-retry-id");
     expect(osMapsExport.saveImportedRoute.mock.calls.at(-1)?.[0]).toBe("recording-fictional-id");
+  });
+
+  it("saves a queued recording to the website when the network returns without the follow screen open", async () => {
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    const payload = TestBed.inject(RouteFollowPayloadService).recordingPayload("fictional-id");
+    payload.title = "Hillside trail";
+    uiActions.itemExistsFor.mockReturnValue(true);
+    uiActions.initialObjectValueFor.mockReturnValue({
+      pendingNetworkSave: true,
+      payload,
+      recordedPoints: points,
+      mode: RouteFollowMode.PAUSED
+    });
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    service.setFollowScreenOpen(false);
+    const saved = await service.flushQueuedWebsiteSave();
+    expect(saved).toBe(true);
+    expect(followCache.savePayload).toHaveBeenCalled();
+    expect(uiActions.removeItemFor).toHaveBeenCalledWith(StoredValue.FOLLOW_SESSION);
+    online.mockRestore();
+  });
+
+  it("retries Save as new from the stored session after a restart", async () => {
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    const payload = {
+      ...TestBed.inject(RouteFollowPayloadService).recordingPayload("original-recording"),
+      source: RouteFollowSource.OS_MAPS,
+      recordingId: null,
+      osMapsRouteId: "original-route",
+      title: "Hillside Park circuit"
+    };
+    uiActions.itemExistsFor.mockReturnValue(true);
+    uiActions.initialObjectValueFor.mockReturnValue({
+      pendingNetworkSave: true,
+      pendingSaveAsNew: true,
+      saveAsNewRecordingId: "copy-retry-id",
+      payload,
+      recordedPoints: points,
+      mode: RouteFollowMode.PAUSED
+    });
+    const saveAsNew = vi.spyOn(service, "saveAsNew");
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    service.setFollowScreenOpen(false);
+    const saved = await service.flushQueuedWebsiteSave();
+    expect(saved).toBe(true);
+    expect(saveAsNew).toHaveBeenCalledWith(payload, points, "copy-retry-id");
+    online.mockRestore();
+    saveAsNew.mockRestore();
+  });
+
+  it("does not upload a stale queued job after the follow screen saved the route", async () => {
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    const payload = TestBed.inject(RouteFollowPayloadService).recordingPayload("fictional-id");
+    payload.title = "Hillside trail";
+    service.setFollowScreenOpen(true);
+    service.queueWebsiteSave(payload, points);
+    const uploads = walkGpx.importGpxFile.mock.calls.length;
+    service.clearQueuedWebsiteSave();
+    service.setFollowScreenOpen(false);
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const saved = await service.flushQueuedWebsiteSave();
+    expect(saved).toBe(false);
+    expect(walkGpx.importGpxFile.mock.calls.length).toBe(uploads);
+    online.mockRestore();
+  });
+
+  it.each(["point", "title"])("keeps a newer follow session when its %s changed during a background save", async (changedField) => {
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    const payload = TestBed.inject(RouteFollowPayloadService).recordingPayload("fictional-id");
+    payload.title = "Hillside trail";
+    service.setFollowScreenOpen(true);
+    service.queueWebsiteSave(payload, points);
+    uiActions.itemExistsFor.mockReturnValue(true);
+    uiActions.initialObjectValueFor.mockReturnValue({
+      pendingNetworkSave: true,
+      payload: changedField === "title" ? {...payload, title: "Updated trail"} : payload,
+      recordedPoints: changedField === "point" ? [points[0], {latitude: 51.002, longitude: 0.002}] : points,
+      mode: RouteFollowMode.PAUSED
+    });
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    service.setFollowScreenOpen(false);
+    const saved = await service.flushQueuedWebsiteSave();
+    expect(saved).toBe(true);
+    expect(uiActions.removeItemFor).not.toHaveBeenCalled();
+    online.mockRestore();
+  });
+
+  it("waits while the follow screen is open so the walker does not have to confirm a second save", async () => {
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    const payload = TestBed.inject(RouteFollowPayloadService).recordingPayload("fictional-id");
+    payload.title = "Hillside trail";
+    service.setFollowScreenOpen(true);
+    service.queueWebsiteSave(payload, points);
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const saved = await service.flushQueuedWebsiteSave();
+    expect(saved).toBe(false);
+    online.mockRestore();
   });
 
   it("rejects unnamed recordings before upload", async () => {

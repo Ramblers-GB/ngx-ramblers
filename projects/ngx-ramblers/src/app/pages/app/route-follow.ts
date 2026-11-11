@@ -1122,6 +1122,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected saveProgress = "";
   protected persistMessage = "";
   protected persistError: string | null = null;
+  private pendingNetworkSave = false;
+  private pendingSaveAsNew = false;
   protected distanceUnit = DistanceUnit.MILES;
   protected readonly distanceUnitTabs: SectionToggleTab[] = [
     {value: DistanceUnit.MILES, label: "Miles"},
@@ -1292,6 +1294,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private pointerMarker: L.Marker | null = null;
 
   ngOnInit(): void {
+    this.routeSave.setFollowScreenOpen(true);
     const storedDistanceUnit = this.uiActions.initialValueFor(StoredValue.DISTANCE_UNIT, DistanceUnit.MILES);
     this.distanceUnit = storedDistanceUnit === DistanceUnit.KILOMETRES ? DistanceUnit.KILOMETRES : DistanceUnit.MILES;
     this.followPanelWide = this.desktopFollowPanel();
@@ -1360,6 +1363,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.sheetAnimation?.cancel();
     this.persistFollowSession(true);
+    this.routeSave.setFollowScreenOpen(false);
+    void this.routeSave.flushQueuedWebsiteSave();
     this.cancelTravel();
     const container = this.mapRef?.getContainer();
     this.mapRef = null;
@@ -1405,7 +1410,13 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
           this.persistError = "You no longer have permission to resume this session.";
         }
       }
+      this.retryPendingNetworkSave();
     }
+  }
+
+  @HostListener("window:online")
+  onNetworkRestored(): void {
+    this.retryPendingNetworkSave();
   }
 
   @HostListener("document:freeze")
@@ -2800,6 +2811,12 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     }
   }
 
+  private retryPendingNetworkSave(): void {
+    if (this.pendingNetworkSave && !this.savingRoute && navigator.onLine) {
+      void this.saveRoute(!!this.pendingSaveAsNew);
+    }
+  }
+
   async saveRoute(asNew = false): Promise<void> {
     const recovered = await this.followService.flushRecording();
     const recorded = this.followService.trackPoints();
@@ -2843,6 +2860,10 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
         void this.releaseWakeLock();
         this.refreshArrows();
         this.redraw();
+        this.pendingNetworkSave = false;
+        this.pendingSaveAsNew = false;
+        this.saveAsNewRecordingId = null;
+        this.routeSave.clearQueuedWebsiteSave();
         this.persistMessage = standalone ? "Route saved in Maps." : "Route saved. The walk and map pages will use this line.";
         if (standalone) {
           try {
@@ -2859,8 +2880,12 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
         void this.saveOffline();
       } catch (error) {
         this.logger.error("saveRoute failed", error);
-        this.persistError = "Your recording is kept on this phone. Check your connection and sign-in, then try saving again.";
-        this.persistMessage = "";
+        this.pendingNetworkSave = true;
+        this.pendingSaveAsNew = asNew;
+        this.persistFollowSession(true);
+        this.persistError = null;
+        this.persistMessage = "This walk is saved on your phone. It will be saved fully to the website when the network returns.";
+        this.routeSave.queueWebsiteSave(this.payload, recorded, asNew, this.saveAsNewRecordingId);
       }
       this.savingRoute = false;
     }
@@ -3375,7 +3400,10 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       browsedWaypointId: this.browsedWaypoint?.id || null,
       payload: this.payload,
       walk: this.loadedWalk,
-      progress: this.progress
+      progress: this.progress,
+      pendingNetworkSave: this.pendingNetworkSave,
+      pendingSaveAsNew: this.pendingSaveAsNew,
+      saveAsNewRecordingId: this.saveAsNewRecordingId
     };
   }
 
@@ -3438,6 +3466,14 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       this.followUser = session.followUser ?? true;
       if (session.progress) {
         this.followService.restoreProgress(session.progress);
+      }
+      this.pendingNetworkSave = !!session.pendingNetworkSave;
+      this.pendingSaveAsNew = !!session.pendingSaveAsNew;
+      this.saveAsNewRecordingId = session.saveAsNewRecordingId || null;
+      if (this.pendingNetworkSave) {
+        this.persistError = null;
+        this.persistMessage = "This walk is saved on your phone. It will be saved fully to the website when the network returns.";
+        this.retryPendingNetworkSave();
       }
     }
   }
