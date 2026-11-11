@@ -1,8 +1,10 @@
+import {visibleGridReference} from "../../functions/grid-reference";
+import {WalksConfigService} from "../../services/system/walks-config.service";
 import { Component, EventEmitter, Input, Output, inject } from "@angular/core";
 import { isNumber } from "es-toolkit/compat";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faFlagCheckered, faLocationDot } from "@fortawesome/free-solid-svg-icons";
-import { formatOsGridReference, RouteFollowPoint, RouteFollowWaypoint, RouteWaypointKind } from "../../models/route-follow.model";
+import { RouteFollowPoint, RouteFollowWaypoint, RouteWaypointKind } from "../../models/route-follow.model";
 import { elevationSvgPath, routeElevationStats, RouteElevationStats } from "../../functions/route-elevation";
 import { GridReferenceService } from "../../services/maps/grid-reference.service";
 import { RouteFollowService } from "../../services/maps/route-follow.service";
@@ -111,6 +113,7 @@ const CHART_HEIGHT = 36;
 })
 export class RouteElevationComponent {
   private follow = inject(RouteFollowService);
+  private walksConfigService = inject(WalksConfigService);
   private grid = inject(GridReferenceService);
   protected readonly faLocationDot = faLocationDot;
   protected readonly faFlagCheckered = faFlagCheckered;
@@ -141,7 +144,7 @@ export class RouteElevationComponent {
 
   pointLabel(waypoint: RouteFollowWaypoint): string {
     const located = this.grid.fromLatLng(waypoint.latitude, waypoint.longitude);
-    const grid = located ? formatOsGridReference(located.eastings, located.northings) : "";
+    const grid = visibleGridReference(located?.gridReference10, this.walksConfigService.walksConfig());
     const metres = this.elevationAt(waypoint);
     const elevation = isNumber(metres) && metres !== 0 && this.stats ? this.follow.formatElevation(metres) : "";
     if (grid && elevation) {

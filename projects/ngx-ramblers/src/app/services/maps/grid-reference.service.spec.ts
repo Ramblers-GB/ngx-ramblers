@@ -1,7 +1,8 @@
+import { GridReferenceDigits, WalksConfig } from "../../models/walks-config.model";
 import { TestBed } from "@angular/core/testing";
 import proj4 from "proj4";
 import { EPSG_27700_PROJ4, MapProjectionCode } from "../../common/maps/map-projection.constants";
-import { gridReference10From, parseGridReference } from "../../functions/grid-reference";
+import { gridReference10From, locationDescriptionWithoutGridReference, parseGridReference, storedGridReference, visibleGridReference } from "../../functions/grid-reference";
 import { GridReferenceService } from "./grid-reference.service";
 import { MapTilesService } from "./map-tiles.service";
 
@@ -38,6 +39,21 @@ describe("Locate coordinate conversion", () => {
     expect(service.fromEastingsNorthings(-1, 167890)).toBeNull();
     expect(service.fromEastingsNorthings(412345, 1300000)).toBeNull();
     expect(service.fromGridReference("SU123456789012")).toBeNull();
+  });
+
+  it("uses the saved reference and applies the site length, spacing and visibility", () => {
+    const location = {description: "SU111222", grid_reference_10: "SU1234567890", grid_reference_6: "SU123678"};
+    const config = {walkDetailsGridReferenceDigits: GridReferenceDigits.SIX, walkDetailsGridReferenceSpaced: true} as WalksConfig;
+    expect(locationDescriptionWithoutGridReference(location)).toBe("");
+    expect(storedGridReference(location)).toBe("SU1234567890");
+    expect(visibleGridReference(storedGridReference(location), config)).toBe("SU 123 678");
+    expect(visibleGridReference(storedGridReference(location), {...config, walkDetailsGridReferenceSpaced: false})).toBe("SU123678");
+    expect(visibleGridReference(storedGridReference(location), {...config, walkDetailsShowGridReference: false})).toBe("");
+  });
+
+  it("uses a description that is only a grid reference when the dedicated fields are empty", () => {
+    expect(storedGridReference({description: "SU123456"})).toBe("SU123456");
+    expect(locationDescriptionWithoutGridReference({description: "SU123456"})).toBe("");
   });
 
   it("handles northern grid squares and preserves the full northing", () => {

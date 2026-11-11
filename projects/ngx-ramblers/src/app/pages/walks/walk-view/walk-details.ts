@@ -1,3 +1,4 @@
+import {locationDescriptionWithoutGridReference} from "../../../functions/grid-reference";
 import { Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { Subscription } from "rxjs";
 import { WalksConfigService } from "../../../services/system/walks-config.service";
@@ -75,19 +76,19 @@ import { eventHasWalkWorkflow } from "../../../models/walk-programme.model";
             </div>
           </div>
           }
-          @if (showGridReference && display.gridReferenceFrom(displayedWalk.walk?.groupEvent?.start_location)) {
+          @if (display.visibleGridReferenceFrom(displayedWalk.walk?.groupEvent?.start_location); as gridReference) {
             <div app-related-link [mediaWidth]="walkDetailsMediaWidth"
                  class="col-sm-6">
               <div title>
-                <app-copy-icon [value]="display.gridReferenceFrom(displayedWalk.walk?.groupEvent?.start_location)"
+                <app-copy-icon [value]="gridReference"
                                [elementName]="elementNameStart('Grid Ref')"></app-copy-icon>
                 Grid Ref
               </div>
               <div content>
                 <a content
-                   [href]="display.gridReferenceLink(display.gridReferenceFrom(displayedWalk.walk?.groupEvent?.start_location))"
-                   tooltip="Show grid reference {{display.gridReferenceFrom(displayedWalk.walk?.groupEvent?.start_location)}} on the map"
-                   >{{ display.gridReferenceFrom(displayedWalk.walk?.groupEvent?.start_location) }}</a>
+                   [href]="display.locationGridReferenceLink(displayedWalk.walk?.groupEvent?.start_location)"
+                   tooltip="Show grid reference {{gridReference}} on the map"
+                   >{{ gridReference }}</a>
               </div>
             </div>
           }
@@ -108,19 +109,19 @@ import { eventHasWalkWorkflow } from "../../../models/walk-programme.model";
               </div>
             </div>
             }
-            @if (showGridReference && display.gridReferenceFrom(displayedWalk?.walk?.groupEvent?.end_location)) {
+            @if (display.visibleGridReferenceFrom(displayedWalk?.walk?.groupEvent?.end_location); as gridReference) {
               <div app-related-link [mediaWidth]="walkDetailsMediaWidth"
                    class="col-sm-6">
                 <div title>
-                  <app-copy-icon [value]="display.gridReferenceFrom(displayedWalk?.walk?.groupEvent?.end_location)"
+                  <app-copy-icon [value]="gridReference"
                                  [elementName]="'Finish Grid reference'"/>
                   Grid Ref
                 </div>
                 <div content>
                   <a content
-                     [href]="display.gridReferenceLink(display.gridReferenceFrom(displayedWalk?.walk?.groupEvent?.end_location))"
-                     tooltip="Show finish grid reference {{display.gridReferenceFrom(displayedWalk?.walk?.groupEvent?.end_location)}} on the map"
-                     >{{ display.gridReferenceFrom(displayedWalk?.walk?.groupEvent?.end_location) }}</a>
+                     [href]="display.locationGridReferenceLink(displayedWalk?.walk?.groupEvent?.end_location)"
+                     tooltip="Show finish grid reference {{gridReference}} on the map"
+                     >{{ gridReference }}</a>
                 </div>
               </div>
             }
@@ -154,10 +155,10 @@ import { eventHasWalkWorkflow } from "../../../models/walk-programme.model";
               </div>
             </div>
           }
-          @if (displayedWalk?.walk?.groupEvent?.start_location?.description) {
+          @if (locationDescriptionWithoutGridReference(displayedWalk?.walk?.groupEvent?.start_location); as startDescription) {
             <div class="col-sm-12 mt-2 list-tick-medium">
               <p markdown>**Start Location**</p>
-              <p markdown>{{ displayedWalk?.walk?.groupEvent?.start_location?.description }}</p>
+              <p markdown>{{ startDescription }}</p>
             </div>
           }
           @if (displayedWalk?.walk?.groupEvent?.meeting_location?.postcode || displayedWalk?.walk?.groupEvent?.meeting_date_time) {
@@ -199,10 +200,10 @@ export class WalkDetailsComponent implements OnInit, OnDestroy {
   private walksConfigService = inject(WalksConfigService);
   private subscriptions: Subscription[] = [];
   showPostcode = true;
-  showGridReference = true;
   protected readonly faPersonWalkingDashedLineArrowRight = faPersonWalkingDashedLineArrowRight;
   protected readonly faPersonWalkingArrowLoopLeft = faPersonWalkingArrowLoopLeft;
   protected readonly faRulerHorizontal = faRulerHorizontal;
+  protected readonly locationDescriptionWithoutGridReference = locationDescriptionWithoutGridReference;
   protected readonly eventHasWalkWorkflow = eventHasWalkWorkflow;
   protected readonly faRulerVertical = faRulerVertical;
   protected readonly faPeopleGroup = faPeopleGroup;
@@ -214,7 +215,6 @@ export class WalkDetailsComponent implements OnInit, OnDestroy {
     this.logger.info("ngOnInit", this.displayedWalk);
     this.subscriptions.push(this.walksConfigService.events().subscribe(walksConfig => {
       this.showPostcode = walksConfig?.walkDetailsShowPostcode !== false;
-      this.showGridReference = walksConfig?.walkDetailsShowGridReference !== false;
     }));
   }
 

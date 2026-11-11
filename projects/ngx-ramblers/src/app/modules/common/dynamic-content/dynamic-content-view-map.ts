@@ -1,3 +1,5 @@
+import {parseGridReference, visibleGridReference} from "../../../functions/grid-reference";
+import {WalksConfigService} from "../../../services/system/walks-config.service";
 import { Component, HostListener, ViewChild, DoCheck, EventEmitter, inject, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, NgZone } from "@angular/core";
 import * as L from "leaflet";
 import { LeafletModule } from "@bluehalo/ngx-leaflet";
@@ -566,6 +568,7 @@ export class DynamicContentViewMap implements OnInit, OnChanges, OnDestroy, DoCh
   private uiActions = inject(UiActionsService);
   private pendingStep: number | null = Number(this.activatedRoute.snapshot.queryParamMap.get(StoredValue.STEP)) || null;
   private logger: Logger = inject(LoggerFactory).createLogger("DynamicContentViewMap", NgxLoggerLevel.ERROR);
+  private walksConfigService = inject(WalksConfigService);
   private mapTiles = inject(MapTilesService);
   private mapMarkerStyle = inject(MapMarkerStyleService);
   private gpxParser = inject(GpxParserService);
@@ -2301,7 +2304,8 @@ export class DynamicContentViewMap implements OnInit, OnChanges, OnDestroy, DoCh
       });
       if (marker.label || marker.instruction) {
         const numbered = !!label && label.length <= 3;
-        const title = marker.instruction && numbered ? "" : `<div><strong>${escapeHtml(marker.label || "Waypoint")}</strong></div>`;
+        const displayLabel = parseGridReference(label) ? visibleGridReference(label, this.walksConfigService.walksConfig()) : label;
+        const title = marker.instruction && numbered ? "" : `<div><strong>${escapeHtml(displayLabel || "Waypoint")}</strong></div>`;
         const instruction = marker.instruction ? `<div${title ? " class=\"mt-1\"" : ""}>${escapeHtml(marker.instruction)}</div>` : "";
         const note = marker.note ? `<div class="mt-1"><small>${escapeHtml(marker.note)}</small></div>` : "";
         if (numbered && marker.instruction) {

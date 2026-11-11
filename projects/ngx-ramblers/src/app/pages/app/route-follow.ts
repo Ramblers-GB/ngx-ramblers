@@ -1,3 +1,6 @@
+import {visibleGridReference} from "../../functions/grid-reference";
+import {GridReferenceService} from "../../services/maps/grid-reference.service";
+import {WalksConfigService} from "../../services/system/walks-config.service";
 import { coordinateValue } from "../../functions/locate";
 import { CompassCalibrationHelpComponent } from "../../shared/components/compass-calibration-help";
 import { NativeCompassService } from "../../services/maps/native-compass.service";
@@ -111,7 +114,6 @@ import {
   followLineColours,
   followMapScaleBar,
   formatMapSaveProgress,
-  formatOsGridReference,
   isLiveFollowMode,
   ROUTE_FOLLOW_NUDGE_METRES,
   ROUTE_FOLLOW_START_RADIUS_METRES,
@@ -156,8 +158,6 @@ import { MapRouteStylePaletteComponent } from "../../modules/common/dynamic-cont
 import { DEFAULT_WALKS_AREA } from "../../models/walks-route-paths.model";
 import { StoredValue } from "../../models/ui-actions.model";
 import { UiActionsService } from "../../services/ui-actions.service";
-import { EPSG_27700_PROJ4, MapProjectionCode } from "../../common/maps/map-projection.constants";
-import proj4 from "proj4";
 import { MapLoadingOverlay } from "../../shared/components/map-loading-overlay";
 import { RouterHistoryService } from "../../services/router-history.service";
 import { DateUtilsService } from "../../services/date-utils.service";
@@ -1099,6 +1099,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected readonly routeAuditCreatedLabel = routeAuditCreatedLabel;
   private memberLogin = inject(MemberLoginService);
   private uiActions = inject(UiActionsService);
+  private gridReferences = inject(GridReferenceService);
+  private walksConfigService = inject(WalksConfigService);
   private mapTiles = inject(MapTilesService);
   private systemConfig = inject(SystemConfigService);
   private osBranding = inject(OsMapsBrandingService);
@@ -2301,19 +2303,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     const center = this.mapRef?.getCenter() || null;
     const latitude = position?.latitude ?? center?.lat ?? null;
     const longitude = position?.longitude ?? center?.lng ?? null;
-    if (!isNumber(latitude) || !isNumber(longitude)) {
-      return "";
-    } else {
-      this.ensureOsProjection();
-      const projected = proj4(MapProjectionCode.WGS84, MapProjectionCode.BRITISH_NATIONAL_GRID, [longitude, latitude]);
-      return formatOsGridReference(projected[0], projected[1]);
-    }
-  }
-
-  private ensureOsProjection(): void {
-    if ((proj4 as any).defs && !(proj4 as any).defs[MapProjectionCode.BRITISH_NATIONAL_GRID]) {
-      (proj4 as any).defs(MapProjectionCode.BRITISH_NATIONAL_GRID, EPSG_27700_PROJ4);
-    }
+    const point = this.gridReferences.fromLatLng(latitude, longitude);
+    return visibleGridReference(point?.gridReference10, this.walksConfigService.walksConfig());
   }
 
   async start(): Promise<void> {

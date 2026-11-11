@@ -1,3 +1,4 @@
+import {locationDescriptionWithoutGridReference} from "../../../../functions/grid-reference";
 import { Component, inject, Input, OnInit } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Member } from "../../../../models/member.model";
@@ -45,18 +46,20 @@ import { DistanceValidationService } from "../../../../services/walks/distance-v
       </tr>
       <tr>
         <td style="width:25%; border:1px solid lightgrey; font-weight: bold; padding: 6px">Starting Location:</td>
-        <td style="border:1px solid lightgrey; font-weight: normal; padding: 6px">{{ walk.groupEvent.start_location?.description | valueOrDefault }}</td>
+        <td style="border:1px solid lightgrey; font-weight: normal; padding: 6px">{{ locationDescriptionWithoutGridReference(walk.groupEvent.start_location) | valueOrDefault }}</td>
       </tr>
       <tr>
         <td style="width:25%; border:1px solid lightgrey; font-weight: bold; padding: 6px">Grade:</td>
         <td style="border:1px solid lightgrey; font-weight: normal; padding: 6px">{{ walk.groupEvent.difficulty?.description | valueOrDefault }}</td>
       </tr>
+      @if (display.visibleGridReferenceFrom(walk.groupEvent.start_location); as gridReference) {
       <tr>
         <td style="width:25%; border:1px solid lightgrey; font-weight: bold; padding: 6px">Grid Ref:</td>
         <td style="border:1px solid lightgrey; font-weight: normal; padding: 6px">
-          <a [href]="display.gridReferenceAbsoluteLink(display.gridReferenceFrom(walk.groupEvent.start_location))" target="_blank">
-            {{ display.gridReferenceFrom(walk.groupEvent.start_location) | valueOrDefault }}</a></td>
+          <a [href]="display.locationGridReferenceLink(walk.groupEvent.start_location, true)" target="_blank">
+            {{ gridReference }}</a></td>
       </tr>
+      }
       <tr>
         <td style="width:25%; border:1px solid lightgrey; font-weight: bold; padding: 6px">Postcode:</td>
         <td style="border:1px solid lightgrey; font-weight: normal; padding: 6px">
@@ -87,6 +90,7 @@ export class WalkNotificationDetailsComponent implements OnInit {
   display = inject(WalkDisplayService);
   eventContactService = inject(EventContactService);
   distanceValidationService = inject(DistanceValidationService);
+  protected readonly locationDescriptionWithoutGridReference = locationDescriptionWithoutGridReference;
   protected stringUtils = inject(StringUtilsService);
   public data: WalkNotification;
   public walk: ExtendedGroupEvent;

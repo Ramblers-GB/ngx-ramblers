@@ -64,7 +64,8 @@ describe("real event template preview", () => {
 
   it("loads site events and immediately renders the selected events and images", async () => {
     const {fixture, host, query} = await setup();
-    expect(query.groupEvents).toHaveBeenCalledWith(expect.objectContaining({includeWalks: true, includeSocialEvents: true, includeCommitteeEvents: false, limit: 60}));
+    expect(query.groupEvents).toHaveBeenCalledWith(expect.objectContaining({fromDate: {value: today.minus({months: 3}).toMillis()},
+      includeWalks: true, includeSocialEvents: true, includeCommitteeEvents: false, limit: 60}));
     const typePicker = fixture.debugElement.queryAll(By.directive(NgSelectComponent))[0].componentInstance as NgSelectComponent;
     expect(typePicker.selectedItems.map(item => item.label)).toEqual(["Walk", "Social Event"]);
     expect(host.textContent).toContain("Hillside Park");
@@ -87,6 +88,14 @@ describe("real event template preview", () => {
     expect(preview).not.toContain("Past walk");
     expect(preview).not.toContain("Awaiting details");
     expect(preview.indexOf("Earlier walk")).toBeLessThan(preview.indexOf("Later walk"));
+  });
+
+  it("previews past and upcoming events selected together", async () => {
+    const past = {...events[0], id: "past", title: "Past walk", eventDate: today.minus({months: 2, days: 15}).toMillis()};
+    const {host} = await setup(false, {[StoredValue.EVENT_IDS]: "past,walk-1"}, [past, ...events]);
+    const preview = host.querySelector("app-email-preview").textContent;
+    expect(preview).toContain("Past walk");
+    expect(preview).toContain("Hillside Park");
   });
 
   it("recovers an empty saved selection with upcoming events on page load", async () => {

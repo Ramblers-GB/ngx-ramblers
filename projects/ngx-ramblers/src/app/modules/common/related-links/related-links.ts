@@ -210,8 +210,7 @@ export class RelatedLinksComponent implements OnInit, OnChanges, OnDestroy {
 
   locateStartLink(): string | null {
     const start = this.displayedWalk?.walk?.groupEvent?.start_location;
-    const gridReference = this.display.gridReferenceFrom(start);
-    return gridReference ? this.display.gridReferenceLink(gridReference) : (start?.postcode ? this.display.postcodeLink(start.postcode, start) : null);
+    return this.display.locationGridReferenceLink(start) || (start?.postcode ? this.display.postcodeLink(start.postcode, start) : null);
   }
 
   directionsToStart(): DirectionsLink[] {

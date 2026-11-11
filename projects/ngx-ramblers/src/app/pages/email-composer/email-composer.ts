@@ -819,7 +819,8 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
               <div class="email-composer-step-label">{{ currentStepTitle() }}</div>
               <div class="email-composer-step-hint">{{ stepHint(stepperActiveTab) }}</div>
             </div>
-      <div class="composer-workspace-actions gap-2">
+      @let showingSendConfirmation = !sendComplete() && sendConfirm.notificationsOutstanding();
+      <div class="composer-workspace-actions gap-2" [class.composer-workspace-confirming]="showingSendConfirmation">
           @if (!sendComplete() || batchJobLost) {
             <button type="button" class="btn btn-quiet"
                     (click)="startNewEmail()"
@@ -887,7 +888,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
             }
             </div>
             @if (!sendComplete()) {
-              @if (sendConfirm.notificationsOutstanding()) {
+              @if (showingSendConfirmation) {
                 <button type="button" class="btn btn-primary composer-send-action text-nowrap"
                         (click)="confirmAndSend()"
                         [disabled]="sendInProgress">
@@ -904,10 +905,12 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                 </button>
               }
             }
-          <button type="button" class="btn btn-quiet composer-maximise-toggle" (click)="composerPanel.toggle()"
-                  [tooltip]="composerPanel.maximised ? composerPanel.restoreTooltip : composerPanel.maximiseTooltip">
-            <fa-icon [icon]="composerPanel.maximised ? faCompress : faExpand"/>{{ composerPanel.maximised ? 'Restore' : 'Maximise' }}
-          </button>
+          @if (!showingSendConfirmation) {
+            <button type="button" class="btn btn-quiet composer-maximise-toggle" (click)="composerPanel.toggle()"
+                    [tooltip]="composerPanel.maximised ? composerPanel.restoreTooltip : composerPanel.maximiseTooltip">
+              <fa-icon [icon]="composerPanel.maximised ? faCompress : faExpand"/>{{ composerPanel.maximised ? 'Restore' : 'Maximise' }}
+            </button>
+          }
           <button type="button" class="btn btn-quiet" (click)="exitComposer()">
             <fa-icon [icon]="faXmark"/>Exit
           </button>

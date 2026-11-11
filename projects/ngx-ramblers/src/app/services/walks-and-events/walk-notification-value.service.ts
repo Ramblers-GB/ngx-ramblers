@@ -12,9 +12,8 @@ import { WalkNotificationLocationFormat, WalkNotificationValueFormat as Format }
 import { DateUtilsService } from "../date-utils.service";
 import { DistanceValidationService } from "../walks/distance-validation.service";
 import { WalksConfigService } from "../system/walks-config.service";
-import { formatGridReference } from "../../functions/grid-reference";
+import { locationDescriptionWithoutGridReference, storedGridReference, visibleGridReference } from "../../functions/grid-reference";
 import { withoutPoliceForceAreas } from "../../functions/location-description";
-import { DEFAULT_GRID_REFERENCE_DIGITS } from "../../models/walks-config.model";
 
 @Injectable({providedIn: "root"})
 export class WalkNotificationValueService {
@@ -146,7 +145,7 @@ export class WalkNotificationValueService {
     const includePostcode = locationFormat ? locationFormat.postcode : true;
     const includeGridReference = locationFormat ? locationFormat.gridReference : true;
     const includeWhat3Words = !locationFormat;
-    const description = includeDescription && value?.description ? withoutPoliceForceAreas(value.description) : null;
+    const description = includeDescription ? withoutPoliceForceAreas(locationDescriptionWithoutGridReference(value)) : null;
     const gridReference = includeGridReference ? this.formattedGridReference(value) : "";
     return compact([
       description,
@@ -157,9 +156,7 @@ export class WalkNotificationValueService {
   }
 
   private formattedGridReference(value: LocationDetails): string {
-    const raw = value?.grid_reference_10 || value?.grid_reference_8 || value?.grid_reference_6 || "";
-    const config = this.walksConfigService.walksConfig();
-    return raw ? formatGridReference(raw, config?.walkDetailsGridReferenceDigits ?? DEFAULT_GRID_REFERENCE_DIGITS, config?.walkDetailsGridReferenceSpaced !== false) : "";
+    return visibleGridReference(storedGridReference(value), this.walksConfigService.walksConfig());
   }
 
   private media(value: Media[]): string {

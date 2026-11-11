@@ -1,3 +1,4 @@
+import {WalksConfigService} from "../system/walks-config.service";
 import {MailMessagingService} from "../mail/mail-messaging.service";
 import {TestBed} from "@angular/core/testing";
 import {provideHttpClient} from "@angular/common/http";
@@ -31,6 +32,7 @@ describe("programme draft and output", () => {
         {provide: UrlService, useValue: {absoluteUrlFor: (path: string) => `https://group.example.org.uk${path}`}},
         {provide: PageContentService, useValue: pages},
         {provide: PageContentActionsService, useValue: {defaultRowFor: () => ({type: PageContentType.TEXT, columns: [{}]})}},
+        {provide: WalksConfigService, useValue: {walksConfig: () => null}},
         {provide: DateUtilsService, useValue: {displayDate: () => "Monday"}},
         {provide: MailMessagingService, useValue: {signoffNames: () => "<p>Alex Reed — Programme coordinator</p>", currentConfig: () => ({notificationConfigs: []}), createSendSmtpEmailParams: (_member, _config, html) => ({messageMergeFields: {BODY_CONTENT: html}})}},
         {provide: EmailComposerRenderingService, useValue: {tableSection: value => value, markdownToHtml: (value: string) => value}}]
@@ -157,8 +159,17 @@ describe("programme draft and output", () => {
     state.groupEvents = [{id: "walk-1", selected: true, title: "Hillside Park", eventDate: 1000,
       gridReference: "SU123456", mapUrl: "/locate?lat=51&lon=-1"} as GroupEventSummary];
     programme.generate();
-    expect(programme.settings().markdown).toContain("[SU123456](https://group.example.org.uk/locate?lat=51&lon=-1)");
+    expect(programme.settings().markdown).toContain("[SU 123 456](https://group.example.org.uk/locate?lat=51&lon=-1)");
     expect(state.groupEvents[0].mapUrl).toBe("/locate?lat=51&lon=-1");
+  });
+
+  it("keeps the standard email cards when the default programme settings are initialised", () => {
+    const {programme, state} = setup();
+    state.programme = null;
+    expect(programme.settings().format).toBe(ProgrammeEventFormat.EMAIL);
+    expect(programme.formatted()).toBe(false);
+    programme.settings().format = ProgrammeEventFormat.LISTING;
+    expect(programme.formatted()).toBe(true);
   });
 
   it("loads a saved Default layout when the composer starts on that format", async () => {

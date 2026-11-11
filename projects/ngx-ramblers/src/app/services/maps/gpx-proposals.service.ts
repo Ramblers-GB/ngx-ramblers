@@ -1,3 +1,5 @@
+import {storedGridReference, formatConfiguredGridReference} from "../../functions/grid-reference";
+import {WalksConfigService} from "../system/walks-config.service";
 import { inject, Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
@@ -23,6 +25,7 @@ import { sortBy } from "../../functions/arrays";
 })
 export class GpxProposalsService {
   private logger = inject(LoggerFactory).createLogger("GpxProposalsService", NgxLoggerLevel.ERROR);
+  private walksConfigService = inject(WalksConfigService);
   private gpxParser = inject(GpxParserService);
   private addressQueryService = inject(AddressQueryService);
   private httpClient = inject(HttpClient);
@@ -87,7 +90,7 @@ export class GpxProposalsService {
   }
 
   locationSummary(location: LocationDetails | null | undefined): string {
-    return [location?.postcode, location?.grid_reference_8 || location?.grid_reference_6, location?.description].filter(Boolean).join(", ");
+    return [location?.postcode, formatConfiguredGridReference(storedGridReference(location), this.walksConfigService.walksConfig()), location?.description].filter(Boolean).join(", ");
   }
 
   private proposal(field: WalkGpxField, label: string, currentValue: string, proposedValue: string): WalkGpxFieldProposal {

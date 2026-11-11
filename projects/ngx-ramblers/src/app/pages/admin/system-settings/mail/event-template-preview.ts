@@ -5,9 +5,9 @@ import {FormsModule} from "@angular/forms";
 import {NgSelectModule} from "@ng-select/ng-select";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
 import {faCircleExclamation, faEnvelope, faFilePdf, faRotate, faSpinner} from "@fortawesome/free-solid-svg-icons";
-import {CommitteeFile, GroupEventsFilter, GroupEventSummary, GroupEventTypes} from "../../../../models/committee.model";
+import {CommitteeFile, GroupEventsFilter, GroupEventSummary, GroupEventTypes, Notification} from "../../../../models/committee.model";
 import {PUBLIC_GROUP_EVENT_SELECT} from "../../../../models/walk.model";
-import {EVENT_EMAIL_IMAGE_HEIGHT, EventListingPreview, ProgrammeEventFormat} from "../../../../models/email-composer.model";
+import {EVENT_EMAIL_IMAGE_HEIGHT, EventListingPreview, ProgrammeEventFormat, SectionDividerStyle} from "../../../../models/email-composer.model";
 import {ProgrammeOverviewStatus} from "../../../../models/walk-programme.model";
 import {SectionToggleTab} from "../../../../models/section-toggle.model";
 import {StoredValue} from "../../../../models/ui-actions.model";
@@ -16,11 +16,24 @@ import {DateUtilsService} from "../../../../services/date-utils.service";
 import {EventTemplateRenderingService} from "../../../../services/mail/event-template-rendering.service";
 import {EmailPreviewComponent} from "../../../../modules/common/email-preview/email-preview.component";
 import {CommitteeDocumentEditor} from "../../../committee/document/committee-document-editor";
+import {CommitteeNotificationDetailsComponent} from "../../../../notifications/committee/templates/committee-notification-details.component";
 import {SectionToggle} from "../../../../shared/components/section-toggle";
 
 @Component({
   selector: "app-event-template-preview",
-  imports: [FormsModule, NgSelectModule, FontAwesomeModule, EmailPreviewComponent, CommitteeDocumentEditor, SectionToggle],
+  imports: [FormsModule, NgSelectModule, FontAwesomeModule, EmailPreviewComponent, CommitteeDocumentEditor, CommitteeNotificationDetailsComponent, SectionToggle],
+  styles: [`
+    .default-email-preview
+      max-width: 600px
+
+    :host ::ng-deep .default-email-preview h3
+      font: bold 22px/150% Helvetica, Arial, sans-serif
+      color: #444444
+
+    :host ::ng-deep .default-email-preview a:not([style])
+      color: #c05711
+      text-decoration: underline
+  `],
   template: `
     <div class="thumbnail-heading-frame mt-3">
       <div class="thumbnail-heading">Live preview — real site events</div>
@@ -32,7 +45,7 @@ import {SectionToggle} from "../../../../shared/components/section-toggle";
         </div>
         <button type="button" class="btn btn-primary" (click)="load()"><fa-icon [icon]="faRotate" class="me-2"/>Retry</button>
       } @else {
-        <p>Choose upcoming walks and group events. The preview shows the repeating event block as it appears inside an email, not a complete message. Editing the template updates it immediately; the events themselves are unchanged.</p>
+        <p>Choose upcoming events or events from the past three months to preview in email or print.</p>
         <label for="template-preview-type" class="form-label">Event type</label>
         <ng-select dropdownPosition="bottom" [clearable]="true" [searchable]="false" [multiple]="true" [closeOnSelect]="false"
                    appendTo="body" labelForId="template-preview-type" class="mb-3" [items]="eventTypes"
@@ -54,7 +67,16 @@ import {SectionToggle} from "../../../../shared/components/section-toggle";
             <fa-icon [icon]="faCircleExclamation"/><div><strong class="d-block">No preview events selected</strong>Choose events above to see the current template with real data.</div>
           </div>
         } @else if (preview === EventListingPreview.EMAIL) {
-          <app-email-preview class="d-block mt-3" [html]="listingHtml()"/>
+          @if (defaultLayout) {
+            <p class="small text-muted mt-3 mb-2">Default email cards use the standard newsletter layout. Select PDF to preview edits to this template.</p>
+            <div class="print-preview p-3" style="height: auto; overflow: visible">
+              <div class="default-email-preview mx-auto bg-white p-4">
+                <app-committee-notification-details [notification]="cardNotification()" [betweenEventsDivider]="emailDivider"/>
+              </div>
+            </div>
+          } @else {
+            <app-email-preview class="d-block mt-3" [html]="listingHtml()"/>
+          }
         } @else {
           <app-committee-document-editor [committeeFile]="document()" [editable]="false"/>
         }
@@ -64,6 +86,7 @@ import {SectionToggle} from "../../../../shared/components/section-toggle";
 })
 export class EventTemplatePreviewComponent implements OnInit, OnDestroy {
   @Input() template = "";
+  @Input() defaultLayout = false;
   @Input() imageHeight = EVENT_EMAIL_IMAGE_HEIGHT;
   private changes = inject(ChangeDetectorRef);
   private query = inject(CommitteeQueryService);
@@ -85,6 +108,7 @@ export class EventTemplatePreviewComponent implements OnInit, OnDestroy {
   protected readonly eventTypes = [GroupEventTypes.WALK, GroupEventTypes.SOCIAL];
   protected readonly EventListingPreview = EventListingPreview;
   protected readonly StoredValue = StoredValue;
+  protected readonly emailDivider = SectionDividerStyle.THIN_YELLOW;
   protected readonly faSpinner = faSpinner;
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faRotate = faRotate;
@@ -95,7 +119,7 @@ export class EventTemplatePreviewComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const today = this.dates.dateTimeNowNoTime();
-    this.filter = {fromDate: this.dates.asDateValue(today.toMillis()),
+    this.filter = {fromDate: this.dates.asDateValue(today.minus({months: 3}).toMillis()),
       toDate: this.dates.asDateValue(today.plus({months: 4}).toMillis()), search: null, selectAll: true,
       includeImage: true, includeContact: true, includeDescription: true, includeLocation: true,
       includeWalks: true, includeSocialEvents: true, includeCommitteeEvents: false,
@@ -183,9 +207,20 @@ export class EventTemplatePreviewComponent implements OnInit, OnDestroy {
         [StoredValue.EVENT_IDS]: this.selectedIds.join(","), [StoredValue.EVENT_PREVIEW_IMAGES]: this.filter.includeImage ? null : "false"}});
   }
 
+  private selectedEvents(): GroupEventSummary[] {
+    return this.availableEvents.filter(event => this.selectedIds.includes(event.id)).map(event => ({...event, selected: true}));
+  }
+
+  protected cardNotification(): Notification {
+    return {
+      content: {notificationConfig: null, title: {include: false}, text: {include: false}, signoffText: {include: false}},
+      groupEvents: this.selectedEvents(),
+      groupEventsFilter: this.filter
+    };
+  }
+
   private markdown(): string {
-    const events = this.availableEvents.filter(event => this.selectedIds.includes(event.id)).map(event => ({...event, selected: true}));
-    return this.rendering.markdown(events, {format: ProgrammeEventFormat.CUSTOM, customTemplate: this.template, eventFormats: {}, markdown: null, imageHeight: this.imageHeight}, this.filter);
+    return this.rendering.markdown(this.selectedEvents(), {format: ProgrammeEventFormat.CUSTOM, customTemplate: this.template, eventFormats: {}, markdown: null, imageHeight: this.imageHeight}, this.filter);
   }
 
   protected listingHtml(): string {

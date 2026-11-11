@@ -1,3 +1,5 @@
+import {LocationDetails} from "../models/ramblers-walks-manager.model";
+import {DEFAULT_GRID_REFERENCE_DIGITS, GridReferenceDigits, WalksConfig} from "../models/walks-config.model";
 import { asNumber } from "./numbers";
 
 const GRID_LETTERS = [
@@ -61,6 +63,31 @@ export function gridReference8From(eastings: number, northings: number): string 
 
 export function gridReference10From(eastings: number, northings: number): string {
   return gridReferenceFrom(eastings, northings, 10);
+}
+
+export function storedGridReference(location: Partial<LocationDetails> | null): string {
+  return [location?.grid_reference_10, location?.grid_reference_8, location?.grid_reference_6, location?.description]
+    .find(reference => !!parseGridReference(reference)) || "";
+}
+
+export function locationDescriptionWithoutGridReference(location: Partial<LocationDetails> | null): string {
+  return parseGridReference(location?.description) ? "" : location?.description || "";
+}
+
+export function configuredGridReferenceFormat(config: WalksConfig | null, digits?: GridReferenceDigits) {
+  return {
+    digits: digits ?? config?.walkDetailsGridReferenceDigits ?? DEFAULT_GRID_REFERENCE_DIGITS,
+    spaced: config?.walkDetailsGridReferenceSpaced !== false
+  };
+}
+
+export function formatConfiguredGridReference(reference: string, config: WalksConfig | null, digits?: GridReferenceDigits): string {
+  const format = configuredGridReferenceFormat(config, digits);
+  return reference ? formatGridReference(reference, format.digits, format.spaced) : "";
+}
+
+export function visibleGridReference(reference: string, config: WalksConfig | null): string {
+  return config?.walkDetailsShowGridReference === false ? "" : formatConfiguredGridReference(reference, config);
 }
 
 export function formatGridReference(gridReference: string, digits = 10, spaced = true): string {

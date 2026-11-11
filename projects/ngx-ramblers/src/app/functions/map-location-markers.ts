@@ -1,7 +1,7 @@
 import { LocationRenderingMode, LocationRowData, MapMarker, PageContent, PageContentRow, PageContentType } from "../models/content-text.model";
 import { LocationDetails } from "../models/ramblers-walks-manager.model";
 import { RouteWaypointKind } from "../models/route-follow.model";
-import { formatGridReference, parseGridReference } from "./grid-reference";
+import { formatGridReference, locationDescriptionWithoutGridReference, parseGridReference, storedGridReference } from "./grid-reference";
 
 const LOCATION_KINDS = [RouteWaypointKind.START, RouteWaypointKind.END];
 
@@ -10,8 +10,7 @@ export function isAuthoredMarker(marker: MapMarker): boolean {
 }
 
 function gridReferenceLabel(point: Partial<LocationDetails> | undefined): string | null {
-  const gridReference = [point?.description, point?.grid_reference_6, point?.grid_reference_8, point?.grid_reference_10]
-    .find(value => !!parseGridReference(value || ""));
+  const gridReference = storedGridReference(point) || (parseGridReference(point?.description) ? point.description : null);
   return gridReference ? formatGridReference(gridReference) : null;
 }
 
@@ -21,7 +20,7 @@ function locationMarker(point: Partial<LocationDetails> | undefined, fallbackLab
     latitude: point.latitude,
     longitude: point.longitude,
     label: gridReferenceLabel(point) || fallbackLabel,
-    instruction: point.description || point.postcode || null,
+    instruction: locationDescriptionWithoutGridReference(point) || point.postcode || null,
     kind
   }] : [];
 }

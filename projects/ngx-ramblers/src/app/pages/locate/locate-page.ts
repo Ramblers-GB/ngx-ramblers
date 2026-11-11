@@ -1,3 +1,4 @@
+import { configuredGridReferenceFormat } from "../../functions/grid-reference";
 import { Component, inject, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { ClipboardService } from "../../services/clipboard.service";
 import { FormsModule } from "@angular/forms";
@@ -22,7 +23,7 @@ import { asNumber, generateUid } from "../../functions/numbers";
 import { sortBy } from "../../functions/arrays";
 import { GridReferenceLookupResponse } from "../../models/address.model";
 import { DirectionsApp, GOOGLE_MAPS_PROVIDER_LABEL, LOCATE_POINT_ZOOM, LOCATE_SIDEBAR_WIDTH_MIN, LocatePoint } from "../../models/locate.model";
-import { DEFAULT_GRID_REFERENCE_DIGITS, GRID_REFERENCE_DIGIT_OPTIONS, GridReferenceDigits, WalkDetailsMapProvider } from "../../models/walks-config.model";
+import { GRID_REFERENCE_DIGIT_OPTIONS, GridReferenceDigits, WalkDetailsMapProvider } from "../../models/walks-config.model";
 import { KeyValue } from "../../functions/enums";
 import { DEFAULT_OS_STYLE, MapProvider, osStyleForKey } from "../../models/map.model";
 import { isArray, isNumber, isString, range, values } from "es-toolkit/compat";
@@ -827,13 +828,10 @@ export class LocatePageComponent implements OnInit, OnDestroy {
   private pointFromQuery(): LocatePoint | null {
     const params = this.route.snapshot.queryParamMap;
     const gridRef = params.get(StoredValue.GRID_REF);
-    if (gridRef) {
-      return this.gridReferences.fromGridReference(gridRef);
-    } else if (params.has(StoredValue.LAT) && params.has(StoredValue.LON) && params.get(StoredValue.LAT).trim() && params.get(StoredValue.LON).trim()) {
-      return this.gridReferences.fromLatLng(Number(params.get(StoredValue.LAT)), Number(params.get(StoredValue.LON)));
-    } else {
-      return null;
-    }
+    const latitude = params.get(StoredValue.LAT)?.trim();
+    const longitude = params.get(StoredValue.LON)?.trim();
+    const savedPoint = latitude && longitude ? this.gridReferences.fromLatLng(Number(latitude), Number(longitude)) : null;
+    return savedPoint || (gridRef ? this.gridReferences.fromGridReference(gridRef) : null);
   }
 
   private async locateFromPostcodeQuery(): Promise<void> {
@@ -951,7 +949,7 @@ export class LocatePageComponent implements OnInit, OnDestroy {
   }
 
   get gridDigits(): GridReferenceDigits {
-    return this.gridDigitsOverride ?? this.walksConfigService.walksConfig()?.walkDetailsGridReferenceDigits ?? DEFAULT_GRID_REFERENCE_DIGITS;
+    return configuredGridReferenceFormat(this.walksConfigService.walksConfig(), this.gridDigitsOverride).digits;
   }
 
   set gridDigits(value: GridReferenceDigits) {
@@ -959,7 +957,7 @@ export class LocatePageComponent implements OnInit, OnDestroy {
   }
 
   get gridSpaced(): boolean {
-    return this.walksConfigService.walksConfig()?.walkDetailsGridReferenceSpaced !== false;
+    return configuredGridReferenceFormat(this.walksConfigService.walksConfig()).spaced;
   }
 
   get formattedGridReference(): string {

@@ -5,7 +5,7 @@ import {FormsModule} from "@angular/forms";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
 import {faCircleCheck, faCircleExclamation, faCopy, faSave, faSpinner} from "@fortawesome/free-solid-svg-icons";
 import {PageContent} from "../../../../models/content-text.model";
-import {EVENT_EMAIL_IMAGE_HEIGHT, MergeFieldGroup, PROGRAMME_EVENT_MERGE_FIELDS} from "../../../../models/email-composer.model";
+import {EVENT_EMAIL_IMAGE_HEIGHT, MergeFieldGroup, ProgrammeEventFormat, PROGRAMME_EVENT_MERGE_FIELDS, PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX} from "../../../../models/email-composer.model";
 import {StoredValue} from "../../../../models/ui-actions.model";
 import {TiptapMarkdownEditor} from "../../../../modules/common/tiptap-editor/tiptap-markdown-editor";
 import {EventTemplateService} from "../../../../services/mail/event-template.service";
@@ -42,7 +42,7 @@ import {EventTemplatePreviewComponent} from "./event-template-preview";
             <fa-icon [icon]="faCopy" class="me-2"/>Save as new
           </button>
         </div>
-        <app-event-template-preview [template]="markdown" [imageHeight]="imageHeight"/>
+        <app-event-template-preview [template]="markdown" [imageHeight]="imageHeight" [defaultLayout]="selectedPath === defaultLayoutPath"/>
       }
       @if (message) {
         <div class="alert d-flex align-items-start gap-2 mt-3" [class.alert-danger]="failed" [class.alert-success]="!failed">
@@ -68,6 +68,7 @@ export class EventTemplateSettingsComponent implements OnInit {
   protected busy = false;
   protected failed = false;
   protected message = "";
+  protected readonly defaultLayoutPath = PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + ProgrammeEventFormat.EMAIL;
   protected readonly eventFields: MergeFieldGroup[] = [{group: "Event details and image", fields: PROGRAMME_EVENT_MERGE_FIELDS}];
   protected readonly faSave = faSave;
   protected readonly faCopy = faCopy;

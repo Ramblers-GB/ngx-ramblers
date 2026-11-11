@@ -285,6 +285,17 @@
   display: flex
   width: 100%
 
+@media (min-width: 769px)
+  .composer-workspace-actions.composer-workspace-confirming
+    display: flex
+    flex-wrap: wrap
+
+    > .btn,
+    > app-button-dropdown,
+    > .composer-flow-tools > .btn
+      flex: 1 0 auto
+      width: auto
+
 .composer-flow-tools
   display: contents
 

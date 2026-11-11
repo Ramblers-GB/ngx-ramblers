@@ -1,3 +1,5 @@
+import {locationDescriptionWithoutGridReference} from "../../functions/grid-reference";
+import {PageService} from "../page.service";
 import { inject, Injectable } from "@angular/core";
 import { first } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -52,6 +54,7 @@ export class CommitteeQueryService {
   private memberService = inject(MemberService);
   private stringUtilsService = inject(StringUtilsService);
   private extendedGroupEventQueryService = inject(ExtendedGroupEventQueryService);
+  private pageService = inject(PageService);
   private groupEventService = inject(GroupEventService);
   private committeeFileService = inject(CommitteeFileService);
   private committeeDisplayService = inject(CommitteeDisplayService);
@@ -106,9 +109,10 @@ export class CommitteeQueryService {
         types: [groupEventsFilter.includeSocialEvents ? RamblersEventType.GROUP_EVENT : null, groupEventsFilter.includeWalks ? RamblersEventType.GROUP_WALK : null].filter(Boolean)
       };
       promises.push(
-        this.walksAndEventsService.all(eventQueryParameters)
-          .then((extendedGroupEvents: ExtendedGroupEvent[]) => this.extendedGroupEventQueryService.activeEvents(extendedGroupEvents))
-          .then((extendedGroupEvents: ExtendedGroupEvent[]) => extendedGroupEvents?.forEach(event => {
+        Promise.all([
+          this.walksAndEventsService.all(eventQueryParameters).then(events => this.extendedGroupEventQueryService.activeEvents(events)),
+          this.eventPagesForSummary(eventQueryParameters.types)
+        ]).then(([extendedGroupEvents, pages]) => extendedGroupEvents?.forEach(event => {
             const derivedEventStatus = this.groupEventService.statusFor(event);
             events.push({
             id: event.id || event?.groupEvent?.id,
@@ -123,16 +127,13 @@ export class CommitteeQueryService {
             grade: eventHasWalkWorkflow(event?.groupEvent?.item_type) ? event?.groupEvent?.difficulty?.description || null : null,
             ascent: this.walkAscentForSummary(event),
             shape: event?.groupEvent?.shape || null,
-            eventUrl: event?.groupEvent?.url || null,
-            location: (event?.groupEvent?.start_location || event?.groupEvent?.location)?.description,
+            eventUrl: this.eventUrlForSummary(event, pages.get(event?.groupEvent?.item_type || RamblersEventType.GROUP_WALK)?.href),
+            location: locationDescriptionWithoutGridReference(event?.groupEvent?.start_location || event?.groupEvent?.location),
             postcode: (event.groupEvent.start_location || event.groupEvent.location)?.postcode,
             ...programmeLocation(event.groupEvent.start_location || event.groupEvent.location),
             title: event.groupEvent.title || "Awaiting " + event.groupEvent.item_type + " details",
             description: event.groupEvent.description,
-            contactName: event.fields?.contactDetails?.displayName || this.walkContactFallback(event),
-            contactPhone: event.fields?.contactDetails?.phone,
-            contactEmail: event.fields?.contactDetails?.email,
-            contactHref: this.contactHref(event.fields?.contactDetails?.email),
+            ...this.eventContactForSummary(event),
             image: this.mediaQueryService.imageUrlFrom(event.groupEvent),
             media: event.groupEvent?.media ?? [],
             selectedMediaIndex: 0,
@@ -198,6 +199,32 @@ export class CommitteeQueryService {
     const metres = this.ascentValidationService.walkAscentMetresAsString(event);
     const value = [feet, metres].filter(Boolean).join(" / ");
     return value || null;
+  }
+
+  eventPagesForSummary(types: RamblersEventType[]) {
+    return this.pageService.eventPagesFor(types).catch(error => {
+      this.logger.error("Could not resolve event navigation pages", error);
+      return new Map();
+    });
+  }
+
+  eventUrlForSummary(event: ExtendedGroupEvent, configuredArea?: string): string {
+    return this.pageService.eventPageLink({
+      id: event.id || event.groupEvent?.id,
+      slug: eventSlug(event),
+      eventType: this.display.groupEventType(event)
+    }, configuredArea);
+  }
+
+  eventContactForSummary(event: ExtendedGroupEvent): Pick<GroupEventSummary, "contactName" | "contactPhone" | "contactEmail" | "contactHref"> {
+    const contact = event.fields?.contactDetails;
+    const organiser = event.groupEvent?.item_type === RamblersEventType.GROUP_EVENT ? event.groupEvent.event_organiser : null;
+    return {
+      contactName: organiser?.name?.trim() || contact?.displayName || (eventHasWalkWorkflow(event.groupEvent?.item_type) ? this.walkContactFallback(event) : null),
+      contactPhone: contact?.phone || null,
+      contactEmail: contact?.email || null,
+      contactHref: this.contactHref(contact?.email)
+    };
   }
 
   private walkContactFallback(event: ExtendedGroupEvent): string | null {

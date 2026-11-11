@@ -1,16 +1,18 @@
 import {GroupEventSummary, GroupEventsFilter} from "../models/committee.model";
 import {EmailComposerProgramme, EVENT_EMAIL_IMAGE_HEIGHT, ProgrammeEventFormat, ProgrammeEventSection, ProgrammeEventToken, PROGRAMME_EVENT_TEMPLATES} from "../models/email-composer.model";
 import {LocationDetails} from "../models/ramblers-walks-manager.model";
+import {storedGridReference} from "./grid-reference";
 import {locatePagePath} from "./locate";
 import {normaliseMarkdownText} from "./markdown";
 import {awsImageResourcePath} from "./aws-image-paths";
 
 export function programmeLocation(location: LocationDetails | null): Pick<GroupEventSummary, "gridReference" | "mapUrl"> {
+  const gridReference = storedGridReference(location) || null;
   return {
-    gridReference: location?.grid_reference_10 || location?.grid_reference_8 || location?.grid_reference_6 || null,
+    gridReference,
     mapUrl: location ? locatePagePath({
       lat: location.latitude, lon: location.longitude,
-      gridRef: location.grid_reference_10 || location.grid_reference_8 || location.grid_reference_6 || null,
+      gridRef: gridReference,
       postcode: location.postcode
     }) : null
   };
@@ -57,7 +59,7 @@ export function programmeMarkdown(events: GroupEventSummary[], settings: EmailCo
         [ProgrammeEventToken.CONTACT_NAME]: hideContact ? "" : markdownText(event.contactName),
         [ProgrammeEventToken.CONTACT_PHONE]: hideContact ? "" : markdownText(event.contactPhone),
         [ProgrammeEventToken.CONTACT_EMAIL]: hideContact ? "" : markdownLink(event.contactEmail, event.contactHref),
-        [ProgrammeEventToken.EVENT_URL]: markdownLink("Event page", event.eventUrl),
+        [ProgrammeEventToken.EVENT_URL]: markdownLink("Event page", event.eventUrl, false, ""),
         [ProgrammeEventToken.DESCRIPTION]: filter?.includeDescription === false ? "" : normaliseMarkdownText(event.description) || "",
         [ProgrammeEventToken.IMAGE]: filter?.includeImage && event.image ? markdownLink(event.title || "Event image", awsImageResourcePath(event.image), true) : ""
       };
@@ -100,9 +102,9 @@ function markdownText(value: string | null): string {
   return (value || "").replace(/[\\`*_[\]<>]/g, "\\$&").replace(/\r?\n/g, " ");
 }
 
-function markdownLink(label: string | null, url: string | null, image = false): string {
+function markdownLink(label: string | null, url: string | null, image = false, fallback?: string): string {
   const text = markdownText(label);
   return text && url && /^(https?:\/\/|mailto:|\/(?!\/)|api\/aws\/s3\/)/i.test(url)
     ? `${image ? "!" : ""}[${text}](${url.replace(/[\s()<>]/g, character => encodeURIComponent(character))})`
-    : image ? "" : text;
+    : image ? "" : fallback ?? text;
 }

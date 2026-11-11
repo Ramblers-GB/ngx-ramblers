@@ -1,3 +1,4 @@
+import {locationDescriptionWithoutGridReference} from "../../../functions/grid-reference";
 import { Component, HostBinding, Input, inject } from "@angular/core";
 import { LocationDetails } from "../../../models/ramblers-walks-manager.model";
 import { RelatedLinkComponent } from "../related-links/related-link";
@@ -26,13 +27,13 @@ import { GridReferenceDigits } from "../../../models/walks-config.model";
   `],
   template: `
     @if (location) {
-      @if (showDescription && location?.description) {
+      @if (showDescription && locationDescriptionWithoutGridReference(location); as description) {
         <div app-related-link [stacked]="stacked" [mediaWidth]="inline ? 0 : mediaWidth">
           <div title>
             {{ elementName("Description") }}
           </div>
           <div content>
-            {{ location.description }}
+            {{ description }}
           </div>
         </div>
       }
@@ -118,6 +119,7 @@ export class LocationLinksComponent {
   @Input() showPostcodePlaceholder = false;
   @HostBinding("class.inline") @Input() inline = false;
 
+  protected readonly locationDescriptionWithoutGridReference = locationDescriptionWithoutGridReference;
   private display = inject(WalkDisplayService);
   private numberUtils = inject(NumberUtilsService);
 
@@ -126,12 +128,11 @@ export class LocationLinksComponent {
   }
 
   gridReferenceValue(): string | null {
-    return this.location ? this.display.gridReferenceFrom(this.location) : null;
+    return this.location ? this.display.visibleGridReferenceFrom(this.location) : null;
   }
 
   gridReferenceLink(): string | null {
-    const gridReference = this.gridReferenceValue();
-    return gridReference ? this.display.gridReferenceLink(gridReference) : null;
+    return this.display.locationGridReferenceLink(this.location);
   }
 
   gridReferences(): {label: string; value: string}[] {

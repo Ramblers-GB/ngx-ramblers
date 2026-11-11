@@ -1,3 +1,4 @@
+import {GroupEventSummary} from "../models/committee.model";
 import {PageContentService} from "./page-content.service";
 import {rowsWithin} from "../functions/map-location-markers";
 import {PageContentType} from "../models/content-text.model";
@@ -67,6 +68,11 @@ export class PageService {
       }
       return result;
     }, new Map<RamblersEventType, Link>());
+  }
+
+  eventPageLink(event: Pick<GroupEventSummary, "slug" | "id" | "eventType">, configuredArea?: string): string {
+    const id = event.slug || event.id;
+    return id ? this.urlService.publicLinkUrl({area: configuredArea || event.eventType.area, id}) : null;
   }
 
   walksPage(): Link {

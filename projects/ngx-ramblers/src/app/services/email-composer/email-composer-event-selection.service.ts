@@ -1,3 +1,4 @@
+import {locationDescriptionWithoutGridReference} from "../../functions/grid-reference";
 import { EmailComposerSessionService } from "../../services/email-composer/email-composer-session.service";
 import { BrandingMode, ComposerFragment, ComposerFragmentKind, DateInputMode, EmailCompositionKind, EventInclusionMode, SectionDividerStyle } from "../../models/email-composer.model";
 import { EmailComposerFragmentsService } from "../../services/email-composer/email-composer-fragments.service";
@@ -72,7 +73,7 @@ export class EmailComposerEventSelectionService {
       this.session.state.subject = event.groupEvent?.title ?? this.session.state.subject;
       this.session.state.showTitle = false;
     }
-    this.session.state.groupEvents = event ? [this.eventToSummary(event)] : [];
+    this.session.state.groupEvents = event ? [await this.eventToSummary(event)] : [];
   }
 
   async queryEventByIdSafely(eventId: string): Promise<ExtendedGroupEvent | null> {
@@ -84,11 +85,13 @@ export class EmailComposerEventSelectionService {
     }
   }
 
-  eventToSummary(event: ExtendedGroupEvent): GroupEventSummary {
+  async eventToSummary(event: ExtendedGroupEvent): Promise<GroupEventSummary> {
+    const type = event?.groupEvent?.item_type || RamblersEventType.GROUP_WALK;
+    const pages = await this.committeeQueryService.eventPagesForSummary([type]);
     const derivedEventStatus = this.groupEventService.statusFor(event);
     return {
       id: event.id || event?.groupEvent?.id,
-      ramblersEventType: event?.groupEvent?.item_type || RamblersEventType.GROUP_WALK,
+      ramblersEventType: type,
       slug: eventSlug(event),
       selected: true,
       eventType: this.committeeDisplayService.groupEventType(event),
@@ -104,16 +107,14 @@ export class EmailComposerEventSelectionService {
       grade: eventHasWalkWorkflow(event?.groupEvent?.item_type) ? event?.groupEvent?.difficulty?.description || null : null,
       ascent: this.committeeQueryService.walkAscentForSummary(event),
       shape: event?.groupEvent?.shape || null,
-      eventUrl: event?.groupEvent?.url || null,
-      location: (event?.groupEvent?.start_location || event?.groupEvent?.location)?.description,
+      eventUrl: this.committeeQueryService.eventUrlForSummary(event, pages.get(type)?.href),
+      location: locationDescriptionWithoutGridReference(event?.groupEvent?.start_location || event?.groupEvent?.location),
       postcode: (event?.groupEvent?.start_location || event?.groupEvent?.location)?.postcode,
       ...programmeLocation(event?.groupEvent?.start_location || event?.groupEvent?.location),
       distance: this.committeeQueryService.distanceValidationService.walkDistances(event),
       title: event?.groupEvent?.title || "Awaiting " + this.stringUtils.asTitle(event?.groupEvent?.item_type ?? "event") + " details",
       description: event?.groupEvent?.description,
-      contactName: event?.fields?.contactDetails?.displayName,
-      contactPhone: event?.fields?.contactDetails?.phone,
-      contactEmail: event?.fields?.contactDetails?.email,
+      ...this.committeeQueryService.eventContactForSummary(event),
       image: this.mediaQueryService.imageUrlFrom(event?.groupEvent),
       media: event?.groupEvent?.media ?? [],
       selectedMediaIndex: 0,
@@ -150,7 +151,12 @@ export class EmailComposerEventSelectionService {
       void this.populateGroupEvents();
       this.addEventsFragment(true);
     } else if (mode === EventInclusionMode.SINGLE_EVENT && this.session.state.singleEvent) {
-      this.session.state.groupEvents = [this.eventToSummary(this.session.state.singleEvent)];
+      const singleEvent = this.session.state.singleEvent;
+      void this.eventToSummary(singleEvent).then(summary => {
+        if (this.session.state.eventInclusion === mode && this.session.state.singleEvent === singleEvent) {
+          this.session.state.groupEvents = [summary];
+        }
+      }).catch(error => this.logger.error("Could not prepare single event", error));
       this.addEventsFragment(true);
     }
     this.session.syncStateToUrl({[StoredValue.EVENT_INCLUSION]: mode});

@@ -45,7 +45,10 @@ export class EmailComposerProgrammeService {
   }
 
   formatted(): boolean {
-    return !!this.session.state.programme;
+    const programme = this.session.state.programme;
+    return !!programme && (programme.format !== ProgrammeEventFormat.EMAIL
+      || this.session.state.groupEvents.some(event => event.selected && !event.deleted
+        && (programme.eventFormats?.[event.id] ?? ProgrammeEventFormat.EMAIL) !== ProgrammeEventFormat.EMAIL));
   }
 
   formatChanged(): void {

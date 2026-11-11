@@ -20,7 +20,7 @@ describe("Walk directions action", () => {
     TestBed.configureTestingModule({providers: [
       {provide: LoggerFactory, useValue: {createLogger: () => ({info: vi.fn()})}},
       {provide: LinksService, useValue: {linksFrom: () => ({})}},
-      {provide: WalkDisplayService, useValue: {gridReferenceFrom: () => null}},
+      {provide: WalkDisplayService, useValue: {locationGridReferenceLink: () => null}},
       {provide: WalksConfigService, useValue: {events: () => of({})}},
       {provide: AppShellService, useValue: {platform: () => AppInstallPlatform.ANDROID, mobilePlatform: () => true}},
       {provide: MemberLoginService, useValue: {memberLoggedIn: () => false}},

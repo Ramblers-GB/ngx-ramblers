@@ -35,8 +35,8 @@ import { GroupEventService } from "../../services/walks-and-events/group-event.s
 import { ExtendedGroupEventQueryService } from "../../services/walks-and-events/extended-group-event-query.service";
 import { EventDefaultsService } from "../../services/event-defaults.service";
 import { WalksConfigService } from "../../services/system/walks-config.service";
-import { DEFAULT_GRID_REFERENCE_DIGITS, DEFAULT_REGULAR_WALK_DAY, DEFAULT_WALK_START_TIME, GridReferenceDigits, WalkDetailsMapProvider } from "../../models/walks-config.model";
-import { formatGridReference } from "../../functions/grid-reference";
+import { DEFAULT_REGULAR_WALK_DAY, DEFAULT_WALK_START_TIME, GridReferenceDigits, WalkDetailsMapProvider } from "../../models/walks-config.model";
+import { formatConfiguredGridReference, storedGridReference, visibleGridReference } from "../../functions/grid-reference";
 import { MemberResourcesReferenceDataService } from "../../services/member/member-resources-reference-data.service";
 import { WalksReferenceService } from "../../services/walks/walks-reference-data.service";
 import { CommitteeReferenceData } from "../../services/committee/committee-reference-data";
@@ -450,8 +450,11 @@ export class WalkDisplayService {
     return locatePagePath({gridRef: gridReference, zoom}, this.urlService.relativeUrl());
   }
 
-  gridReferenceAbsoluteLink(gridReference: string): string {
-    return `${this.urlService.baseUrl()}${locatePagePath({gridRef: gridReference}, LOCATE_DEFAULT_BASE_PATH)}`;
+  locationGridReferenceLink(location: LocationDetails, absolute = false): string {
+    const gridRef = storedGridReference(location);
+    const path = gridRef ? locatePagePath({gridRef, lat: location.latitude, lon: location.longitude},
+      absolute ? LOCATE_DEFAULT_BASE_PATH : this.urlService.relativeUrl()) : null;
+    return absolute && path ? this.urlService.absoluteUrlFor(path, this.urlService.publicBaseUrl()) : path;
   }
 
   postcodeLink(postcode: string, location?: LocationDetails): string {
@@ -747,13 +750,15 @@ export class WalkDisplayService {
   }
 
   formatGrid(raw: string, digits?: GridReferenceDigits): string {
-    const config = this.walksConfigService.walksConfig();
-    return raw ? formatGridReference(raw, digits ?? config?.walkDetailsGridReferenceDigits ?? DEFAULT_GRID_REFERENCE_DIGITS, config?.walkDetailsGridReferenceSpaced !== false) : "";
+    return formatConfiguredGridReference(raw, this.walksConfigService.walksConfig(), digits);
   }
 
-  gridReferenceFrom(location: LocationDetails) {
-    const raw = location?.grid_reference_10 || location?.grid_reference_8 || location?.grid_reference_6 || "";
-    return this.formatGrid(raw);
+  gridReferenceFrom(location: LocationDetails): string {
+    return this.formatGrid(storedGridReference(location));
+  }
+
+  visibleGridReferenceFrom(location: LocationDetails): string {
+    return visibleGridReference(storedGridReference(location), this.walksConfigService.walksConfig());
   }
 
   contactAccessLevelFieldsFor(event?: ExtendedGroupEvent): ContactAccessLevelFieldKeys {

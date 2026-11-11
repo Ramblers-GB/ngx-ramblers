@@ -1,3 +1,6 @@
+import {visibleGridReference} from "../../../functions/grid-reference";
+import {WalksConfigService} from "../../../services/system/walks-config.service";
+import {UrlService} from "../../../services/url.service";
 import { Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { GroupEventSummary, Notification } from "../../../models/committee.model";
@@ -35,12 +38,24 @@ import { DisplayDatePipe } from "../../../pipes/display-date.pipe";
           }
     </span>
       }
-      @if (notification?.groupEventsFilter?.includeLocation && event?.postcode) {
-        <span>
-        <span> • </span>Location: @if (event?.location) {
-          <span>{{ event.location }} </span>
-        }<a [href]="googleMapsService.urlForPostcode(event.postcode)"
-              target="_blank">{{ event.postcode }}</a></span>
+      @let gridReference = displayGridReference();
+      @if (notification?.groupEventsFilter?.includeLocation && (event?.location || event?.postcode || gridReference)) {
+        <span> • Location:
+          @if (event?.location) {
+            <span>{{ event.location }} </span>
+          }
+          @if (gridReference) {
+            @if (event.mapUrl) {
+              <a [href]="gridReferenceLink()" target="_blank">{{ gridReference }}</a>
+            } @else {
+              <span>{{ gridReference }}</span>
+            }
+            {{ " " }}
+          }
+          @if (event?.postcode) {
+            <a [href]="googleMapsService.urlForPostcode(event.postcode)" target="_blank">{{ event.postcode }}</a>
+          }
+        </span>
       }
       @if (notification?.groupEventsFilter?.includeDescription) {
         <div markdown [data]="event.description"></div>
@@ -51,6 +66,8 @@ export class CommitteeNotificationGroupEventMessageItemComponent implements OnIn
   private logger: Logger = inject(LoggerFactory).createLogger("CommitteeNotificationGroupEventMessageItemComponent", NgxLoggerLevel.ERROR);
   mailMessagingService = inject(MailMessagingService);
   googleMapsService = inject(GoogleMapsService);
+  private walksConfigService = inject(WalksConfigService);
+  private urlService = inject(UrlService);
   private systemConfigService = inject(SystemConfigService);
   display = inject(CommitteeDisplayService);
   private subscriptions: Subscription[] = [];
@@ -64,6 +81,14 @@ export class CommitteeNotificationGroupEventMessageItemComponent implements OnIn
 
   @Input()
   public notification: Notification;
+
+  protected displayGridReference(): string {
+    return visibleGridReference(this.event?.gridReference, this.walksConfigService.walksConfig());
+  }
+
+  protected gridReferenceLink(): string {
+    return this.urlService.absoluteUrlFor(this.event?.mapUrl, this.urlService.publicBaseUrl());
+  }
 
   ngOnInit() {
     this.logger.info("ngOnInit:event ->", this.event);

@@ -24,6 +24,7 @@ class EditorStub {
 class PreviewStub {
   @Input() template = "";
   @Input() imageHeight = 240;
+  @Input() defaultLayout = false;
 }
 
 describe("existing event format settings", () => {

@@ -1,3 +1,5 @@
+import {visibleGridReference} from "../../functions/grid-reference";
+import {WalksConfigService} from "../system/walks-config.service";
 import {inject, Injectable} from "@angular/core";
 import {GroupEventsFilter, GroupEventSummary} from "../../models/committee.model";
 import {EmailComposerProgramme, EmailImageLayout, EVENT_EMAIL_IMAGE_HEIGHT} from "../../models/email-composer.model";
@@ -15,10 +17,13 @@ export class EventTemplateRenderingService {
   private mail = inject(MailMessagingService);
   private dates = inject(DateUtilsService);
   private urls = inject(UrlService);
+  private walksConfigService = inject(WalksConfigService);
   private rendering = inject(EmailComposerRenderingService);
 
   markdown(events: GroupEventSummary[], settings: EmailComposerProgramme, filter: GroupEventsFilter | null, emailMarkdown: Record<string, string> = {}): string {
+    const config = this.walksConfigService.walksConfig();
     const resolved = events.map(event => ({...event,
+      gridReference: visibleGridReference(event.gridReference, config),
       image: event.image ? this.urls.absoluteUrlFor(awsImageResourcePath(event.image)) : null,
       mapUrl: event.mapUrl ? this.urls.absoluteUrlFor(event.mapUrl) : null}));
     return programmeMarkdown(resolved, settings, filter, value => this.dates.displayDate(value), emailMarkdown);

@@ -1,3 +1,5 @@
+import {formatConfiguredGridReference} from "../../functions/grid-reference";
+import {WalksConfigService} from "../../services/system/walks-config.service";
 import { Component, EventEmitter, inject, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { AsyncPipe } from "@angular/common";
 import { FormsModule } from "@angular/forms";
@@ -54,6 +56,7 @@ export class LocationAutocompleteComponent implements OnInit, OnChanges {
   private logger: Logger = inject(LoggerFactory).createLogger("LocationAutocompleteComponent", NgxLoggerLevel.ERROR);
   private addressQueryService = inject(AddressQueryService);
   protected readonly StoredValue = StoredValue;
+  private walksConfigService = inject(WalksConfigService);
   private gridReferences = inject(GridReferenceService);
 
   @Input() placeholder = "Enter UK postcode or place name...";
@@ -105,7 +108,7 @@ export class LocationAutocompleteComponent implements OnInit, OnChanges {
         } else if (point) {
           this.locationLoading = false;
           return of([{
-            label: point.gridReference10,
+            label: formatConfiguredGridReference(point.gridReference10, this.walksConfigService.walksConfig()),
             lat: point.latitude,
             lng: point.longitude,
             gridReference6: point.gridReference6,

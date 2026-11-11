@@ -132,8 +132,7 @@ export class CommitteeNotificationDetailsComponent implements OnInit, OnDestroy 
   }
 
   toNotificationItem(event: GroupEventSummary, notification: Notification): NotificationItem {
-    const area = this.eventPaths.get(event.ramblersEventType as RamblersEventType) || event.eventType.area;
-    const href = this.display.urlService.publicLinkUrl({area, id: event.slug || event.id});
+    const href = this.pageService.eventPageLink(event, this.eventPaths.get(event.ramblersEventType as RamblersEventType));
     const title = "View " + this.stringUtils.asTitle(this.stringUtils.asWords(event.ramblersEventType || event.eventType.eventType || ""));
     const image = notification.groupEventsFilter.includeImage ? {
       alt: title,
