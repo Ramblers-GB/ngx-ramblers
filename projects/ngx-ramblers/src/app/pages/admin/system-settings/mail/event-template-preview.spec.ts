@@ -64,7 +64,7 @@ describe("real event template preview", () => {
 
   it("loads site events and immediately renders the selected events and images", async () => {
     const {fixture, host, query} = await setup();
-    expect(query.groupEvents).toHaveBeenCalledWith(expect.objectContaining({includeWalks: true, includeSocialEvents: true, includeCommitteeEvents: true}));
+    expect(query.groupEvents).toHaveBeenCalledWith(expect.objectContaining({includeWalks: true, includeSocialEvents: true, includeCommitteeEvents: false, limit: 60}));
     const typePicker = fixture.debugElement.queryAll(By.directive(NgSelectComponent))[0].componentInstance as NgSelectComponent;
     expect(typePicker.selectedItems.map(item => item.label)).toEqual(["Walk", "Social Event"]);
     expect(host.textContent).toContain("Hillside Park");
