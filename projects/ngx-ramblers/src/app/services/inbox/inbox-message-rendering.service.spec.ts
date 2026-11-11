@@ -27,6 +27,14 @@ describe("inbox message rendering", () => {
     expect(message.attachments).toHaveLength(3);
   });
 
+  it("previews deferred HTML from body text", () => {
+    const service = TestBed.inject(InboxMessageRenderingService);
+    const message = {messageId: "message-1", bodyHtml: null, bodyHtmlDeferred: true, bodyText: "Quoted screenshot thread"} as InboxMessage;
+    service.prepare([message]);
+    expect(service.messagePreview(message)).toBe("Quoted screenshot thread");
+    expect(service.renderableBody(message)).toBe("<pre>Quoted screenshot thread</pre>");
+  });
+
   it("rebuilds cached content when a fetched message replaces the previous content", () => {
     const service = TestBed.inject(InboxMessageRenderingService);
     const first = {messageId: "message-1", bodyText: "First", attachments: []} as InboxMessage;
@@ -36,5 +44,14 @@ describe("inbox message rendering", () => {
     service.prepare([updated]);
     expect(service.messagePreview(updated)).toBe("Updated");
     expect(service.renderableBody(updated)).toBe("<pre>Updated</pre>");
+  });
+
+  it("updates one message after the full HTML arrives", () => {
+    const service = TestBed.inject(InboxMessageRenderingService);
+    const message = {messageId: "message-1", bodyHtml: null, bodyHtmlDeferred: true, bodyText: "Preview"} as InboxMessage;
+    service.prepare([message]);
+    const full = {...message, bodyHtml: "<p>Full</p>", bodyHtmlDeferred: false};
+    service.prepareMessage(full);
+    expect(service.renderableBody(full)).toBe("<p>Full</p>");
   });
 });

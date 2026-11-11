@@ -18,6 +18,7 @@ import {
   InboxSyncMode,
   InboxThreadFolder,
   InboxThreadListResponse,
+  InboxMessage,
   InboxThreadMessagesResponse,
   InboxUnreadCountsResponse,
   InboxViewScope,
@@ -242,6 +243,11 @@ export class InboxService {
   async getThread(threadId: string, roleType: string | null = null): Promise<InboxThreadMessagesResponse> {
     const response = await this.commonDataService.responseFrom(this.logger, this.http.get<ApiResponse>(`${this.BASE_URL}/threads/${encodeURIComponent(threadId)}`, {params: roleType ? {roleType} : {}}));
     return response.response as InboxThreadMessagesResponse;
+  }
+
+  async getThreadMessage(threadId: string, messageId: string): Promise<InboxMessage> {
+    const response = await this.commonDataService.responseFrom(this.logger, this.http.get<ApiResponse>(`${this.BASE_URL}/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}`));
+    return response.response as InboxMessage;
   }
 
   async markThreadRead(threadId: string): Promise<void> {

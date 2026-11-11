@@ -1,4 +1,4 @@
-import { inboxThreadId, isInboxThreadMongoId } from "../../../projects/ngx-ramblers/src/app/functions/inbox-thread";
+import { inboxThreadId, isInboxThreadMongoId, threadMessagesForOpen } from "../../../projects/ngx-ramblers/src/app/functions/inbox-thread";
 import { accessibleThread, canFetchFromGmail, connectionForMessage, hydrateMessage, readableThread, resolveThreadConnection, threadCorrespondent } from "./inbox-thread-context";
 import { Request, Response } from "express";
 import debug from "debug";
@@ -58,12 +58,40 @@ export async function readInboxThread(req: Request, res: Response): Promise<void
         ...(correspondent ? { externalAddress: correspondent } : {}),
         unread: threadUnreadForMember(thread, requestingMemberId(req))
       };
-      const response: InboxThreadMessagesResponse = { thread: threadForMember, messages };
+      const response: InboxThreadMessagesResponse = { thread: threadForMember, messages: threadMessagesForOpen(messages) };
       res.json({ request: { messageType }, response });
     }
   }
   catch (error) {
     errorDebugLog("Error fetching thread:", (error as Error).message);
+    res.status(500).json({ request: { messageType }, error: errorResponse(error) });
+  }
+}
+export async function readInboxThreadMessage(req: Request, res: Response): Promise<void> {
+  try {
+    const thread = await accessibleThread(req, res, req.params.id);
+    if (thread) {
+      const requestedId = req.params.messageId;
+      const stored = await inboxMessageModel.findOne(isInboxThreadMongoId(requestedId)
+        ? { threadId: inboxThreadId(thread), $or: [{ messageId: requestedId }, { _id: requestedId }] }
+        : { threadId: inboxThreadId(thread), messageId: requestedId }).lean() as InboxMessage | null;
+      if (!stored) {
+        res.status(404).json({ request: { messageType }, error: `Message ${requestedId} not found` });
+      } else {
+        const connection = stored.externalSource === InboxReaderProvider.GMAIL_API
+          && stored.bodyHtml === null
+          && stored.bodyText === null
+          ? await resolveThreadConnection(thread, [stored])
+          : null;
+        const message = canFetchFromGmail(connection) && connection
+          ? await hydrateMessage(await connectionForMessage(stored, connection), stored)
+          : stored;
+        res.json({ request: { messageType }, response: { ...message, bodyHtmlDeferred: false } });
+      }
+    }
+  }
+  catch (error) {
+    errorDebugLog("Error fetching thread message:", (error as Error).message);
     res.status(500).json({ request: { messageType }, error: errorResponse(error) });
   }
 }

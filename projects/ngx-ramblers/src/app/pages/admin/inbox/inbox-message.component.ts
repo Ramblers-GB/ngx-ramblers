@@ -9,6 +9,7 @@ import {UIDateFormat} from "../../../models/date-format.model";
 import {formatInboxAddress} from "../../../functions/inbox-thread";
 import {NumberUtilsService} from "../../../services/number-utils.service";
 import {InboxMessageRenderingService} from "../../../services/inbox/inbox-message-rendering.service";
+import {InboxService} from "../../../services/inbox/inbox.service";
 import {AttachmentPreviewComponent} from "../../../modules/common/attachment-preview/attachment-preview";
 import {HtmlFrameComponent} from "../../../modules/common/html-frame/html-frame.component";
 import {InboxCalendarInviteComponent} from "./inbox-calendar-invite";
@@ -93,6 +94,9 @@ import {InboxCalendarInviteComponent} from "./inbox-calendar-invite";
                         }
                       </div>
                     }
+                    @if (loadingFullBody) {
+                      <div class="inbox-message-preview text-muted mb-2">Loading full message…</div>
+                    }
                     <app-html-frame class="inbox-message-body" [fitToWidth]="fitToWidth" [html]="renderableBody(message)"/>
                   </div>
                 }
@@ -113,7 +117,9 @@ export class InboxMessageComponent {
   @Output() forward = new EventEmitter<InboxMessage>();
   private expanded = false;
   private opened = false;
+  protected loadingFullBody = false;
   private messageRendering = inject(InboxMessageRenderingService);
+  private inboxService = inject(InboxService);
   protected numberUtils = inject(NumberUtilsService);
   protected readonly InboxMessageDirection = InboxMessageDirection;
   protected readonly UIDateFormat = UIDateFormat;
@@ -138,6 +144,25 @@ export class InboxMessageComponent {
   protected toggleMessage(): void {
     this.expanded = !this.expanded;
     this.opened = this.opened || this.expanded;
+    if (this.expanded && this.message.bodyHtmlDeferred) {
+      void this.loadFullBody();
+    }
+  }
+
+  private async loadFullBody(): Promise<void> {
+    if (!this.loadingFullBody && this.message.bodyHtmlDeferred) {
+      this.loadingFullBody = true;
+      try {
+        const full = await this.inboxService.getThreadMessage(this.message.threadId, this.message.messageId);
+        this.message.bodyHtml = full.bodyHtml;
+        this.message.bodyText = full.bodyText;
+        this.message.bodyHtmlDeferred = false;
+        this.message.attachments = full.attachments ?? this.message.attachments;
+        this.messageRendering.prepareMessage(this.message);
+      } finally {
+        this.loadingFullBody = false;
+      }
+    }
   }
 
   protected hasMultipleRecipients(message: InboxMessage): boolean {

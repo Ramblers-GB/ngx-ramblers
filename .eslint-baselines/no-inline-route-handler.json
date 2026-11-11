@@ -35,7 +35,7 @@
   "server/lib/document-conversion/document-conversion-worker-routes.ts:ed56d87c3040",
   "server/lib/documentation/documentation-routes.ts:bf215f204517",
   "server/lib/geojson/geojson-routes.ts:6b8bd58e6e1a",
-  "server/lib/inbox/inbox-routes.ts:e9d23c1af87c",
+  "server/lib/inbox/inbox-routes.ts:0ab36654ed93",
   "server/lib/inbox/oauth-routes.ts:1086ba0590e4",
   "server/lib/inbox/oauth-routes.ts:12454452c297",
   "server/lib/inbox/oauth-routes.ts:1959554c237a",

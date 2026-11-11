@@ -27,6 +27,8 @@ import {
   isInboxThreadMongoId,
   isInboxUserFolderView,
   newestInboxMessage,
+  INBOX_OPEN_INLINE_HTML_MAX,
+  threadMessagesForOpen,
   replyAllRecipients,
   uniqueInboxFolderSlug,
   validatedInboxColumnShare
@@ -444,6 +446,48 @@ describe("collapseInboxSends", () => {
     expect(collapseInboxSends([first, later]).map(message => message.messageId)).toEqual(["<early@mail>", "<late@mail>"]);
   });
 
+});
+
+describe("threadMessagesForOpen", () => {
+  function outbound(overrides: Partial<InboxMessage>): InboxMessage {
+    return {
+      direction: InboxMessageDirection.OUTBOUND,
+      from: {email: "alex.reed@example.com", name: "Alex Reed"},
+      subject: "Contributor environment bundle",
+      to: [{email: "chair@group.example.org.uk", name: "Chair"}],
+      cc: [],
+      receivedAt: null,
+      ...overrides
+    } as InboxMessage;
+  }
+
+  it("keeps the newest HTML even when it is larger than the inline limit", () => {
+    const older = outbound({
+      messageId: "<old@mail>",
+      sentAt: 1000,
+      bodyHtml: "x".repeat(INBOX_OPEN_INLINE_HTML_MAX + 1),
+      bodyText: "older preview"
+    });
+    const newest = outbound({
+      messageId: "<new@mail>",
+      sentAt: 2000,
+      bodyHtml: "y".repeat(INBOX_OPEN_INLINE_HTML_MAX + 1),
+      bodyText: "newest"
+    });
+    const opened = threadMessagesForOpen([older, newest]);
+    expect(opened[0].bodyHtml).toBeNull();
+    expect(opened[0].bodyHtmlDeferred).toBe(true);
+    expect(opened[0].bodyText).toEqual("older preview");
+    expect(opened[1].bodyHtml?.length).toEqual(INBOX_OPEN_INLINE_HTML_MAX + 1);
+    expect(opened[1].bodyHtmlDeferred).toBeUndefined();
+  });
+
+  it("keeps small HTML on older messages", () => {
+    const older = outbound({messageId: "<old@mail>", sentAt: 1000, bodyHtml: "<p>Hi</p>"});
+    const newest = outbound({messageId: "<new@mail>", sentAt: 2000, bodyHtml: "<p>Later</p>"});
+    const opened = threadMessagesForOpen([older, newest]);
+    expect(opened.map(message => message.bodyHtml)).toEqual(["<p>Hi</p>", "<p>Later</p>"]);
+  });
 });
 
 describe("hiddenInboxFolders", () => {

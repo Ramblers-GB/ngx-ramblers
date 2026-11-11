@@ -14,11 +14,16 @@ export class InboxMessageRenderingService {
     this.visibleAttachmentsById = new Map(messages.map(message => [message.messageId, this.buildVisibleAttachments(message)]));
     this.renderableBodyById = new Map(messages.map(message => [message.messageId, this.buildRenderableBody(message)]));
   }
+  prepareMessage(message: InboxMessage): void {
+    this.messagePreviewById.set(message.messageId, this.buildMessagePreview(message));
+    this.visibleAttachmentsById.set(message.messageId, this.buildVisibleAttachments(message));
+    this.renderableBodyById.set(message.messageId, this.buildRenderableBody(message));
+  }
   messagePreview(message: InboxMessage): string {
     return this.messagePreviewById.get(message.messageId) ?? this.buildMessagePreview(message);
   }
   private buildMessagePreview(message: InboxMessage): string {
-    const raw = message.bodyHtml?.trim() ? message.bodyHtml : (message.bodyText ?? "");
+    const raw = !message.bodyHtmlDeferred && message.bodyHtml?.trim() ? message.bodyHtml : (message.bodyText ?? "");
     const cleaned = this.stringUtils.htmlToPlainText(raw)
       .replace(/[^{}]*\{[^{}]*:[^{}]*\}/g, " ");
     return cleaned.replace(/\s+/g, " ").trim().slice(0, 500);

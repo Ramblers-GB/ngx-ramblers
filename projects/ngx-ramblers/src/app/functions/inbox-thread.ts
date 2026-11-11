@@ -193,6 +193,23 @@ export function newestInboxMessage(messages: InboxMessage[] | null | undefined):
     !latest || inboxMessageAt(candidate) > inboxMessageAt(latest) ? candidate : latest, null);
 }
 
+export const INBOX_OPEN_INLINE_HTML_MAX = 80_000;
+
+export function threadMessagesForOpen(messages: InboxMessage[]): InboxMessage[] {
+  const newest = newestInboxMessage(messages);
+  const newestKey = newest?.messageId ?? newest?.id ?? null;
+  return messages.map(message => {
+    const html = message.bodyHtml;
+    const isNewest = newestKey !== null && (message.messageId === newestKey || message.id === newestKey);
+    const keepHtml = !html || html.length <= INBOX_OPEN_INLINE_HTML_MAX || isNewest;
+    if (keepHtml) {
+      return message;
+    } else {
+      return {...message, bodyHtml: null, bodyHtmlDeferred: true};
+    }
+  });
+}
+
 export function inboxThreadRowFrom(thread: InboxThread): string | null {
   return formatInboxAddress(thread?.receivedFrom || thread?.externalAddress) || null;
 }

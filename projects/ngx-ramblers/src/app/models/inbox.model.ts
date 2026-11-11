@@ -504,6 +504,7 @@ export interface InboxMessage extends Identifiable {
   cc: InboxAddress[];
   subject: string;
   bodyHtml: string | null;
+  bodyHtmlDeferred?: boolean;
   bodyText: string | null;
   receivedAt: number | null;
   sentAt: number | null;
