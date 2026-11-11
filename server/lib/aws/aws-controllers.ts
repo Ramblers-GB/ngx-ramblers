@@ -3,13 +3,14 @@ import { importedRoutesWithGpxFiles } from "../walks/walk-gpx-records";
 import { MemberCookie } from "../../../projects/ngx-ramblers/src/app/models/member.model";
 import * as AWS from "@aws-sdk/client-s3";
 import { CopyObjectCommand, GetObjectCommand, GetObjectRequest, HeadObjectCommand, S3 } from "@aws-sdk/client-s3";
-import { Upload, Progress } from "@aws-sdk/lib-storage";
+import { Progress, Upload } from "@aws-sdk/lib-storage";
 import { ListObjectsV2CommandOutput } from "@aws-sdk/client-s3/dist-types/commands/ListObjectsV2Command";
 import { ListObjectsCommandOutput } from "@aws-sdk/client-s3/dist-types/commands/ListObjectsCommand";
 import * as crypto from "crypto";
 import debug from "debug";
 import { Request, Response } from "express";
 import * as fs from "fs";
+import { createWriteStream } from "fs";
 import * as https from "https";
 import { isString, omit } from "es-toolkit/compat";
 import * as path from "path";
@@ -25,10 +26,9 @@ import {
   FileServeDisposition
 } from "../../../projects/ngx-ramblers/src/app/models/aws-object.model";
 import { ApiAction } from "../../../projects/ngx-ramblers/src/app/models/api-response.model";
-import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+
 import { contentTypeFrom } from "./aws-utils";
 import { dateTimeFromJsDate, dateTimeNow } from "../shared/dates";
-import { createWriteStream } from "fs";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { extractedSerenityReportDirectory } from "./serenity-report-archive";
@@ -205,15 +205,28 @@ export function listBuckets(req: Request, res: Response) {
 
 export type UploadProgressCallback = (progress: { loaded: number; total: number }) => void;
 
+export interface S3ClientAndBucket {
+  client: S3;
+  bucket: string;
+}
+
+function s3Target(override?: S3ClientAndBucket): S3ClientAndBucket {
+  if (override) {
+    return override;
+  } else {
+    return { client: s3(), bucket: s3Config().bucket };
+  }
+}
+
 export async function putObjectDirect(
   rootFolder: string,
   fileName: string,
   localFileName: string,
-  onProgress?: UploadProgressCallback
+  onProgress?: UploadProgressCallback,
+  target?: S3ClientAndBucket
 ): Promise<AwsInfo | AwsUploadErrorResponse> {
-  const config = s3Config();
-  debugLog("configured with", config);
-  const bucket = config.bucket;
+  const { client, bucket } = s3Target(target);
+  debugLog("configured with", { bucket });
   const objectKey = `${rootFolder}/${path.basename(fileName)}`;
   const fileStream = fs.createReadStream(localFileName);
   const stats = fs.statSync(localFileName);
@@ -227,7 +240,7 @@ export async function putObjectDirect(
   debugLog(`Saving file to ${bucket}/${objectKey}, size: ${fileSizeInBytes} bytes, using params:`, JSON.stringify(omit(params, "Body")));
   try {
     const upload = new Upload({
-      client: s3(),
+      client,
       params,
       partSize: 5 * 1024 * 1024,
       queueSize: 4,
@@ -249,11 +262,14 @@ export async function putObjectDirect(
   }
 }
 
-export async function copyObjectDirect(sourceKey: string, destinationKey: string): Promise<AwsInfo | AwsUploadErrorResponse> {
-  const config = s3Config();
-  const bucket = config.bucket;
+export async function copyObjectDirect(
+  sourceKey: string,
+  destinationKey: string,
+  target?: S3ClientAndBucket
+): Promise<AwsInfo | AwsUploadErrorResponse> {
+  const { client, bucket } = s3Target(target);
   try {
-    const data = await s3().send(new CopyObjectCommand({
+    const data = await client.send(new CopyObjectCommand({
       Bucket: bucket,
       CopySource: encodeURIComponent(`${bucket}/${sourceKey}`).replace(/%2F/g, "/"),
       Key: destinationKey
@@ -373,7 +389,7 @@ export async function objectSizeForKey(key: string): Promise<number> {
   return response.ContentLength ?? 0;
 }
 
-async function streamToBuffer(body: any): Promise<Buffer> {
+export async function streamToBuffer(body: any): Promise<Buffer> {
   if (Buffer.isBuffer(body)) {
     return body;
   } else if (body?.transformToByteArray) {
@@ -429,7 +445,6 @@ function s3Policy(req: Request, res: Response) {
     "conditions": [
       ["starts-with", "$key", `${req.query.objectKey ? req.query.objectKey : ""}/`],
       {"bucket": config.bucket},
-      {"acl": AWS_DEFAULTS.OBJECT_ACL},
       ["starts-with", "$Content-Type", req.query.mimeType ? req.query.mimeType : ""],
       {"success_action_status": "201"},
     ],

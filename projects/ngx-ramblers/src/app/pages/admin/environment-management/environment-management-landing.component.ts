@@ -111,7 +111,7 @@ export class EnvironmentManagementLandingComponent implements OnInit, OnDestroy 
             href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MIGRATION,
             title: "Environment Migration",
             icon: "faExchangeAlt",
-            contentText: "Move an environment to isolated MongoDB credentials with validation, restore verification, and explicit cutover",
+            contentText: "Move MongoDB, S3, or both, with validation and an explicit cutover. S3 can be copied without changing the database.",
             accessLevel: AccessLevel.ENVIRONMENT_ADMIN
           },
           {

@@ -18,17 +18,17 @@ import {
   RootFolder
 } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import * as aws from "../aws/aws-controllers";
-import { contentMetadata } from "../mongo/models/content-metadata";
-import { pageContent } from "../mongo/models/page-content";
-import { extendedGroupEvent } from "../mongo/models/extended-group-event";
-import committeeFile from "../mongo/models/committee-file";
+import { S3ClientAndBucket } from "../aws/aws-controllers";
 import { generateAwsFileName, isAwsUploadErrorResponse } from "../aws/aws-utils";
 import * as mongooseClient from "../mongo/mongoose-client";
+import { ContentMigrationModels, defaultContentMigrationModels } from "./content-migration-models";
 import { isArray, keys, values } from "es-toolkit/compat";
 import { humanFileSize } from "../../../projects/ngx-ramblers/src/app/functions/file-utils";
 import { createProcessTimer } from "../shared/process-timer";
 import { dateTimeNowAsValue } from "../shared/dates";
-import { documentTypeFromUrl } from "./image-migration-scanner";
+import { documentTypeFromUrl, fileNameFromUrl } from "./image-migration-scanner";
+import { assertPublicInternetHost } from "../site-registration/public-site-fetch";
+import { LookupFunction } from "net";
 
 const debugLog = debug(envConfig.logNamespace("content-migration-engine"));
 debugLog.enabled = true;
@@ -36,6 +36,11 @@ debugLog.enabled = true;
 type ProgressCallback = (progress: ContentMigrationProgress) => void;
 type CancellationCheck = () => boolean;
 type UrlMapping = Record<string, string>;
+
+export interface ContentMigrationRuntime {
+  s3Target?: S3ClientAndBucket;
+  models?: ContentMigrationModels;
+}
 
 function rootFolderForSourceType(sourceType: ContentMigrationSourceType, fallbackFolder: RootFolder): RootFolder {
   if (sourceType === ContentMigrationSourceType.CONTENT_METADATA) {
@@ -62,57 +67,70 @@ function targetPathForItem(itemRef: ExternalContentReference, fallbackFolder: Ro
   }
 }
 
-async function downloadExternalContent(url: string): Promise<{ buffer: Buffer; contentType: string }> {
-  return new Promise((resolve, reject) => {
-    const safeUrl = url.replace(/ /g, "%20");
-    const protocol = safeUrl.startsWith("https") ? https : http;
+const MAX_DOWNLOAD_REDIRECTS = 5;
 
-    const request = protocol.get(safeUrl, response => {
-      if (response.statusCode === 301 || response.statusCode === 302) {
+function parsedDownloadUrl(value: string, base?: URL): URL {
+  const url = new URL(value.replace(/ /g, "%20"), base);
+  if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) {
+    throw new Error("Download URL must be public HTTP or HTTPS");
+  } else {
+    return url;
+  }
+}
+
+async function downloadExternalContent(url: string, hops = 0, base?: URL): Promise<{ buffer: Buffer; contentType: string }> {
+  if (hops > MAX_DOWNLOAD_REDIRECTS) {
+    throw new Error("Download redirected too many times");
+  } else {
+    const parsed = parsedDownloadUrl(url, base);
+    const addresses = await assertPublicInternetHost(parsed.hostname);
+    return new Promise((resolve, reject) => {
+      const protocol = parsed.protocol === "https:" ? https : http;
+      const pinLookup: LookupFunction = (_hostname, _options, callback) => {
+        callback(null, addresses);
+      };
+      const requestOptions = {
+        lookup: pinLookup,
+        autoSelectFamily: true,
+        ...(parsed.protocol === "https:" ? {servername: parsed.hostname} : {})
+      };
+      const request = protocol.get(parsed, requestOptions, response => {
+        response.on("error", reject);
         const redirectUrl = response.headers.location;
-        if (redirectUrl) {
-          downloadExternalContent(redirectUrl.replace(/ /g, "%20")).then(resolve).catch(reject);
-          return;
+        if (redirectUrl && [301, 302, 303, 307, 308].includes(response.statusCode)) {
+          response.resume();
+          downloadExternalContent(redirectUrl, hops + 1, parsed).then(resolve, reject);
+        } else if (response.statusCode !== 200) {
+          response.resume();
+          reject(new Error(`Failed to download content: HTTP ${response.statusCode}`));
+        } else {
+          const chunks: Uint8Array[] = [];
+          const contentType = response.headers["content-type"] || "application/octet-stream";
+          response.on("data", (chunk: Uint8Array) => chunks.push(chunk));
+          response.on("end", () => {
+            resolve({
+              buffer: Buffer.concat(chunks),
+              contentType
+            });
+          });
         }
-      }
-
-      if (response.statusCode !== 200) {
-        reject(new Error(`Failed to download content: HTTP ${response.statusCode}`));
-        return;
-      }
-
-      const chunks: Uint8Array[] = [];
-      const contentType = response.headers["content-type"] || "application/octet-stream";
-
-      response.on("data", (chunk: Uint8Array) => chunks.push(chunk));
-      response.on("end", () => {
-        resolve({
-          buffer: Buffer.concat(chunks),
-          contentType
-        });
       });
-      response.on("error", reject);
-    });
 
-    request.on("error", reject);
-    request.setTimeout(30000, () => {
-      request.destroy();
-      reject(new Error("Download timeout"));
+      request.on("error", reject);
+      request.setTimeout(30000, () => {
+        request.destroy();
+        reject(new Error("Download timeout"));
+      });
     });
-  });
+  }
 }
 
 function extractFileNameFromUrl(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split("/");
-    const fileName = pathParts[pathParts.length - 1];
-    if (fileName && /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|pdf|doc|docx|dot|xls|xlsx|csv|ppt|pptx|odt|ods|odp|rtf|txt|gpx|zip|json|geojson|xml)$/i.test(fileName)) {
-      return fileName;
-    }
-    return `file-${dateTimeNowAsValue()}.bin`;
-  } catch {
-    return `file-${dateTimeNowAsValue()}.bin`;
+  const fileName = fileNameFromUrl(url);
+  if (fileName) {
+    return fileName;
+  } else {
+    return `file-${dateTimeNowAsValue()}.jpeg`;
   }
 }
 
@@ -151,7 +169,8 @@ async function uploadToS3(
   buffer: Buffer,
   originalFileName: string,
   targetFolder: string,
-  onProgress?: (loaded: number, total: number) => void
+  onProgress?: (loaded: number, total: number) => void,
+  runtime?: ContentMigrationRuntime
 ): Promise<string> {
   const tempDir = os.tmpdir();
   const awsFileName = generateAwsFileName(originalFileName);
@@ -161,7 +180,8 @@ async function uploadToS3(
 
   try {
     const result = await aws.putObjectDirect(targetFolder, awsFileName, tempFilePath,
-      onProgress ? ({ loaded, total }) => onProgress(loaded, total) : undefined);
+      onProgress ? ({ loaded, total }) => onProgress(loaded, total) : undefined,
+      runtime?.s3Target);
 
     if (isAwsUploadErrorResponse(result)) {
       throw new Error(result.error || "S3 upload failed");
@@ -208,11 +228,20 @@ function replaceUrlsInText(text: string, urlMapping: UrlMapping): string {
   return result;
 }
 
-async function updateContentMetadataWithMapping(sourceId: string, urlMapping: UrlMapping, maxImageSize?: number): Promise<void> {
-  debugLog("updateContentMetadataWithMapping:updating", sourceId, "with", keys(urlMapping).length, "URL replacements");
-  await mongooseClient.connect(debugLog);
+async function ensureDefaultMongo(runtime?: ContentMigrationRuntime): Promise<ContentMigrationModels> {
+  if (runtime?.models) {
+    return runtime.models;
+  } else {
+    await mongooseClient.connect(debugLog);
+    return defaultContentMigrationModels();
+  }
+}
 
-  const doc = await contentMetadata.findById(sourceId).exec();
+async function updateContentMetadataWithMapping(sourceId: string, urlMapping: UrlMapping, maxImageSize?: number, runtime?: ContentMigrationRuntime): Promise<void> {
+  debugLog("updateContentMetadataWithMapping:updating", sourceId, "with", keys(urlMapping).length, "URL replacements");
+  const models = await ensureDefaultMongo(runtime);
+
+  const doc = await models.contentMetadata.findById(sourceId).exec();
   if (!doc) {
     throw new Error(`ContentMetadata not found: ${sourceId}`);
   }
@@ -244,15 +273,15 @@ async function updateContentMetadataWithMapping(sourceId: string, urlMapping: Ur
   }
 
   debugLog("updateContentMetadataWithMapping:setting rootFolder to", RootFolder.carousels);
-  await contentMetadata.findByIdAndUpdate(sourceId, updateData).exec();
+  await models.contentMetadata.findByIdAndUpdate(sourceId, updateData).exec();
   debugLog("updateContentMetadataWithMapping:updated successfully");
 }
 
-async function updatePageContentWithMapping(sourceId: string, urlMapping: UrlMapping): Promise<void> {
+async function updatePageContentWithMapping(sourceId: string, urlMapping: UrlMapping, runtime?: ContentMigrationRuntime): Promise<void> {
   debugLog("updatePageContentWithMapping:updating", sourceId, "with", keys(urlMapping).length, "URL replacements:", keys(urlMapping));
-  await mongooseClient.connect(debugLog);
+  const models = await ensureDefaultMongo(runtime);
 
-  const doc = await pageContent.findById(sourceId).exec();
+  const doc = await models.pageContent.findById(sourceId).exec();
   if (!doc) {
     debugLog("updatePageContentWithMapping:document not found:", sourceId);
     throw new Error(`PageContent not found: ${sourceId}`);
@@ -297,7 +326,7 @@ async function updatePageContentWithMapping(sourceId: string, urlMapping: UrlMap
   );
   debugLog("updatePageContentWithMapping:columns with updated imageSource:", JSON.stringify(changedColumns.map((c: any) => ({ imageSource: c.imageSource })), null, 2));
 
-  const updateResult = await pageContent.findByIdAndUpdate(sourceId, { $set: { rows: updatedRows } }, { new: true }).exec();
+  const updateResult = await models.pageContent.findByIdAndUpdate(sourceId, { $set: { rows: updatedRows } }, { new: true }).exec();
   debugLog("updatePageContentWithMapping:update result:", updateResult ? "document returned" : "no document returned");
 
   if (updateResult) {
@@ -308,11 +337,11 @@ async function updatePageContentWithMapping(sourceId: string, urlMapping: UrlMap
   }
 }
 
-async function updateGroupEventWithMapping(sourceId: string, urlMapping: UrlMapping): Promise<void> {
+async function updateGroupEventWithMapping(sourceId: string, urlMapping: UrlMapping, runtime?: ContentMigrationRuntime): Promise<void> {
   debugLog("updateGroupEventWithMapping:updating", sourceId, "with", keys(urlMapping).length, "URL replacements");
-  await mongooseClient.connect(debugLog);
+  const models = await ensureDefaultMongo(runtime);
 
-  const doc = await extendedGroupEvent.findById(sourceId).exec();
+  const doc = await models.extendedGroupEvent.findById(sourceId).exec();
   if (!doc) {
     throw new Error(`ExtendedGroupEvent not found: ${sourceId}`);
   }
@@ -341,15 +370,15 @@ async function updateGroupEventWithMapping(sourceId: string, urlMapping: UrlMapp
     updateFields["groupEvent.additional_details"] = replaceUrlsInText(docObj.groupEvent.additional_details, urlMapping);
   }
 
-  await extendedGroupEvent.findByIdAndUpdate(sourceId, updateFields).exec();
+  await models.extendedGroupEvent.findByIdAndUpdate(sourceId, updateFields).exec();
   debugLog("updateGroupEventWithMapping:updated successfully");
 }
 
-async function updateCommitteeFileWithMapping(sourceId: string, urlMapping: UrlMapping): Promise<void> {
+async function updateCommitteeFileWithMapping(sourceId: string, urlMapping: UrlMapping, runtime?: ContentMigrationRuntime): Promise<void> {
   debugLog("updateCommitteeFileWithMapping:updating", sourceId, "with", keys(urlMapping).length, "URL replacements");
-  await mongooseClient.connect(debugLog);
+  const models = await ensureDefaultMongo(runtime);
 
-  const doc = await committeeFile.findById(sourceId).exec();
+  const doc = await models.committeeFile.findById(sourceId).exec();
   if (!doc) {
     throw new Error(`CommitteeFile not found: ${sourceId}`);
   }
@@ -360,7 +389,7 @@ async function updateCommitteeFileWithMapping(sourceId: string, urlMapping: UrlM
     const newS3Path = urlMapping[currentAwsFileName];
     const awsFileName = newS3Path.split("/").pop();
     const rootFolder = newS3Path.substring(0, newS3Path.length - (awsFileName?.length || 0) - 1);
-    await committeeFile.findByIdAndUpdate(sourceId, {
+    await models.committeeFile.findByIdAndUpdate(sourceId, {
       "fileNameData.awsFileName": awsFileName,
       "fileNameData.rootFolder": rootFolder
     }).exec();
@@ -372,21 +401,22 @@ async function updateDocumentWithMapping(
   sourceType: ContentMigrationSourceType,
   sourceId: string,
   urlMapping: UrlMapping,
-  maxImageSize?: number
+  maxImageSize?: number,
+  runtime?: ContentMigrationRuntime
 ): Promise<void> {
   switch (sourceType) {
     case ContentMigrationSourceType.CONTENT_METADATA:
-      await updateContentMetadataWithMapping(sourceId, urlMapping, maxImageSize);
+      await updateContentMetadataWithMapping(sourceId, urlMapping, maxImageSize, runtime);
       break;
     case ContentMigrationSourceType.PAGE_CONTENT:
-      await updatePageContentWithMapping(sourceId, urlMapping);
+      await updatePageContentWithMapping(sourceId, urlMapping, runtime);
       break;
     case ContentMigrationSourceType.GROUP_EVENT:
     case ContentMigrationSourceType.SOCIAL_EVENT:
-      await updateGroupEventWithMapping(sourceId, urlMapping);
+      await updateGroupEventWithMapping(sourceId, urlMapping, runtime);
       break;
     case ContentMigrationSourceType.COMMITTEE_FILE:
-      await updateCommitteeFileWithMapping(sourceId, urlMapping);
+      await updateCommitteeFileWithMapping(sourceId, urlMapping, runtime);
       break;
     default:
       throw new Error(`Unknown source type: ${sourceType}`);
@@ -396,7 +426,8 @@ async function updateDocumentWithMapping(
 export async function migrateContent(
   request: ContentMigrationRequest,
   progressCallback?: ProgressCallback,
-  isCancelled?: CancellationCheck
+  isCancelled?: CancellationCheck,
+  runtime?: ContentMigrationRuntime
 ): Promise<ContentMigrationResult> {
   const timer = createProcessTimer("migrateContent", debugLog);
   debugLog("migrateContent:migrating", request.items.length, "items to", request.targetRootFolder);
@@ -500,7 +531,7 @@ export async function migrateContent(
             sendProgress(url, MigrationPhase.Upload);
           }
         }
-      });
+      }, runtime);
       inFlightFraction = 0;
       globalUrlMapping[url] = newS3Url;
       const awsFileName = newS3Url.split("/").pop() || extractFileNameFromUrl(url);
@@ -510,7 +541,7 @@ export async function migrateContent(
       for (const folder of siblingFolders) {
         const destinationKey = `${folder}/${awsFileName}`;
         if (destinationKey !== newS3Url) {
-          const copied = await aws.copyObjectDirect(newS3Url, destinationKey);
+          const copied = await aws.copyObjectDirect(newS3Url, destinationKey, runtime?.s3Target);
           if (isAwsUploadErrorResponse(copied)) {
             throw new Error(copied.error || `Failed to copy ${newS3Url} to ${destinationKey}`);
           }
@@ -561,7 +592,7 @@ export async function migrateContent(
     if (keys(documentUrlMapping).length > 0) {
       try {
         debugLog("migrateContent:updating document", docGroup.sourceType, docGroup.sourceId, "with", keys(documentUrlMapping).length, "URL mappings");
-        await updateDocumentWithMapping(docGroup.sourceType, docGroup.sourceId, documentUrlMapping, maxImageSize);
+        await updateDocumentWithMapping(docGroup.sourceType, docGroup.sourceId, documentUrlMapping, maxImageSize, runtime);
         debugLog("migrateContent:document updated successfully", docGroup.sourceId);
 
         documentItems.forEach(item => {

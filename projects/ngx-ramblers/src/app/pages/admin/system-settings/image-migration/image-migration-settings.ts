@@ -34,6 +34,7 @@ import { StoredValue } from "../../../../models/ui-actions.model";
 import { enumValueForKey } from "../../../../functions/enums";
 import { StringUtilsService } from "../../../../services/string-utils.service";
 import { FileSizeSelectorComponent } from "../../../../carousel/edit/file-size-selector/file-size-selector";
+import { AuthService } from "../../../../auth/auth.service";
 
 @Component({
   selector: "app-content-migration-settings",
@@ -325,6 +326,7 @@ export class ContentMigrationSettingsComponent implements OnInit, OnDestroy {
   private activatedRoute = inject(ActivatedRoute);
   private router = inject(Router);
   protected stringUtils = inject(StringUtilsService);
+  private authService = inject(AuthService);
   private subscriptions: Subscription[] = [];
 
   protected readonly faPlay = faPlay;
@@ -454,7 +456,7 @@ export class ContentMigrationSettingsComponent implements OnInit, OnDestroy {
 
   private scanForAvailableHosts(): void {
     this.loadingHosts = true;
-    this.webSocketClientService.sendMessage(EventType.CONTENT_MIGRATION_SCAN_HOSTS, {});
+    this.webSocketClientService.sendMessage(EventType.CONTENT_MIGRATION_SCAN_HOSTS, {}, this.authService.authToken());
   }
 
   ngOnDestroy(): void {
@@ -492,7 +494,7 @@ export class ContentMigrationSettingsComponent implements OnInit, OnDestroy {
       scanGroupEvents: this.scanGroupEvents,
       scanSocialEvents: this.scanSocialEvents,
       scanCommitteeFiles: this.scanCommitteeFiles
-    });
+    }, this.authService.authToken());
   }
 
   runMigration(): void {
@@ -510,7 +512,7 @@ export class ContentMigrationSettingsComponent implements OnInit, OnDestroy {
       items: selectedItems,
       targetRootFolder: this.targetRootFolder,
       maxImageSize: this.maxImageSize
-    });
+    }, this.authService.authToken());
   }
 
   cancelMigration(): void {
@@ -520,7 +522,7 @@ export class ContentMigrationSettingsComponent implements OnInit, OnDestroy {
 
     this.cancelling = true;
     this.addLog("info", "Cancellation requested...");
-    this.webSocketClientService.sendMessage(EventType.CONTENT_MIGRATION_CANCEL, {});
+    this.webSocketClientService.sendMessage(EventType.CONTENT_MIGRATION_CANCEL, {}, this.authService.authToken());
   }
 
   selectAll(): void {

@@ -13,13 +13,13 @@ import {
   ListAttachedUserPoliciesCommand
 } from "@aws-sdk/client-iam";
 import { envConfig } from "../../env-config/env-config";
-import { findEnvironmentFromDatabase, removeEnvironmentFromDatabase } from "../../environments/environments-config";
+import { configuredEnvironments, findEnvironmentFromDatabase, removeEnvironmentFromDatabase } from "../../environments/environments-config";
 import { deleteRegistrationsForEnvironment } from "../../site-registration/registration-store";
 import { deleteEnvironmentMongoUser, environmentDatabaseUserName, platformAtlasAccess } from "../../environment-setup/mongo-database-user";
 import { extractUsernameFromUri } from "../../shared/mongodb-uri";
 import { loadSecretsForEnvironment, secretsPath } from "../../shared/secrets";
 import { runCommand } from "../../fly/fly-commands";
-import { adminConfigFromEnvironment } from "../../environment-setup/aws-setup";
+import { adminConfigFromEnvironment, generateBucketName, generateIamUserName, generatePolicyName } from "../../environment-setup/aws-setup";
 import { ProgressCallback } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { DestroyConfig, DestroyResult, DestroyStep } from "../cli.model";
@@ -147,7 +147,7 @@ export async function destroyEnvironment(config: DestroyConfig, onProgress?: Pro
       report("IAM user", false, "AWS admin credentials not configured");
     } else {
       const s3Client = new S3Client({
-        region: adminConfig.region,
+        region: config.bucketRegion || adminConfig.region,
         credentials: {
           accessKeyId: adminConfig.accessKeyId,
           secretAccessKey: adminConfig.secretAccessKey
@@ -162,7 +162,7 @@ export async function destroyEnvironment(config: DestroyConfig, onProgress?: Pro
         }
       });
 
-      const bucketName = `ngx-ramblers-${config.name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
+      const bucketName = config.bucket || generateBucketName(config.name);
       try {
         await deleteS3BucketContents(s3Client, bucketName);
         await deleteS3BucketVersions(s3Client, bucketName);
@@ -177,7 +177,7 @@ export async function destroyEnvironment(config: DestroyConfig, onProgress?: Pro
         }
       }
 
-      const userName = `ngx-ramblers-${config.name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}-user`;
+      const userName = generateIamUserName(config.name);
       try {
         await deleteIamUserWithPolicies(iamClient, userName);
         report("IAM user", true, `Deleted ${userName}`);
@@ -190,7 +190,7 @@ export async function destroyEnvironment(config: DestroyConfig, onProgress?: Pro
         }
       }
 
-      const policyName = `ngx-ramblers-${config.name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}-policy`;
+      const policyName = generatePolicyName(config.name);
       try {
         const {GetCallerIdentityCommand, STSClient} = await import("@aws-sdk/client-sts");
         const stsClient = new STSClient({
@@ -317,6 +317,12 @@ export function createDestroyCommand(): Command {
 
         const secrets = loadSecretsForEnvironment(envConfig.appName);
         const mongoUri = secrets.secrets.MONGODB_URI;
+        const platform = await configuredEnvironments();
+        const platformEnv = (platform.environments || []).find(env => env.environment === name);
+        const bucketName = platformEnv?.aws?.bucket || secrets.secrets.AWS_BUCKET || generateBucketName(name);
+        const bucketRegion = platformEnv?.aws?.bucket
+          ? platformEnv.aws.region
+          : secrets.secrets.AWS_REGION;
         let database: string | undefined;
 
         if (mongoUri) {
@@ -327,8 +333,8 @@ export function createDestroyCommand(): Command {
         if (!options.yes) {
           log(`\n⚠️  WARNING: This will permanently destroy the environment "${name}"`);
           log(`   - fly.io app: ${envConfig.appName}`);
-          log(`   - S3 bucket: ngx-ramblers-${name.toLowerCase()}`);
-          log(`   - IAM user: ngx-ramblers-${name.toLowerCase()}-user`);
+          log(`   - S3 bucket: ${bucketName}`);
+          log(`   - IAM user: ${generateIamUserName(name)}`);
           if (database) {
             log(`   - Database collections in: ${database}`);
           }
@@ -357,6 +363,8 @@ export function createDestroyCommand(): Command {
           apiKey: envConfig.apiKey,
           mongoUri,
           database,
+          bucket: bucketName,
+          bucketRegion,
           skipFly: options.skipFly,
           skipS3: options.skipS3,
           skipDatabase: options.skipDatabase

@@ -5,6 +5,7 @@ import { Observable } from "rxjs";
 import { Logger, LoggerFactory } from "./logger-factory.service";
 import {
   EnvironmentMigrationAudit,
+  EnvironmentMigrationAwsTarget,
   EnvironmentMigrationMongoProvisionRequest,
   EnvironmentMigrationMongoTarget,
   EnvironmentMigrationRequest,
@@ -21,6 +22,10 @@ export class EnvironmentMigrationService {
 
   provisionMongoTarget(request: EnvironmentMigrationMongoProvisionRequest): Observable<EnvironmentMigrationMongoTarget> {
     return this.http.post<EnvironmentMigrationMongoTarget>(`${this.BASE_URL}/mongo/provision`, request);
+  }
+
+  platformAwsTarget(environment: string): Observable<EnvironmentMigrationAwsTarget> {
+    return this.http.get<EnvironmentMigrationAwsTarget>(`${this.BASE_URL}/aws/platform-target`, { params: { environment } });
   }
 
   private safeRequestSummary(request: EnvironmentMigrationRequest | EnvironmentMigrationRotationRequest): object {

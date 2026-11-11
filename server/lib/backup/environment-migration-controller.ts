@@ -6,6 +6,8 @@ import { createEnvironmentMigrationService } from "./environment-migration-servi
 import { asNumber } from "../../../projects/ngx-ramblers/src/app/functions/numbers";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { booleanOf } from "../shared/string-utils";
+import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { adminConfigFromEnvironment, generateDestinationBucketName } from "../environment-setup/aws-setup";
 
 const debugLog = debug(envConfig.logNamespace("environment-migration-controller"));
 debugLog.enabled = false;
@@ -78,6 +80,25 @@ export async function executeMongoOnlyMigration(req: Request, res: Response) {
   } catch (error) {
     debugLog("executeMongoOnlyMigration:error:", error);
     res.status(400).json({ error: errorMessage(error) });
+  }
+}
+
+export async function platformAwsTarget(req: Request, res: Response) {
+  const environment = isString(req.query.environment) ? req.query.environment : "";
+  if (!environment) {
+    res.status(400).json({ error: "environment is required" });
+  } else {
+    const adminConfig = adminConfigFromEnvironment();
+    if (!adminConfig) {
+      res.status(400).json({ error: "AWS admin credentials are not configured (SETUP_AWS_ACCESS_KEY_ID and SETUP_AWS_SECRET_ACCESS_KEY)" });
+    } else {
+      res.status(200).json({
+        bucket: generateDestinationBucketName(environment),
+        region: AWS_DEFAULTS.REGION,
+        accessKeyId: adminConfig.accessKeyId,
+        secretAccessKey: adminConfig.secretAccessKey
+      });
+    }
   }
 }
 

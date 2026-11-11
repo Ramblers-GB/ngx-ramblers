@@ -26,8 +26,8 @@ describe("migration target credentials", () => {
         {provide: BackupAndRestoreService, useValue: {}},
         {provide: EnvironmentConfigService, useValue: {events: () => of(config)}},
         {provide: LoggerFactory, useValue: {createLogger: () => ({error: vi.fn()})}},
-        {provide: ActivatedRoute, useValue: {}},
-        {provide: Router, useValue: {}}
+        {provide: ActivatedRoute, useValue: {snapshot: {queryParams: {}}, queryParams: of({})}},
+        {provide: Router, useValue: {navigate: vi.fn().mockResolvedValue(true)}}
       ]
     });
     state.page = TestBed.runInInjectionContext(() => new EnvironmentMigrationComponent());
@@ -49,12 +49,12 @@ describe("migration target credentials", () => {
     expect(state.page.request.targetMongo.cluster).toBe("other-target.abc123");
   });
 
-  it("clears credentials and typed confirmation when changing the source environment", () => {
+  it("clears credentials and typed confirmation when changing the source environment", async () => {
     state.page.environments = [{name: "hillside", database: "hillside-database"}] as never;
     state.page.request.environment = "hillside";
     state.page.request.targetMongo = {cluster: "group-sites.abc123", db: "previous-database", username: "previous-user", password: "fictional-password"};
     state.page.request.confirmEnvironment = "previous-environment";
-    state.page.onEnvironmentChange();
+    await state.page.onEnvironmentChange();
     expect(state.page.request.targetMongo).toEqual({cluster: "group-sites.abc123", db: "hillside-database", username: "", password: ""});
     expect(state.page.request.confirmEnvironment).toBe("");
     expect(state.page.selectedMigration).toBeNull();
@@ -72,6 +72,40 @@ describe("migration target credentials", () => {
     expect(state.page.request.targetMongo.username).toBe("hillside-user");
     expect(state.page.busy).toBe(false);
     expect(state.page.selectedMigration).toBeNull();
+  });
+
+  it("fills destination AWS from platform credentials without starting a copy", async () => {
+    state.page.request.environment = "hillside";
+    state.page.request.mode = EnvironmentMigrationMode.S3_ONLY;
+    state.page.copyToDestinationAws = true;
+    const pending = state.page.usePlatformAws();
+    const request = TestBed.inject(HttpTestingController).expectOne("api/environment-migration/aws/platform-target?environment=hillside");
+    expect(request.request.method).toBe("GET");
+    request.flush({bucket: "ngx-ramblers-hillside-eu-west-2", region: "eu-west-2", accessKeyId: "AKIATEST", secretAccessKey: "secret"});
+    await pending;
+    expect(state.page.request.targetAws.bucket).toBe("ngx-ramblers-hillside-eu-west-2");
+    expect(state.page.request.targetAws.region).toBe("eu-west-2");
+    expect(state.page.busy).toBe(false);
+  });
+
+  it("lets an S3-only plan run without Mongo target credentials", () => {
+    state.page.request.environment = "hillside";
+    state.page.request.mode = EnvironmentMigrationMode.S3_ONLY;
+    state.page.copyToDestinationAws = true;
+    state.page.request.targetMongo = {cluster: "", db: "", username: "", password: ""};
+    state.page.request.targetAws = {bucket: "ngx-ramblers-hillside", region: "eu-west-2", accessKeyId: "AKIATEST", secretAccessKey: "secret"};
+    expect(state.page.formReady()).toBe(true);
+    expect(state.page.includeMongo()).toBe(false);
+    expect(state.page.executeButtonLabel()).toBe("Copy S3 objects");
+  });
+
+  it("keeps Mongo required when Mongo is included", () => {
+    state.page.request.environment = "hillside";
+    state.page.request.mode = EnvironmentMigrationMode.MONGO_AND_S3;
+    state.page.copyToDestinationAws = true;
+    state.page.request.targetMongo = {cluster: "", db: "", username: "", password: ""};
+    state.page.request.targetAws = {bucket: "ngx-ramblers-hillside", region: "eu-west-2", accessKeyId: "AKIATEST", secretAccessKey: "secret"};
+    expect(state.page.formReady()).toBe(false);
   });
 
   it("lets Rotate Credentials run again after a verified restore whose cutover failed", () => {

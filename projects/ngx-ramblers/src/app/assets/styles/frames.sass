@@ -145,10 +145,13 @@ iframe
   margin-left: 0
   margin-bottom: -14px
   background-color: white
-  display: inline-flex
+  display: inline-flex !important
   align-items: center
   gap: 5px
   width: auto
+  max-width: max-content
+  flex: 0 0 auto
+  align-self: flex-start
   padding: 0 6px
   font-size: 17px
   font-weight: bold
@@ -158,8 +161,16 @@ iframe
   > * + *
     margin-left: 5px
 
+.thumbnail-heading-frame > .thumbnail-heading,
+.row > .thumbnail-heading
+  width: auto
+  max-width: max-content
+  flex: 0 0 auto
+  align-self: flex-start
+
 .thumbnail-heading-bar
   width: calc(100% - 8px)
+  max-width: none
   justify-content: space-between
   > * + *
     margin-left: 0

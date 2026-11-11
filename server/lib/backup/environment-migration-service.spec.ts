@@ -97,36 +97,54 @@ describe("environment-migration-service", () => {
       sandbox.stub(configController, "queryKey").resolves({ value: { environments: [previousEnvironment] } } as any);
       const createOrUpdateKey = sandbox.stub(configController, "createOrUpdateKey").resolves({} as any);
       const bucketExists = sandbox.stub(awsSetup, "bucketExists").resolves(true);
+      sandbox.stub(awsSetup, "adminConfigFromEnvironment").returns({
+        accessKeyId: "ADMINKEY",
+        secretAccessKey: "admin-secret",
+        region: "eu-west-2"
+      });
+      const setupAwsForBucket = sandbox.stub(awsSetup, "setupAwsForBucket").resolves({
+        bucket: "destination-bucket",
+        iamUserName: "ngx-ramblers-staging-user",
+        accessKeyId: "SITEKEY",
+        secretAccessKey: "site-secret",
+        policyArn: "arn:aws:iam::1:policy/ngx-ramblers-staging-policy"
+      });
+      sandbox.stub(awsSetup, "createS3Client").returns({
+        send: sandbox.stub().resolves({})
+      } as any);
       sandbox.stub(flyMachines, "setCurrentMachineSecrets").resolves({ ok: true });
       sandbox.stub(flyMachines, "restartCurrentMachine").resolves({ ok: true });
       const service = new EnvironmentMigrationService();
       sandbox.stub(service as any, "validateMongoCredentials").resolves();
       const scopedAwsCredentials = sandbox.stub(service as any, "scopedAwsCredentials").resolves({ bucket: "old-bucket", region: "eu-west-2", accessKeyId: "SCOPEDKEY", secretAccessKey: "scoped-secret" });
-      return { service, updateOne, createOrUpdateKey, bucketExists, scopedAwsCredentials };
+      return { service, updateOne, createOrUpdateKey, bucketExists, scopedAwsCredentials, setupAwsForBucket };
     }
 
-    it("refuses to rotate a live S3 migration when the pasted AWS target does not match the audited one", async () => {
+    it("refuses to rotate a live S3 migration when the destination bucket does not match the audited one", async () => {
       const { service, createOrUpdateKey } = stubRotation(readyMigration(auditedAws));
 
       await expect(service.rotateCredentials({
         migrationId: "environment-migration-2026-09-16-10-00-00-staging",
         confirmEnvironment: "staging",
         targetMongo,
-        targetAws: { bucket: "destination-bucket", region: "eu-west-2", accessKeyId: "OTHERKEY", secretAccessKey: "new-secret" }
+        targetAws: { bucket: "other-bucket", region: "eu-west-2", accessKeyId: "NEWKEY", secretAccessKey: "new-secret" }
       })).rejects.toThrow(/do not match the verified migration target/);
       expect(createOrUpdateKey.called).toEqual(false);
     });
 
-    it("requires the destination AWS keys for a live S3 migration instead of falling back to the current account", async () => {
-      const { service, createOrUpdateKey, scopedAwsCredentials } = stubRotation(readyMigration(auditedAws));
+    it("provisions a site IAM user on the destination account instead of falling back to the current account", async () => {
+      const { service, createOrUpdateKey, scopedAwsCredentials, setupAwsForBucket } = stubRotation(readyMigration(auditedAws));
 
-      await expect(service.rotateCredentials({
+      await service.rotateCredentials({
         migrationId: "environment-migration-2026-09-16-10-00-00-staging",
         confirmEnvironment: "staging",
         targetMongo
-      })).rejects.toThrow(/required to rotate credentials/);
+      });
       expect(scopedAwsCredentials.called).toEqual(false);
-      expect(createOrUpdateKey.called).toEqual(false);
+      expect(setupAwsForBucket.calledOnce).toEqual(true);
+      expect(setupAwsForBucket.firstCall.args[4]).toEqual({ replaceAccessKeys: false });
+      expect(createOrUpdateKey.called).toEqual(true);
+      expect(createOrUpdateKey.firstCall.args[1].environments[0].aws.accessKeyId).toEqual("SITEKEY");
     });
 
     it("rotates to the matching destination account and records the previous AWS keys for rollback", async () => {
@@ -143,12 +161,12 @@ describe("environment-migration-service", () => {
       expect(bucketExists.calledOnce).toEqual(true);
       expect(bucketExists.firstCall.args[1]).toEqual("destination-bucket");
       const written = createOrUpdateKey.firstCall.args[1].environments[0];
-      expect(written.aws).toEqual({ bucket: "destination-bucket", region: "eu-west-2", accessKeyId: "NEWKEY", secretAccessKey: "new-secret" });
+      expect(written.aws).toEqual({ bucket: "destination-bucket", region: "eu-west-2", accessKeyId: "SITEKEY", secretAccessKey: "site-secret" });
       expect(written.mongo).toEqual({ cluster: "new", db: "target", username: "target", password: "target-password" });
       const rotatedSet = updateOne.lastCall.args[1].$set;
       expect(rotatedSet.status).toEqual(EnvironmentMigrationStatus.ROTATED);
       expect(rotatedSet.rollbackInfo.oldAws).toEqual({ bucket: "old-bucket", region: "eu-west-2", accessKeyId: "OLDKEY" });
-      expect(rotatedSet.rollbackInfo.targetAws).toEqual(auditedAws);
+      expect(rotatedSet.rollbackInfo.targetAws).toEqual({ bucket: "destination-bucket", region: "eu-west-2", accessKeyId: "SITEKEY" });
       expect(rotatedSet.rollbackInfo.oldMongo).toEqual({ cluster: "old", db: "source", username: "source", uriSummary: "source@old/source" });
     });
 
@@ -213,6 +231,31 @@ describe("environment-migration-service", () => {
       await expect(service.rotateCredentials({migrationId: "migration", confirmEnvironment: "staging", targetMongo})).rejects.toThrow("could not be fully restored");
       expect(updateOne.lastCall.args[1].$set.status).toBe(EnvironmentMigrationStatus.FAILED);
       expect(updateOne.lastCall.args[1].$set.rollbackInfo.oldMongo.cluster).toBe("old");
+    });
+
+    it("rotates AWS only for an S3-only migration and leaves Mongo credentials unchanged", async () => {
+      const s3Only = {
+        ...readyMigration(auditedAws),
+        mode: EnvironmentMigrationMode.S3_ONLY,
+        sourceMongo: undefined,
+        targetMongo: undefined
+      };
+      const { service, createOrUpdateKey, bucketExists } = stubRotation(s3Only);
+
+      await service.rotateCredentials({
+        migrationId: "environment-migration-2026-09-16-10-00-00-staging",
+        confirmEnvironment: "staging",
+        rotateS3Credentials: true,
+        targetAws: { bucket: "destination-bucket", region: "eu-west-2", accessKeyId: "NEWKEY", secretAccessKey: "new-secret" }
+      });
+
+      expect(bucketExists.calledOnce).toEqual(true);
+      const written = createOrUpdateKey.firstCall.args[1].environments[0];
+      expect(written.aws).toEqual({ bucket: "destination-bucket", region: "eu-west-2", accessKeyId: "SITEKEY", secretAccessKey: "site-secret" });
+      expect(written.mongo).toEqual(previousEnvironment.mongo);
+      const secrets = (flyMachines.setCurrentMachineSecrets as sinon.SinonStub).firstCall.args[0];
+      expect(secrets.AWS_BUCKET).toEqual("destination-bucket");
+      expect(secrets.MONGODB_URI).toBeUndefined();
     });
 
     it("keeps bucket-scoped rotation for a snapshot migration that has no destination account", async () => {

@@ -51,4 +51,5 @@ const contentMetadataSchema = new mongoose.Schema({
 
 contentMetadataSchema.plugin(uniqueValidator);
 
+export { contentMetadataSchema };
 export const contentMetadata: mongoose.Model<ContentMetadata> = ensureModel<ContentMetadata>("content-metadata", contentMetadataSchema);

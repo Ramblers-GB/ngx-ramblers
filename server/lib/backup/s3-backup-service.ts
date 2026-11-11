@@ -11,7 +11,7 @@ import {
   PutObjectCommand,
   S3Client
 } from "@aws-sdk/client-s3";
-import { Readable } from "stream";
+import { streamToBuffer } from "../aws/aws-controllers";
 import { envConfig } from "../env-config/env-config";
 import { dateTimeNow, dateTimeNowAsValue } from "../shared/dates";
 import { isNumber } from "es-toolkit/compat";
@@ -122,12 +122,8 @@ export function buildManifestEntriesObjectKey(backupPrefix: string): string {
 }
 
 async function streamToString(stream: any): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  return new Promise((resolve, reject) => {
-    stream.on("data", (chunk: Uint8Array) => chunks.push(chunk));
-    stream.on("error", reject);
-    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-  });
+  const buffer = await streamToBuffer(stream);
+  return buffer.toString("utf8");
 }
 
 async function writeManifestEntries(client: S3Client, manifest: Pick<S3BackupManifest, "backupBucket" | "backupPrefix">, entries: S3BackupManifestEntry[]): Promise<string> {
@@ -329,12 +325,12 @@ export async function migrateLiveBucket(input: EnvironmentMigrationLiveCopyReque
   };
   const copyObject = async (objectInfo: S3ObjectInfo): Promise<void> => {
     const got = await sourceClient.send(new GetObjectCommand({ Bucket: input.source.bucket, Key: objectInfo.key }));
+    const body = got.Body ? await streamToBuffer(got.Body) : Buffer.alloc(0);
     await destClient.send(new PutObjectCommand({
       Bucket: input.target.bucket,
       Key: objectInfo.key,
-      Body: got.Body ? got.Body as Readable : Buffer.alloc(0),
-      ACL: AWS_DEFAULTS.OBJECT_ACL,
-      ContentLength: isNumber(got.ContentLength) ? got.ContentLength : objectInfo.size,
+      Body: body,
+      ContentLength: isNumber(got.ContentLength) ? got.ContentLength : body.length,
       ContentType: got.ContentType,
       CacheControl: got.CacheControl,
       ContentDisposition: got.ContentDisposition,

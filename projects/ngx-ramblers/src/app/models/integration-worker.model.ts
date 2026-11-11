@@ -5,7 +5,12 @@ import { ContentMetadata, ContentMetadataItem, ContentMetadataResizeRequest } fr
 import { ApiAction } from "./api-response.model";
 import { ExportedGpxSummary, OsMapsListedRoute } from "./os-maps-export.model";
 import { OsDataHubApiKey } from "./os-data-hub-api-key.model";
-import { SystemConfig } from "./system.model";
+import {
+  ContentMigrationProgress,
+  ContentMigrationRequest,
+  ContentMigrationResult,
+  SystemConfig
+} from "./system.model";
 import {
   ResolvedAlbumImage,
   SocialNetwork,
@@ -279,4 +284,30 @@ export interface IntegrationWorkerSocialPublishResultCallback {
   status: IntegrationWorkerResultStatus;
   results?: SocialPublishResult[];
   errorMessage?: string;
+}
+
+export interface IntegrationWorkerContentMigrationJobRequest {
+  jobId: string;
+  migrationRequest: ContentMigrationRequest;
+  mongoUri: string;
+  awsConfig: IntegrationWorkerResizeAwsConfig;
+  encryptedAwsCredentials: string;
+  callback: IntegrationWorkerCallbackConfig;
+}
+
+export interface IntegrationWorkerContentMigrationProgressCallback {
+  jobId: string;
+  message: string;
+  progress?: ContentMigrationProgress;
+  queued?: boolean;
+  queuePosition?: number;
+  activeJobType?: string;
+}
+
+export interface IntegrationWorkerContentMigrationResultCallback {
+  jobId: string;
+  status: IntegrationWorkerResultStatus;
+  result?: ContentMigrationResult;
+  errorMessage?: string;
+  cancelled?: boolean;
 }

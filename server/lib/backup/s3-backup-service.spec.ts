@@ -9,6 +9,7 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
   PutBucketCorsCommand,
+  PutBucketPolicyCommand,
   PutObjectCommand,
   PutPublicAccessBlockCommand,
   S3Client
@@ -324,7 +325,7 @@ describe("s3-backup-service", () => {
       return state.sent.filter(command => command instanceof type);
     }
 
-    it("copies with the site's public-read ACL, preserves headers and metadata, and skips unchanged or checkpointed objects", async () => {
+    it("copies without object ACLs, preserves headers and metadata, and skips unchanged or checkpointed objects", async () => {
       const checkpoints: S3LiveCopyCheckpoint[] = [];
       const summary = await migrateLiveBucket({
         site: "staging",
@@ -344,7 +345,7 @@ describe("s3-backup-service", () => {
       expect(puts.map(put => put.Key).sort()).toEqual(["c.jpg", "d.jpg"]);
       puts.forEach(put => {
         expect(put.Bucket).toEqual("destination-bucket");
-        expect(put.ACL).toEqual("public-read");
+        expect(put.ACL).toBeUndefined();
         expect(put.ContentType).toEqual("image/jpeg");
         expect(put.CacheControl).toEqual("max-age=3600");
         expect(put.Metadata.album).toEqual("walks");
@@ -370,6 +371,10 @@ describe("s3-backup-service", () => {
       expect(publicAccess[0].Bucket).toEqual("destination-bucket");
       expect(publicAccess[0].PublicAccessBlockConfiguration.BlockPublicAcls).toEqual(false);
       expect(sentOf(PutBucketCorsCommand).map((command: any) => command.input.Bucket)).toEqual(["destination-bucket"]);
+      const policies = sentOf(PutBucketPolicyCommand).map((command: any) => command.input);
+      expect(policies.length).toEqual(1);
+      expect(policies[0].Bucket).toEqual("destination-bucket");
+      expect(JSON.parse(policies[0].Policy).Statement[0].Action).toEqual("s3:GetObject");
     });
 
     it("lists without writing on a dry run", async () => {

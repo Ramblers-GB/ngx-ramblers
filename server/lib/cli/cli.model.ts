@@ -11,6 +11,8 @@ export interface DestroyConfig {
   apiKey?: string;
   mongoUri?: string;
   database?: string;
+  bucket?: string;
+  bucketRegion?: string;
   skipFly?: boolean;
   skipS3?: boolean;
   skipDatabase?: boolean;

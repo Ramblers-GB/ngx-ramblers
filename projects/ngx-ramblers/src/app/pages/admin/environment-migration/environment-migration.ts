@@ -1,4 +1,4 @@
-import { CommonModule, DatePipe } from "@angular/common";
+import { CommonModule } from "@angular/common";
 import { Component, inject, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
@@ -7,6 +7,8 @@ import {
   faCircleCheck,
   faCircleExclamation,
   faClipboardCheck,
+  faCloud,
+  faCopy,
   faDatabase,
   faKey,
   faList,
@@ -14,9 +16,11 @@ import {
   faSpinner,
   faUserPlus
 } from "@fortawesome/free-solid-svg-icons";
-import { kebabCase } from "es-toolkit/compat";
+import { coerceBooleanProperty } from "@angular/cdk/coercion";
+import { isString, kebabCase } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
+import { TooltipModule } from "ngx-bootstrap/tooltip";
 import { firstValueFrom } from "rxjs";
 import { BackupListItem, BackupLocation, EnvironmentInfo, S3BackupManifest } from "../../../models/backup-session.model";
 import {
@@ -25,7 +29,10 @@ import {
   EnvironmentMigrationRequest,
   EnvironmentMigrationStatus,
   EnvironmentMigrationTab,
-  migrationAllowsCredentialRotation
+  migrationAllowsCredentialRotation,
+  migrationIncludesMongo,
+  migrationIncludesS3,
+  migrationModeLabel
 } from "../../../models/environment-migration.model";
 import { SortableTableAlignment, SortableTableColumn } from "../../../modules/common/sortable-table/sortable-table.model";
 import { SortableTableCellDirective } from "../../../modules/common/sortable-table/sortable-table-cell.directive";
@@ -41,6 +48,7 @@ import { EnvironmentConfigService } from "../../../services/environment-config.s
 import { EnvironmentMigrationService } from "../../../services/environment-migration.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { StoredValue } from "../../../models/ui-actions.model";
+import { DisplayDateAbbreviatedTimePipe } from "../../../pipes/display-date-abbreviated-time.pipe";
 import { InputSize } from "../../../models/ui-size.model";
 import { DESCENDING } from "../../../models/table-filtering.model";
 import { AWS_DEFAULTS, EnvironmentsConfig } from "../../../models/environment-config.model";
@@ -50,7 +58,7 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
   selector: "app-environment-migration",
   imports: [
     CommonModule,
-    DatePipe,
+    DisplayDateAbbreviatedTimePipe,
     EnvironmentSelectComponent,
     FontAwesomeModule,
     FormsModule,
@@ -62,6 +70,7 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
     SortableTableComponent,
     TabDirective,
     TabsetComponent,
+    TooltipModule,
     VendorBrandMarkComponent
   ],
   styles: [`
@@ -120,19 +129,33 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
   `],
   template: `
     <app-page autoTitle pageTitle="Environment Migration">
+      <div class="thumbnail-heading-frame thumbnail-heading-frame-compact mt-3">
+        <div class="thumbnail-heading">Environment</div>
+        <div class="row">
+          <div class="col-12 col-lg-6">
+            <app-environment-select
+              [items]="selectableEnvironments()"
+              [disabled]="busy"
+              [(selectedName)]="request.environment"
+              (selectedNameChange)="onEnvironmentChange()"
+              placeholder="All environments"></app-environment-select>
+          </div>
+        </div>
+      </div>
       <tabset class="custom-tabset">
         <tab [active]="tabActive(EnvironmentMigrationTab.PLAN)"
              (selectTab)="selectTab(EnvironmentMigrationTab.PLAN)"
              [heading]="EnvironmentMigrationTab.PLAN">
           <form (ngSubmit)="plan()" autocomplete="off" class="img-thumbnail thumbnail-admin-edit mt-3">
-            <div class="row thumbnail-heading-frame">
+            <div class="thumbnail-heading-frame">
               <div class="thumbnail-heading">Migration Plan</div>
+              <div class="row">
               <div class="col-12 mt-3 mb-1">
                 <div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
                   <fa-icon [icon]="faCircleExclamation" class="me-2"/>
                   <div>
                     <strong>Cutover safety</strong>
-                    <div class="mt-1">Check the target restore before rotating credentials. Cutover only happens when you press Rotate Credentials.</div>
+                    <div class="mt-1">Mongo and S3 can run together or separately. Check the result before rotating credentials. Cutover only happens when you press Rotate Credentials. An S3-only cutover leaves the database credentials unchanged.</div>
                   </div>
                 </div>
               </div>
@@ -142,16 +165,26 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                     <div class="thumbnail-heading-frame">
                       <div class="thumbnail-heading">Source and Backup</div>
                       <div class="row">
-                      <div class="col-12 mb-3">
-                        <app-environment-select
-                          label="Environment"
-                          [items]="environmentsWithMongo"
-                          [disabled]="busy"
-                          [(selectedName)]="request.environment"
-                          (selectedNameChange)="onEnvironmentChange()"
-                          placeholder="Select environment..."></app-environment-select>
+                      <div class="col-12 d-flex flex-wrap gap-4 mb-3">
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input"
+                                 [ngModel]="includeMongo()"
+                                 (ngModelChange)="setIncludeMongo($event)"
+                                 name="includeMongo"
+                                 id="includeMongo">
+                          <label class="form-check-label" for="includeMongo">Include MongoDB in this migration</label>
+                        </div>
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input"
+                                 [ngModel]="includeS3()"
+                                 (ngModelChange)="setIncludeS3($event)"
+                                 name="includeS3"
+                                 id="includeS3">
+                          <label class="form-check-label" for="includeS3">Include S3 objects in this migration</label>
+                        </div>
                       </div>
 
+                      @if (includeMongo() || (includeS3() && !copyToDestinationAws)) {
                       <div class="col-12 mb-3">
                         <label class="form-label me-3">Backup Source</label>
                         <div class="form-check form-check-inline">
@@ -178,23 +211,17 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                           name="backupForRestore"
                           placeholder="Select backup..."></app-backup-select>
                       </div>
+                      }
 
+                      @if (includeS3()) {
                       <div class="col-12 d-flex flex-wrap gap-4 mb-3">
-                        <div class="form-check">
-                          <input type="checkbox" class="form-check-input"
-                                 [ngModel]="request.mode === EnvironmentMigrationMode.MONGO_AND_S3"
-                                 (ngModelChange)="setIncludeS3($event)"
-                                 name="includeS3"
-                                 id="includeS3">
-                          <label class="form-check-label" for="includeS3">Include S3 objects in this migration</label>
-                        </div>
                         <div class="form-check">
                           <input type="checkbox" class="form-check-input"
                                  [(ngModel)]="copyToDestinationAws"
                                  (ngModelChange)="updateS3Preview()"
                                  name="copyToDestinationAws"
                                  id="copyToDestinationAws"
-                                 [disabled]="request.mode !== EnvironmentMigrationMode.MONGO_AND_S3">
+                                 [disabled]="!includeS3()">
                           <label class="form-check-label" for="copyToDestinationAws">Copy live S3 objects to a destination AWS account (otherwise restore the matching snapshot)</label>
                         </div>
                         <div class="form-check">
@@ -202,16 +229,18 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                                  [(ngModel)]="request.rotateS3Credentials"
                                  name="rotateS3Credentials"
                                  id="rotateS3Credentials"
-                                 [disabled]="request.mode !== EnvironmentMigrationMode.MONGO_AND_S3">
+                                 [disabled]="!includeS3()">
                           <label class="form-check-label" for="rotateS3Credentials">{{ liveCopyRequested() ? "Point this environment at the destination AWS credentials on cutover" : "Rotate AWS credentials to bucket-scoped access during cutover" }}</label>
                         </div>
                       </div>
+                      }
                       </div>
                     </div>
               </div>
+              @if (includeMongo()) {
               <div class="col-lg-6">
                     <div class="thumbnail-heading-frame">
-                      <div class="thumbnail-heading with-vendor-logo d-flex align-items-center gap-2">
+                      <div class="thumbnail-heading with-vendor-logo">
                         <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="26"/>
                         <span>Target MongoDB</span>
                       </div>
@@ -269,26 +298,41 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                       </div>
                     </div>
               </div>
+              }
                 </div>
               </div>
             @if (liveCopyRequested()) {
               <div class="col-12">
                 <div class="thumbnail-heading-frame">
-                  <div class="thumbnail-heading with-vendor-logo d-flex align-items-center gap-2">
+                  <div class="thumbnail-heading with-vendor-logo">
                     <app-vendor-brand-mark serviceId="aws" [sizePx]="26"/>
                     <span>Destination AWS</span>
                   </div>
                   <div class="col-12">
                     <div class="row">
+                      <div class="col-12 mb-3">
+                        <button type="button" class="btn btn-quiet" [disabled]="busy || !request.environment" (click)="usePlatformAws()">
+                          @if (busyAction === "platform-aws") {
+                            <fa-icon [icon]="faSpinner" animation="spin" class="me-1"/>
+                          } @else {
+                            <fa-icon [icon]="faCloud" class="me-1"/>
+                          }
+                          Use platform AWS credentials
+                        </button>
+                      </div>
                       <div class="col-md-6 mb-2">
                         <label class="form-label" for="target-bucket">Bucket</label>
                         <input id="target-bucket" class="form-control" name="targetBucket"
-                               [(ngModel)]="request.targetAws.bucket" placeholder="ngx-ramblers-group" autocomplete="off">
+                               [ngModel]="request.targetAws.bucket"
+                               (ngModelChange)="setTargetBucket($event)"
+                               placeholder="ngx-ramblers-group" autocomplete="off">
                       </div>
                       <div class="col-md-6 mb-2">
                         <label class="form-label" for="target-region">Region</label>
                         <input id="target-region" class="form-control" name="targetRegion"
-                               [(ngModel)]="request.targetAws.region" [placeholder]="AWS_DEFAULTS.REGION" autocomplete="off">
+                               [ngModel]="request.targetAws.region"
+                               (ngModelChange)="setTargetRegion($event)"
+                               [placeholder]="AWS_DEFAULTS.REGION" autocomplete="off">
                       </div>
                       <div class="col-md-6 mb-2">
                         <label class="form-label" for="target-access-key">Access key ID</label>
@@ -338,10 +382,12 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                         (click)="execute(false)">
                   @if (busyAction === "execute") {
                     <fa-icon [icon]="faSpinner" animation="spin" class="me-1"/>
-                  } @else {
+                  } @else if (includeMongo()) {
                     <fa-icon [icon]="faDatabase" class="me-1"/>
+                  } @else {
+                    <fa-icon [icon]="faCopy" class="me-1"/>
                   }
-                  {{ busyAction === "execute" ? "Restoring" : "Restore with Drop" }}
+                  {{ executeButtonLabel() }}
                 </button>
                 <button type="button" class="btn btn-danger" [disabled]="busy || !canRotate()"
                         (click)="rotate()">
@@ -376,7 +422,7 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                 </div>
               </div>
             }
-            @if (request.mode === EnvironmentMigrationMode.MONGO_AND_S3) {
+            @if (includeS3()) {
               <div class="col-12">
                 <div class="alert alert-warning d-flex align-items-start mt-3 mb-0" role="alert">
                   <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1"/>
@@ -387,6 +433,7 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                 </div>
               </div>
             }
+            </div>
             </div>
           </form>
         </tab>
@@ -407,21 +454,50 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                 </div>
               }
               <dl class="row">
+                <dt class="col-sm-4">Environment</dt>
+                <dd class="col-sm-8">{{ selectedMigration.environment }}</dd>
+                <dt class="col-sm-4">Type</dt>
+                <dd class="col-sm-8">
+                  <span class="d-inline-flex align-items-center gap-2" [tooltip]="migrationModeLabel(selectedMigration.mode)" container="body">
+                    @if (migrationIncludesMongo(selectedMigration.mode)) {
+                      <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="22"/>
+                    }
+                    @if (migrationIncludesS3(selectedMigration.mode)) {
+                      <app-vendor-brand-mark serviceId="aws" [sizePx]="22"/>
+                    }
+                  </span>
+                </dd>
                 <dt class="col-sm-4">Migration</dt>
                 <dd class="col-sm-8">{{ selectedMigration.migrationId }}</dd>
-                <dt class="col-sm-4">Source</dt>
-                <dd class="col-sm-8">{{ selectedMigration.sourceMongo.uriSummary }}</dd>
-                <dt class="col-sm-4">Target</dt>
-                <dd class="col-sm-8">{{ selectedMigration.targetMongo.uriSummary }}</dd>
-                <dt class="col-sm-4">Backup</dt>
-                <dd class="col-sm-8">{{ selectedMigration.backupName || selectedMigration.backupPath || selectedMigration.rollbackInfo?.backupUsed || "not created" }}</dd>
+                @if (migrationIncludesMongo(selectedMigration.mode) && selectedMigration.sourceMongo?.uriSummary) {
+                  <dt class="col-sm-4">Source Mongo</dt>
+                  <dd class="col-sm-8">{{ selectedMigration.sourceMongo.uriSummary }}</dd>
+                }
+                @if (migrationIncludesMongo(selectedMigration.mode) && selectedMigration.targetMongo?.uriSummary) {
+                  <dt class="col-sm-4">Target Mongo</dt>
+                  <dd class="col-sm-8">{{ selectedMigration.targetMongo.uriSummary }}</dd>
+                }
+                @if (selectedMigration.targetAws?.bucket) {
+                  <dt class="col-sm-4">Destination S3</dt>
+                  <dd class="col-sm-8">{{ selectedMigration.targetAws.bucket }} ({{ selectedMigration.targetAws.region }})</dd>
+                }
+                @if (migrationIncludesMongo(selectedMigration.mode) || selectedMigration.backupName || selectedMigration.backupPath) {
+                  <dt class="col-sm-4">Backup</dt>
+                  <dd class="col-sm-8">{{ selectedMigration.backupName || selectedMigration.backupPath || selectedMigration.rollbackInfo?.backupUsed || "not created" }}</dd>
+                }
                 <dt class="col-sm-4">Heartbeat</dt>
-                <dd class="col-sm-8">{{ selectedMigration.heartbeatAt ? (selectedMigration.heartbeatAt | date: "short") : "not started" }}</dd>
+                <dd class="col-sm-8">{{ selectedMigration.heartbeatAt ? (selectedMigration.heartbeatAt | displayDateAbbreviatedTime) : "not started" }}</dd>
               </dl>
-              @if (selectedMigration.error) {
-                <p class="text-danger">{{ selectedMigration.error }}</p>
+              @if (selectedMigration.error || error) {
+                <div class="alert alert-danger d-flex align-items-start" role="alert">
+                  <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1"/>
+                  <div>
+                    <strong>Migration failed</strong>
+                    <div>{{ selectedMigration.error || error }}</div>
+                  </div>
+                </div>
               }
-              @if (selectedMigration.verification) {
+              @if (migrationIncludesMongo(selectedMigration.mode) && selectedMigration.verification) {
                 <h3 class="h6">Verification</h3>
                 <ul class="list-unstyled">
                   <li>Group: {{ selectedMigration.verification.systemGroupIdentity?.shortName || selectedMigration.verification.systemGroupIdentity?.groupCode }}</li>
@@ -451,7 +527,7 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                 </app-sortable-table>
               }
             } @else {
-              <p class="text-muted mb-0">Run a validation plan to see migration details.</p>
+              <p class="text-muted mb-0">{{ latestResultEmptyMessage() }}</p>
             }
           </div>
         </tab>
@@ -471,9 +547,19 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
             defaultSortKey="startTime"
             [defaultSortDirection]="DESCENDING"
             maxHeight="70vh"
-            emptyMessage="No migration records yet">
+            [emptyMessage]="historyEmptyMessage()">
             <ng-template appSortableTableCell="started" let-migration>
-              {{ migration.startTime | date: "short" }}
+              {{ migration.startTime | displayDateAbbreviatedTime }}
+            </ng-template>
+            <ng-template appSortableTableCell="type" let-migration>
+              <span class="d-inline-flex align-items-center justify-content-center gap-1" [tooltip]="migrationModeLabel(migration.mode)" container="body">
+                @if (migrationIncludesMongo(migration.mode)) {
+                  <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="22"/>
+                }
+                @if (migrationIncludesS3(migration.mode)) {
+                  <app-vendor-brand-mark serviceId="aws" [sizePx]="22"/>
+                }
+              </span>
             </ng-template>
             <ng-template appSortableTableCell="status" let-migration>
               <span class="status-pill" [ngClass]="statusClass(migration.status)">{{ migration.status }}</span>
@@ -502,12 +588,17 @@ export class EnvironmentMigrationComponent implements OnInit {
   protected readonly EnvironmentMigrationMode = EnvironmentMigrationMode;
   protected readonly EnvironmentMigrationStatus = EnvironmentMigrationStatus;
   protected readonly EnvironmentMigrationTab = EnvironmentMigrationTab;
+  protected readonly migrationIncludesMongo = migrationIncludesMongo;
+  protected readonly migrationIncludesS3 = migrationIncludesS3;
+  protected readonly migrationModeLabel = migrationModeLabel;
   protected readonly InputSize = InputSize;
   protected readonly AWS_DEFAULTS = AWS_DEFAULTS;
   protected readonly DESCENDING = DESCENDING;
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faCircleCheck = faCircleCheck;
   protected readonly faClipboardCheck = faClipboardCheck;
+  protected readonly faCloud = faCloud;
+  protected readonly faCopy = faCopy;
   protected readonly faDatabase = faDatabase;
   protected readonly faKey = faKey;
   protected readonly faList = faList;
@@ -535,9 +626,10 @@ export class EnvironmentMigrationComponent implements OnInit {
   historyColumns: SortableTableColumn<EnvironmentMigrationAudit>[] = [
     { key: "started", label: "Started", sortKey: "startTime" },
     { key: "environment", label: "Environment", sortKey: "environment", cellGetter: row => row.environment },
+    { key: "type", label: "Type", sortKey: "mode", align: SortableTableAlignment.CENTER, cellGetter: row => migrationModeLabel(row.mode) },
     { key: "status", label: "Status", sortKey: "status" },
-    { key: "source", label: "Source", cellGetter: row => row.sourceMongo.uriSummary },
-    { key: "target", label: "Target", cellGetter: row => row.targetMongo.uriSummary },
+    { key: "source", label: "Source", cellGetter: row => row.sourceMongo?.uriSummary || row.sourceAws?.bucket || "" },
+    { key: "target", label: "Target", cellGetter: row => row.targetMongo?.uriSummary || row.targetAws?.bucket || "" },
     { key: "actions", label: "", align: SortableTableAlignment.RIGHT }
   ];
 
@@ -574,10 +666,23 @@ export class EnvironmentMigrationComponent implements OnInit {
   };
 
   async ngOnInit(): Promise<void> {
+    const initialEnvironment = this.activatedRoute.snapshot.queryParams[StoredValue.ENVIRONMENT];
+    if (isString(initialEnvironment) && initialEnvironment) {
+      this.request.environment = initialEnvironment;
+    }
     this.activatedRoute.queryParams.subscribe(params => {
       this.tab = params[StoredValue.TAB] || kebabCase(EnvironmentMigrationTab.PLAN);
+      const environment = params[StoredValue.ENVIRONMENT];
+      if (isString(environment) && environment !== this.request.environment) {
+        this.request.environment = environment;
+        void this.onEnvironmentChange();
+      } else if (!environment && this.request.environment) {
+        this.request.environment = "";
+        void this.onEnvironmentChange();
+      }
     });
     await Promise.all([this.loadEnvironments(), this.loadBackups(), this.loadHistory(), this.loadEnvironmentConfig()]);
+    this.selectedMigration = this.history[0] || null;
   }
 
   async loadEnvironments(): Promise<void> {
@@ -629,31 +734,75 @@ export class EnvironmentMigrationComponent implements OnInit {
 
   selectTab(tab: EnvironmentMigrationTab) {
     this.router.navigate([], {
-      queryParams: {[StoredValue.TAB]: kebabCase(tab)},
+      queryParams: {
+        [StoredValue.TAB]: kebabCase(tab),
+        [StoredValue.ENVIRONMENT]: this.request.environment || null
+      },
       queryParamsHandling: "merge"
     });
+  }
+
+  latestResultEmptyMessage(): string {
+    if (this.request.environment) {
+      return `No migration result yet for ${this.request.environment}. Validate a plan on Plan & Restore, or pick a row on History.`;
+    } else {
+      return "Select an environment to see its latest result, or pick a row on History.";
+    }
+  }
+
+  historyEmptyMessage(): string {
+    if (this.request.environment) {
+      return `No migration records for ${this.request.environment}`;
+    } else {
+      return "No migration records yet";
+    }
   }
 
   tabActive(tab: EnvironmentMigrationTab): boolean {
     return kebabCase(this.tab) === kebabCase(tab);
   }
 
-  onEnvironmentChange(): void {
+  async onEnvironmentChange(): Promise<void> {
     const environment = this.environments.find(candidate => candidate.name === this.request.environment);
     this.request.targetMongo = {...this.request.targetMongo, db: environment?.database || "", username: "", password: ""};
     this.request.confirmEnvironment = "";
-    this.selectedMigration = null;
     this.sourceEnvironment = this.request.environment;
     this.selectedBackupForRestore = null;
     this.selectedS3Manifest = null;
     this.applyBackupFilter();
     this.updateS3Preview();
-    this.loadHistory();
+    await this.router.navigate([], {
+      queryParams: {
+        [StoredValue.TAB]: kebabCase(this.tab),
+        [StoredValue.ENVIRONMENT]: this.request.environment || null
+      },
+      queryParamsHandling: "merge"
+    });
+    await this.loadHistory();
+    this.selectedMigration = this.history[0] || null;
   }
 
   useDefaultMongoCluster(): void {
     this.request.targetMongo = {...this.request.targetMongo, cluster: this.environmentsConfig?.atlas?.defaultCluster || "", username: "", password: ""};
     this.selectedMigration = null;
+  }
+
+  async usePlatformAws(): Promise<void> {
+    this.busy = true;
+    this.busyAction = "platform-aws";
+    this.error = "";
+    this.success = "";
+    try {
+      this.request.targetAws = await firstValueFrom(this.migrationService.platformAwsTarget(this.request.environment));
+      this.updateS3Preview();
+      this.success = "Destination AWS filled from platform credentials. Validate the plan, then copy objects.";
+    } catch (error) {
+      this.logger.error("Failed to load platform AWS credentials:", error);
+      this.error = this.extractErrorMessage(error, "Could not load platform AWS credentials");
+    } finally {
+      this.busy = false;
+      this.busyAction = "";
+    }
   }
 
   async provisionMongoTarget(): Promise<void> {
@@ -701,10 +850,46 @@ export class EnvironmentMigrationComponent implements OnInit {
     this.request.targetMongo.password = parsed.password;
   }
 
+  includeMongo(): boolean {
+    return migrationIncludesMongo(this.request.mode);
+  }
+
+  includeS3(): boolean {
+    return migrationIncludesS3(this.request.mode);
+  }
+
+  selectableEnvironments(): EnvironmentInfo[] {
+    if (this.includeMongo()) {
+      return this.environmentsWithMongo;
+    } else {
+      return this.environments.filter(environment => this.environmentHasAws(environment.name));
+    }
+  }
+
+  setIncludeMongo(includeMongo: boolean): void {
+    this.applyMode(coerceBooleanProperty(includeMongo), this.includeS3());
+  }
+
   setIncludeS3(includeS3: boolean): void {
-    this.request.mode = includeS3 ? EnvironmentMigrationMode.MONGO_AND_S3 : EnvironmentMigrationMode.MONGO_ONLY;
-    this.request.rotateS3Credentials = includeS3 ? this.request.rotateS3Credentials !== false : false;
-    this.updateS3Preview();
+    this.applyMode(this.includeMongo(), coerceBooleanProperty(includeS3));
+  }
+
+  setTargetBucket(value: string): void {
+    this.request.targetAws.bucket = isString(value) ? value : "";
+  }
+
+  setTargetRegion(value: string): void {
+    this.request.targetAws.region = isString(value) ? value : AWS_DEFAULTS.REGION;
+  }
+
+  executeButtonLabel(): string {
+    if (this.busyAction === "execute") {
+      return this.includeMongo() ? "Restoring" : "Copying";
+    } else if (this.includeMongo()) {
+      return "Restore with Drop";
+    } else {
+      return "Copy S3 objects";
+    }
   }
 
   targetS3Bucket(): string {
@@ -725,20 +910,21 @@ export class EnvironmentMigrationComponent implements OnInit {
         return `Choose a backup to show which S3 objects will be restored. Target bucket: ${sourceBucket || "not configured"}.`;
       }
     } else if (destination && this.request.targetAws?.accessKeyId) {
-      return `Live objects in ${sourceBucket || "the current environment bucket"} will be copied into ${destination} using the destination account keys. The bucket is created if it does not exist. Mongo still restores to the target cluster separately.`;
+      return `Live objects in ${sourceBucket || "the current environment bucket"} will be copied into ${destination} using the destination account keys. The bucket is created if it does not exist.${this.includeMongo() ? " Mongo still restores to the target cluster separately." : " The database is left unchanged."}`;
     } else {
       return `Enter destination bucket and AWS keys. Copy is live from ${sourceBucket || "the current environment bucket"}, not from a backup snapshot.`;
     }
   }
 
   liveCopyRequested(): boolean {
-    return this.request.mode === EnvironmentMigrationMode.MONGO_AND_S3 && this.copyToDestinationAws;
+    return this.includeS3() && this.copyToDestinationAws;
   }
 
   formReady(): boolean {
-    const mongoReady = !!(this.request.environment && this.request.targetMongo.cluster && this.request.targetMongo.db && this.request.targetMongo.username && this.request.targetMongo.password);
-    const awsReady = !!(this.request.targetAws?.bucket && this.request.targetAws?.region && this.request.targetAws?.accessKeyId && this.request.targetAws?.secretAccessKey);
-    return mongoReady && (!this.liveCopyRequested() || awsReady);
+    const environmentReady = !!this.request.environment;
+    const mongoReady = !this.includeMongo() || !!(this.request.targetMongo.cluster && this.request.targetMongo.db && this.request.targetMongo.username && this.request.targetMongo.password);
+    const awsReady = !this.liveCopyRequested() || !!(this.request.targetAws?.bucket && this.request.targetAws?.region && this.request.targetAws?.accessKeyId && this.request.targetAws?.secretAccessKey);
+    return environmentReady && (this.includeMongo() || this.includeS3()) && mongoReady && awsReady;
   }
 
   confirmationReady(): boolean {
@@ -756,7 +942,9 @@ export class EnvironmentMigrationComponent implements OnInit {
         dryRun: true
       }));
       this.selectedMigration = migration;
-      this.success = "Target credentials validated and verification checks completed.";
+      this.success = this.includeMongo()
+        ? "Target credentials validated and verification checks completed."
+        : "Destination AWS validated. The database will not be changed.";
       this.selectTab(EnvironmentMigrationTab.RESULT);
       await this.loadHistory();
     });
@@ -770,7 +958,9 @@ export class EnvironmentMigrationComponent implements OnInit {
         rotateCredentials
       }));
       this.selectedMigration = migration;
-      this.success = "Migration started. This page will refresh the migration status while the restore runs.";
+      this.success = this.includeMongo()
+        ? "Migration started. This page will refresh the migration status while the restore runs."
+        : "S3 copy started. This page will refresh the migration status while objects are copied.";
       this.selectTab(EnvironmentMigrationTab.RESULT);
       this.pollMigration(migration.migrationId);
       await this.loadHistory();
@@ -785,7 +975,7 @@ export class EnvironmentMigrationComponent implements OnInit {
       const migration = await firstValueFrom(this.migrationService.rotateMongoCredentials({
         migrationId: this.selectedMigration!.migrationId,
         confirmEnvironment: this.request.confirmEnvironment || "",
-        targetMongo: this.request.targetMongo,
+        ...(this.includeMongo() ? { targetMongo: this.request.targetMongo } : {}),
         ...(this.liveCopyRequested() ? { targetAws: this.request.targetAws } : {}),
         rotateS3Credentials: this.request.rotateS3Credentials
       }));
@@ -799,9 +989,9 @@ export class EnvironmentMigrationComponent implements OnInit {
   selectMigration(migration: EnvironmentMigrationAudit): void {
     this.selectedMigration = migration;
     this.request.environment = migration.environment;
-    this.request.targetMongo.cluster = migration.targetMongo.cluster;
-    this.request.targetMongo.db = migration.targetMongo.db;
-    this.request.targetMongo.username = migration.targetMongo.username;
+    this.request.targetMongo.cluster = migration.targetMongo?.cluster || this.request.targetMongo.cluster;
+    this.request.targetMongo.db = migration.targetMongo?.db || this.request.targetMongo.db;
+    this.request.targetMongo.username = migration.targetMongo?.username || this.request.targetMongo.username;
     this.request.mode = migration.mode;
     this.copyToDestinationAws = !!migration.targetAws;
     this.request.targetAws = {
@@ -814,6 +1004,7 @@ export class EnvironmentMigrationComponent implements OnInit {
     this.request.backupName = migration.backupName || "";
     this.request.backupLocation = migration.backupLocation || this.backupSource;
     this.selectTab(EnvironmentMigrationTab.RESULT);
+    void this.loadHistory();
   }
 
   envOf(item: BackupListItem): string {
@@ -848,7 +1039,7 @@ export class EnvironmentMigrationComponent implements OnInit {
   updateS3Preview(): void {
     const environment = this.selectedBackupForRestore ? this.envOf(this.selectedBackupForRestore) : "";
     const timestamp = this.selectedBackupForRestore ? this.backupTimestamp(this.selectedBackupForRestore) : "";
-    const snapshotRestoreRequested = this.request.mode === EnvironmentMigrationMode.MONGO_AND_S3 && !this.copyToDestinationAws;
+    const snapshotRestoreRequested = this.includeS3() && !this.copyToDestinationAws;
     if (snapshotRestoreRequested && environment && timestamp) {
       this.backupService.s3ManifestByTimestamp(environment, timestamp).subscribe({
         next: manifest => this.selectedS3Manifest = manifest,
@@ -862,9 +1053,36 @@ export class EnvironmentMigrationComponent implements OnInit {
     }
   }
 
+  private applyMode(includeMongo: boolean, includeS3: boolean): void {
+    if (includeMongo && includeS3) {
+      this.request.mode = EnvironmentMigrationMode.MONGO_AND_S3;
+      this.request.rotateS3Credentials = this.request.rotateS3Credentials !== false;
+    } else if (includeMongo) {
+      this.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
+      this.request.rotateS3Credentials = false;
+    } else if (includeS3) {
+      this.request.mode = EnvironmentMigrationMode.S3_ONLY;
+      this.copyToDestinationAws = true;
+      this.request.rotateS3Credentials = this.request.rotateS3Credentials !== false;
+    } else {
+      this.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
+      this.request.rotateS3Credentials = false;
+    }
+    this.updateS3Preview();
+  }
+
+  private environmentHasAws(environmentName: string): boolean {
+    const environmentConfig = this.environmentsConfig?.environments?.find(environment => environment.environment === environmentName);
+    return !!environmentConfig?.aws?.bucket;
+  }
+
   private requestToSend(): EnvironmentMigrationRequest {
-    const { targetAws, ...request } = this.request;
-    return this.liveCopyRequested() ? { ...request, targetAws } : request;
+    const { targetAws, targetMongo, ...request } = this.request;
+    return {
+      ...request,
+      ...(this.includeMongo() ? { targetMongo } : {}),
+      ...(this.liveCopyRequested() ? { targetAws } : {})
+    };
   }
 
   private backupTimestamp(item: BackupListItem): string {
@@ -902,10 +1120,13 @@ export class EnvironmentMigrationComponent implements OnInit {
         if (this.migrationActive(migration) && attempt < 720) {
           this.pollMigration(migrationId, attempt + 1);
         } else if (migration.status === EnvironmentMigrationStatus.READY_FOR_CUTOVER) {
-          this.success = "Migration restored and verified. Credentials are not rotated yet.";
+          this.success = this.includeMongo()
+            ? "Migration restored and verified. Credentials are not rotated yet."
+            : "S3 copy finished. Credentials are not rotated yet.";
         } else if (migration.status === EnvironmentMigrationStatus.ROTATED) {
           this.success = "Migration verified and credentials rotated.";
         } else if (migration.status === EnvironmentMigrationStatus.FAILED) {
+          this.success = "";
           this.error = migration.error || "Migration failed";
         } else if (migration.status === EnvironmentMigrationStatus.ORPHANED) {
           this.error = migration.error || "Migration was interrupted by a server restart";

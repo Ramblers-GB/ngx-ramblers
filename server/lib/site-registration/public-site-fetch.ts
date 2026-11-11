@@ -85,6 +85,15 @@ export function withoutQuery(value: string): string {
   }
 }
 
+export async function assertPublicInternetHost(hostname: string): Promise<{address: string; family: number}[]> {
+  const addresses = await lookup(hostname, {all: true, family: 4});
+  if (!addresses.length || addresses.some(address => excludedNetworks.check(address.address, "ipv4"))) {
+    throw new Error("The website must resolve to a public internet address.");
+  } else {
+    return addresses;
+  }
+}
+
 export function publicSiteUrl(value: string): URL {
   const trimmed = (value || "").trim();
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : trimmed.includes(".") ? `https://${trimmed}` : trimmed;
@@ -198,10 +207,10 @@ async function requestPublicSiteBodyViaRelay(value: string, accept: string, expe
 
 async function requestPublicSiteBody(value: string, redirects: number, accept: string, expectedContentType: string, maximumBytes: number): Promise<PublicSiteResponse> {
   const url = publicSiteUrl(value);
-  const addresses = await lookup(url.hostname, {all: true, family: 4});
-  if (redirects > 5 || !addresses.length || addresses.some(address => excludedNetworks.check(address.address, "ipv4"))) {
+  if (redirects > 5) {
     throw new Error("The website must resolve to a public internet address.");
-  }
+  } else {
+  const addresses = await assertPublicInternetHost(url.hostname);
   return new Promise<PublicSiteResponse>((resolve, reject) => {
     const pinLookup: LookupFunction = (_hostname, _options, callback) => {
       (callback as unknown as (err: Error | null, resolved: typeof addresses) => void)(null, addresses);
@@ -254,6 +263,7 @@ async function requestPublicSiteBody(value: string, redirects: number, accept: s
     request.on("error", reject);
     request.end();
   });
+  }
 }
 
 export async function fetchPublicSitePage(value: string, redirects = 0): Promise<PublicSitePage> {

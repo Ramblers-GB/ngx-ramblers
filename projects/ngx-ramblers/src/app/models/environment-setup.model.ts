@@ -2,6 +2,7 @@ import { PlatformSendControl } from "./mail.model";
 import { ApiResponse } from "./api-response.model";
 import { RamblersGroupsApiResponse } from "./ramblers-walks-manager.model";
 import { AWS_DEFAULTS, CustomDomainEntry, FLYIO_DEFAULTS } from "./environment-config.model";
+import { toKebabCase } from "../functions/strings";
 import { RootFolder } from "./system.model";
 import { MxRecordStatus } from "./cloudflare-email-routing.model";
 
@@ -1249,7 +1250,7 @@ export function environmentSubdomainHostname(environmentName: string, baseDomain
 }
 
 export function flySafeResourceName(environmentName: string): string {
-  return (environmentName || "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return toKebabCase(environmentName || "");
 }
 
 export function environmentNameForGroup(groupName: string): string {

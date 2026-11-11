@@ -16,6 +16,7 @@ import { integrationWorkerBrowserRoutes } from "./integration-worker-browser-rou
 import { integrationWorkerMigrationRoutes } from "./integration-worker-migration-routes";
 import { integrationWorkerWalksManagerSyncRoutes } from "./integration-worker-walks-manager-sync-routes";
 import { integrationWorkerResizeRoutes } from "./integration-worker-resize-routes";
+import { integrationWorkerContentMigrationRoutes } from "./integration-worker-content-migration-routes";
 import { integrationWorkerSocialPublishRoutes } from "./integration-worker-social-publish-routes";
 import { integrationWorkerAiRoutes } from "./integration-worker-ai-routes";
 import { documentConversionWorkerRoutes } from "../document-conversion/document-conversion-worker-routes";
@@ -72,6 +73,7 @@ app.use("/api/integration-worker/browser", integrationWorkerBrowserRoutes);
 app.use("/api/integration-worker/migration", integrationWorkerMigrationRoutes);
 app.use("/api/integration-worker/walks-manager-sync", integrationWorkerWalksManagerSyncRoutes);
 app.use("/api/integration-worker/resize", integrationWorkerResizeRoutes);
+app.use("/api/integration-worker/content-migration", integrationWorkerContentMigrationRoutes);
 app.use("/api/integration-worker/social-publish", integrationWorkerSocialPublishRoutes);
 app.use("/api/integration-worker/ai", integrationWorkerAiRoutes);
 app.use("/api/integration-worker/document-conversion", documentConversionWorkerRoutes);

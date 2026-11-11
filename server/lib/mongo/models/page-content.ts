@@ -58,4 +58,5 @@ const pageContentSchema = new mongoose.Schema({
   debugLogs: [{type: String}]
 }, {collection: "pageContent"});
 
+export { pageContentSchema };
 export const pageContent: mongoose.Model<PageContent> = ensureModel<PageContent>("page-content", pageContentSchema);

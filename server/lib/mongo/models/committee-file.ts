@@ -46,4 +46,5 @@ committeeFileSchema.plugin(uniqueValidator);
 
 lazyCollectionIndexes(committeeFileSchema);
 
+export { committeeFileSchema };
 export default mongoose.model("committee-file", committeeFileSchema);

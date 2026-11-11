@@ -7,6 +7,7 @@ import {
   HeadBucketCommand,
   ListObjectsV2Command,
   PutBucketCorsCommand,
+  PutBucketPolicyCommand,
   PutObjectCommand,
   PutPublicAccessBlockCommand,
   S3Client
@@ -15,20 +16,26 @@ import {
   AttachUserPolicyCommand,
   CreateAccessKeyCommand,
   CreatePolicyCommand,
+  CreatePolicyVersionCommand,
   CreateUserCommand,
   DeleteAccessKeyCommand,
+  DeletePolicyVersionCommand,
   GetPolicyCommand,
   GetUserCommand,
   IAMClient,
   ListAccessKeysCommand,
-  ListAttachedUserPoliciesCommand
+  ListAttachedUserPoliciesCommand,
+  ListPolicyVersionsCommand
 } from "@aws-sdk/client-iam";
 import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
+import { existsSync, readFileSync } from "fs";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
+import { resolveServerPath } from "../shared/path-utils";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { AssetToCopy, AwsAdminConfig, AwsCustomerCredentials, CopiedImage, CopyAssetsResult, ValidationResult } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { prefixedEnvironmentResourceName } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { RootFolder } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { systemConfig } from "../config/system-config";
 import { BannerPictureStore } from "./banner-picture.model";
@@ -44,6 +51,24 @@ export interface AwsSetupResult {
   secretAccessKey: string;
   policyArn: string;
 }
+
+export interface SetupAwsForBucketOptions {
+  replaceAccessKeys?: boolean;
+}
+
+const PUBLIC_GET_OBJECT_PREFIXES: RootFolder[] = [
+  RootFolder.backgrounds,
+  RootFolder.bannerPhotos,
+  RootFolder.carousels,
+  RootFolder.committeeFiles,
+  RootFolder.icons,
+  RootFolder.logos,
+  RootFolder.siteContent,
+  RootFolder.walkImages,
+  RootFolder.socialEventsImages,
+  RootFolder.esriRoutes,
+  RootFolder.socialPublishing
+];
 
 export function createS3Client(adminConfig: AwsAdminConfig): S3Client {
   return new S3Client({
@@ -66,15 +91,20 @@ function createIamClient(adminConfig: AwsAdminConfig): IAMClient {
 }
 
 export function generateBucketName(environmentName: string): string {
-  return `ngx-ramblers-${environmentName.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
+  return prefixedEnvironmentResourceName(environmentName, 63);
+}
+
+export function generateDestinationBucketName(environmentName: string, region: string = AWS_DEFAULTS.REGION): string {
+  const suffix = `-${region}`;
+  return `${prefixedEnvironmentResourceName(environmentName, 63 - suffix.length)}${suffix}`;
 }
 
 export function generateIamUserName(environmentName: string): string {
-  return `ngx-ramblers-${environmentName.toLowerCase().replace(/[^a-z0-9-]/g, "-")}-user`;
+  return `${generateBucketName(environmentName)}-user`;
 }
 
 export function generatePolicyName(environmentName: string): string {
-  return `ngx-ramblers-${environmentName.toLowerCase().replace(/[^a-z0-9-]/g, "-")}-policy`;
+  return `${generateBucketName(environmentName)}-policy`;
 }
 
 function createBucketPolicy(bucketName: string): string {
@@ -87,8 +117,7 @@ function createBucketPolicy(bucketName: string): string {
           "s3:PutObject",
           "s3:GetObject",
           "s3:DeleteObject",
-          "s3:ListBucket",
-          "s3:PutObjectAcl"
+          "s3:ListBucket"
         ],
         Resource: [
           `arn:aws:s3:::${bucketName}`,
@@ -104,10 +133,14 @@ export async function bucketExists(s3Client: S3Client, bucketName: string): Prom
     await s3Client.send(new HeadBucketCommand({ Bucket: bucketName }));
     return true;
   } catch (error) {
-    if (error.name === "NotFound" || error.$metadata?.httpStatusCode === 404) {
+    const status = error.$metadata?.httpStatusCode;
+    if (error.name === "NotFound" || status === 404) {
       return false;
+    } else if (status === 301 || status === 403 || error.name === "PermanentRedirect" || error.name === "AccessDenied") {
+      throw new Error(`S3 bucket name ${bucketName} is already in use (another account or region). Choose a unique bucket name.`);
+    } else {
+      throw error;
     }
-    throw error;
   }
 }
 
@@ -123,7 +156,7 @@ async function userExists(iamClient: IAMClient, userName: string): Promise<boole
   }
 }
 
-async function configureBucket(s3Client: S3Client, bucketName: string): Promise<void> {
+export async function configureBucket(s3Client: S3Client, bucketName: string): Promise<void> {
   await s3Client.send(new PutPublicAccessBlockCommand({
     Bucket: bucketName,
     PublicAccessBlockConfiguration: {
@@ -150,6 +183,23 @@ async function configureBucket(s3Client: S3Client, bucketName: string): Promise<
     }
   }));
   debugLog("Configured CORS for bucket:", bucketName);
+
+  await s3Client.send(new PutBucketPolicyCommand({
+    Bucket: bucketName,
+    Policy: JSON.stringify({
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Sid: "PublicReadGetObject",
+          Effect: "Allow",
+          Principal: "*",
+          Action: "s3:GetObject",
+          Resource: PUBLIC_GET_OBJECT_PREFIXES.map(prefix => `arn:aws:s3:::${bucketName}/${prefix}/*`)
+        }
+      ]
+    })
+  }));
+  debugLog("Configured public-read bucket policy for prefixes on:", bucketName);
 }
 
 export async function createS3Bucket(
@@ -223,18 +273,32 @@ function generatePolicyArn(accountId: string, policyName: string): string {
   return "";
 }
 
-async function deleteExistingAccessKeys(iamClient: IAMClient, userName: string): Promise<void> {
+async function listedAccessKeys(iamClient: IAMClient, userName: string) {
   const existingKeysResponse = await iamClient.send(new ListAccessKeysCommand({ UserName: userName }));
-  const existingKeys = existingKeysResponse.AccessKeyMetadata || [];
-  debugLog(`User ${userName} has ${existingKeys.length} existing access keys`);
+  return existingKeysResponse.AccessKeyMetadata || [];
+}
 
-  for (const key of existingKeys) {
-    if (key.AccessKeyId) {
-      await iamClient.send(new DeleteAccessKeyCommand({
-        UserName: userName,
-        AccessKeyId: key.AccessKeyId
-      }));
-      debugLog(`Deleted access key: ${key.AccessKeyId}`);
+async function deleteAccessKey(iamClient: IAMClient, userName: string, accessKeyId: string): Promise<void> {
+  await iamClient.send(new DeleteAccessKeyCommand({
+    UserName: userName,
+    AccessKeyId: accessKeyId
+  }));
+  debugLog(`Deleted access key: ${accessKeyId}`);
+}
+
+async function prepareAccessKeySlot(iamClient: IAMClient, userName: string, replaceAccessKeys: boolean): Promise<void> {
+  const existingKeys = await listedAccessKeys(iamClient, userName);
+  debugLog(`User ${userName} has ${existingKeys.length} existing access keys`);
+  if (replaceAccessKeys) {
+    await Promise.all(existingKeys.filter(key => key.AccessKeyId).map(key => deleteAccessKey(iamClient, userName, key.AccessKeyId as string)));
+  } else if (existingKeys.length >= 2) {
+    const oldest = [...existingKeys].sort((left, right) => {
+      const leftTime = left.CreateDate ? left.CreateDate.getTime() : 0;
+      const rightTime = right.CreateDate ? right.CreateDate.getTime() : 0;
+      return leftTime - rightTime;
+    })[0];
+    if (oldest?.AccessKeyId) {
+      await deleteAccessKey(iamClient, userName, oldest.AccessKeyId);
     }
   }
 }
@@ -249,12 +313,29 @@ async function createAccessKeyForUser(iamClient: IAMClient, userName: string): P
   return { AccessKeyId: accessKey.AccessKeyId, SecretAccessKey: accessKey.SecretAccessKey };
 }
 
+async function setManagedPolicyDocument(iamClient: IAMClient, policyArn: string, policyDocument: string): Promise<void> {
+  const versions = await iamClient.send(new ListPolicyVersionsCommand({ PolicyArn: policyArn }));
+  const nonDefault = (versions.Versions || []).filter(version => !version.IsDefaultVersion);
+  if (nonDefault.length >= 4) {
+    const oldest = nonDefault[nonDefault.length - 1];
+    if (oldest.VersionId) {
+      await iamClient.send(new DeletePolicyVersionCommand({ PolicyArn: policyArn, VersionId: oldest.VersionId }));
+    }
+  }
+  await iamClient.send(new CreatePolicyVersionCommand({
+    PolicyArn: policyArn,
+    PolicyDocument: policyDocument,
+    SetAsDefault: true
+  }));
+}
+
 export async function createIamUserWithBucketPolicy(
   iamClient: IAMClient,
   adminConfig: AwsAdminConfig,
   userName: string,
   bucketName: string,
-  policyName: string
+  policyName: string,
+  replaceAccessKeys = true
 ): Promise<{ accessKeyId: string; secretAccessKey: string; policyArn: string }> {
   debugLog("Setting up IAM user:", userName, "with policy for bucket:", bucketName);
 
@@ -277,8 +358,9 @@ export async function createIamUserWithBucketPolicy(
   const policyAlreadyExists = expectedPolicyArn && await policyExists(iamClient, expectedPolicyArn);
 
   if (policyAlreadyExists) {
-    debugLog("Policy already exists, reusing:", expectedPolicyArn);
+    debugLog("Policy already exists, updating document:", expectedPolicyArn);
     policyArn = expectedPolicyArn;
+    await setManagedPolicyDocument(iamClient, policyArn, policyDocument);
   } else {
     try {
       const createPolicyResponse = await iamClient.send(new CreatePolicyCommand({
@@ -293,11 +375,12 @@ export async function createIamUserWithBucketPolicy(
       debugLog("Created policy:", policyArn);
     } catch (error) {
       if (error.name === "EntityAlreadyExists") {
-        debugLog("Policy already exists (caught during create), using constructed ARN");
+        debugLog("Policy already exists (caught during create), updating document");
         policyArn = expectedPolicyArn;
         if (!policyArn) {
           throw new Error(`Policy ${policyName} exists but couldn't determine ARN`);
         }
+        await setManagedPolicyDocument(iamClient, policyArn, policyDocument);
       } else {
         throw error;
       }
@@ -315,7 +398,7 @@ export async function createIamUserWithBucketPolicy(
     debugLog("Policy already attached to user");
   }
 
-  await deleteExistingAccessKeys(iamClient, userName);
+  await prepareAccessKeySlot(iamClient, userName, replaceAccessKeys);
 
   const accessKey = await createAccessKeyForUser(iamClient, userName);
 
@@ -340,11 +423,13 @@ export async function setupAwsForBucket(
   adminConfig: AwsAdminConfig,
   environmentName: string,
   bucketName: string,
-  region?: string
+  region?: string,
+  options?: SetupAwsForBucketOptions
 ): Promise<AwsSetupResult> {
   const effectiveRegion = region || adminConfig.region;
   const userName = generateIamUserName(environmentName);
   const policyName = generatePolicyName(environmentName);
+  const replaceAccessKeys = options?.replaceAccessKeys !== false;
 
   debugLog("Setting up AWS for customer:", environmentName);
   debugLog("Bucket:", bucketName);
@@ -361,7 +446,8 @@ export async function setupAwsForBucket(
     adminConfig,
     userName,
     bucketName,
-    policyName
+    policyName,
+    replaceAccessKeys
   );
 
   return {
@@ -390,10 +476,24 @@ export async function validateAwsAdminCredentials(adminConfig: AwsAdminConfig): 
   }
 }
 
+function serverEnvValue(variableName: Environment): string | null {
+  const envPath = resolveServerPath(".env");
+  if (!existsSync(envPath)) {
+    return null;
+  } else {
+    const match = readFileSync(envPath, "utf-8").split(/\r?\n/).find(line => line.startsWith(`${variableName}=`) && !line.trim().startsWith("#"));
+    if (!match) {
+      return null;
+    } else {
+      return match.split("=").slice(1).join("=").trim().replace(/^["']|["']$/g, "");
+    }
+  }
+}
+
 export function adminConfigFromEnvironment(): AwsAdminConfig | null {
-  const accessKeyId = process.env[Environment.SETUP_AWS_ACCESS_KEY_ID] || process.env[Environment.AWS_ACCESS_KEY_ID];
-  const secretAccessKey = process.env[Environment.SETUP_AWS_SECRET_ACCESS_KEY] || process.env[Environment.AWS_SECRET_ACCESS_KEY];
-  const region = process.env[Environment.SETUP_AWS_REGION] || process.env[Environment.AWS_REGION] || AWS_DEFAULTS.REGION;
+  const accessKeyId = process.env[Environment.SETUP_AWS_ACCESS_KEY_ID] || serverEnvValue(Environment.SETUP_AWS_ACCESS_KEY_ID) || process.env[Environment.AWS_ACCESS_KEY_ID];
+  const secretAccessKey = process.env[Environment.SETUP_AWS_SECRET_ACCESS_KEY] || serverEnvValue(Environment.SETUP_AWS_SECRET_ACCESS_KEY) || process.env[Environment.AWS_SECRET_ACCESS_KEY];
+  const region = process.env[Environment.SETUP_AWS_REGION] || serverEnvValue(Environment.SETUP_AWS_REGION) || process.env[Environment.AWS_REGION] || AWS_DEFAULTS.REGION;
 
   if (!accessKeyId || !secretAccessKey) {
     return null;

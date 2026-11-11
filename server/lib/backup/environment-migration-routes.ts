@@ -1,11 +1,12 @@
 import express from "express";
 import * as authConfig from "../auth/auth-config";
-import * as controller from "./environment-migration-controller";
+import * as controller from "./environment-migration-controllers";
 import { provisionMigrationMongoTargetRequest } from "./environment-migration-mongo-target";
 
 const router = express.Router();
 
 router.get("/history", authConfig.authenticate(), controller.history);
+router.get("/aws/platform-target", authConfig.authenticate(), controller.requireEnvironmentMigrationEnabled, authConfig.requireAdmin, controller.platformAwsTarget);
 router.get("/:migrationId", authConfig.authenticate(), controller.migration);
 router.post("/mongo/provision", authConfig.authenticate(), controller.requireEnvironmentMigrationEnabled, authConfig.requireAdmin, provisionMigrationMongoTargetRequest);
 router.post("/mongo/plan", authConfig.authenticate(), controller.requireEnvironmentMigrationEnabled, authConfig.requireAdmin, controller.planMongoOnlyMigration);

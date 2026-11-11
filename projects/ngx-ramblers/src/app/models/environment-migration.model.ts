@@ -9,7 +9,26 @@ export enum EnvironmentMigrationTab {
 
 export enum EnvironmentMigrationMode {
   MONGO_ONLY = "mongo-only",
-  MONGO_AND_S3 = "mongo-and-s3"
+  MONGO_AND_S3 = "mongo-and-s3",
+  S3_ONLY = "s3-only"
+}
+
+export function migrationIncludesMongo(mode?: EnvironmentMigrationMode): boolean {
+  return mode !== EnvironmentMigrationMode.S3_ONLY;
+}
+
+export function migrationIncludesS3(mode?: EnvironmentMigrationMode): boolean {
+  return mode === EnvironmentMigrationMode.MONGO_AND_S3 || mode === EnvironmentMigrationMode.S3_ONLY;
+}
+
+export function migrationModeLabel(mode?: EnvironmentMigrationMode): string {
+  if (mode === EnvironmentMigrationMode.S3_ONLY) {
+    return "S3";
+  } else if (mode === EnvironmentMigrationMode.MONGO_AND_S3) {
+    return "Mongo and S3";
+  } else {
+    return "Mongo";
+  }
 }
 
 export enum EnvironmentMigrationStatus {
@@ -68,7 +87,7 @@ export interface EnvironmentMigrationRequest {
   backupPath?: string;
   backupName?: string;
   backupLocation?: BackupLocation;
-  targetMongo: EnvironmentMigrationMongoTarget;
+  targetMongo?: EnvironmentMigrationMongoTarget;
   targetAws?: EnvironmentMigrationAwsTarget;
   confirmEnvironment?: string;
   rotateCredentials?: boolean;
@@ -136,8 +155,8 @@ export interface EnvironmentMigrationAudit {
   startTime: Date | number;
   endTime?: Date | number;
   backupPath?: string;
-  sourceMongo: EnvironmentMigrationMongoSummary;
-  targetMongo: EnvironmentMigrationMongoSummary;
+  sourceMongo?: EnvironmentMigrationMongoSummary;
+  targetMongo?: EnvironmentMigrationMongoSummary;
   sourceAws?: EnvironmentMigrationAwsSummary;
   targetAws?: EnvironmentMigrationAwsSummary;
   executionId?: string;
@@ -170,7 +189,7 @@ export function migrationAllowsCredentialRotation(migration: EnvironmentMigratio
 export interface EnvironmentMigrationRotationRequest {
   migrationId: string;
   confirmEnvironment: string;
-  targetMongo: EnvironmentMigrationMongoTarget;
+  targetMongo?: EnvironmentMigrationMongoTarget;
   targetAws?: EnvironmentMigrationAwsTarget;
   rotateS3Credentials?: boolean;
   user?: string;

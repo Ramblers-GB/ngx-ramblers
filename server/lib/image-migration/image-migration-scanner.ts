@@ -36,38 +36,50 @@ function generateId(): string {
   return `${dateTimeNowAsValue()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+export function fileNameFromUrl(url: string): string {
+  if (!url) {
+    return "";
+  } else {
+    try {
+      const urlObj = new URL(url);
+      const queryFile = urlObj.searchParams.get("file");
+      if (queryFile) {
+        return decodeURIComponent(queryFile.replace(/\+/g, " "));
+      } else {
+        const base = decodeURIComponent(urlObj.pathname.split("/").filter(Boolean).pop() || "");
+        if (base && !/\.php$/i.test(base)) {
+          return base;
+        } else {
+          return "";
+        }
+      }
+    } catch {
+      return "";
+    }
+  }
+}
+
 export function documentTypeFromUrl(url: string): ContentMigrationDocumentType {
   if (!url) {
     return ContentMigrationDocumentType.OTHER;
   }
-  try {
-    const pathname = new URL(url).pathname.toLowerCase();
-    if (/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico)$/.test(pathname)) {
-      return ContentMigrationDocumentType.IMAGE;
-    } else if (/\.pdf$/.test(pathname)) {
-      return ContentMigrationDocumentType.PDF;
-    } else if (/\.(xls|xlsx|csv|ods)$/.test(pathname)) {
-      return ContentMigrationDocumentType.SPREADSHEET;
-    } else if (/\.(doc|docx|dot|odt|rtf|ppt|pptx|odp|txt)$/.test(pathname)) {
-      return ContentMigrationDocumentType.DOCUMENT;
-    } else {
-      return ContentMigrationDocumentType.OTHER;
-    }
-  } catch {
+  const fileName = fileNameFromUrl(url).toLowerCase();
+  if (/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico)$/.test(fileName)) {
+    return ContentMigrationDocumentType.IMAGE;
+  } else if (/\.pdf$/.test(fileName)) {
+    return ContentMigrationDocumentType.PDF;
+  } else if (/\.(xls|xlsx|csv|ods)$/.test(fileName)) {
+    return ContentMigrationDocumentType.SPREADSHEET;
+  } else if (/\.(doc|docx|dot|odt|rtf|ppt|pptx|odp|txt)$/.test(fileName)) {
+    return ContentMigrationDocumentType.DOCUMENT;
+  } else {
     return ContentMigrationDocumentType.OTHER;
   }
 }
 
 function isExternalDocumentUrl(url: string): boolean {
-  if (!url) {
-    return false;
-  }
-  try {
-    const pathname = new URL(url).pathname.toLowerCase();
-    return IMAGE_EXTENSIONS.test(pathname) || DOCUMENT_EXTENSIONS.test(pathname);
-  } catch {
-    return false;
-  }
+  const fileName = fileNameFromUrl(url).toLowerCase();
+  return IMAGE_EXTENSIONS.test(fileName) || DOCUMENT_EXTENSIONS.test(fileName);
 }
 
 function urlMatchesHost(url: string, hostPattern: string): boolean {

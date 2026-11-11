@@ -1104,11 +1104,12 @@ export class EnvironmentSetupComponent implements OnInit, OnDestroy {
 
   get otherEnvironmentDatabases(): string[] {
     if (!this.selectedExistingEnv) {
-      return this.existingEnvironments.map(e => `ngx-ramblers-${e.name.toLowerCase()}`);
+      return this.existingEnvironments.map(e => this.prefixedName(e.name, 38));
+    } else {
+      return this.existingEnvironments
+        .filter(e => e.name !== this.selectedExistingEnv!.name)
+        .map(e => this.prefixedName(e.name, 38));
     }
-    return this.existingEnvironments
-      .filter(e => e.name !== this.selectedExistingEnv!.name)
-      .map(e => `ngx-ramblers-${e.name.toLowerCase()}`);
   }
 
   get otherDatabasesSummary(): string {
@@ -1845,8 +1846,6 @@ export class EnvironmentSetupComponent implements OnInit, OnDestroy {
 
     this.request.environmentBasics.environmentName = envName;
     this.updateAppName();
-    this.request.serviceConfigs.aws.bucket = `ngx-ramblers-${envName}`;
-    this.request.serviceConfigs.mongodb.database = `ngx-ramblers-${envName}`;
 
     const firstWord = this.request.ramblersInfo.groupName
       .split(/\s+/)[0]
