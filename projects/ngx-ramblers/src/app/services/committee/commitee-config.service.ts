@@ -3,7 +3,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { Observable, ReplaySubject } from "rxjs";
 import { applyCommitteeRoleDefaultSender, BuiltInRole, CommitteeConfig, CommitteeMember, committeeMeetingTypesFromFileTypes, CONTACT_US_LABEL, CONTACT_US_TYPE, DEFAULT_COST_PER_MILE, reassignCommitteeRoleMember, RoleType, roleEmailAddresses, roleMailboxExtras } from "../../models/committee.model";
 import { committeeSenderDisplayName } from "../../functions/committee-senders";
-import { normaliseEmail } from "../../functions/strings";
+import { emailListed, normaliseEmail } from "../../functions/strings";
 import { memberFullName } from "../../functions/member-names";
 import { Member } from "../../models/member.model";
 import { ConfigKey } from "../../models/config.model";
@@ -157,6 +157,8 @@ export class CommitteeConfigService {
       return Promise.reject("You cannot change committee email addresses here.");
     } else if (!currentRole) {
       return Promise.reject("Committee settings could not be loaded.");
+    } else if (emailListed(roleEmailAddresses(currentRole, domain), email)) {
+      return Promise.resolve();
     } else {
       const withExtra = {
         ...currentRole,

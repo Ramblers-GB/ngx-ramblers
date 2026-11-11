@@ -12,7 +12,7 @@ import {Subject} from "rxjs";
 describe("event format selection", () => {
   async function setup() {
     const settings = {format: ProgrammeEventFormat.DETAILED};
-    const programme = {settings: () => settings, selectFormat: vi.fn(), applyTemplate: vi.fn()};
+    const programme = {settings: () => settings, selectFormat: vi.fn(), applyTemplate: vi.fn(), applySavedFormatIfNeeded: vi.fn()};
     const requestStep = new Subject<EmailComposerStepKey>();
     const session = {requestStep};
     TestBed.configureTestingModule({imports: [EmailComposerProgrammeComponent],

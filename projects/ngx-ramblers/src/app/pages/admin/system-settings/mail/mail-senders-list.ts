@@ -18,7 +18,7 @@ import { MailMessagingService } from "../../../../services/mail/mail-messaging.s
 import { CloudflareEmailRoutingService } from "../../../../services/cloudflare/cloudflare-email-routing.service";
 import { CommitteeConfigService } from "../../../../services/committee/commitee-config.service";
 import { CommitteeMember, committeeRoleMatchingEmail, roleEmailAddresses } from "../../../../models/committee.model";
-import { emailLocalPart, emailLocalPartLengthMessage, normaliseEmail, validEmailLocalPart } from "../../../../functions/strings";
+import { normaliseEmail } from "../../../../functions/strings";
 import { Sender, SenderListRow, SenderListScope, SenderSortField, SendersResponse } from "../../../../models/mail.model";
 import { ALERT_ERROR } from "../../../../models/alert-target.model";
 import { StringUtilsService } from "../../../../services/string-utils.service";
@@ -26,7 +26,6 @@ import { SortDirection } from "../../../../models/sort.model";
 import { ASCENDING, DESCENDING } from "../../../../models/table-filtering.model";
 import { StoredValue } from "../../../../models/ui-actions.model";
 import { FormsModule } from "@angular/forms";
-import { BrevoButtonComponent } from "../../../../modules/common/third-parties/brevo-button";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { ContentTextEditor } from "../../../../modules/common/tiptap-editor/content-text-editor";
@@ -70,68 +69,27 @@ import { SectionToggleTab } from "../../../../models/section-toggle.model";
             (selectedTabChange)="scopeChanged($event)"/>
         </div>
       }
-      <div class="d-flex justify-content-between mb-3">
-        <div class="row flex-grow-1 me-3">
-          <div class="col-sm-6">
-            <label class="form-label">Search</label>
-            <div class="input-group">
-              <span class="input-group-text"><fa-icon [icon]="faSearch"></fa-icon></span>
-              <input type="text" class="form-control" [(ngModel)]="searchTerm"
-                (ngModelChange)="searchChanged()"
-                placeholder="Search senders...">
-            </div>
-          </div>
-          <div class="col-sm-6">
-            <label class="form-label">Stats</label>
-            <div class="form-control-plaintext">
-              @if (loading) {
-                <fa-icon [icon]="faSpinner" animation="spin" class="me-2"></fa-icon>Loading senders...
-              } @else {
-                {{ statsLabel() }}
-              }
-            </div>
+      <div class="row mb-3">
+        <div class="col-sm-6">
+          <label class="form-label">Search</label>
+          <div class="input-group">
+            <span class="input-group-text"><fa-icon [icon]="faSearch"></fa-icon></span>
+            <input type="text" class="form-control" [(ngModel)]="searchTerm"
+              (ngModelChange)="searchChanged()"
+              placeholder="Search senders...">
           </div>
         </div>
-        @if (!embeddedValue && !showAddForm) {
-          <div class="d-flex align-items-end">
-            <app-brevo-button button title="Add Sender" (click)="showAddForm = true"/>
+        <div class="col-sm-6">
+          <label class="form-label">Stats</label>
+          <div class="form-control-plaintext">
+            @if (loading) {
+              <fa-icon [icon]="faSpinner" animation="spin" class="me-2"></fa-icon>Loading senders...
+            } @else {
+              {{ statsLabel() }}
+            }
           </div>
-        }
+        </div>
       </div>
-      @if (!embeddedValue && showAddForm) {
-        <div class="row mb-3 align-items-end">
-          <div class="col-sm-4">
-            <div class="form-group mb-0">
-              <label for="sender-name">Name</label>
-              <input [(ngModel)]="newSenderName" type="text" class="form-control input-sm" id="sender-name"
-                placeholder="Sender name">
-            </div>
-          </div>
-          <div class="col-sm-4">
-            <div class="form-group mb-0">
-              <label for="sender-email">Email</label>
-              <input [(ngModel)]="newSenderEmail" type="email" class="form-control input-sm" id="sender-email"
-                [placeholder]="emailPlaceholder()">
-              @if (senderEmailError()) {
-                <small class="text-danger">{{ senderEmailError() }}</small>
-              }
-            </div>
-          </div>
-          <div class="col-sm-4 d-flex align-items-end">
-            <app-brevo-button button title="Confirm Add Sender" [disabled]="addSenderDisabled()" (click)="addSender()"/>
-            <app-brevo-button button title="Cancel" class="ms-2" (click)="cancelAdd()"/>
-          </div>
-        </div>
-        @if (addError) {
-          <div class="alert alert-danger d-flex align-items-start mb-3">
-            <fa-icon [icon]="ALERT_ERROR.icon" class="me-2 mt-1"></fa-icon>
-            <div>
-              <strong>Error</strong>
-              <div>{{ addError }}</div>
-            </div>
-          </div>
-        }
-      }
       <app-sortable-table
         [columns]="columns"
         [rows]="senderRows"
@@ -195,7 +153,7 @@ import { SectionToggleTab } from "../../../../models/section-toggle.model";
         </ng-template>
       </app-sortable-table>
     </div>`,
-  imports: [FormsModule, BrevoButtonComponent, FontAwesomeModule, TooltipDirective, ContentTextEditor, SortableTableComponent, SortableTableCellDirective, SortableTableExpandedRowDirective, SectionToggle]
+  imports: [FormsModule, FontAwesomeModule, TooltipDirective, ContentTextEditor, SortableTableComponent, SortableTableCellDirective, SortableTableExpandedRowDirective, SectionToggle]
 })
 export class MailSendersListComponent implements OnInit, OnDestroy {
 
@@ -213,10 +171,6 @@ export class MailSendersListComponent implements OnInit, OnDestroy {
   public committeeRoles: CommitteeMember[] = [];
   public loading = true;
   public errorMessage: string;
-  public showAddForm = false;
-  public newSenderName = "";
-  public newSenderEmail = "";
-  public addError: string;
   public deletingSenderId: number;
   public deleting = false;
   public searchTerm = "";
@@ -423,64 +377,6 @@ export class MailSendersListComponent implements OnInit, OnDestroy {
       },
       queryParamsHandling: "merge"
     });
-  }
-
-  emailPlaceholder(): string {
-    if (this.baseDomain) {
-      return `e.g. role@${this.baseDomain}`;
-    } else {
-      return "Sender email address";
-    }
-  }
-
-  addSenderDisabled(): boolean {
-    return !this.newSenderName.trim() || !this.validEmail();
-  }
-
-  senderEmailError(): string {
-    const email = this.newSenderEmail?.trim();
-    if (!email || !email.includes("@")) {
-      return null;
-    } else {
-      const lengthMessage = emailLocalPartLengthMessage(email);
-      if (lengthMessage) {
-        return lengthMessage;
-      } else if (this.baseDomain && !email.endsWith(`@${this.baseDomain}`)) {
-        return `Email must end with @${this.baseDomain}`;
-      } else {
-        return null;
-      }
-    }
-  }
-
-  private validEmail(): boolean {
-    const email = this.newSenderEmail.trim();
-    if (!email || !email.includes("@") || !validEmailLocalPart(emailLocalPart(email))) {
-      return false;
-    } else if (this.baseDomain) {
-      return email.endsWith(`@${this.baseDomain}`);
-    } else {
-      return true;
-    }
-  }
-
-  async addSender() {
-    this.addError = null;
-    try {
-      await this.mailService.createSender({name: this.newSenderName.trim(), email: this.newSenderEmail.trim(), active: false});
-      this.cancelAdd();
-      await this.reload();
-    } catch (error) {
-      this.addError = this.stringUtilsService.stringify(error);
-      this.logger.error("Failed to create sender:", error);
-    }
-  }
-
-  cancelAdd() {
-    this.showAddForm = false;
-    this.newSenderName = "";
-    this.newSenderEmail = "";
-    this.addError = null;
   }
 
   requestDelete(sender: Sender) {

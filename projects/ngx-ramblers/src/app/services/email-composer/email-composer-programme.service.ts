@@ -23,6 +23,7 @@ export class EmailComposerProgrammeService {
   private previewSignature = "";
   private previewDocument: CommitteeFile | null = null;
 
+
   settings(): EmailComposerProgramme {
     if (!this.session.state.programme) {
       this.session.state.programme = {
@@ -34,6 +35,7 @@ export class EmailComposerProgrammeService {
         documentMarkdown: null,
         layout: CommitteeDocumentLayout.A4_PORTRAIT
       };
+      void this.applySavedFormatIfNeeded();
     }
     return this.session.state.programme;
   }
@@ -43,7 +45,7 @@ export class EmailComposerProgrammeService {
   }
 
   formatted(): boolean {
-    return !!this.session.state.programme && this.session.state.programme.format !== ProgrammeEventFormat.EMAIL;
+    return !!this.session.state.programme;
   }
 
   formatChanged(): void {
@@ -52,13 +54,22 @@ export class EmailComposerProgrammeService {
   }
 
   async selectFormat(): Promise<void> {
-    const format = this.settings().format;
     this.settings().templateId = null;
     this.formatChanged();
-    if (format !== ProgrammeEventFormat.EMAIL && format !== ProgrammeEventFormat.CUSTOM) {
+    return this.applySavedFormatIfNeeded();
+  }
+
+  applySavedFormatIfNeeded(): Promise<void> {
+    return this.loadSavedFormat();
+  }
+
+  private async loadSavedFormat(): Promise<void> {
+    const programme = this.session.state.programme;
+    const format = programme?.format ?? ProgrammeEventFormat.EMAIL;
+    if (programme && format !== ProgrammeEventFormat.CUSTOM && !programme.templateId) {
       try {
         const saved = (await this.templates.available()).find(template => template.path.endsWith(`/${format}`) && template.id);
-        if (saved && this.settings().format === format) {
+        if (saved && this.session.state.programme?.format === format && !this.session.state.programme?.templateId) {
           this.applyTemplate(saved, format);
         }
       } catch (error) {
@@ -84,14 +95,7 @@ export class EmailComposerProgrammeService {
   }
 
   previewHtml(): string {
-    if (this.settings().format === ProgrammeEventFormat.EMAIL) {
-      const firstEvent = this.session.state.groupEvents.filter(event => event.selected && !event.deleted)
-        .sort((left, right) => left.eventDate - right.eventDate)[0];
-      return [...this.documentRef.querySelectorAll<HTMLElement>("[data-composer-event-id]")]
-        .find(element => element.dataset.composerEventId === firstEvent?.id)?.innerHTML || "";
-    } else {
-      return this.rendering.emailHtml(this.liveMarkdown(true), this.settings().imageHeight);
-    }
+    return this.rendering.emailHtml(this.liveMarkdown(true), this.settings().imageHeight);
   }
 
   previewRequest(): TemplateRenderRequest {

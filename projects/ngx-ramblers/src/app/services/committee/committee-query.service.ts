@@ -99,7 +99,9 @@ export class CommitteeQueryService {
               $gte: fromDate.date,
               $lte: toDate.date
             }
-          }
+          },
+          ...(groupEventsFilter.select ? {select: groupEventsFilter.select} : {}),
+          ...(groupEventsFilter.limit ? {limit: groupEventsFilter.limit, sort: {[GroupEventField.START_DATE]: 1}} : {})
         },
         types: [groupEventsFilter.includeSocialEvents ? RamblersEventType.GROUP_EVENT : null, groupEventsFilter.includeWalks ? RamblersEventType.GROUP_WALK : null].filter(Boolean)
       };

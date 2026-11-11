@@ -23,7 +23,7 @@ export class EventTemplateService {
   }
 
   suppliedFormats(): PageContent[] {
-    return PROGRAMME_EVENT_FORMATS.filter(format => format.value !== ProgrammeEventFormat.EMAIL && format.value !== ProgrammeEventFormat.CUSTOM)
+    return PROGRAMME_EVENT_FORMATS.filter(format => format.value !== ProgrammeEventFormat.CUSTOM)
       .map(format => this.page(format.label, PROGRAMME_EVENT_TEMPLATES[format.value], PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + format.value));
   }
 

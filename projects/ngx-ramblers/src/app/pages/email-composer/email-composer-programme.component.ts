@@ -1,5 +1,5 @@
 import {NgSelectModule} from "@ng-select/ng-select";
-import {Component, inject} from "@angular/core";
+import {Component, inject, OnInit} from "@angular/core";
 import {FormsModule} from "@angular/forms";
 import {RouterLink} from "@angular/router";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
@@ -44,7 +44,7 @@ import {EmailComposerSessionService} from "../../services/email-composer/email-c
     </div>
   `
 })
-export class EmailComposerProgrammeComponent {
+export class EmailComposerProgrammeComponent implements OnInit {
   protected programme = inject(EmailComposerProgrammeService);
   private session = inject(EmailComposerSessionService);
   protected readonly formats = PROGRAMME_EVENT_FORMATS.map(format => ({...format,
@@ -53,6 +53,10 @@ export class EmailComposerProgrammeComponent {
   protected readonly settingsParams = {[StoredValue.TAB]: kebabCase(MailSettingsTab.EVENT_TEMPLATES)};
   protected readonly ProgrammeEventFormat = ProgrammeEventFormat;
   protected readonly faGear = faGear;
+
+  ngOnInit(): void {
+    void this.programme.applySavedFormatIfNeeded();
+  }
 
   protected selectTemplate(template: PageContent | null): void {
     if (template) {

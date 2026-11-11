@@ -50,6 +50,11 @@ export function emailIsOnDomain(email: string, domain: string): boolean {
   return Boolean(host) && emailDomain(email) === host;
 }
 
+export function emailListed(emails: string[], candidate: string): boolean {
+  const wanted = normaliseEmail(candidate);
+  return Boolean(wanted) && (emails ?? []).some(existing => normaliseEmail(existing) === wanted);
+}
+
 export function emailsOffDomain(emails: string[], domain: string): string[] {
   const host = (domain || "").trim().toLowerCase();
   if (!host) {

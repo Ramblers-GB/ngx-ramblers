@@ -63,7 +63,7 @@ export function programmeMarkdown(events: GroupEventSummary[], settings: EmailCo
       };
       const emailBody = (emailMarkdown[event.id] || "").trim();
       const printableTemplate = template || PROGRAMME_EVENT_TEMPLATES[ProgrammeEventFormat.DETAILED];
-      const markdown = format === ProgrammeEventFormat.EMAIL && emailBody ? emailBody : printableTemplate.replace(/\{\{\s*[a-z-]+(?::\d+)?\s*}}(?:[ \t]*·[ \t]*\{\{\s*[a-z-]+(?::\d+)?\s*}})*/g, group => {
+      const markdown = format === ProgrammeEventFormat.EMAIL && !template && emailBody ? emailBody : printableTemplate.replace(/\{\{\s*[a-z-]+(?::\d+)?\s*}}(?:[ \t]*·[ \t]*\{\{\s*[a-z-]+(?::\d+)?\s*}})*/g, group => {
         const value = [...group.matchAll(/\{\{\s*([a-z-]+(?::\d+)?)\s*}}/g)]
           .map(([match, token]) => tokens[programmeEventFieldName(token) as ProgrammeEventToken] ?? match)
           .filter(value => value.trim()).join(" · ");

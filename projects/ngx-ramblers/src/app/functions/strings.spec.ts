@@ -1,4 +1,4 @@
-import { addressOnDomain, booleanOf, convertTitleToSlug, emailIsOnDomain, emailLocalPart, emailLocalPartLengthMessage, emailsOffDomain, endsWithEllipsis, escapeHtml, firstLinkHref, firstLinkText, fitEmailLocalPart, indexCardDescription, isNullText, isQuoted, matchesAllowingTruncation, plainText, sanitiseEmailLocalPart, stripTrailingSlash, toKebabCase, toSlug, truncateAtWordBoundary, unescapeMarkdownLinks, unquote, validEmailLocalPart } from "./strings";
+import { addressOnDomain, booleanOf, convertTitleToSlug, emailIsOnDomain, emailListed, emailLocalPart, emailLocalPartLengthMessage, emailsOffDomain, endsWithEllipsis, escapeHtml, firstLinkHref, firstLinkText, fitEmailLocalPart, indexCardDescription, isNullText, isQuoted, matchesAllowingTruncation, plainText, sanitiseEmailLocalPart, stripTrailingSlash, toKebabCase, toSlug, truncateAtWordBoundary, unescapeMarkdownLinks, unquote, validEmailLocalPart } from "./strings";
 
 describe("strings", () => {
 
@@ -62,6 +62,20 @@ describe("strings", () => {
 
     it("is false for a personal address", () => {
       expect(emailIsOnDomain("nick.barrett36@me.com", "ngx-ramblers.org.uk")).toBe(false);
+    });
+  });
+
+  describe("emailListed", () => {
+    it("matches an address already in the list, ignoring case and surrounding space", () => {
+      expect(emailListed(
+        ["chair@group.example.org.uk", "alex.reed@group.example.org.uk"],
+        "  Chair@group.example.org.uk "
+      )).toBe(true);
+    });
+
+    it("is false when the address is not in the list", () => {
+      expect(emailListed(["chair@group.example.org.uk"], "secretary@group.example.org.uk")).toBe(false);
+      expect(emailListed(["chair@group.example.org.uk"], "")).toBe(false);
     });
   });
 

@@ -14,7 +14,7 @@ import {
 } from "../../models/committee.model";
 import { AlertTarget } from "../../models/alert-target.model";
 import { committeeOutboundEmailQueryParams } from "../../functions/committee-members";
-import { addressOnDomain, EMAIL_LOCAL_PART_MAX_LENGTH, emailDomain, emailIsOnDomain, emailLocalPart, extractErrorMessage, sanitiseEmailLocalPart, validEmailLocalPart } from "../../functions/strings";
+import { addressOnDomain, EMAIL_LOCAL_PART_MAX_LENGTH, emailDomain, emailIsOnDomain, emailListed, emailLocalPart, extractErrorMessage, sanitiseEmailLocalPart, validEmailLocalPart } from "../../functions/strings";
 import { AdminSettingsPath } from "../../models/admin-route-paths.model";
 import { CopyIconComponent } from "../../modules/common/copy-icon/copy-icon";
 import { CommitteeConfigService } from "../../services/committee/commitee-config.service";
@@ -254,10 +254,17 @@ export class CommitteeRoleMailboxesComponent {
   protected commitRename(item: CommitteeMailboxAddress): void {
     const local = sanitiseEmailLocalPart(this.editingLocalPart);
     const renamed = addressOnDomain(local, this.domain || emailDomain(item.email));
+    const listed = (this.groups ?? []).flatMap(group => group.addresses ?? []).map(entry => entry.email);
     if (!validEmailLocalPart(local) || !renamed) {
       this.notify.error({
         title: "Committee emails",
         message: "Use letters, numbers, dots, hyphens, plus or underscore only, with no spaces, and start and end with a letter or number.",
+        continue: true
+      });
+    } else if (emailListed(listed.filter(address => address !== item.email), renamed)) {
+      this.notify.error({
+        title: "Committee emails",
+        message: "That address is already in the list.",
         continue: true
       });
     } else {

@@ -161,6 +161,19 @@ describe("programme draft and output", () => {
     expect(state.groupEvents[0].mapUrl).toBe("/locate?lat=51&lon=-1");
   });
 
+  it("loads a saved Default layout when the composer starts on that format", async () => {
+    const {programme, state, pages} = setup();
+    pages.all.mockResolvedValue([{id: "saved-default", path: PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "email-layout",
+      rows: [{columns: [{contentText: "Saved default {{title}}", imageHeight: 160}]}]}]);
+    state.groupEvents = [{id: "walk-1", selected: true, title: "Hillside Park", eventDate: 1000} as GroupEventSummary];
+    programme.settings().format = ProgrammeEventFormat.EMAIL;
+    programme.settings().templateId = null;
+    await programme.applySavedFormatIfNeeded();
+    expect(programme.settings().templateId).toBe("saved-default");
+    expect(programme.settings().imageHeight).toBe(160);
+    expect(programme.emailHtml()).toContain("Saved default Hillside Park");
+  });
+
   it("uses saved edits when selecting a supplied format in the composer", async () => {
     const {programme, state, pages} = setup();
     pages.all.mockResolvedValue([{id: "saved-format", path: PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "detailed", rows: [{columns: [{contentText: "Revised {{title}}"}]}]}]);

@@ -1653,6 +1653,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       this.host.nativeElement.addEventListener("change", this.markUserEditFromDom, true);
     });
     this.loadComposerPrefs();
+    void this.programme.applySavedFormatIfNeeded();
     const openingComposition = this.route.snapshot.queryParamMap.get(StoredValue.DRAFT_ID)
       || this.route.snapshot.queryParamMap.get(StoredValue.COPY_OF);
     this.pendingDraftLoad = !!openingComposition;

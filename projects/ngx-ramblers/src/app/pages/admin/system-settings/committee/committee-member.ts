@@ -43,6 +43,7 @@ import {
   addressOnDomain,
   EMAIL_LOCAL_PART_MAX_LENGTH,
   emailIsOnDomain,
+  emailListed,
   emailLocalPart,
   emailLocalPartLengthMessage,
   emailsOffDomain,
@@ -388,7 +389,7 @@ import { CommitteeRoleMailboxesComponent } from "../../../../shared/components/c
                 }
                 <div class="d-flex align-items-center gap-2 mt-2">
                   <div class="mailbox-local-part form-control"
-                    [class.is-invalid]="mailboxLocalPartInvalid() || (mailboxAddAttempted && !canAddMailboxAddress())"
+                    [class.is-invalid]="mailboxLocalPartInvalid() || mailboxAddressDuplicate() || (mailboxAddAttempted && !canAddMailboxAddress())"
                     [class.disabled]="committeeMember.vacant"
                     (click)="mailboxAddressInput.focus()">
                     <input #mailboxAddressInput type="text" class="mailbox-local-part-input"
@@ -406,7 +407,7 @@ import { CommitteeRoleMailboxesComponent } from "../../../../shared/components/c
                     <span class="mailbox-local-part-overlay" aria-hidden="true"><span class="mailbox-local-part-sizer" [class.mailbox-local-part-placeholder]="!newMailboxAddress">{{ newMailboxAddress || "local-part" }}</span><span class="mailbox-local-part-domain">@{{baseDomain}}</span></span>
                   </div>
                   <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2 flex-shrink-0" (click)="addMailboxAddress()"
-                    [disabled]="committeeMember.vacant || mailboxSaving || mailboxLocalPartInvalid()">
+                    [disabled]="committeeMember.vacant || mailboxSaving || !canAddMailboxAddress()">
                     @if (mailboxSaving) {
                       <fa-icon [icon]="faSpinner" animation="spin"/>
                     } @else {
@@ -415,7 +416,7 @@ import { CommitteeRoleMailboxesComponent } from "../../../../shared/components/c
                     Add
                   </button>
                 </div>
-                @if (mailboxLocalPartInvalid() || (mailboxAddAttempted && !canAddMailboxAddress())) {
+                @if (mailboxLocalPartInvalid() || mailboxAddressDuplicate() || (mailboxAddAttempted && !canAddMailboxAddress())) {
                   <div class="invalid-feedback d-block">{{mailboxAddressError()}}</div>
                 }
               </div>
@@ -883,23 +884,26 @@ export class CommitteeMemberEditor implements OnInit, OnDestroy {
     return typed.length > 0 && !validEmailLocalPart(typed);
   }
 
+  mailboxAddressDuplicate(): boolean {
+    const address = this.typedMailboxAddress();
+    return Boolean(address && emailListed(this.mailboxAddresses, address));
+  }
+
   canAddMailboxAddress(): boolean {
     const typed = this.newMailboxAddress || "";
-    const address = this.typedMailboxAddress();
-    return Boolean(address && validEmailLocalPart(typed) && !this.mailboxAddresses.some(existing => normaliseEmail(existing) === normaliseEmail(address)));
+    return Boolean(this.typedMailboxAddress() && validEmailLocalPart(typed) && !this.mailboxAddressDuplicate());
   }
 
   mailboxAddressError(): string {
     const typed = this.newMailboxAddress || "";
     const lengthMessage = emailLocalPartLengthMessage(typed);
-    const address = this.typedMailboxAddress();
     if (!typed) {
       return "Type the part before @, for example chair, then Add.";
     } else if (lengthMessage) {
       return lengthMessage;
     } else if (!validEmailLocalPart(typed)) {
       return "Use letters, numbers, dots, hyphens, plus or underscore only, with no spaces, and start and end with a letter or number.";
-    } else if (address && this.mailboxAddresses.some(existing => normaliseEmail(existing) === normaliseEmail(address))) {
+    } else if (this.mailboxAddressDuplicate()) {
       return "That address is already in the list.";
     } else {
       return "Enter a valid local part that is not already in the list.";
@@ -922,7 +926,7 @@ export class CommitteeMemberEditor implements OnInit, OnDestroy {
   }
 
   renameMailboxAddress(from: string, to: string) {
-    if (this.mailboxSaving || this.committeeMember.vacant || !to || !validEmailLocalPart(emailLocalPart(to)) || normaliseEmail(from) === normaliseEmail(to)) {
+    if (this.mailboxSaving || this.committeeMember.vacant || !to || !validEmailLocalPart(emailLocalPart(to)) || normaliseEmail(from) === normaliseEmail(to) || emailListed(this.mailboxAddresses.filter(address => normaliseEmail(address) !== normaliseEmail(from)), to)) {
       this.mailboxAddAttempted = false;
     } else {
       const previousType = this.committeeMember.type;

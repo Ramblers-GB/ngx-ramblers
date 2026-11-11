@@ -22,6 +22,16 @@ export const MAIL_SETTINGS_UNSUBSCRIBES_HELP: ContentText = {
     "* Full detail in the [release notes for 27 April 2026](https://ngx-ramblers.org.uk/how-to/committee/release-notes/2026-04-27)."
 };
 
+export const MAIL_SETTINGS_SENDERS_HELP: ContentText = {
+  name: "mail-settings-senders-help",
+  category: "admin",
+  text:
+    "* Use this tab to review Brevo sender identities used for outbound email. Search, check which are mapped to a committee role, and delete senders that should no longer be used.\n" +
+    "* To add new senders, go to [Committee Settings](/admin/settings/committee-settings) and use **Create Senders** on the relevant committee role.\n" +
+    "* Sender addresses should use your website domain and map to committee roles where possible.\n" +
+    "* Domain authentication is on the [Domains](/admin/mail-settings?tab=domains) tab."
+};
+
 export const MAIL_SETTINGS_LIST_SETTINGS_HELP: ContentText = {
   name: "mail-settings-list-settings",
   category: "admin",
@@ -309,14 +319,7 @@ export const DEFAULT_CONTENT_ENTRIES: ContentText[] = [
     text: "* Listed below are the built-in processes that are utilise email at points in the workflow. \n* This configuration page allows each of the built in processes to be linked to an Email Notification configuration.",
     category: "admin"
   },
-  {
-    name: "mail-settings-senders-help",
-    text: "* Use this tab to manage Brevo sender identities used for outbound email.\n" +
-      "* Sender addresses should use your website domain and should map to committee roles where possible.\n" +
-      "* The **Authenticate Domain** action checks domain authentication status and attempts to complete Brevo domain authentication.\n" +
-      "* If Brevo cannot complete authentication automatically, follow the provided link to complete the final step in Brevo.",
-    category: "admin"
-  },
+  MAIL_SETTINGS_SENDERS_HELP,
   MAIL_SETTINGS_LIST_SETTINGS_HELP,
   MAIL_SETTINGS_UNSUBSCRIBES_HELP,
   {

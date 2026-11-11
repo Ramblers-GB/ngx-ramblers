@@ -20,7 +20,7 @@ describe("reusable event templates", () => {
   it("offers populated supplied formats without creating records on read", async () => {
     const {service, pages} = setup();
     const formats = await service.available();
-    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Programme listing (three columns)", "Detailed", "Compact"]);
+    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Default layout", "Programme listing (three columns)", "Detailed", "Compact"]);
     expect(formats.every(format => service.content(format).includes("{{title}}"))).toBe(true);
     expect(pages.all).toHaveBeenCalledWith({criteria: {path: fieldStartsWithValue(PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX)}});
     expect(pages.create).not.toHaveBeenCalled();
@@ -31,7 +31,7 @@ describe("reusable event templates", () => {
     const {service, pages} = setup();
     pages.all.mockRejectedValue(new Error("MongoNetworkTimeoutError"));
     const formats = await service.available();
-    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Programme listing (three columns)", "Detailed", "Compact"]);
+    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Default layout", "Programme listing (three columns)", "Detailed", "Compact"]);
   });
 
   it("loads a saved supplied-format edit in place of its default", async () => {
@@ -39,14 +39,15 @@ describe("reusable event templates", () => {
     const saved = {id: "saved-layout", path: PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "detailed", rows: [{columns: [{contentText: "Updated {{title}}"}]}]} as PageContent;
     pages.all.mockResolvedValue([saved]);
     const formats = await service.available();
-    expect(formats).toHaveLength(3);
-    expect(formats[1]).toBe(saved);
-    expect(service.content(formats[1])).toBe("Updated {{title}}");
+    expect(formats).toHaveLength(4);
+    expect(formats[2]).toBe(saved);
+    expect(service.content(formats[2])).toBe("Updated {{title}}");
   });
 
   it("saves a supplied default into its fixed path the first time it is edited", async () => {
     const {service, pages} = setup();
-    const original = (await service.available())[1];
+    const original = (await service.available()).find(format => format.path.endsWith("/detailed"));
+    expect(original).toBeTruthy();
     const saved = await service.save(original.migrationTemplate.templateName, "Revised {{title}}", original);
     expect(saved.path).toBe(PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "detailed");
     expect(pages.create).toHaveBeenCalledOnce();

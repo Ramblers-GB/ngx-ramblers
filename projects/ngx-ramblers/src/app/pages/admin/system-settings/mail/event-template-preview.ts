@@ -1,12 +1,12 @@
 import {ChangeDetectorRef, Component, inject, Input, OnInit, OnDestroy} from "@angular/core";
 import {ActivatedRoute, ParamMap, Router} from "@angular/router";
 import {Subscription} from "rxjs";
-import {values} from "es-toolkit/compat";
 import {FormsModule} from "@angular/forms";
 import {NgSelectModule} from "@ng-select/ng-select";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
 import {faCircleExclamation, faEnvelope, faFilePdf, faRotate, faSpinner} from "@fortawesome/free-solid-svg-icons";
 import {CommitteeFile, GroupEventsFilter, GroupEventSummary, GroupEventTypes} from "../../../../models/committee.model";
+import {PUBLIC_GROUP_EVENT_SELECT} from "../../../../models/walk.model";
 import {EVENT_EMAIL_IMAGE_HEIGHT, EventListingPreview, ProgrammeEventFormat} from "../../../../models/email-composer.model";
 import {ProgrammeOverviewStatus} from "../../../../models/walk-programme.model";
 import {SectionToggleTab} from "../../../../models/section-toggle.model";
@@ -32,7 +32,7 @@ import {SectionToggle} from "../../../../shared/components/section-toggle";
         </div>
         <button type="button" class="btn btn-primary" (click)="load()"><fa-icon [icon]="faRotate" class="me-2"/>Retry</button>
       } @else {
-        <p>Choose events from the past month and next six months. The preview shows the repeating event block as it appears inside an email, not a complete message. Editing the template updates it immediately; the events themselves are unchanged.</p>
+        <p>Choose upcoming walks and group events. The preview shows the repeating event block as it appears inside an email, not a complete message. Editing the template updates it immediately; the events themselves are unchanged.</p>
         <label for="template-preview-type" class="form-label">Event type</label>
         <ng-select dropdownPosition="bottom" [clearable]="true" [searchable]="false" [multiple]="true" [closeOnSelect]="false"
                    appendTo="body" labelForId="template-preview-type" class="mb-3" [items]="eventTypes"
@@ -82,7 +82,7 @@ export class EventTemplatePreviewComponent implements OnInit, OnDestroy {
   protected filter: GroupEventsFilter;
   private previewDocument: CommitteeFile | null = null;
   private signature = "";
-  protected readonly eventTypes = values(GroupEventTypes);
+  protected readonly eventTypes = [GroupEventTypes.WALK, GroupEventTypes.SOCIAL];
   protected readonly EventListingPreview = EventListingPreview;
   protected readonly StoredValue = StoredValue;
   protected readonly faSpinner = faSpinner;
@@ -95,10 +95,11 @@ export class EventTemplatePreviewComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const today = this.dates.dateTimeNowNoTime();
-    this.filter = {fromDate: this.dates.asDateValue(today.minus({months: 1}).toMillis()),
-      toDate: this.dates.asDateValue(today.plus({months: 6}).toMillis()), search: null, selectAll: true,
+    this.filter = {fromDate: this.dates.asDateValue(today.toMillis()),
+      toDate: this.dates.asDateValue(today.plus({months: 4}).toMillis()), search: null, selectAll: true,
       includeImage: true, includeContact: true, includeDescription: true, includeLocation: true,
-      includeWalks: true, includeSocialEvents: true, includeCommitteeEvents: true};
+      includeWalks: true, includeSocialEvents: true, includeCommitteeEvents: false,
+      select: PUBLIC_GROUP_EVENT_SELECT, limit: 60};
     this.subscriptions.push(this.route.queryParamMap.subscribe(params => this.restoreSelection(params)));
     void this.load();
   }

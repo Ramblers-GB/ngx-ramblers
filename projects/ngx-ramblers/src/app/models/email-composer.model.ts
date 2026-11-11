@@ -173,7 +173,7 @@ export const PROGRAMME_EVENT_FORMATS = [
 ];
 
 export const PROGRAMME_EVENT_TEMPLATES: Record<ProgrammeEventFormat, string> = {
-  [ProgrammeEventFormat.EMAIL]: "",
+  [ProgrammeEventFormat.EMAIL]: "{{image}}\n\n**{{title}}**\n\n{{date}} · {{time}} · {{distance}} · {{grade}}\n\n{{location}}\n\n{{grid-reference}} {{postcode}}\n\n{{contact-name}} · {{contact-phone}} · {{contact-email}}\n\n{{description}}\n\n{{event-url}}",
   [ProgrammeEventFormat.LISTING]: "| Date, start and distance | Walk and leader | Description |\n| --- | --- | --- |\n| {{date}}<br>{{time}}<br>{{grid-reference}}<br>{{distance}} | **{{title}}**<br>{{contact-name}} · {{contact-phone}} · {{contact-email}} | {{description}} |",
   [ProgrammeEventFormat.DETAILED]: "## {{title}}\n\n**{{date}} · {{time}} · {{distance}}**\n\n{{location}}\n\n{{grid-reference}} {{postcode}}\n\n{{contact-name}} · {{contact-phone}} · {{contact-email}}\n\n{{description}}\n\n{{image}}",
   [ProgrammeEventFormat.COMPACT]: "### {{title}}\n\n{{date}} · {{time}} · {{distance}}\n\n{{grid-reference}} {{postcode}} · {{contact-name}} · {{contact-phone}} · {{contact-email}}",

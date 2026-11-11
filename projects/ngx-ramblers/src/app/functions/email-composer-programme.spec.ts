@@ -17,6 +17,7 @@ describe("editable event programme", () => {
     gridReference: "SU123456", mapUrl: "https://group.example.org.uk/locate?grid-ref=SU123456&lat=51.0000000&lon=-1.0000000",
     distance: "6 miles", location: "Village car park", postcode: "AB1 2CD",
     contactName: "Alex Reed", contactPhone: "01234 567890", contactEmail: "alex.reed@example.com",
+    eventUrl: "https://group.example.org.uk/walks/hillside-park",
     description: "A riverside walk.\n\nBring lunch."
   } as GroupEventSummary;
   const second = {...first, id: "walk-2", title: "Woodland trail", eventDate: 2000};
@@ -77,6 +78,7 @@ describe("editable event programme", () => {
     const markdown = programmeMarkdown([first], settings(ProgrammeEventFormat.EMAIL), null, dateLabel);
     expect(markdown).toContain("Hillside Park");
     expect(markdown).toContain("A riverside walk");
+    expect(markdown).toContain("[Event page](https://group.example.org.uk/walks/hillside-park)");
     expect(markdown).toContain("committee-document-keep");
     expect(markdown).not.toContain("{{");
   });
@@ -123,11 +125,15 @@ describe("editable event programme", () => {
     expect(markdown).not.toContain("· **");
   });
 
-  it("reuses the existing email event content when the email layout is selected", () => {
+  it("uses the default layout template rather than a scraped email listing", () => {
     const markdown = programmeMarkdown([first], settings(ProgrammeEventFormat.EMAIL), null, dateLabel,
-      {[first.id]: "## Hillside Park\n\n[View walk](https://group.example.org.uk/walks/hillside-park)"});
-    expect(markdown).toContain("[View walk](https://group.example.org.uk/walks/hillside-park)");
-    expect(programmeMarkdown([first], settings(ProgrammeEventFormat.EMAIL), null, dateLabel)).toContain("Hillside Park");
+      {[first.id]: "## Scraped listing\n\n[View walk](https://group.example.org.uk/walks/hillside-park)"});
+    expect(markdown).toContain("Hillside Park");
+    expect(markdown).toContain("A riverside walk");
+    expect(markdown).toContain("[Event page](https://group.example.org.uk/walks/hillside-park)");
+    expect(markdown).not.toContain("Scraped listing");
+    expect(markdown).not.toContain("[View walk]");
+    expect(markdown).not.toContain("{{");
   });
 
   it("renders stored event images as Markdown images and omits unsupported image URLs", () => {

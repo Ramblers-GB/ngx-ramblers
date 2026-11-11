@@ -673,6 +673,8 @@ export interface GroupEventsFilter {
   includeSocialEvents: boolean;
   includeCommitteeEvents: boolean;
   sortBy?: string;
+  limit?: number;
+  select?: Record<string, number>;
 }
 
 export interface IncludedStringValue {
