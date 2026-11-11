@@ -101,8 +101,10 @@ import { generateUid } from "../../../functions/numbers";
                                    (collapsed)="navigateToArea()"
                                    collapsable [collapseAction]="'collapse'"/>
         }
-        <div class="walk-view-top" [class.map-expanded]="mapExpanded">
-          <div class="walk-view-copy" [class.d-none]="mapExpanded">
+        <div class="walk-view-layout" [class.map-expanded]="mapExpanded" [class.has-album]="!!walkAlbumPath">
+          <div class="walk-view-primary" [class.d-none]="mapExpanded">
+          <div class="walk-view-copy">
+            <div class="walk-view-intro">
             @if (displayedWalk?.walk?.groupEvent?.title) {
               <h1 id="{{displayedWalk?.walk?.id}}-title">
                 @if (!ownsPageUrl && canShareWalk()) {
@@ -146,6 +148,19 @@ import { generateUid } from "../../../functions/numbers";
             <div class="event-description">
               @if (displayedWalk?.walk?.groupEvent?.description) {
                 <p class="list-arrow" markdown [data]="displayedWalk?.walk?.groupEvent?.description | normaliseMarkdown"></p>
+              }
+            </div>
+            </div>
+          </div>
+            <div class="walk-meta-left">
+              @if (display.hasWalkLeader(displayedWalk.walk)) {
+                <app-event-leader [displayedWalk]="displayedWalk"/>
+              }
+              @if (displayedWalk?.hasFeatures) {
+                <app-walk-features [extendedGroupEvent]="displayedWalk?.walk"/>
+              }
+              @if (!walkAlbumPath && display.showWalkRelatedLinks()) {
+                <app-related-links-panel [displayedWalk]="displayedWalk"/>
               }
             </div>
           </div>
@@ -251,19 +266,11 @@ import { generateUid } from "../../../functions/numbers";
                 </form>
               </ng-template>
             }
+            @if (!mapExpanded) {
+              <app-walk-details class="walk-meta-details" [displayedWalk]="displayedWalk"/>
+            }
           </div>
-        </div>
-        <div class="walk-meta-grid" [class.has-album]="!!walkAlbumPath" [class.d-none]="mapExpanded">
-          @if (walkAlbumPath) {
-            <div class="walk-meta-top-left">
-              @if (display.hasWalkLeader(displayedWalk.walk)) {
-                <app-event-leader [displayedWalk]="displayedWalk"/>
-              }
-              @if (displayedWalk?.hasFeatures) {
-                <app-walk-features [extendedGroupEvent]="displayedWalk?.walk"/>
-              }
-            </div>
-            <app-walk-details class="walk-meta-details" [displayedWalk]="displayedWalk"/>
+          @if (walkAlbumPath && !mapExpanded) {
             @if (display.showWalkRelatedLinks()) {
               <app-related-links-panel class="walk-meta-related" [displayedWalk]="displayedWalk"/>
             } @else {
@@ -273,21 +280,7 @@ import { generateUid } from "../../../functions/numbers";
                                  [albumPath]="walkAlbumPath"
                                  [albumName]="walkAlbumName"
                                  [coverImageUrl]="walkAlbumCoverUrl"/>
-          } @else {
-            <div class="walk-meta-left">
-              @if (display.hasWalkLeader(displayedWalk.walk)) {
-                <app-event-leader [displayedWalk]="displayedWalk"/>
-              }
-              @if (displayedWalk?.hasFeatures) {
-                <app-walk-features [extendedGroupEvent]="displayedWalk?.walk"/>
-              }
-              @if (display.showWalkRelatedLinks()) {
-                <app-related-links-panel [displayedWalk]="displayedWalk"/>
-              }
-            </div>
-            <app-walk-details class="walk-meta-details" [displayedWalk]="displayedWalk"/>
           }
-        </div>
         <ng-template #walkViewActions>
           @if (showAlbumAction()) {
             <button type="button" (click)="createPhotoAlbum()" [disabled]="creatingAlbum"
@@ -387,6 +380,7 @@ import { generateUid } from "../../../functions/numbers";
           <div class="walk-booking-form">
             <app-booking-form [extendedGroupEvent]="displayedWalk?.walk" [eventLink]="displayedWalk?.walkLink"></app-booking-form>
           </div>
+        </div>
         </div>
       </div>
     } @else if (notifyTarget.showAlert) {

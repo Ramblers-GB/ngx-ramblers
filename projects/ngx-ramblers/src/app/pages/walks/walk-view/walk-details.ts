@@ -34,20 +34,17 @@ import { eventHasWalkWorkflow } from "../../../models/walk-programme.model";
       :host
         display: flex
         flex-direction: column
-        flex: 1 1 auto
-        height: 100%
-        min-height: 100%
+        flex: 0 0 auto
+        min-height: 0
 
       .event-panel
         display: flex
         flex-direction: column
-        flex: 1 1 auto
-        height: 100%
-        min-height: 100%
+        flex: 0 0 auto
 
       .event-panel-inner
         margin-bottom: 0
-        flex: 1 1 auto
+        flex: 0 0 auto
     `],
     template: `
       <div class="event-panel rounded event-panel-inner">

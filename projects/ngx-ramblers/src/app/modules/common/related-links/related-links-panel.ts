@@ -13,21 +13,18 @@ import { WalksConfig } from "../../../models/walks-config.model";
     :host(.walk-meta-related)
       display: flex
       flex-direction: column
-      height: 100%
       min-height: 0
 
     :host(.walk-meta-related) .event-panel
       display: flex
       flex-direction: column
-      flex: 1 1 auto
-      height: 100%
-      min-height: 100%
+      flex: 0 0 auto
 
     .event-panel-inner
       margin-bottom: 0
 
     :host(.walk-meta-related) .event-panel-inner
-      flex: 1 1 auto
+      flex: 0 0 auto
   `],
   template: `
     <div class="event-panel rounded event-panel-inner" [class.d-none]="!hasAnyLink">

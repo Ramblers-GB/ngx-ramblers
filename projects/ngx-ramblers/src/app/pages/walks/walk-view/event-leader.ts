@@ -22,7 +22,7 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
       :host-context(.walk-meta-left)
         display: flex
         flex-direction: column
-        flex: 1 0 auto
+        flex: 0 0 auto
         align-self: stretch
         min-height: min-content
 
@@ -33,9 +33,9 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
       :host-context(.walk-meta-left) .event-panel
         display: flex
         flex-direction: column
-        flex: 1 0 auto
+        flex: 0 0 auto
         box-sizing: border-box
-        min-height: 100%
+        min-height: 0
     `],
     template: `
     <div class="event-panel rounded event-panel-inner">
