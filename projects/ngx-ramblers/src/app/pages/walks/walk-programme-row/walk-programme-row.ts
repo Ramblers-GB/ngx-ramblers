@@ -185,7 +185,7 @@ export class WalkProgrammeRowComponent {
   }
 
   actionLabel(): string {
-    return this.awaitingApproval() ? "Review & approve" : "Edit";
+    return this.awaitingApproval() ? "Review" : "Edit";
   }
 
   actionTooltip(): string {
