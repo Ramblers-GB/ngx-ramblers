@@ -82,23 +82,45 @@ describe("createEnvironmentMongoUser", () => {
     ]);
   });
 
-  it("resets the password when that user already exists", async () => {
+  it("resets the password when that user already exists and keeps clone-schema roles", async () => {
     const fetchStub = sandboxState.sandbox.stub(globalThis, "fetch");
-    fetchStub.onFirstCall().resolves(atlasResponse(409, {errorCode: "USER_ALREADY_EXISTS"}));
-    fetchStub.onSecondCall().resolves(atlasResponse(200));
+    fetchStub.onCall(0).resolves(atlasResponse(409, {errorCode: "USER_ALREADY_EXISTS"}));
+    fetchStub.onCall(1).resolves(atlasResponse(200, {
+      username: "ngx_new_group_db_user",
+      roles: [
+        {databaseName: "ngx-ramblers-new-group", roleName: "readWrite"},
+        {databaseName: "ngx-ramblers-new-group", roleName: "dbAdmin"},
+        {databaseName: "ngx-ramblers-new-group-clone", roleName: "readWrite"},
+        {databaseName: "ngx-ramblers-new-group-clone", roleName: "dbAdmin"}
+      ]
+    }));
+    fetchStub.onCall(2).resolves(atlasResponse(200));
     const created = await createEnvironmentMongoUser(atlas, "ngx-ramblers-new-group", "new-group");
-    const [url, init] = fetchStub.secondCall.args as [string, RequestInit];
+    const [url, init] = fetchStub.getCall(2).args as [string, RequestInit];
     expect(init.method).toBe("PATCH");
     expect(url).toBe("https://cloud.mongodb.com/api/atlas/v2/groups/project-1/databaseUsers/admin/ngx_new_group_db_user");
     expect(JSON.parse(init.body as string).password).toBe(created.password);
+    expect(JSON.parse(init.body as string).roles).toEqual([
+      {databaseName: "ngx-ramblers-new-group-clone", roleName: "readWrite"},
+      {databaseName: "ngx-ramblers-new-group-clone", roleName: "dbAdmin"},
+      {databaseName: "ngx-ramblers-new-group", roleName: "readWrite"},
+      {databaseName: "ngx-ramblers-new-group", roleName: "dbAdmin"}
+    ]);
   });
 
   it("sets Atlas back to the password already stored for the environment", async () => {
     const fetchStub = sandboxState.sandbox.stub(globalThis, "fetch");
-    fetchStub.onFirstCall().resolves(atlasResponse(409, {errorCode: "USER_ALREADY_EXISTS"}));
-    fetchStub.onSecondCall().resolves(atlasResponse(200));
+    fetchStub.onCall(0).resolves(atlasResponse(409, {errorCode: "USER_ALREADY_EXISTS"}));
+    fetchStub.onCall(1).resolves(atlasResponse(200, {
+      username: "ngx_hillside_db_user",
+      roles: [
+        {databaseName: "ngx-ramblers-hillside", roleName: "readWrite"},
+        {databaseName: "ngx-ramblers-hillside", roleName: "dbAdmin"}
+      ]
+    }));
+    fetchStub.onCall(2).resolves(atlasResponse(200));
     const ensured = await ensureEnvironmentMongoUser(atlas, "ngx-ramblers-hillside", "hillside", "stored-password");
-    const [url, init] = fetchStub.secondCall.args as [string, RequestInit];
+    const [url, init] = fetchStub.getCall(2).args as [string, RequestInit];
     expect(ensured).toEqual({username: "ngx_hillside_db_user", password: "stored-password"});
     expect(init.method).toBe("PATCH");
     expect(url).toBe("https://cloud.mongodb.com/api/atlas/v2/groups/project-1/databaseUsers/admin/ngx_hillside_db_user");

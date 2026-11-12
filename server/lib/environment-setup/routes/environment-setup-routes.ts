@@ -64,5 +64,6 @@ router.get("/console-access", controllers.requireSetupAccess, controllers.getCon
 router.put("/console-access", controllers.requireSetupAccess, controllers.saveConsoleAccess);
 router.get("/contributor-bundle/context", controllers.requireContributorBundleAccess, controllers.contributorBundleContext);
 router.post("/contributor-bundle", controllers.requireContributorBundleAccess, controllers.contributorBundleRequest);
+router.post("/grant-clone-schema-access", controllers.requireSetupAccess, controllers.grantCloneSchemaAccessRequest);
 
 export const environmentSetupRoutes = router;

@@ -57,15 +57,18 @@ function toKebabCase(value: string): string {
               <input id="schema" class="form-control" [ngModel]="schema"
                      (ngModelChange)="onSchemaChange($event)" (blur)="checkSchema()">
               <small class="text-muted">
-                A new schema to create on the same server, populated with a copy of the current data.
+                A new schema on the same server, populated with a copy of the current data. The name must start with {{ currentDatabase }}-.
               </small>
+              @if (clone && schema.trim() && currentDatabase && !schema.startsWith(currentDatabase + "-")) {
+                <small class="d-block text-danger">Schema must start with {{ currentDatabase }}-.</small>
+              }
               @if (schemaExists) {
                 <small class="d-block text-danger">Schema {{ schema }} already exists - choose a new name.</small>
               }
             </div>
           }
           <button class="btn btn-primary"
-                  [disabled]="generating || !environmentName.trim() || (clone && (!schema.trim() || schemaExists))"
+                  [disabled]="generating || !environmentName.trim() || (clone && (!schema.trim() || schemaExists || !schemaAllowed()))"
                   (click)="generate()">
             {{ generating ? "Generating..." : "Generate developer environment" }}
           </button>
@@ -131,12 +134,24 @@ export class ContributorEnvironmentComponent implements OnInit {
   }
 
   recomputeSchema(): void {
-    if (this.clone) {
+    if (this.clone && this.currentDatabase) {
+      const environment = toKebabCase(this.environmentName);
+      const liveName = this.currentDatabase.replace(/^ngx-ramblers-/, "");
+      if (environment && environment !== liveName) {
+        this.schema = `${this.currentDatabase}-${environment}`;
+      } else {
+        this.schema = `${this.currentDatabase}-clone`;
+      }
+    } else if (this.clone) {
       this.schema = `ngx-ramblers-${toKebabCase(this.environmentName)}`;
     } else {
       this.schema = this.currentDatabase;
     }
     void this.checkSchema();
+  }
+
+  schemaAllowed(): boolean {
+    return !!this.currentDatabase && this.schema.trim().startsWith(`${this.currentDatabase}-`);
   }
 
   onSchemaChange(value: string): void {

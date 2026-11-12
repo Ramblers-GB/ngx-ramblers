@@ -28,6 +28,20 @@ describe("flySecretsForEnvironment", () => {
     expect(secrets.AUTH_SECRET).toEqual("auth");
   });
 
+  it("keeps Atlas project credentials off group apps", () => {
+    const globalConfig: EnvironmentsConfig = {
+      environments: [env],
+      secrets: {ENVIRONMENT_SETUP_API_KEY: "platform-setup-key-32-chars-ok!!"},
+      atlas: {
+        publicKey: "atlas-public",
+        privateKey: "atlas-private",
+        projectId: "project-1"
+      }
+    };
+    const secrets = flySecretsForEnvironment(env, globalConfig);
+    expect(secrets.ATLAS_CONFIG).toBeUndefined();
+  });
+
   it("fails the deploy when platform Cloudflare exists but cannot be encrypted", () => {
     const globalConfig: EnvironmentsConfig = {
       environments: [env],

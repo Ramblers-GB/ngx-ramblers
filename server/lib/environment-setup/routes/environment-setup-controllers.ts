@@ -68,7 +68,8 @@ import {
 } from "../environment-context";
 import AdmZip from "adm-zip";
 import { buildContributorBundle } from "../../contributor-environment/contributor-bundle";
-import { cloneDatabase, databaseHasCollections } from "../../contributor-environment/clone-database";
+import { cloneDatabase, cloneSchemaNameAllowed, databaseHasCollections, ensureCloneSchemaAccess } from "../../contributor-environment/clone-database";
+import { grantDatabaseAccessToUser, platformAtlasAccess } from "../mongo-database-user";
 import {
   downloadEstateRebuildCapture,
   estateRebuildCaptureInventory,
@@ -802,8 +803,9 @@ export async function copyAssetsRequest(req: Request, res: Response) {
     }
 
     const hasFailures = totalFailed > 0;
+    const firstFailure = copyResult.failures[0];
     const message = hasFailures
-      ? `Copied ${totalCopied} assets but ${totalFailed} failed: ${copyResult.failures.map(f => f.file).join(", ")}`
+      ? `Copied ${totalCopied} assets but ${totalFailed} failed (${firstFailure.error}): ${copyResult.failures.map(f => f.file).join(", ")}`
       : `Copied ${totalCopied} assets to ${bucket} and updated system config`;
 
     res.json({
@@ -1425,41 +1427,74 @@ export async function contributorBundleRequest(req: Request, res: Response) {
       res.status(400).json({ error: clone ? "A schema name is required to clone the database" : "Could not determine the current database" });
     } else if (clone && schema === parsedMongo.database) {
       res.status(400).json({ error: "Choose a schema name different from the current database for a clone" });
-    } else if (clone && await databaseHasCollections(schema)) {
-      res.status(409).json({ error: `Schema ${schema} already exists - choose a new name` });
+    } else if (clone && !cloneSchemaNameAllowed(parsedMongo.database, schema)) {
+      res.status(400).json({ error: `Clone schema must start with ${parsedMongo.database}- so it stays on this group's data` });
     } else {
       if (clone) {
-        await cloneDatabase(parsedMongo.database, schema);
+        await ensureCloneSchemaAccess(parsedMongo, schema);
       }
-      const bundleMongoUri = buildMongoUri({
-        cluster: parsedMongo.cluster,
-        username: parsedMongo.username,
-        password: parsedMongo.password,
-        database: schema
-      });
-      const environmentConfig = await findEnvironmentFromDatabase(environmentName).catch(() => null);
-      const appName = environmentConfig?.appName || `ngx-ramblers-${environmentName}`;
-      const bundleFiles = buildContributorBundle({
-        environment: environmentName,
-        appName,
-        mongoUri: bundleMongoUri,
-        aws: {
-          region: envConfig.value(Environment.AWS_REGION) || "",
-          bucket: envConfig.value(Environment.AWS_BUCKET) || "",
-          accessKeyId: envConfig.value(Environment.AWS_ACCESS_KEY_ID) || "",
-          secretAccessKey: envConfig.value(Environment.AWS_SECRET_ACCESS_KEY) || ""
+      if (clone && await databaseHasCollections(schema)) {
+        res.status(409).json({ error: `Schema ${schema} already exists - choose a new name` });
+      } else {
+        if (clone) {
+          await cloneDatabase(parsedMongo.database, schema);
         }
-      });
-      const zip = new AdmZip();
-      bundleFiles.forEach(file => zip.addFile(file.path, Buffer.from(file.content, "utf-8")));
-      debugLog("Generated contributor bundle for environment %s, schema %s, clone %s", environmentName, schema, clone);
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", `attachment; filename="contributor-environment-${environmentName}.zip"`);
-      res.send(zip.toBuffer());
+        const bundleMongoUri = buildMongoUri({
+          cluster: parsedMongo.cluster,
+          username: parsedMongo.username,
+          password: parsedMongo.password,
+          database: schema
+        });
+        const environmentConfig = await findEnvironmentFromDatabase(environmentName).catch(() => null);
+        const appName = environmentConfig?.appName || `ngx-ramblers-${environmentName}`;
+        const bundleFiles = buildContributorBundle({
+          environment: environmentName,
+          appName,
+          mongoUri: bundleMongoUri,
+          aws: {
+            region: envConfig.value(Environment.AWS_REGION) || "",
+            bucket: envConfig.value(Environment.AWS_BUCKET) || "",
+            accessKeyId: envConfig.value(Environment.AWS_ACCESS_KEY_ID) || "",
+            secretAccessKey: envConfig.value(Environment.AWS_SECRET_ACCESS_KEY) || ""
+          }
+        });
+        const zip = new AdmZip();
+        bundleFiles.forEach(file => zip.addFile(file.path, Buffer.from(file.content, "utf-8")));
+        debugLog("Generated contributor bundle for environment %s, schema %s, clone %s", environmentName, schema, clone);
+        res.setHeader("Content-Type", "application/zip");
+        res.setHeader("Content-Disposition", `attachment; filename="contributor-environment-${environmentName}.zip"`);
+        res.send(zip.toBuffer());
+      }
     }
   } catch (error) {
     errorDebugLog("contributor-bundle generation failed:", error.message);
     res.status(500).json({ error: error.message });
+  }
+}
+
+export async function grantCloneSchemaAccessRequest(req: Request, res: Response) {
+  try {
+    const username: string = req.body?.username;
+    const sourceDatabase: string = req.body?.sourceDatabase;
+    const targetDatabase: string = req.body?.targetDatabase;
+    if (!username || !sourceDatabase || !targetDatabase) {
+      res.status(400).json({error: "username, sourceDatabase and targetDatabase are required"});
+    } else if (!cloneSchemaNameAllowed(sourceDatabase, targetDatabase)) {
+      res.status(400).json({error: `Clone schema must start with ${sourceDatabase}- so it stays on this group's data`});
+    } else {
+      const environments = await configuredEnvironments();
+      const env = (environments.environments || []).find(item => item.mongo?.db === sourceDatabase && item.mongo?.username === username);
+      if (!env) {
+        res.status(403).json({error: "This clone is not for a known environment on this platform"});
+      } else {
+        const atlas = await platformAtlasAccess();
+        await grantDatabaseAccessToUser(atlas, username, targetDatabase);
+        res.json({success: true});
+      }
+    }
+  } catch (error) {
+    errorDebugLog("grant-clone-schema-access failed:", error.message);
+    res.status(500).json({error: error.message});
   }
 }
 

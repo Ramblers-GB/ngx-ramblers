@@ -94,6 +94,10 @@ as described below.
    dedicated MongoDB Atlas database with a user whose role is scoped to that one
    database (not a cluster-wide `atlasAdmin` or `readWriteAnyDatabase` user), or
    instructions to run a local `mongod` and seed it (see Development data).
+   Cloning from Admin → Contributor Environment grants the site's existing
+   database user `readWrite` and `dbAdmin` on a new schema whose name starts
+   with the live database name, then copies the collections. That grant uses
+   the platform Atlas API keys, delivered to each site as `ATLAS_CONFIG`.
 2. **S3 bucket.** Create or designate the group's bucket and an IAM user whose
    policy allows actions only on `arn:aws:s3:::<bucket>` and
    `arn:aws:s3:::<bucket>/*`. Do not reuse a platform-wide AWS key.

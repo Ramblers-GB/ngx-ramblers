@@ -5,10 +5,7 @@ import { atlasRequest } from "./atlas-admin-api";
 import { AtlasApiAccess, AtlasDatabaseUser, AtlasError, CreatedEnvironmentMongoUser } from "./atlas-admin-api.model";
 import { registrationSettings } from "../site-registration/registration-store";
 import { configuredEnvironments } from "../environments/environments-config";
-import { AtlasConfig, ConsoleAccessService } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { envConfig } from "../env-config/env-config";
-import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { decryptJsonConfig } from "../shared/config-crypto";
+import { ConsoleAccessService } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 
 export { CreatedEnvironmentMongoUser } from "./atlas-admin-api.model";
 
@@ -26,21 +23,6 @@ export async function platformAtlasAccess(): Promise<AtlasApiAccess> {
   return {...environments.atlas, projectId};
 }
 
-function atlasAccessFromEnv(): AtlasApiAccess | null {
-  const encrypted = envConfig.value(Environment.ATLAS_CONFIG);
-  const encryptionKey = envConfig.value(Environment.ENVIRONMENT_SETUP_API_KEY);
-  if (!encrypted || !encryptionKey) {
-    return null;
-  } else {
-    const atlas = decryptJsonConfig<AtlasConfig>(encrypted, encryptionKey);
-    if (atlas?.publicKey && atlas.privateKey && atlas.projectId) {
-      return {publicKey: atlas.publicKey, privateKey: atlas.privateKey, projectId: atlas.projectId};
-    } else {
-      return null;
-    }
-  }
-}
-
 function atlasAccessIsComplete(atlas: AtlasApiAccess | null | undefined): boolean {
   return !!(atlas?.publicKey && atlas.privateKey && atlas.projectId);
 }
@@ -50,12 +32,7 @@ export async function siteAtlasAccess(): Promise<AtlasApiAccess> {
   if (atlasAccessIsComplete(fromPlatform)) {
     return fromPlatform;
   } else {
-    const fromSecret = atlasAccessFromEnv();
-    if (atlasAccessIsComplete(fromSecret)) {
-      return fromSecret;
-    } else {
-      throw new Error("MongoDB Atlas API access is not set up on this site, so a clone schema cannot be created. Add the Atlas API keys under Environment management → Global settings → MongoDB Atlas, then redeploy so group sites receive them.");
-    }
+    throw new Error("MongoDB Atlas API access is only available on the platform, so a clone schema cannot be created from this site. Open Contributor Environment on the platform admin site, or retry once the platform can grant the schema.");
   }
 }
 
@@ -123,15 +100,27 @@ async function persistDatabaseUser(atlas: AtlasApiAccess, database: string, envi
     const roles = databaseRolesFor(database);
     const users = `/groups/${atlas.projectId}/databaseUsers`;
     const created = await atlasRequest<AtlasError>(atlas, "POST", users, {databaseName: "admin", groupId: atlas.projectId, username, password, roles});
-    const updated = created.status === 409 && resetExistingPassword
-      ? await atlasRequest<AtlasError>(atlas, "PATCH", `${users}/admin/${encodeURIComponent(username)}`, {password, roles})
+    const existingUser = created.status === 409 && resetExistingPassword
+      ? await atlasRequest<AtlasDatabaseUser & AtlasError>(atlas, "GET", `${users}/admin/${encodeURIComponent(username)}`)
       : null;
-    if (updated && updated.status >= 300) {
-      throw atlasFailure("update", username, updated.status, updated.body);
-    } else if (!updated && created.status >= 300) {
-      throw atlasFailure("create", username, created.status, created.body);
+    const existingRoles = existingUser?.status < 300 ? (existingUser.body?.roles || []) : [];
+    if (existingUser && existingUser.status >= 300) {
+      throw atlasFailure("read", username, existingUser.status, existingUser.body);
     } else {
-      return {username, password};
+      const preservedRoles = [
+        ...existingRoles.filter(role => !roleIsPresent(roles, {databaseName: role.databaseName || "", roleName: role.roleName || ""})),
+        ...roles
+      ];
+      const updated = created.status === 409 && resetExistingPassword
+        ? await atlasRequest<AtlasError>(atlas, "PATCH", `${users}/admin/${encodeURIComponent(username)}`, {password, roles: preservedRoles})
+        : null;
+      if (updated && updated.status >= 300) {
+        throw atlasFailure("update", username, updated.status, updated.body);
+      } else if (!updated && created.status >= 300) {
+        throw atlasFailure("create", username, created.status, created.body);
+      } else {
+        return {username, password};
+      }
     }
   }
 }

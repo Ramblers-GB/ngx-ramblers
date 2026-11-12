@@ -13,6 +13,7 @@ describe("fly-secrets-policy", () => {
     expect(isAllowedSiteFlySecret("AWS_BUCKET")).toEqual(true);
     expect(isAllowedSiteFlySecret("INTEGRATION_WORKER_URL")).toEqual(true);
     expect(isAllowedSiteFlySecret("AI_API_KEY")).toEqual(true);
+    expect(isAllowedSiteFlySecret("ATLAS_CONFIG")).toEqual(false);
   });
 
   it("rejects legacy application config env vars", () => {
