@@ -16,7 +16,8 @@ import {
   validateMongoConnection,
   wireNotificationConfigsToProcesses
 } from "../database-initialiser";
-import { adminConfigFromEnvironment, copyStandardAssets, validateAwsAdminCredentials } from "../aws-setup";
+import { adminConfigFromEnvironment, awsConfigForBucket, bannerPictureStoreFor, copyStandardAssets, STANDARD_ASSETS, validateAwsAdminCredentials } from "../aws-setup";
+import { seedDefaultLogoBanner } from "../../mongo/migrations/shared/seed-default-banner";
 import { createEnvironment, listSessions, sessionStatus, validateSetupRequest } from "../environment-setup-service";
 import { EnvironmentSetupRequest, EnvironmentStatusCheck, HostnameHealth, HostnameOrigin, RamblersAreaLookup, RamblersGroupLookup } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { configuredEnvironments, findEnvironmentFromDatabase } from "../../environments/environments-config";
@@ -383,7 +384,13 @@ export async function environmentStatus(req: Request, res: Response) {
         const systemConfigDoc = await configCollection.findOne({ key: "system" });
         const pageCount = await db.collection("pageContent").countDocuments();
         const notifCount = await db.collection("notificationConfigs").countDocuments();
-        return { databaseInitialised: systemConfigDoc !== null, samplePagesPresent: pageCount > 0, notificationConfigsPresent: notifCount > 0 };
+        const bannerCount = await db.collection("banners").countDocuments();
+        return {
+          databaseInitialised: systemConfigDoc !== null,
+          samplePagesPresent: pageCount > 0,
+          notificationConfigsPresent: notifCount > 0,
+          defaultBannerPresent: bannerCount > 0
+        };
       } finally {
         await client.close();
       }
@@ -477,6 +484,7 @@ export async function environmentStatus(req: Request, res: Response) {
       databaseInitialised: false,
       samplePagesPresent: false,
       notificationConfigsPresent: false,
+      defaultBannerPresent: false,
       flyAppDeployed: false,
       standardAssetsPresent: false,
       subdomainConfigured: false,
@@ -741,19 +749,17 @@ export async function copyAssetsRequest(req: Request, res: Response) {
     const { envConfigData } = await loadEnvironmentContext(environmentName);
 
     const bucket = envConfigData.aws?.bucket;
+    const destAws = envConfigData.aws;
+    const sourceAws = await awsConfigForBucket(STANDARD_ASSETS.sourceBucket);
     if (!bucket) {
       res.status(400).json({ error: `No S3 bucket configured for environment ${environmentName}` });
-      return;
-    }
-
-    const awsAdminConfig = adminConfigFromEnvironment();
-    if (!awsAdminConfig) {
-      res.status(400).json({ error: "AWS admin credentials not configured on this server" });
-      return;
-    }
-
+    } else if (!destAws?.accessKeyId || !destAws?.secretAccessKey) {
+      res.status(400).json({ error: `No AWS credentials configured for environment ${environmentName}` });
+    } else if (!sourceAws) {
+      res.status(400).json({ error: `No AWS credentials found for standard-assets source bucket ${STANDARD_ASSETS.sourceBucket}` });
+    } else {
     debugLog("Copying standard assets to bucket:", bucket);
-    const copyResult = await copyStandardAssets(awsAdminConfig, bucket);
+    const copyResult = await copyStandardAssets(sourceAws, destAws);
     const totalCopied = copyResult.icons.length + copyResult.logos.length + copyResult.backgrounds.length;
     const totalFailed = copyResult.failures.length;
 
@@ -810,6 +816,7 @@ export async function copyAssetsRequest(req: Request, res: Response) {
       },
       failures: copyResult.failures
     });
+    }
   } catch (error) {
     if (error instanceof EnvironmentNotFoundError) {
       res.status(404).json({ error: error.message });
@@ -1204,6 +1211,41 @@ export async function enableInboundMailRequest(req: Request, res: Response) {
     } else {
       errorDebugLog("Error enabling inbound mail:", error.message);
       res.status(500).json({ success: false, message: error.message, logs: error.logs || [] });
+    }
+  }
+}
+
+export async function seedDefaultBannerRequest(req: Request, res: Response) {
+  if (!validateSetupAccess(req, res)) return;
+
+  try {
+    const { environmentName } = req.params;
+    debugLog("Seed default banner request received for:", environmentName);
+
+    const { envConfigData } = await loadEnvironmentContext(environmentName);
+    const destAws = envConfigData.aws;
+    if (!destAws?.bucket || !destAws?.accessKeyId || !destAws?.secretAccessKey) {
+      res.status(400).json({ success: false, message: `No AWS credentials configured for environment ${environmentName}` });
+    } else {
+      const { client, db } = await connectToEnvironmentMongo(envConfigData);
+      try {
+        const outcome = await seedDefaultLogoBanner(db, message => debugLog(message), bannerPictureStoreFor(destAws));
+        const alreadyPresent = !outcome.seeded && outcome.reason.indexOf("already has") >= 0;
+        res.json({
+          success: outcome.seeded || alreadyPresent,
+          message: outcome.reason,
+          seeded: outcome.seeded
+        });
+      } finally {
+        await client.close();
+      }
+    }
+  } catch (error) {
+    if (error instanceof EnvironmentNotFoundError) {
+      res.status(404).json({ error: error.message });
+    } else {
+      errorDebugLog("Error seeding default banner:", error.message);
+      res.status(500).json({ error: error.message });
     }
   }
 }

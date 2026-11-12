@@ -94,7 +94,7 @@ async function ensureAwsAdminCredentials(): Promise<void> {
       type: "input",
       name: "region",
       message: "AWS Region:",
-      default: process.env.SETUP_AWS_REGION || "eu-west-1"
+      default: process.env.SETUP_AWS_REGION || AWS_DEFAULTS.REGION
     }
   ]);
 

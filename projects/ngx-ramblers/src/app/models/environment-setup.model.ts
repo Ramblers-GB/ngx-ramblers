@@ -781,6 +781,7 @@ export interface EnvironmentModifyOptions extends ResumeOptions {
   setupSubdomain: boolean;
   includeSamplePages: boolean;
   includeNotificationConfigs: boolean;
+  seedDefaultBanner: boolean;
   authenticateBrevoDomain: boolean;
 }
 
@@ -1001,6 +1002,7 @@ export interface EnvironmentStatus {
   databaseInitialised: boolean;
   samplePagesPresent: boolean;
   notificationConfigsPresent: boolean;
+  defaultBannerPresent: boolean;
   flyAppDeployed: boolean;
   standardAssetsPresent: boolean;
   subdomainConfigured: boolean;
@@ -1262,4 +1264,9 @@ export function prefixedEnvironmentResourceName(environmentName: string, maxLeng
   const safe = flySafeResourceName(environmentName);
   const prefixed = `ngx-ramblers-${safe}`;
   return prefixed.length <= maxLength ? prefixed : safe.substring(0, maxLength);
+}
+
+export function generateDestinationBucketName(environmentName: string, region: string = AWS_DEFAULTS.REGION): string {
+  const suffix = `-${region}`;
+  return `${prefixedEnvironmentResourceName(environmentName, 63 - suffix.length)}${suffix}`;
 }

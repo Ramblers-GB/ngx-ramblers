@@ -2,10 +2,13 @@ import { randomBytes } from "crypto";
 import { MongoClient } from "mongodb";
 import { buildMongoUri } from "../shared/mongodb-uri";
 import { atlasRequest } from "./atlas-admin-api";
-import { AtlasApiAccess, AtlasError, CreatedEnvironmentMongoUser } from "./atlas-admin-api.model";
+import { AtlasApiAccess, AtlasDatabaseUser, AtlasError, CreatedEnvironmentMongoUser } from "./atlas-admin-api.model";
 import { registrationSettings } from "../site-registration/registration-store";
 import { configuredEnvironments } from "../environments/environments-config";
-import { ConsoleAccessService } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { AtlasConfig, ConsoleAccessService } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { envConfig } from "../env-config/env-config";
+import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
+import { decryptJsonConfig } from "../shared/config-crypto";
 
 export { CreatedEnvironmentMongoUser } from "./atlas-admin-api.model";
 
@@ -21,6 +24,70 @@ export async function platformAtlasAccess(): Promise<AtlasApiAccess> {
   const projectId = environments.atlas?.projectId
     || platform?.consoleAccess?.[ConsoleAccessService.MONGODB_ATLAS]?.identifiers?.projectId;
   return {...environments.atlas, projectId};
+}
+
+function atlasAccessFromEnv(): AtlasApiAccess | null {
+  const encrypted = envConfig.value(Environment.ATLAS_CONFIG);
+  const encryptionKey = envConfig.value(Environment.ENVIRONMENT_SETUP_API_KEY);
+  if (!encrypted || !encryptionKey) {
+    return null;
+  } else {
+    const atlas = decryptJsonConfig<AtlasConfig>(encrypted, encryptionKey);
+    if (atlas?.publicKey && atlas.privateKey && atlas.projectId) {
+      return {publicKey: atlas.publicKey, privateKey: atlas.privateKey, projectId: atlas.projectId};
+    } else {
+      return null;
+    }
+  }
+}
+
+function atlasAccessIsComplete(atlas: AtlasApiAccess | null | undefined): boolean {
+  return !!(atlas?.publicKey && atlas.privateKey && atlas.projectId);
+}
+
+export async function siteAtlasAccess(): Promise<AtlasApiAccess> {
+  const fromPlatform = await platformAtlasAccess().catch(() => null);
+  if (atlasAccessIsComplete(fromPlatform)) {
+    return fromPlatform;
+  } else {
+    const fromSecret = atlasAccessFromEnv();
+    if (atlasAccessIsComplete(fromSecret)) {
+      return fromSecret;
+    } else {
+      throw new Error("MongoDB Atlas API access is not set up on this site, so a clone schema cannot be created. Add the Atlas API keys under Environment management → Global settings → MongoDB Atlas, then redeploy so group sites receive them.");
+    }
+  }
+}
+
+function databaseRolesFor(database: string): {databaseName: string; roleName: string}[] {
+  return [{databaseName: database, roleName: "readWrite"}, {databaseName: database, roleName: "dbAdmin"}];
+}
+
+function roleIsPresent(roles: {databaseName?: string; roleName?: string}[], role: {databaseName: string; roleName: string}): boolean {
+  return roles.some(existing => existing.databaseName === role.databaseName && existing.roleName === role.roleName);
+}
+
+export async function grantDatabaseAccessToUser(atlas: AtlasApiAccess, username: string, database: string): Promise<void> {
+  if (!atlas?.projectId) {
+    throw new Error("The platform has no MongoDB Atlas project ID, so a clone schema cannot be created. Add it under Environment management → MongoDB Atlas, then retry.");
+  } else if (!atlas?.publicKey || !atlas?.privateKey) {
+    throw new Error("MongoDB Atlas API access is not set up, so a clone schema cannot be created. Add the Atlas API public and private key under Environment management → Global settings → MongoDB Atlas, then retry.");
+  } else {
+    const path = `/groups/${atlas.projectId}/databaseUsers/admin/${encodeURIComponent(username)}`;
+    const existing = await atlasRequest<AtlasDatabaseUser & AtlasError>(atlas, "GET", path);
+    if (existing.status >= 300 || !existing.body?.username) {
+      throw atlasFailure("read", username, existing.status, existing.body);
+    } else {
+      const roles = existing.body.roles || [];
+      const missing = databaseRolesFor(database).filter(role => !roleIsPresent(roles, role));
+      if (missing.length > 0) {
+        const updated = await atlasRequest<AtlasError>(atlas, "PATCH", path, {roles: [...roles, ...missing]});
+        if (updated.status >= 300) {
+          throw atlasFailure("update", username, updated.status, updated.body);
+        }
+      }
+    }
+  }
 }
 
 export async function deleteEnvironmentMongoUser(atlas: AtlasApiAccess, username: string): Promise<string> {
@@ -46,15 +113,14 @@ function atlasFailure(action: string, username: string, status: number, error: A
   return new Error(`MongoDB Atlas would not ${action} the database user ${username} (${status}${error?.errorCode ? ` ${error.errorCode}` : ""}): ${error?.detail || error?.reason || "no detail given"}`);
 }
 
-export async function createEnvironmentMongoUser(atlas: AtlasApiAccess, database: string, environmentName: string, resetExistingPassword = true): Promise<CreatedEnvironmentMongoUser> {
+async function persistDatabaseUser(atlas: AtlasApiAccess, database: string, environmentName: string, password: string, resetExistingPassword: boolean): Promise<CreatedEnvironmentMongoUser> {
   if (!atlas?.projectId) {
     throw new Error("The platform has no MongoDB Atlas project ID, so the new site cannot be given its own database user. Add it under Environment management → MongoDB Atlas, then retry.");
   } else if (!atlas?.publicKey || !atlas?.privateKey) {
     throw new Error("MongoDB Atlas API access is not set up, so the new site cannot be given its own database user. Add the Atlas API public and private key under Environment management → Global settings → MongoDB Atlas, then retry.");
   } else {
     const username = environmentDatabaseUserName(environmentName);
-    const password = databaseUserPassword();
-    const roles = [{databaseName: database, roleName: "readWrite"}, {databaseName: database, roleName: "dbAdmin"}];
+    const roles = databaseRolesFor(database);
     const users = `/groups/${atlas.projectId}/databaseUsers`;
     const created = await atlasRequest<AtlasError>(atlas, "POST", users, {databaseName: "admin", groupId: atlas.projectId, username, password, roles});
     const updated = created.status === 409 && resetExistingPassword
@@ -67,6 +133,18 @@ export async function createEnvironmentMongoUser(atlas: AtlasApiAccess, database
     } else {
       return {username, password};
     }
+  }
+}
+
+export async function createEnvironmentMongoUser(atlas: AtlasApiAccess, database: string, environmentName: string, resetExistingPassword = true): Promise<CreatedEnvironmentMongoUser> {
+  return persistDatabaseUser(atlas, database, environmentName, databaseUserPassword(), resetExistingPassword);
+}
+
+export async function ensureEnvironmentMongoUser(atlas: AtlasApiAccess, database: string, environmentName: string, password: string): Promise<CreatedEnvironmentMongoUser> {
+  if (!password) {
+    throw new Error(`Existing environment ${environmentName} has no MongoDB password stored. Repair it in Environment Setup before retrying.`);
+  } else {
+    return persistDatabaseUser(atlas, database, environmentName, password, true);
   }
 }
 

@@ -104,6 +104,7 @@ describe("environment-migration-service", () => {
       });
       const setupAwsForBucket = sandbox.stub(awsSetup, "setupAwsForBucket").resolves({
         bucket: "destination-bucket",
+        region: "eu-west-2",
         iamUserName: "ngx-ramblers-staging-user",
         accessKeyId: "SITEKEY",
         secretAccessKey: "site-secret",

@@ -41,6 +41,7 @@ export function hasSelectedModifySteps(options: EnvironmentModifyOptions): boole
     || options.setupSubdomain
     || options.includeSamplePages
     || options.includeNotificationConfigs
+    || options.seedDefaultBanner
     || options.authenticateBrevoDomain;
 }
 
@@ -52,6 +53,7 @@ export function emptyModifyOptions(): EnvironmentModifyOptions {
     setupSubdomain: false,
     includeSamplePages: false,
     includeNotificationConfigs: false,
+    seedDefaultBanner: false,
     authenticateBrevoDomain: false
   };
 }
@@ -74,6 +76,7 @@ export function modifyOptionsFromStatus(envStatus: EnvironmentStatus | null): En
       setupSubdomain: !hostnamesUnknown && !envStatus.subdomainConfigured && !envStatus.subdomainOptional,
       includeSamplePages: !databaseUnknown && !envStatus.samplePagesPresent,
       includeNotificationConfigs: !databaseUnknown && !envStatus.notificationConfigsPresent,
+      seedDefaultBanner: !databaseUnknown && !envStatus.defaultBannerPresent,
       authenticateBrevoDomain: !brevoUnknown && !envStatus.brevoDomainAuthenticated
     };
   } else {
@@ -84,6 +87,7 @@ export function modifyOptionsFromStatus(envStatus: EnvironmentStatus | null): En
       setupSubdomain: false,
       includeSamplePages: false,
       includeNotificationConfigs: false,
+      seedDefaultBanner: false,
       authenticateBrevoDomain: false
     };
   }
@@ -366,7 +370,8 @@ export class EnvironmentModify implements OnInit, OnChanges, OnDestroy {
       this.progressMessages.push(`Modifying environment: ${this.environment.name}`);
       try {
         const assetsOk = this.resumeOptions.copyStandardAssets ? await this.copyStandardAssetsStep() : true;
-        const samplePagesOk = assetsOk && this.resumeOptions.includeSamplePages ? await this.seedSamplePagesStep() : assetsOk;
+        const bannerOk = assetsOk && this.resumeOptions.seedDefaultBanner ? await this.seedDefaultBannerStep() : assetsOk;
+        const samplePagesOk = bannerOk && this.resumeOptions.includeSamplePages ? await this.seedSamplePagesStep() : bannerOk;
         const notificationsOk = samplePagesOk && this.resumeOptions.includeNotificationConfigs ? await this.seedNotificationConfigsStep() : samplePagesOk;
         if (notificationsOk) {
           if (this.wsConnected && (this.resumeOptions.runDbInit || this.resumeOptions.runFlyDeployment)) {
@@ -447,6 +452,20 @@ export class EnvironmentModify implements OnInit, OnChanges, OnDestroy {
     } else {
       this.setupError = copyResponse.message;
       this.progressMessages.push(`Error: ${copyResponse.message}`);
+      this.operationInProgress = OperationInProgress.NONE;
+      return false;
+    }
+  }
+
+  private async seedDefaultBannerStep(): Promise<boolean> {
+    this.progressMessages.push("Seeding default logo banner...");
+    const bannerResponse = await this.environmentSetupService.seedDefaultBanner(this.environment.name);
+    if (bannerResponse.success) {
+      this.progressMessages.push(bannerResponse.message);
+      return true;
+    } else {
+      this.setupError = bannerResponse.message;
+      this.progressMessages.push(`Error: ${bannerResponse.message}`);
       this.operationInProgress = OperationInProgress.NONE;
       return false;
     }

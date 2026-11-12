@@ -1,8 +1,8 @@
 import {
   BucketLocationConstraint,
-  CopyObjectCommand,
   CreateBucketCommand,
   CreateBucketCommandInput,
+  GetBucketLocationCommand,
   GetObjectCommand,
   HeadBucketCommand,
   ListObjectsV2Command,
@@ -29,28 +29,32 @@ import {
 } from "@aws-sdk/client-iam";
 import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 import { existsSync, readFileSync } from "fs";
+import { isString } from "es-toolkit/compat";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { resolveServerPath } from "../shared/path-utils";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { AssetToCopy, AwsAdminConfig, AwsCustomerCredentials, CopiedImage, CopyAssetsResult, ValidationResult } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
-import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { prefixedEnvironmentResourceName } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
+import { AssetToCopy, AwsAdminConfig, AwsCustomerCredentials, CopiedImage, CopyAssetsResult, generateDestinationBucketName, prefixedEnvironmentResourceName, ValidationResult } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
+import { AWS_DEFAULTS, AwsConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { configuredEnvironments } from "../environments/environments-config";
 import { RootFolder } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { systemConfig } from "../config/system-config";
 import { BannerPictureStore } from "./banner-picture.model";
-import { findRamblersDirectoryLogo } from "../site-registration/registration-logos";
+import { copyS3ObjectToBucket, findRamblersDirectoryLogo } from "../site-registration/registration-logos";
 
 const debugLog = debug(envConfig.logNamespace("environment-setup:aws-setup"));
 debugLog.enabled = true;
 
 export interface AwsSetupResult {
   bucket: string;
+  region: string;
   iamUserName: string;
   accessKeyId: string;
   secretAccessKey: string;
   policyArn: string;
 }
+
+export { generateDestinationBucketName };
 
 export interface SetupAwsForBucketOptions {
   replaceAccessKeys?: boolean;
@@ -70,14 +74,88 @@ const PUBLIC_GET_OBJECT_PREFIXES: RootFolder[] = [
   RootFolder.socialPublishing
 ];
 
-export function createS3Client(adminConfig: AwsAdminConfig): S3Client {
+export function createS3Client(adminConfig: AwsAdminConfig, region = adminConfig.region): S3Client {
   return new S3Client({
-    region: adminConfig.region,
+    region: region || adminConfig.region || AWS_DEFAULTS.REGION,
+    followRegionRedirects: true,
     credentials: {
       accessKeyId: adminConfig.accessKeyId,
       secretAccessKey: adminConfig.secretAccessKey
     }
   });
+}
+
+export function s3RegionFromLocationConstraint(locationConstraint: string | undefined): string {
+  if (!locationConstraint) {
+    return "us-east-1";
+  } else if (locationConstraint === "EU") {
+    return "eu-west-1";
+  } else {
+    return locationConstraint;
+  }
+}
+
+export function s3RegionFromError(error: {$response?: {headers?: Record<string, string>}}): string | null {
+  const header = error?.$response?.headers?.["x-amz-bucket-region"];
+  if (isString(header) && header.length > 0) {
+    return header;
+  } else {
+    return null;
+  }
+}
+
+export function pickAwsConfigForBucket(
+  environments: {aws?: AwsConfig}[],
+  running: AwsConfig,
+  bucket: string
+): AwsConfig | null {
+  const fromEstate = environments.find(environment => environment.aws?.bucket === bucket && environment.aws?.accessKeyId && environment.aws?.secretAccessKey);
+  if (fromEstate?.aws) {
+    return fromEstate.aws;
+  } else if (running.bucket === bucket && running.accessKeyId && running.secretAccessKey) {
+    return running;
+  } else {
+    return null;
+  }
+}
+
+export async function awsConfigForBucket(bucket: string): Promise<AwsConfig | null> {
+  const environments = await configuredEnvironments();
+  return pickAwsConfigForBucket(environments.environments || [], envConfig.aws(), bucket);
+}
+
+function s3CopyEndpoint(aws: AwsConfig): {bucket: string; client: S3Client} {
+  if (!aws.bucket || !aws.accessKeyId || !aws.secretAccessKey) {
+    throw new Error("AWS bucket credentials are incomplete");
+  } else {
+    return {
+      bucket: aws.bucket,
+      client: createS3Client({
+        accessKeyId: aws.accessKeyId,
+        secretAccessKey: aws.secretAccessKey,
+        region: aws.region || AWS_DEFAULTS.REGION
+      }, aws.region || AWS_DEFAULTS.REGION)
+    };
+  }
+}
+
+export async function s3ClientForBucket(adminConfig: AwsAdminConfig, bucket: string): Promise<S3Client> {
+  const locator = createS3Client(adminConfig, "us-east-1");
+  try {
+    const location = await locator.send(new GetBucketLocationCommand({Bucket: bucket}));
+    const region = s3RegionFromLocationConstraint(location.LocationConstraint);
+    debugLog("Resolved %s region from location: %s", bucket, region);
+    return createS3Client(adminConfig, region);
+  } catch (error) {
+    const redirected = s3RegionFromError(error);
+    if (redirected) {
+      debugLog("Resolved %s region from redirect: %s", bucket, redirected);
+      return createS3Client(adminConfig, redirected);
+    } else {
+      debugLog("Could not resolve region for %s: %s", bucket, error.message);
+      return createS3Client(adminConfig);
+    }
+  }
 }
 
 function createIamClient(adminConfig: AwsAdminConfig): IAMClient {
@@ -92,11 +170,6 @@ function createIamClient(adminConfig: AwsAdminConfig): IAMClient {
 
 export function generateBucketName(environmentName: string): string {
   return prefixedEnvironmentResourceName(environmentName, 63);
-}
-
-export function generateDestinationBucketName(environmentName: string, region: string = AWS_DEFAULTS.REGION): string {
-  const suffix = `-${region}`;
-  return `${prefixedEnvironmentResourceName(environmentName, 63 - suffix.length)}${suffix}`;
 }
 
 export function generateIamUserName(environmentName: string): string {
@@ -414,8 +487,8 @@ export async function setupAwsForCustomer(
   environmentName: string,
   region?: string
 ): Promise<AwsSetupResult> {
-  const effectiveRegion = region || adminConfig.region;
-  const bucketName = generateBucketName(environmentName);
+  const effectiveRegion = region || adminConfig.region || AWS_DEFAULTS.REGION;
+  const bucketName = generateDestinationBucketName(environmentName, effectiveRegion);
   return setupAwsForBucket(adminConfig, environmentName, bucketName, effectiveRegion);
 }
 
@@ -426,7 +499,7 @@ export async function setupAwsForBucket(
   region?: string,
   options?: SetupAwsForBucketOptions
 ): Promise<AwsSetupResult> {
-  const effectiveRegion = region || adminConfig.region;
+  const effectiveRegion = region || adminConfig.region || AWS_DEFAULTS.REGION;
   const userName = generateIamUserName(environmentName);
   const policyName = generatePolicyName(environmentName);
   const replaceAccessKeys = options?.replaceAccessKeys !== false;
@@ -436,7 +509,7 @@ export async function setupAwsForBucket(
   debugLog("IAM User:", userName);
   debugLog("Region:", effectiveRegion);
 
-  const s3Client = createS3Client(adminConfig);
+  const s3Client = createS3Client(adminConfig, effectiveRegion);
   const iamClient = createIamClient(adminConfig);
 
   await createS3Bucket(s3Client, bucketName, effectiveRegion);
@@ -452,6 +525,7 @@ export async function setupAwsForBucket(
 
   return {
     bucket: bucketName,
+    region: effectiveRegion,
     iamUserName: userName,
     accessKeyId,
     secretAccessKey,
@@ -511,7 +585,7 @@ export function generateAwsCredentialsResult(
     accessKeyId: setupResult.accessKeyId,
     secretAccessKey: setupResult.secretAccessKey,
     bucket: setupResult.bucket,
-    region,
+    region: setupResult.region || region,
     iamUserName: setupResult.iamUserName,
     policyArn: setupResult.policyArn
   };
@@ -535,29 +609,26 @@ async function listBucketKeys(s3Client: S3Client, bucket: string, continuationTo
 }
 
 export async function copyAllS3Objects(
-  adminConfig: AwsAdminConfig,
-  sourceBucket: string,
-  targetBucket: string
+  sourceAws: AwsConfig,
+  destAws: AwsConfig
 ): Promise<{ copied: number }> {
-  const s3Client = createS3Client(adminConfig);
-  const keys = await listBucketKeys(s3Client, sourceBucket);
-  debugLog("Copying %d objects from %s to %s", keys.length, sourceBucket, targetBucket);
+  const source = s3CopyEndpoint(sourceAws);
+  const dest = s3CopyEndpoint(destAws);
+  const keys = await listBucketKeys(source.client, source.bucket);
+  debugLog("Copying %d objects from %s to %s", keys.length, source.bucket, dest.bucket);
   await keys.reduce<Promise<void>>(async (previous, key) => {
     await previous;
-    await s3Client.send(new CopyObjectCommand({
-      Bucket: targetBucket,
-      Key: key,
-      CopySource: `${sourceBucket}/${encodeURIComponent(key).replace(/%2F/g, "/")}`
-    }));
+    await copyS3ObjectToBucket(source, dest, key);
   }, Promise.resolve());
   return { copied: keys.length };
 }
 
 export async function copyStandardAssets(
-  adminConfig: AwsAdminConfig,
-  targetBucket: string
+  sourceAws: AwsConfig,
+  destAws: AwsConfig
 ): Promise<CopyAssetsResult> {
-  const s3Client = createS3Client(adminConfig);
+  const source = s3CopyEndpoint(sourceAws);
+  const dest = s3CopyEndpoint(destAws);
   const result: CopyAssetsResult = {
     icons: [],
     logos: [],
@@ -633,17 +704,13 @@ export async function copyStandardAssets(
 
   for (const asset of assetsToCopy) {
     try {
-      await s3Client.send(new CopyObjectCommand({
-        Bucket: targetBucket,
-        CopySource: `${STANDARD_ASSETS.sourceBucket}/${asset.sourceKey}`,
-        Key: asset.sourceKey
-      }));
+      await copyS3ObjectToBucket(source, dest, asset.sourceKey);
 
       if (asset.folder === RootFolder.icons) result.icons.push(asset.image);
       else if (asset.folder === RootFolder.logos) result.logos.push(asset.image);
       else if (asset.folder === RootFolder.backgrounds) result.backgrounds.push(asset.image);
 
-      debugLog(`Copied ${asset.sourceKey} to ${targetBucket}/${asset.sourceKey}`);
+      debugLog(`Copied ${asset.sourceKey} to ${dest.bucket}/${asset.sourceKey}`);
     } catch (copyError) {
       const errorMessage = copyError.message || String(copyError);
       debugLog(`Failed to copy ${asset.sourceKey}: ${errorMessage}`);
@@ -654,36 +721,33 @@ export async function copyStandardAssets(
   return result;
 }
 
-export function bannerPictureStoreFor(adminConfig: AwsAdminConfig, bucket: string): BannerPictureStore {
-  const s3Client = createS3Client(adminConfig);
+export function bannerPictureStoreFor(aws: AwsConfig): BannerPictureStore {
+  const endpoint = s3CopyEndpoint(aws);
   return {
     read: async (awsFileName: string) => {
       try {
-        const object = await s3Client.send(new GetObjectCommand({Bucket: bucket, Key: awsFileName}));
+        const object = await endpoint.client.send(new GetObjectCommand({Bucket: endpoint.bucket, Key: awsFileName}));
         return object.Body ? await object.Body.transformToByteArray() : null;
       } catch (error) {
-        debugLog("Could not read %s/%s for the banner picture: %s", bucket, awsFileName, error.message);
+        debugLog("Could not read %s/%s for the banner picture: %s", endpoint.bucket, awsFileName, error.message);
         return null;
       }
     },
     write: async (awsFileName: string, content: Buffer, contentType: string) => {
-      await s3Client.send(new PutObjectCommand({Bucket: bucket, Key: awsFileName, Body: content, ContentType: contentType}));
+      await endpoint.client.send(new PutObjectCommand({Bucket: endpoint.bucket, Key: awsFileName, Body: content, ContentType: contentType}));
     }
   };
 }
 
-export async function copyRamblersDirectoryLogo(adminConfig: AwsAdminConfig, targetBucket: string, groupName: string, areaName: string): Promise<CopiedImage | null> {
+export async function copyRamblersDirectoryLogo(destAws: AwsConfig, groupName: string, areaName: string): Promise<CopiedImage | null> {
   const logo = await findRamblersDirectoryLogo(groupName, areaName);
   if (!logo) {
     return null;
   } else {
-    const sourceBucket = envConfig.aws().bucket;
-    if (sourceBucket !== targetBucket) {
-      await createS3Client(adminConfig).send(new CopyObjectCommand({
-        Bucket: targetBucket,
-        CopySource: `${sourceBucket}/${logo.awsFileName}`,
-        Key: logo.awsFileName
-      }));
+    const source = s3CopyEndpoint(envConfig.aws());
+    const dest = s3CopyEndpoint(destAws);
+    if (source.bucket !== dest.bucket) {
+      await copyS3ObjectToBucket(source, dest, logo.awsFileName);
     }
     return {width: 300, padding: 0, originalFileName: logo.originalFileName, awsFileName: logo.awsFileName};
   }

@@ -1,7 +1,7 @@
 import debug from "debug";
 import { randomUUID } from "crypto";
 import { REGISTRATION_STAGE_LABELS, REGISTRATION_SYSTEM_ACTOR, RegistrationEmailType, RegistrationHistoryAction, RegistrationJobStage, RegistrationNavbarPath, RegistrationPage, RegistrationPlan, RegistrationStageKey, RegistrationState, RegistrationStep, RegistrationWalkCandidate, StoredSiteRegistration } from "../../../projects/ngx-ramblers/src/app/models/site-registration.model";
-import { createEmptySetupRequest, environmentNameForGroup, prefixedEnvironmentResourceName, SetupStepStatus } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
+import { createEmptySetupRequest, environmentNameForGroup, generateDestinationBucketName, prefixedEnvironmentResourceName, SetupStepStatus } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
 import { ADMIN_SET_PASSWORD_PATH, EventPopulation, SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { ensureRegistrationIndexes, recordRegistrationHistory, registrations, registrationSettings } from "./registration-store";
@@ -16,7 +16,7 @@ import { config } from "../mongo/models/config";
 import { ensureCollectionIndexesInDatabase } from "../mongo/utils/collection-indexes";
 import { createEnvironment } from "../environment-setup/environment-setup-service";
 import { environmentDetails } from "../environment-setup/environment-details";
-import { createEnvironmentMongoUser, platformAtlasAccess, waitForMongoLogin } from "../environment-setup/mongo-database-user";
+import { createEnvironmentMongoUser, ensureEnvironmentMongoUser, environmentDatabaseUserName, platformAtlasAccess, waitForMongoLogin } from "../environment-setup/mongo-database-user";
 import { assertClusterHasCapacityForNewEnvironment, registrationMongoCluster } from "../environment-setup/atlas-clusters";
 import { configuredEnvironments } from "../environments/environments-config";
 import { resumeEnvironment } from "../cli";
@@ -64,7 +64,7 @@ import {importRegistrationCommittee} from "./registration-committee";
 import {createAllSamplePageContent, PRIVACY_POLICY_PATH} from "../environment-setup/templates/sample-data/page-content-templates";
 import {COMMITTEE_ROOT_PATH} from "../environment-setup/templates/sample-data/committee-page-template";
 import {toGroupShortName} from "../environment-setup/database-initialiser";
-import { EnvironmentConfig, EnvironmentsConfig, FLYIO_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { AWS_DEFAULTS, EnvironmentConfig, EnvironmentsConfig, FLYIO_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { albumsLinkedToWalks, homeContentRows, photosByYear, registrationKeyAreas } from "./registration-photos";
 import { pluraliseWithCount } from "../shared/string-utils";
 import { extendedGroupEvent } from "../mongo/models/extended-group-event";
@@ -146,11 +146,23 @@ async function provisionRegistration(registration: StoredSiteRegistration): Prom
   const environments = await configuredEnvironments();
   const cluster = registrationMongoCluster(environments, details.serviceConfigs.mongodb.cluster);
   await assertClusterHasCapacityForNewEnvironment(cluster);
-  const mongoUser = await createEnvironmentMongoUser(await platformAtlasAccess(), database, name);
-  await waitForMongoLogin(cluster, mongoUser, database, attempt => {
+  const atlas = await platformAtlasAccess();
+  const existing = await findEnvironmentFromDatabase(name);
+  if (existing && existing.name !== name) {
+    throw new Error("An environment already exists for this group. Please contact the platform administrator.");
+  } else if (existing?.mongo?.username && existing.mongo.username !== environmentDatabaseUserName(name)) {
+    throw new Error("An environment already exists for this group under a different database user. Please contact the platform administrator.");
+  }
+  const reportMongo = mongoUser => attempt => {
     void pushProgress(registration, "MongoDB", attempt ? SetupStepStatus.Running : SetupStepStatus.Completed,
       attempt ? `Waiting for MongoDB Atlas to activate the database user ${mongoUser.username} (check ${attempt})` : `Database user ${mongoUser.username} is ready`);
-  });
+  };
+  const mongoUser = existing
+    ? await ensureEnvironmentMongoUser(atlas, existing.mongo?.db || database, name, existing.mongo?.password)
+    : await createEnvironmentMongoUser(atlas, database, name);
+  const mongoDatabase = existing?.mongo?.db || database;
+  const mongoCluster = existing?.mongo?.cluster || cluster;
+  await waitForMongoLogin(mongoCluster, mongoUser, mongoDatabase, reportMongo(mongoUser));
   const request = {
     ...defaults,
     ramblersInfo: {areaCode: registration.group.area_code, areaName: area?.name || registration.group.area_code,
@@ -159,7 +171,7 @@ async function provisionRegistration(registration: StoredSiteRegistration): Prom
       memory: FLYIO_DEFAULTS.MEMORY, scaleCount: FLYIO_DEFAULTS.SCALE_COUNT, environmentName: name,
       appName: prefixedEnvironmentResourceName(name, 30)},
     serviceConfigs: {...defaults.serviceConfigs, ...details.serviceConfigs,
-      aws: {...details.serviceConfigs.aws, bucket: prefixedEnvironmentResourceName(name, 63)},
+      aws: {...details.serviceConfigs.aws, region: AWS_DEFAULTS.REGION, bucket: generateDestinationBucketName(name, AWS_DEFAULTS.REGION)},
       mongodb: {cluster, username: mongoUser.username, password: mongoUser.password, database},
       ramblers: {apiKey: currentSystem.national.walksManager.apiKey},
       brevo: {apiKey: ""},
@@ -167,7 +179,6 @@ async function provisionRegistration(registration: StoredSiteRegistration): Prom
     adminUser: settings.reviewer,
     options: {...defaults.options, setupSubdomain: true, ngxLite: registration.plan === RegistrationPlan.LITE, estateDeploy: true, copyStandardAssets: false}
   };
-  const existing = await findEnvironmentFromDatabase(name);
   const mongoUri = envConfig.mongo().uri.replace(/^"|"$/g, "");
   const platform = mongoUri.startsWith("mongodb") ? new MongoClient(mongoUri) : null;
   if (platform) {
@@ -208,13 +219,23 @@ async function provisionRegistration(registration: StoredSiteRegistration): Prom
       await platform.close();
     }
   }
-  const logo = await registrationLogos.applyRamblersDirectoryLogo(registration, area?.name || "");
+  const logoProgress = {status: SetupStepStatus.Completed, message: "No matching Ramblers directory logo"};
+  try {
+    const logo = await registrationLogos.applyRamblersDirectoryLogo(registration, area?.name || "");
+    if (logo) {
+      logoProgress.message = `Using ${logo.displayName}`;
+    }
+  } catch (error) {
+    debugLog("Group logo skipped for %s: %s", registration.id, error.message);
+    logoProgress.status = SetupStepStatus.Failed;
+    logoProgress.message = `Could not copy the group logo: ${error.message}`;
+  }
   await registrations().updateOne({id: registration.id, leaseOwner: workerId}, {$set: {
     provisionedAt: dateTimeNowAsValue(), siteUrl: `https://${name}.ngx-ramblers.org.uk`
   }, $push: {progress: {$each: [{
     step: "Group logo",
-    status: SetupStepStatus.Completed,
-    message: logo ? `Using ${logo.displayName}` : "No matching Ramblers directory logo",
+    status: logoProgress.status,
+    message: logoProgress.message,
     timestamp: dateTimeNowAsValue()
   }], $slice: -100}}});
 }

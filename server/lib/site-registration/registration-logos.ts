@@ -1,6 +1,6 @@
 import debug from "debug";
 import path from "path";
-import { CopyObjectCommand, HeadObjectCommand, PutObjectCommand, S3 } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3, S3Client } from "@aws-sdk/client-s3";
 import { readFile } from "fs/promises";
 import { kebabCase } from "es-toolkit/compat";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
@@ -8,6 +8,7 @@ import { RootFolder } from "../../../projects/ngx-ramblers/src/app/models/system
 import {
   RamblersDirectoryLogo, RamblersDirectoryLogoKind, StoredSiteRegistration
 } from "../../../projects/ngx-ramblers/src/app/models/site-registration.model";
+import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { envConfig } from "../env-config/env-config";
 import { connectToEnvironmentMongo, loadEnvironmentContext } from "../environment-setup/environment-context";
 
@@ -77,11 +78,47 @@ function platformS3(): {client: S3; bucket: string} {
   const aws = envConfig.aws();
   return {
     bucket: aws.bucket,
-    client: new S3({
-      region: aws.region,
-      credentials: {accessKeyId: aws.accessKeyId, secretAccessKey: aws.secretAccessKey}
-    })
+    client: s3ClientFor(aws)
   };
+}
+
+export function s3ClientFor(aws: {region?: string; accessKeyId?: string; secretAccessKey?: string}): S3 {
+  return new S3({
+    region: aws.region || AWS_DEFAULTS.REGION,
+    followRegionRedirects: true,
+    credentials: {accessKeyId: aws.accessKeyId, secretAccessKey: aws.secretAccessKey}
+  });
+}
+
+function contentTypeForLogoKey(key: string): string {
+  if (key.toLowerCase().endsWith(".png")) {
+    return "image/png";
+  } else {
+    return "image/jpeg";
+  }
+}
+
+export async function copyS3ObjectToBucket(
+  source: {client: S3Client; bucket: string},
+  dest: {client: S3Client; bucket: string},
+  key: string
+): Promise<void> {
+  if (source.bucket === dest.bucket) {
+    return;
+  } else {
+    const object = await source.client.send(new GetObjectCommand({Bucket: source.bucket, Key: key}));
+    const body = object.Body ? await object.Body.transformToByteArray() : null;
+    if (!body) {
+      throw new Error(`No data for ${source.bucket}/${key}`);
+    } else {
+      await dest.client.send(new PutObjectCommand({
+        Bucket: dest.bucket,
+        Key: key,
+        Body: body,
+        ContentType: object.ContentType || contentTypeForLogoKey(key)
+      }));
+    }
+  }
 }
 
 async function objectExists(client: S3, bucket: string, key: string): Promise<boolean> {
@@ -101,7 +138,7 @@ export async function ingestRamblersDirectoryLogoFile(localPath: string): Promis
   } else {
     const {client, bucket} = platformS3();
     const body = await readFile(localPath);
-    const contentType = parsed.awsFileName.endsWith(".png") ? "image/png" : "image/jpeg";
+    const contentType = contentTypeForLogoKey(parsed.awsFileName);
     await client.send(new PutObjectCommand({Bucket: bucket, Key: parsed.awsFileName, Body: body, ContentType: contentType}));
     return parsed;
   }
@@ -123,14 +160,13 @@ export async function applyRamblersDirectoryLogo(registration: StoredSiteRegistr
     return null;
   } else {
     const context = await loadEnvironmentContext(registration.environmentName);
-    const {client, bucket} = platformS3();
+    const source = platformS3();
     const targetBucket = context.envConfigData.aws.bucket;
-    if (targetBucket !== bucket) {
-      await client.send(new CopyObjectCommand({
-        Bucket: targetBucket,
-        CopySource: `${bucket}/${chosen.awsFileName}`,
-        Key: chosen.awsFileName
-      }));
+    if (targetBucket && targetBucket !== source.bucket) {
+      await copyS3ObjectToBucket(source, {
+        bucket: targetBucket,
+        client: s3ClientFor(context.envConfigData.aws)
+      }, chosen.awsFileName);
     }
     const connection = await connectToEnvironmentMongo(context.envConfigData);
     try {

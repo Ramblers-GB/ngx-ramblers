@@ -9,6 +9,16 @@ export interface AtlasApiAccess {
   privateKey?: string;
 }
 
+export interface AtlasDatabaseUserRole {
+  databaseName?: string;
+  roleName?: string;
+}
+
+export interface AtlasDatabaseUser {
+  username?: string;
+  roles?: AtlasDatabaseUserRole[];
+}
+
 export interface CreatedEnvironmentMongoUser {
   username: string;
   password: string;

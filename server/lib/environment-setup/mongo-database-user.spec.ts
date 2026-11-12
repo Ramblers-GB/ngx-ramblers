@@ -2,7 +2,7 @@ import expect from "expect";
 import sinon from "sinon";
 import { afterEach, beforeEach, describe, it } from "mocha";
 import { MongoClient } from "mongodb";
-import { createEnvironmentMongoUser, deleteEnvironmentMongoUser, environmentDatabaseUserName, waitForMongoLogin } from "./mongo-database-user";
+import { createEnvironmentMongoUser, deleteEnvironmentMongoUser, ensureEnvironmentMongoUser, environmentDatabaseUserName, grantDatabaseAccessToUser, waitForMongoLogin } from "./mongo-database-user";
 import { atlasDigestAuthorisation } from "./atlas-admin-api";
 
 const atlas = {projectId: "project-1", publicKey: "public-key", privateKey: "private-key"};
@@ -20,6 +20,48 @@ describe("createEnvironmentMongoUser", () => {
 
   afterEach(() => {
     sandboxState.sandbox.restore();
+  });
+
+  it("adds clone-schema roles to an existing user without resetting the password", async () => {
+    const fetchStub = sandboxState.sandbox.stub(globalThis, "fetch");
+    fetchStub.onCall(0).resolves(atlasResponse(401, {}, {"www-authenticate": "Digest realm=\"MMS Public API\", nonce=\"abc\", qop=\"auth\""}));
+    fetchStub.onCall(1).resolves(atlasResponse(200, {
+      username: "ngx_group_db_user",
+      roles: [
+        {databaseName: "group-live", roleName: "readWrite"},
+        {databaseName: "group-live", roleName: "dbAdmin"}
+      ]
+    }));
+    fetchStub.onCall(2).resolves(atlasResponse(401, {}, {"www-authenticate": "Digest realm=\"MMS Public API\", nonce=\"abc\", qop=\"auth\""}));
+    fetchStub.onCall(3).resolves(atlasResponse(200));
+    await grantDatabaseAccessToUser(atlas, "ngx_group_db_user", "group-live-clone");
+    const [url, init] = fetchStub.getCall(3).args as [string, RequestInit];
+    expect(url).toBe("https://cloud.mongodb.com/api/atlas/v2/groups/project-1/databaseUsers/admin/ngx_group_db_user");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({
+      roles: [
+        {databaseName: "group-live", roleName: "readWrite"},
+        {databaseName: "group-live", roleName: "dbAdmin"},
+        {databaseName: "group-live-clone", roleName: "readWrite"},
+        {databaseName: "group-live-clone", roleName: "dbAdmin"}
+      ]
+    });
+  });
+
+  it("skips the Atlas update when the user already has the clone-schema roles", async () => {
+    const fetchStub = sandboxState.sandbox.stub(globalThis, "fetch");
+    fetchStub.onCall(0).resolves(atlasResponse(401, {}, {"www-authenticate": "Digest realm=\"MMS Public API\", nonce=\"abc\", qop=\"auth\""}));
+    fetchStub.onCall(1).resolves(atlasResponse(200, {
+      username: "ngx_group_db_user",
+      roles: [
+        {databaseName: "group-live", roleName: "readWrite"},
+        {databaseName: "group-live", roleName: "dbAdmin"},
+        {databaseName: "group-live-clone", roleName: "readWrite"},
+        {databaseName: "group-live-clone", roleName: "dbAdmin"}
+      ]
+    }));
+    await grantDatabaseAccessToUser(atlas, "ngx_group_db_user", "group-live-clone");
+    expect(fetchStub.callCount).toBe(2);
   });
 
   it("creates a user through the Atlas Admin API with read and write on the new database only", async () => {
@@ -49,6 +91,18 @@ describe("createEnvironmentMongoUser", () => {
     expect(init.method).toBe("PATCH");
     expect(url).toBe("https://cloud.mongodb.com/api/atlas/v2/groups/project-1/databaseUsers/admin/ngx_new_group_db_user");
     expect(JSON.parse(init.body as string).password).toBe(created.password);
+  });
+
+  it("sets Atlas back to the password already stored for the environment", async () => {
+    const fetchStub = sandboxState.sandbox.stub(globalThis, "fetch");
+    fetchStub.onFirstCall().resolves(atlasResponse(409, {errorCode: "USER_ALREADY_EXISTS"}));
+    fetchStub.onSecondCall().resolves(atlasResponse(200));
+    const ensured = await ensureEnvironmentMongoUser(atlas, "ngx-ramblers-hillside", "hillside", "stored-password");
+    const [url, init] = fetchStub.secondCall.args as [string, RequestInit];
+    expect(ensured).toEqual({username: "ngx_hillside_db_user", password: "stored-password"});
+    expect(init.method).toBe("PATCH");
+    expect(url).toBe("https://cloud.mongodb.com/api/atlas/v2/groups/project-1/databaseUsers/admin/ngx_hillside_db_user");
+    expect(JSON.parse(init.body as string).password).toBe("stored-password");
   });
 
   it("keeps an existing user's password when provisioning a migration target", async () => {

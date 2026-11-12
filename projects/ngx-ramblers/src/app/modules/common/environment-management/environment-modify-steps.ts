@@ -8,6 +8,7 @@ import { subdomainStepBadgeClass, subdomainStepBadgeLabel } from "./environment-
   imports: [FormsModule],
   template: `
     <div class="fw-bold mb-2">Steps to run</div>
+    <p class="small text-muted mb-2">Safe to re-run. Each step fills what is missing and leaves existing records in place.</p>
     <div class="resume-steps">
       <div class="form-check resume-step">
         <input class="form-check-input" type="checkbox" id="runDbInit"
@@ -39,7 +40,7 @@ import { subdomainStepBadgeClass, subdomainStepBadgeLabel } from "./environment-
         <input class="form-check-input" type="checkbox" id="copyStandardAssets"
                [(ngModel)]="resumeOptions.copyStandardAssets">
         <label class="form-check-label resume-step-label" for="copyStandardAssets">
-          <span class="resume-step-text">Copy standard assets (icons, logos, backgrounds)</span>
+          <span class="resume-step-text">Copy standard assets (fills missing icons, logos, backgrounds)</span>
           @if (envStatus) {
             <span class="badge resume-step-badge"
                   [class]="stepBadgeClass(EnvironmentStatusCheck.ASSETS, envStatus.standardAssetsPresent)">
@@ -78,10 +79,23 @@ import { subdomainStepBadgeClass, subdomainStepBadgeLabel } from "./environment-
         </label>
       </div>
       <div class="form-check resume-step">
+        <input class="form-check-input" type="checkbox" id="seedDefaultBanner"
+               [(ngModel)]="resumeOptions.seedDefaultBanner">
+        <label class="form-check-label resume-step-label" for="seedDefaultBanner">
+          <span class="resume-step-text">Default logo banner (creates one if none exist)</span>
+          @if (envStatus) {
+            <span class="badge resume-step-badge"
+                  [class]="stepBadgeClass(EnvironmentStatusCheck.DATABASE, envStatus.defaultBannerPresent)">
+              {{ stepBadgeLabel(EnvironmentStatusCheck.DATABASE, envStatus.defaultBannerPresent) }}
+            </span>
+          }
+        </label>
+      </div>
+      <div class="form-check resume-step">
         <input class="form-check-input" type="checkbox" id="includeSamplePages"
                [(ngModel)]="resumeOptions.includeSamplePages">
         <label class="form-check-label resume-step-label" for="includeSamplePages">
-          <span class="resume-step-text">Include sample page content</span>
+          <span class="resume-step-text">Sample page content (upserts missing pages)</span>
           @if (envStatus) {
             <span class="badge resume-step-badge"
                   [class]="stepBadgeClass(EnvironmentStatusCheck.DATABASE, envStatus.samplePagesPresent)">
@@ -94,7 +108,7 @@ import { subdomainStepBadgeClass, subdomainStepBadgeLabel } from "./environment-
         <input class="form-check-input" type="checkbox" id="includeNotificationConfigs"
                [(ngModel)]="resumeOptions.includeNotificationConfigs">
         <label class="form-check-label resume-step-label" for="includeNotificationConfigs">
-          <span class="resume-step-text">Include notification configs</span>
+          <span class="resume-step-text">Notification configs (adds missing templates)</span>
           @if (envStatus) {
             <span class="badge resume-step-badge"
                   [class]="stepBadgeClass(EnvironmentStatusCheck.DATABASE, envStatus.notificationConfigsPresent)">

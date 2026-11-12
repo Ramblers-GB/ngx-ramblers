@@ -214,6 +214,8 @@ describe("site registration lifecycle", () => {
     expect(createEnvironment.firstCall.args[0].serviceConfigs.mongodb.username).toBe("ngx_example_ramblers_db_user");
     expect(createEnvironment.firstCall.args[0].serviceConfigs.mongodb.password).toBe("generated-password");
     expect(createEnvironment.firstCall.args[0].options.copyStandardAssets).toBe(false);
+    expect(createEnvironment.firstCall.args[0].serviceConfigs.aws.region).toBe("eu-west-2");
+    expect(createEnvironment.firstCall.args[0].serviceConfigs.aws.bucket).toBe("ngx-ramblers-example-eu-west-2");
 
     await approveRegistration(state.registration.id, "Site Reviewer");
     await runRegistrationJobs();

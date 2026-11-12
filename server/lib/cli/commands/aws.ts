@@ -47,18 +47,22 @@ export async function copyAssets(
   targetBucket: string,
   onProgress?: ProgressCallback
 ): Promise<CopyAssetsCliResult> {
-  const { copyStandardAssets, adminConfigFromEnvironment } = await import("../../environment-setup/aws-setup");
+  const { awsConfigForBucket, copyStandardAssets, STANDARD_ASSETS } = await import("../../environment-setup/aws-setup");
 
-  const adminConfig = adminConfigFromEnvironment();
-  if (!adminConfig) {
-    throw new Error("AWS admin credentials not configured");
+  const sourceAws = await awsConfigForBucket(STANDARD_ASSETS.sourceBucket);
+  const destAws = await awsConfigForBucket(targetBucket);
+  if (!sourceAws) {
+    throw new Error(`No AWS credentials found for standard-assets source bucket ${STANDARD_ASSETS.sourceBucket}`);
+  }
+  if (!destAws) {
+    throw new Error(`No AWS credentials found for destination bucket ${targetBucket}`);
   }
 
   if (onProgress) {
     onProgress({ step: "copy-assets", status: SetupStepStatus.Running, message: "Copying standard assets" });
   }
 
-  const result = await copyStandardAssets(adminConfig, targetBucket);
+  const result = await copyStandardAssets(sourceAws, destAws);
 
   if (onProgress) {
     const status = result.failures.length > 0 ? SetupStepStatus.Failed : SetupStepStatus.Completed;

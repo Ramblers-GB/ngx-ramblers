@@ -381,6 +381,15 @@ export class EnvironmentSetupService {
     };
   }
 
+  async seedDefaultBanner(environmentName: string): Promise<{ success: boolean; message: string; seeded?: boolean }> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.post<ApiResponse>(`${this.BASE_URL}/seed-default-banner/${environmentName}`, {}, this.opts),
+      this.notifications
+    );
+    return response as unknown as { success: boolean; message: string; seeded?: boolean };
+  }
+
   async seedSamplePages(environmentName: string): Promise<{ success: boolean; message: string; upsertedCount?: number }> {
     const response = await this.commonDataService.responseFrom(
       this.logger,

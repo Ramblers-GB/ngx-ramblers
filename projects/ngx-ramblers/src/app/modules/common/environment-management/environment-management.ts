@@ -399,6 +399,7 @@ export class EnvironmentManagement implements OnInit {
         databaseInitialised: false,
         samplePagesPresent: false,
         notificationConfigsPresent: false,
+        defaultBannerPresent: false,
         flyAppDeployed: false,
         standardAssetsPresent: false,
         subdomainConfigured: false,

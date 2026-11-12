@@ -1,4 +1,4 @@
-import { environmentNameForGroup, prefixedEnvironmentResourceName } from "../../../models/environment-setup.model";
+import { environmentNameForGroup, generateDestinationBucketName, prefixedEnvironmentResourceName } from "../../../models/environment-setup.model";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -30,7 +30,7 @@ import {
   SetupWarning,
   ValidationResult
 } from "../../../models/environment-setup.model";
-import { AwsRegion, awsRegionLabel, FLYIO_DEFAULTS, FlyioMemory } from "../../../models/environment-config.model";
+import { AWS_DEFAULTS, AwsRegion, awsRegionLabel, FLYIO_DEFAULTS, FlyioMemory } from "../../../models/environment-config.model";
 import { ATLAS_CLUSTER_BUSY_DATABASE_COUNT } from "../../../models/atlas-cluster.model";
 import { AdminPlatformPath } from "../../../models/admin-route-paths.model";
 import { enumKeyValues } from "../../../functions/enums";
@@ -1868,7 +1868,7 @@ export class EnvironmentSetupComponent implements OnInit, OnDestroy {
   updateAppName() {
     const envName = this.request.environmentBasics.environmentName;
     this.request.environmentBasics.appName = this.prefixedName(envName, 30);
-    this.request.serviceConfigs.aws.bucket = this.prefixedName(envName, 63);
+    this.request.serviceConfigs.aws.bucket = generateDestinationBucketName(envName, this.request.serviceConfigs.aws.region || AWS_DEFAULTS.REGION);
     this.request.serviceConfigs.mongodb.database = this.prefixedName(envName, 38);
   }
 

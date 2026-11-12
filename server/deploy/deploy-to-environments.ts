@@ -8,6 +8,7 @@ import {
   deleteVolumeIfExists,
   ensureScale,
   flyTomlAbsolutePath,
+  parseMemoryMb,
   runCommand,
   runCommandWithRetry,
   waitForImageAvailable
@@ -210,7 +211,8 @@ async function deployToEnvironments(environmentsFilter: string[]): Promise<void>
         debugLog("Pruned disallowed Fly secrets from %s: %s", environmentConfig.appName, pruneResult.removed.join(", "));
       }
       await waitForImageAvailable(environmentConfig.appName, config.dockerImage);
-      await runCommandWithRetry(`flyctl deploy --app ${environmentConfig.appName} --config ${environmentFlyTomlPath} --image ${config.dockerImage} --strategy rolling --wait-timeout 600`);
+      const memoryMb = parseMemoryMb(environmentConfig.memory);
+      await runCommandWithRetry(`flyctl deploy --app ${environmentConfig.appName} --config ${environmentFlyTomlPath} --image ${config.dockerImage} --vm-memory ${memoryMb} --strategy rolling --wait-timeout 600`);
       await ensureScale(environmentConfig.appName, environmentConfig.scaleCount, environmentConfig.memory);
       if (imageTag && /^\d+$/.test(imageTag)) {
         await verifyDeployedBuildNumber(environmentConfig.appName, imageTag);

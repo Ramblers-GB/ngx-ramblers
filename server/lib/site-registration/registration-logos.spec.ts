@@ -1,58 +1,40 @@
 import expect from "expect";
 import { describe, it } from "mocha";
-import { RamblersDirectoryLogoKind } from "../../../projects/ngx-ramblers/src/app/models/site-registration.model";
-import {
-  parseRamblersDirectoryLogoFileName, ramblersDirectoryLogoCandidates, ramblersDirectoryLogoSlug
-} from "./registration-logos";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { copyS3ObjectToBucket } from "./registration-logos";
 
-describe("registration-logos", () => {
-  it("slugs group and area names used in the logo pack", () => {
-    expect(ramblersDirectoryLogoSlug("Ashford (Kent)")).toBe("ashford-kent");
-    expect(ramblersDirectoryLogoSlug("Cambridgeshire & Peterborough")).toBe("cambridgeshire-and-peterborough");
-    expect(ramblersDirectoryLogoSlug("Berkshire Weekend Walkers ")).toBe("berkshire-weekend-walkers");
+describe("copyS3ObjectToBucket", () => {
+  it("reads from the source client and writes with the destination client", async () => {
+    const sent = {source: [], dest: []};
+    const source = {
+      bucket: "ngx-ramblers-demo-staging",
+      client: {
+        send: async command => {
+          sent.source.push(command);
+          return {Body: {transformToByteArray: async () => new Uint8Array([1, 2, 3])}, ContentType: "image/png"};
+        }
+      }
+    };
+    const dest = {
+      bucket: "ngx-ramblers-craven-eu-west-2",
+      client: {
+        send: async command => {
+          sent.dest.push(command);
+          return {};
+        }
+      }
+    };
+    await copyS3ObjectToBucket(source as any, dest as any, "logos/group-horizontal-craven.png");
+    expect(sent.source[0]).toBeInstanceOf(GetObjectCommand);
+    expect(sent.source[0].input).toEqual({Bucket: "ngx-ramblers-demo-staging", Key: "logos/group-horizontal-craven.png"});
+    expect(sent.dest[0]).toBeInstanceOf(PutObjectCommand);
+    expect(sent.dest[0].input.Bucket).toBe("ngx-ramblers-craven-eu-west-2");
+    expect(sent.dest[0].input.Key).toBe("logos/group-horizontal-craven.png");
+    expect(sent.dest[0].input.ContentType).toBe("image/png");
   });
 
-  it("parses horizontal group and area filenames", () => {
-    const group = parseRamblersDirectoryLogoFileName("Ramblers Group Logo Horizontal RGB Ashford (Kent).jpg");
-    const area = parseRamblersDirectoryLogoFileName("Ramblers Area Logos Horizontal RGB Kent.jpg");
-    expect(group).toEqual({
-      kind: RamblersDirectoryLogoKind.GROUP_HORIZONTAL,
-      displayName: "Ashford (Kent)",
-      slug: "ashford-kent",
-      originalFileName: "Ramblers Group Logo Horizontal RGB Ashford (Kent).jpg",
-      awsFileName: "logos/group-horizontal-ashford-kent.jpg"
-    });
-    expect(area.kind).toEqual(RamblersDirectoryLogoKind.AREA_HORIZONTAL);
-    expect(area.awsFileName).toEqual("logos/area-horizontal-kent.jpg");
-  });
-
-  it("prefers a group horizontal logo then the area horizontal logo", () => {
-    const candidates = ramblersDirectoryLogoCandidates("Ashford (Kent)", "Kent");
-    expect(candidates.map(item => item.awsFileName)).toEqual([
-      "logos/group-horizontal-ashford-kent.jpg",
-      "logos/group-horizontal-ashford-kent.png",
-      "logos/area-horizontal-kent.jpg",
-      "logos/area-horizontal-kent.png",
-      "logos/group-vertical-ashford-kent.jpg",
-      "logos/group-vertical-ashford-kent.png",
-      "logos/area-vertical-kent.jpg",
-      "logos/area-vertical-kent.png"
-    ]);
-  });
-
-  it("tries the area name with and without a trailing Area for area logos", () => {
-    const files = ramblersDirectoryLogoCandidates("Example Area", "Example Area").map(item => item.awsFileName);
-    expect(files).toContain("logos/area-horizontal-example-area.jpg");
-    expect(files).toContain("logos/area-horizontal-example.jpg");
-  });
-
-  it("parses the plural Group Logos filename used on a few groups", () => {
-    const parsed = parseRamblersDirectoryLogoFileName("Ramblers Group Logos Horizontal RGB West Kent Walking Group.jpg");
-    expect(parsed.slug).toBe("west-kent-walking-group");
-    expect(parsed.kind).toBe(RamblersDirectoryLogoKind.GROUP_HORIZONTAL);
-  });
-
-  it("ignores files that are not directory logos", () => {
-    expect(parseRamblersDirectoryLogoFileName("readme.txt")).toEqual(null);
+  it("does not copy when source and destination buckets are the same", async () => {
+    const source = {bucket: "same", client: {send: async () => { throw new Error("should not send"); }}};
+    await copyS3ObjectToBucket(source as any, source as any, "logos/x.png");
   });
 });

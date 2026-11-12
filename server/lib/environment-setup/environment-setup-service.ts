@@ -20,11 +20,13 @@ import {
 import { groupDetails, listGroupsByAreaCode, validateRamblersApiKey } from "./ramblers-api-client";
 import {
   adminConfigFromEnvironment,
+  awsConfigForBucket,
   bannerPictureStoreFor,
   copyAllS3Objects,
   copyRamblersDirectoryLogo,
   copyStandardAssets,
   generateAwsCredentialsResult,
+  STANDARD_ASSETS,
   setupAwsForCustomer,
   validateAwsAdminCredentials
 } from "./aws-setup";
@@ -392,20 +394,24 @@ export async function createEnvironment(
       );
       awsCredentials = generateAwsCredentialsResult(
         request.environmentBasics.environmentName,
-        request.serviceConfigs.aws.region,
+        awsSetupResult.region,
         awsSetupResult
       );
       reportProgress(SetupStep.CREATE_AWS_RESOURCES, SetupStepStatus.Completed, `Created bucket: ${awsCredentials.bucket}`);
 
       const sourceBucket = sourceEnvironment?.aws?.bucket;
-      if (fullDuplicate && sourceBucket) {
+      if (fullDuplicate && sourceBucket && sourceEnvironment.aws) {
         await runOptionalStep(SetupStep.COPY_STANDARD_ASSETS, "Copying files from the source bucket", async () => {
-          const copyResult = await copyAllS3Objects(awsAdminConfig, sourceBucket, awsCredentials.bucket);
+          const copyResult = await copyAllS3Objects(sourceEnvironment.aws, awsCredentials);
           return `Copied ${copyResult.copied} objects from ${sourceBucket}`;
         });
       } else if (request.options.copyStandardAssets) {
         await runOptionalStep(SetupStep.COPY_STANDARD_ASSETS, "Copying standard assets to S3 bucket", async () => {
-          const copyResult = await copyStandardAssets(awsAdminConfig, awsCredentials.bucket);
+          const sourceAws = await awsConfigForBucket(STANDARD_ASSETS.sourceBucket);
+          if (!sourceAws) {
+            throw new Error(`No AWS credentials found for standard-assets source bucket ${STANDARD_ASSETS.sourceBucket}`);
+          }
+          const copyResult = await copyStandardAssets(sourceAws, awsCredentials);
           copiedAssets = {
             icons: copyResult.icons,
             logos: copyResult.logos,
@@ -419,7 +425,7 @@ export async function createEnvironment(
           return `Copied ${totalCopied} assets (${copyResult.icons.length} icons, ${copyResult.logos.length} logos, ${copyResult.backgrounds.length} backgrounds)`;
         });
         await runOptionalStep(SetupStep.COPY_STANDARD_ASSETS, "Finding the group's Ramblers logo", async () => {
-          const groupLogo = await copyRamblersDirectoryLogo(awsAdminConfig, awsCredentials.bucket, request.ramblersInfo.groupName, request.ramblersInfo.areaName);
+          const groupLogo = await copyRamblersDirectoryLogo(awsCredentials, request.ramblersInfo.groupName, request.ramblersInfo.areaName);
           if (groupLogo) {
             copiedAssets = {...copiedAssets, logos: [groupLogo, ...(copiedAssets?.logos || []).filter(logo => logo.awsFileName !== groupLogo.awsFileName)]};
           }
@@ -428,7 +434,7 @@ export async function createEnvironment(
       } else {
         reportProgress(SetupStep.COPY_STANDARD_ASSETS, SetupStepStatus.Completed, "Skipped copying standard icons and backgrounds");
         await runOptionalStep(SetupStep.COPY_STANDARD_ASSETS, "Finding the group's Ramblers logo", async () => {
-          const groupLogo = await copyRamblersDirectoryLogo(awsAdminConfig, awsCredentials.bucket, request.ramblersInfo.groupName, request.ramblersInfo.areaName);
+          const groupLogo = await copyRamblersDirectoryLogo(awsCredentials, request.ramblersInfo.groupName, request.ramblersInfo.areaName);
           if (groupLogo) {
             copiedAssets = {icons: [], logos: [groupLogo], backgrounds: []};
           }
@@ -509,7 +515,7 @@ export async function createEnvironment(
       const dbResult = await Promise.race([
         initialiseDatabase(request, dbProgress => {
           reportProgress(SetupStep.INITIALISE_DATABASE, SetupStepStatus.Running, dbProgress.message || dbProgress.step);
-        }, copiedAssets, awsAdminConfig && awsCredentials.bucket ? bannerPictureStoreFor(awsAdminConfig, awsCredentials.bucket) : null),
+        }, copiedAssets, awsCredentials.bucket ? bannerPictureStoreFor(awsCredentials) : null),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(`Database initialisation timed out after ${dbInitTimeout / 1000} seconds`)), dbInitTimeout)
         )
