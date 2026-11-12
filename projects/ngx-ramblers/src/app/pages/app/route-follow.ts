@@ -655,7 +655,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
                   <fa-icon [icon]="faXmark"/>
                   Cancel
                 </button>
-                <button class="btn btn-primary follow-main-btn" type="button" (click)="onPeekSaveEdit($event)" [disabled]="savingRoute || !hasLine">
+                <button class="btn btn-primary follow-main-btn" type="button" (click)="onPeekSaveEdit($event)" [disabled]="savingRoute || !canSaveNamedRoute">
                   <fa-icon [icon]="faFloppyDisk"/>
                   {{ savingRoute ? "Saving" : "Save" }}
                 </button>
@@ -815,11 +815,11 @@ import { SystemConfigService } from "../../services/system/system-config.service
                   <label class="form-label" for="recording-name">Name</label>
                   <textarea #recordingName id="recording-name" class="form-control follow-name-input" rows="1"
                             cdkTextareaAutosize [cdkAutosizeMinRows]="1" maxlength="200"
-                            [placeholder]="defaultRecordingTitle()"
+                            placeholder="Name this walk"
                             [(ngModel)]="payload.title" (ngModelChange)="recordingDetailsChanged()"
                             (keydown.enter)="$event.preventDefault()" [disabled]="savingRoute"></textarea>
                   @if (payload.source === RouteFollowSource.RECORDING && !drawingFromBlank) {
-                    <p class="follow-library-note">Change this if you like. You can save with this name.</p>
+                    <p class="follow-library-note">Choose a name people will recognise. The date and time are in the description.</p>
                   }
                   <label class="form-label" for="recording-description">Description</label>
                   <textarea #recordingDescription id="recording-description" class="form-control follow-description-input" rows="3"
@@ -964,13 +964,13 @@ import { SystemConfigService } from "../../services/system/system-config.service
                 Cancel
               </button>
               @if (canEditRoute && payload.source !== RouteFollowSource.RECORDING) {
-                <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="saveRoute(true)" [disabled]="savingRoute || !hasLine"
+                <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="saveRoute(true)" [disabled]="savingRoute || !canSaveNamedRoute"
                         tooltip="Save a separate route in Maps, keeping the original route" [isDisabled]="!tooltipsEnabled" placement="top" container=".follow-app">
                   <fa-icon [icon]="faFloppyDisk"/>
                   Save as new
                 </button>
               }
-              <button class="btn btn-primary follow-main-btn" type="button" (click)="saveRoute()" [disabled]="savingRoute || !hasLine">
+              <button class="btn btn-primary follow-main-btn" type="button" (click)="saveRoute()" [disabled]="savingRoute || !canSaveNamedRoute">
                 <fa-icon [icon]="faFloppyDisk"/>
                 {{ savingRoute ? "Saving" : "Save" }}
               </button>
@@ -2075,10 +2075,14 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     return kind + ", " + this.dateUtils.displayDateAbbreviatedTime(this.dateUtils.dateTimeNow());
   }
 
-  private ensureRecordingTitle(): void {
-    if (this.payload && !this.payload.title?.trim()) {
-      this.payload = {...this.payload, title: this.defaultRecordingTitle()};
+  private ensureRecordingStamp(): void {
+    if (this.payload && (this.payload.source === RouteFollowSource.RECORDING || this.drawingFromBlank) && !this.payload.description?.trim()) {
+      this.payload = {...this.payload, description: this.defaultRecordingTitle()};
     }
+  }
+
+  get canSaveNamedRoute(): boolean {
+    return this.hasLine && !!this.payload?.title?.trim();
   }
 
   canDeleteSavedRoute(): boolean {
@@ -2456,7 +2460,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     } else {
       this.persistError = null;
       this.persistMessage = "";
-      this.ensureRecordingTitle();
+      this.ensureRecordingStamp();
       this.lastRecordedPointCount = -1;
       this.draftPoints = this.followService.trackPoints().map(point => ({...point}));
       this.followUser = true;
@@ -2526,7 +2530,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   get recordingActionDisabled(): boolean {
-    return this.savingRoute || (!this.recordingStopAction && !this.hasLine);
+    return this.savingRoute || (!this.recordingStopAction && !this.canSaveNamedRoute);
   }
 
   get recordingSession(): boolean {
@@ -2811,7 +2815,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     const recovered = await this.followService.flushRecording();
     if (recovered) {
       this.pause();
-      this.ensureRecordingTitle();
+      this.ensureRecordingStamp();
       this.recordingDetailsOpen = true;
       this.expandSheet();
       this.persistFollowSession(true);
@@ -2838,8 +2842,13 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       return;
     } else if (recorded.length < 2) {
       this.persistError = "Walk or plot at least two points first.";
+    } else if (!this.payload.title?.trim()) {
+      this.ensureRecordingStamp();
+      this.persistError = "Name this route before saving.";
+      this.recordingDetailsOpen = true;
+      this.expandSheet();
     } else {
-      this.ensureRecordingTitle();
+      this.ensureRecordingStamp();
       const payload = this.payload;
       this.savingRoute = true;
       this.persistError = null;

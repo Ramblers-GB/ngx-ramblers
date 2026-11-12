@@ -220,6 +220,10 @@ describe("route follow failed recording upload", () => {
       queueWebsiteSave: vi.fn().mockReturnValue(stored)
     } as unknown as typeof view["routeSave"];
     view["logger"] = {error: vi.fn()} as unknown as typeof view["logger"];
+    view["dateUtils"] = {
+      dateTimeNow: () => ({}),
+      displayDateAbbreviatedTime: () => "Thursday, 8 October 2026, 9:00 am"
+    } as unknown as typeof view["dateUtils"];
     view["persistFollowSession"] = vi.fn();
     view["clearFollowSession"] = vi.fn();
     await view.saveRoute();
@@ -309,13 +313,23 @@ describe("finishing a recording", () => {
     expect(view["followService"].startRecording).toHaveBeenCalledWith(true);
     expect(view["recordingDetailsOpen"]).toBe(false);
     expect(view.minimiseSheet).toHaveBeenCalledOnce();
-    expect(view["payload"].title).toBe(recordedTitle);
+    expect(view["payload"].title).toBe("");
+    expect(view["payload"].description).toBe(recordedTitle);
   });
 
   it("keeps a title the walker already typed", () => {
     const view = recordingView("Hillside Park loop");
     view.recordRoute();
     expect(view["payload"].title).toBe("Hillside Park loop");
+    expect(view["payload"].description).toBe(recordedTitle);
+  });
+
+  it("keeps a description the walker already typed", () => {
+    const view = recordingView("");
+    view["payload"] = {...view["payload"], description: "Along the river after rain"};
+    view.recordRoute();
+    expect(view["payload"].title).toBe("");
+    expect(view["payload"].description).toBe("Along the river after rain");
   });
 
   it("reads background points before pausing and opening the naming fields", async () => {
@@ -329,6 +343,25 @@ describe("finishing a recording", () => {
     expect(view["recordingDetailsOpen"]).toBe(true);
     expect(view.expandSheet).toHaveBeenCalledOnce();
     expect(view["persistFollowSession"]).toHaveBeenCalledWith(true);
+  });
+
+  it("does not save until the walker types a name", async () => {
+    const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    view["payload"] = {source: RouteFollowSource.RECORDING, title: "", description: ""} as RouteFollowPayload;
+    view["dateUtils"] = {
+      dateTimeNow: () => ({}),
+      displayDateAbbreviatedTime: () => "Thursday, 8 October 2026, 9:00 am"
+    } as unknown as typeof view["dateUtils"];
+    view["followService"] = {flushRecording: vi.fn().mockResolvedValue(true), trackPoints: () => points} as unknown as typeof view["followService"];
+    view["routeSave"] = {saveStandalone: vi.fn()} as unknown as typeof view["routeSave"];
+    view.expandSheet = vi.fn();
+    await view.saveRoute();
+    expect(view["persistError"]).toContain("Name this route");
+    expect(view["recordingDetailsOpen"]).toBe(true);
+    expect(view["payload"].title).toBe("");
+    expect(view["payload"].description).toBe(recordedTitle);
+    expect(view["routeSave"].saveStandalone).not.toHaveBeenCalled();
   });
 
   it("keeps recording active if background points cannot be read", async () => {
@@ -998,6 +1031,8 @@ describe("recording stop and save availability", () => {
     view["recordingDetailsOpen"] = true;
     expect(view.recordingActionDisabled).toBe(true);
     view["followService"].trackPoints = vi.fn().mockReturnValue([{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}]);
+    expect(view.recordingActionDisabled).toBe(true);
+    view["payload"] = {...view["payload"], title: "Hillside Park loop"};
     expect(view.recordingActionDisabled).toBe(false);
     view["savingRoute"] = true;
     expect(view.recordingActionDisabled).toBe(true);

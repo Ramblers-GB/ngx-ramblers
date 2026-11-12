@@ -997,7 +997,10 @@
   flex: 0 0 auto
 
 .follow-start-actions
-  grid-template-columns: minmax(0, 1fr)
+  grid-template-columns: repeat(2, minmax(0, 1fr))
+
+.follow-start-actions .follow-main-btn
+  grid-column: 1 / -1
 
 .follow-actions > .follow-actions-span
   grid-column: 1 / -1
