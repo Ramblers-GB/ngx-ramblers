@@ -1,5 +1,5 @@
 export function humanFileSize(size: number) {
-  if (!Number.isFinite(size)) {
+  if (!Number.isFinite(size) || size <= 0) {
     return "";
   } else if (size < 1024) {
     return size + " b";

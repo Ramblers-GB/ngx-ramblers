@@ -18,6 +18,7 @@ import { isOfficeContentType, isOfficeFileName, officeViewerEmbedUrl } from "../
 import { DraggableModalComponent } from "../draggable-modal/draggable-modal";
 import { ThumbnailHeadingFrameComponent } from "../thumbnail-heading-frame/thumbnail-heading-frame";
 import { stripTrailingSlash } from "../../../functions/strings";
+import { isVideoMeetingGuestUrl, withoutVideoMeetingGuestLines } from "../../../functions/video-meeting-join";
 
 @Component({
   selector: "app-attachment-preview",
@@ -60,19 +61,19 @@ import { stripTrailingSlash } from "../../../functions/strings";
                         </div>
                       }
                       @if (eventWhen(event); as when) {
-                        <div class="mb-1"><strong>When</strong> {{ when }}</div>
+                        <div class="mb-1"><strong>When:</strong> {{ when }}</div>
                       }
-                      @if (event.location) {
-                        <div class="mb-1"><strong>Where</strong> {{ event.location }}</div>
+                      @if (previewWhere(event); as where) {
+                        <div class="mb-1"><strong>Where:</strong> {{ where }}</div>
                       }
                       @if (event.organiser) {
-                        <div class="mb-1"><strong>Organiser</strong> {{ event.organiser }}</div>
+                        <div class="mb-1"><strong>Organiser:</strong> {{ event.organiser }}</div>
                       }
-                      @if (event.url) {
-                        <div class="mb-1"><strong>Link</strong> <a [href]="event.url" target="_blank" rel="noopener">{{ event.url }}</a></div>
+                      @if (previewLink(event); as href) {
+                        <div class="mb-1"><strong>Link:</strong> <a [href]="href" target="_blank" rel="noopener">{{ href }}</a></div>
                       }
-                      @if (event.description) {
-                        <p class="mb-0 mt-2 attachment-preview-ics-description">{{ event.description }}</p>
+                      @if (previewDescription(event); as description) {
+                        <p class="mb-0 mt-2 attachment-preview-ics-description">{{ description }}</p>
                       }
                       <div class="d-flex flex-wrap gap-2 mt-3">
                         @for (app of calendarApps; track app) {
@@ -317,6 +318,18 @@ export class AttachmentPreviewComponent {
     } else {
       return this.dateUtils.asString(event.startsAt, undefined, UIDateFormat.DISPLAY_DATE_AT_TIME);
     }
+  }
+
+  previewWhere(event: CalendarPreviewEvent): string | null {
+    return isVideoMeetingGuestUrl(event.location) ? null : (event.location || null);
+  }
+
+  previewLink(event: CalendarPreviewEvent): string | null {
+    return isVideoMeetingGuestUrl(event.url) ? null : (event.url || null);
+  }
+
+  previewDescription(event: CalendarPreviewEvent): string {
+    return withoutVideoMeetingGuestLines(event.description);
   }
 
   private async loadTextPreview(attachment: AttachmentPreview): Promise<void> {

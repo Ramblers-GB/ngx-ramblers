@@ -17,7 +17,7 @@ export class InboxLayoutService implements OnDestroy {
             window.localStorage.setItem(InboxLayoutService.NAV_KEY, this.navCollapsed ? "collapsed" : "expanded");
         }
     }
-    public stackedLayout = false;
+    public stackedLayout = true;
     public mobile = false;
     public mobileShowDetail = false;
     public mobileFiltersOpen = false;
@@ -31,7 +31,7 @@ export class InboxLayoutService implements OnDestroy {
     private static readonly NAV_SIZE_KEY = "inbox-nav-size";
     private static readonly GROUPING_KEY = "inbox-grouping-mode";
     private static readonly DENSITY_KEY = "inbox-list-density";
-    public compactList = false;
+    public compactList = true;
     public columnShare = { from: 1.6, to: 1.6, location: 1.2, subject: 1.8, date: 1.1 };
     public groupingMode: InboxGroupingMode = InboxGroupingMode.CONVERSATIONS;
     public mobileNavOpen = false;
@@ -164,13 +164,13 @@ export class InboxLayoutService implements OnDestroy {
         if (isUndefined(window)) {
         }
         else {
-            this.stackedLayout = window.localStorage.getItem(InboxLayoutService.LAYOUT_KEY) === "stacked";
+            this.stackedLayout = window.localStorage.getItem(InboxLayoutService.LAYOUT_KEY) !== "side-by-side";
             this.listRatio = null;
             this.listSize = this.storedListSize() ?? this.defaultListSize();
             this.navCollapsed = window.localStorage.getItem(InboxLayoutService.NAV_KEY) === "collapsed";
             const storedGrouping = window.localStorage.getItem(InboxLayoutService.GROUPING_KEY);
             this.groupingMode = values(InboxGroupingMode).includes(storedGrouping as InboxGroupingMode) ? storedGrouping as InboxGroupingMode : InboxGroupingMode.CONVERSATIONS;
-            this.compactList = window.localStorage.getItem(InboxLayoutService.DENSITY_KEY) === "compact";
+            this.compactList = window.localStorage.getItem(InboxLayoutService.DENSITY_KEY) !== "comfortable";
             const storedColumns = window.localStorage.getItem("inbox-column-share-v2");
             if (storedColumns) {
                 try {
