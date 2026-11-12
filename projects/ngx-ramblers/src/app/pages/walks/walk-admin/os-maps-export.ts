@@ -462,6 +462,11 @@ import { MapsLibraryComponent } from "../../app/maps-library";
                   </div>
                 }
             </div>
+          } @else if (listingLoading) {
+            <div class="text-muted p-3 d-flex align-items-center gap-2" role="status" aria-live="polite">
+              <fa-icon [icon]="faSpinner" animation="spin"/>
+              Loading saved routes…
+            </div>
           }
           @if (showJobProgress || converting || loading || startingJob) {
             <div class="mt-3">
