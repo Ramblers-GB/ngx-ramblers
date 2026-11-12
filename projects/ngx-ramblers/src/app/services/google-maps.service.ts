@@ -7,6 +7,7 @@ import { firstValueFrom, Observable, ReplaySubject } from "rxjs";
 import { shareReplay, timeout } from "rxjs/operators";
 import { LatLngLiteral } from "leaflet";
 import { DrivingDistanceResponse, GoogleMapsConfig } from "../models/walk.model";
+import { googleMapsSearchUrl } from "../functions/locate";
 import { CommonDataService } from "./common-data-service";
 import { Logger, LoggerFactory } from "./logger-factory.service";
 
@@ -40,7 +41,7 @@ export class GoogleMapsService {
   }
 
   public urlForPostcode(postcode: string) {
-    return `https://maps.google.co.uk/maps?q=${encodeURIComponent(postcode || "")}`;
+    return googleMapsSearchUrl(postcode);
   }
 
   public directionsEmbedUrl(origin: string, destination: string): SafeResourceUrl | null {

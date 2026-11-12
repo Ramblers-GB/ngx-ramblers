@@ -2,6 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { BehaviorSubject, Observable } from "rxjs";
 import { inferVenueTypeFromName, StoredVenue, Venue, VenueWithUsageStats } from "../../models/event-venue.model";
+import { venueSearchLabel } from "../../functions/venue";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { AddressQueryService } from "../walks/address-query.service";
 import { DateUtilsService } from "../date-utils.service";
@@ -66,17 +67,7 @@ export class VenueService {
   }
 
   static buildNgSelectLabel(venue: { name?: string; address1?: string; postcode?: string }): string {
-    const seen = new Set<string>();
-    const parts: string[] = [];
-    for (const part of [venue.name, venue.address1, venue.postcode]) {
-      const trimmed = (part || "").trim();
-      const key = trimmed.toUpperCase();
-      if (trimmed && !seen.has(key)) {
-        seen.add(key);
-        parts.push(trimmed);
-      }
-    }
-    return parts.join(", ");
+    return venueSearchLabel(venue);
   }
 
   private async geocodeVenuesWithoutCoordinates(venues: VenueWithUsageStats[]): Promise<void> {

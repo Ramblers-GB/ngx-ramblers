@@ -119,3 +119,7 @@ export function googleMapsPlaceUrl(latitude: number, longitude: number): string 
   const destination = googleMapsDestination(latitude, longitude);
   return destination ? `https://www.google.com/maps/search/?api=1&query=${destination}` : null;
 }
+
+export function googleMapsSearchUrl(query: string): string {
+  return query ? `https://maps.google.co.uk/maps?q=${encodeURIComponent(query)}` : "";
+}

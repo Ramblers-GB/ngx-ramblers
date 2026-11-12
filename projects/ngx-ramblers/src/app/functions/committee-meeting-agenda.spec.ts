@@ -20,6 +20,10 @@ describe("committeeMeetingLocationLine", () => {
     expect(committeeMeetingLocationLine(CommitteeMeetingFormat.ONLINE, "")).toEqual("Online");
     expect(committeeMeetingLocationLine(CommitteeMeetingFormat.HYBRID, "Village Hall")).toEqual("Online, and in person at Village Hall");
     expect(committeeMeetingLocationLine(CommitteeMeetingFormat.IN_PERSON, "Village Hall")).toEqual("Village Hall");
+    expect(committeeMeetingLocationLine(
+      CommitteeMeetingFormat.HYBRID,
+      "[Village Hall, CT1 2AB](https://maps.google.co.uk/maps?q=CT1%202AB)"
+    )).toEqual("Online, and in person at [Village Hall, CT1 2AB](https://maps.google.co.uk/maps?q=CT1%202AB)");
   });
 
 });
@@ -123,7 +127,7 @@ describe("committeeMeetingAgendaMarkdown", () => {
       "",
       "**Location:** Online",
       "",
-      "**Meeting link:** [http://localhost:4200/video-meetings/guest/ngx-room](http://localhost:4200/video-meetings/guest/ngx-room)",
+      "**Meeting link:** [this link](http://localhost:4200/video-meetings/guest/ngx-room)",
       "",
       "1. Apologies for absence",
       "2. Minutes of the previous meeting",

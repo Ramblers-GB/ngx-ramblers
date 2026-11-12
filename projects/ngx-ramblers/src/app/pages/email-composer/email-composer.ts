@@ -314,6 +314,7 @@ import { CampaignOverflowNotice, NGX_BREVO_CAMPAIGN_TAG } from "../../models/bre
 import { ScheduledTaskId } from "../../models/scheduled-task.model";
 import { ScheduledTaskService } from "../../services/scheduled-task.service";
 import { stripTrailingSlash } from "../../functions/strings";
+import { personaliseGuestMeetingLinksInHtml } from "../../functions/video-meeting-invite";
 import { joinNotificationSubject } from "../../functions/notification-subject";
 import { StickyControlsDirective } from "../../modules/common/tiptap-editor/sticky-controls.directive";
 
@@ -880,7 +881,6 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                     <button type="button" class="btn btn-primary composer-workspace-action-wide" (click)="continueToNextConfig()"><fa-icon [icon]="faArrowRight"/> Continue to "{{ nextConfigAfterSend.subject?.text }}"</button>
                   }
                   <button type="button" class="btn btn-primary" (click)="newComposition()"><fa-icon [icon]="faFile"/> Start a new email</button>
-                  <button type="button" class="btn btn-quiet" (click)="closeAfterSend()"><fa-icon [icon]="faXmark"/> Close</button>
                 } @else {
                   <button type="button" class="btn btn-primary" (click)="goPrev()" [disabled]="sendInProgress"><fa-icon [icon]="faArrowLeft"/> Back</button>
                 }
@@ -3667,7 +3667,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   exitComposer(): void {
-    if (!(!this.confirmLeaveComposer("Exit composer"))) {
+    if (this.sendComplete() || this.confirmLeaveComposer("Exit composer")) {
       this.leaveComposer();
     }
   }
@@ -3699,20 +3699,18 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
 
   private leaveComposer(): void {
     const previous = [...this.routerHistory.pageHistory].reverse().find(url => !this.composerLocation(url));
+    const path = this.router.url.split("?")[0].replace(/\/$/, "");
+    const inboxReply = !!this.route.snapshot.queryParamMap.get(StoredValue.THREAD)
+      && path === "/" + AdminPath.EMAIL_COMPOSER;
+    const parent = this.composerParentPath(this.router.url);
     if (previous) {
       void this.router.navigateByUrl(previous);
+    } else if (inboxReply) {
+      this.navigateToInbox();
+    } else if (parent) {
+      void this.router.navigateByUrl(parent);
     } else {
-      const path = this.router.url.split("?")[0].replace(/\/$/, "");
-      const inboxReply = !!this.route.snapshot.queryParamMap.get(StoredValue.THREAD)
-        && path === "/" + AdminPath.EMAIL_COMPOSER;
-      const parent = this.composerParentPath(this.router.url);
-      if (inboxReply) {
-        this.navigateToInbox();
-      } else if (parent) {
-        void this.router.navigateByUrl(parent);
-      } else {
-        void this.router.navigate(["/" + AdminPath.ADMIN]);
-      }
+      void this.router.navigate(["/" + AdminPath.ADMIN]);
     }
   }
 
@@ -3988,7 +3986,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   confirmNavigationAway(): boolean {
-    if (this.sendInProgress) {
+    if (this.sendInProgress || this.sendComplete()) {
       return true;
     } else {
       return this.confirmLeaveComposer("navigate away");
@@ -4615,7 +4613,11 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     const salutationHtml = this.salutationHtml();
     const top = salutationHtml ? `${salutationHtml}\n${renderedTop}` : renderedTop;
     const combined = salutationHtml ? `${salutationHtml}\n${renderedCombined}` : renderedCombined;
-    return {top, bottom, combined};
+    return {
+      top: personaliseGuestMeetingLinksInHtml(top),
+      bottom: personaliseGuestMeetingLinksInHtml(bottom),
+      combined: personaliseGuestMeetingLinksInHtml(combined)
+    };
   }
 
   private salutationHtml(): string {
@@ -5142,10 +5144,5 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   sendComplete(): boolean {
     return this.campaignSendComplete || this.batchSendComplete();
   }
-
-  closeAfterSend(): void {
-    this.leaveComposer();
-  }
-
 
 }

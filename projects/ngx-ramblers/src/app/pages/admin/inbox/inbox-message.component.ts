@@ -76,7 +76,9 @@ import {InboxCalendarInviteComponent} from "./inbox-calendar-invite";
                             <button dropdownToggle type="button" class="inbox-attachment dropdown-toggle">
                               <fa-icon [icon]="faPaperclip"/>
                               <span class="inbox-attachment-name">{{ attachment.filename }}</span>
-                              <span class="text-muted">{{ numberUtils.humanFileSize(attachment.sizeBytes) }}</span>
+                              @if ((attachment.sizeBytes || 0) > 0) {
+                                <span class="text-muted">{{ numberUtils.humanFileSize(attachment.sizeBytes) }}</span>
+                              }
                             </button>
                             <ul *dropdownMenu class="dropdown-menu" role="menu">
                               <li role="menuitem">

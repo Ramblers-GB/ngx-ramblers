@@ -97,6 +97,20 @@ export function videoMeetingDateSlug(displayDate: string): string {
 
 export const GUEST_MEETING_TOKEN_PARAM = "t";
 export const GUEST_MEETING_NAME_PARAM = "name";
+export const MEETING_JOIN_LINK_LABEL = "this link";
+
+export function isVideoMeetingGuestUrl(value: string | null | undefined): boolean {
+  return /\/video-meetings\/guest\//i.test(value || "");
+}
+
+export function withoutVideoMeetingGuestLines(text: string | null | undefined): string {
+  return (text || "")
+    .split(/\r?\n/)
+    .filter(line => !isVideoMeetingGuestUrl(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 export const GUEST_MEETING_EMAIL_PARAM = "email";
 const GUEST_IDENTITY_PARAMS = [GUEST_MEETING_TOKEN_PARAM, GUEST_MEETING_NAME_PARAM, GUEST_MEETING_EMAIL_PARAM];
 

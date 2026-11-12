@@ -18,7 +18,7 @@ import { dateTimeNow } from "../shared/dates";
 import committeeFile from "../mongo/models/committee-file";
 import { queryKey } from "../mongo/controllers/config";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
-import { CommitteeConfig, CommitteeFile, meetingHasVenue, meetingIsOnline } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
+import { CommitteeConfig, CommitteeFile, meetingHasVenue } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { committeeFileMeetingTitle } from "../../../projects/ngx-ramblers/src/app/functions/committee-meeting-agenda";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 
@@ -76,12 +76,8 @@ export async function meetingCalendarFile(committeeFileId: string, req: Request)
     const committeeConfigDoc = await queryKey(ConfigKey.COMMITTEE);
     const fallbackOrganiser = committeeSecretaryEmail(committeeConfigDoc?.value as CommitteeConfig || null);
     const host = baseUrl.replace(/^https?:\/\//, "") || "ngx-ramblers";
-    const room = meetingFile.meeting.room;
-    const joinLink = meetingIsOnline(meetingFile.meeting.format) && room
-      ? `${baseUrl}/video-meetings/guest/${encodeURIComponent(room)}`
-      : null;
     const venue = meetingHasVenue(meetingFile.meeting.format) ? meetingFile.meeting.location : null;
-    const descriptionLines = [joinLink ? `Join the meeting: ${joinLink}` : null, venue ? `Location: ${venue}` : null].filter(Boolean);
+    const descriptionLines = [venue ? `Location: ${venue}` : null].filter(Boolean);
     const attendees = (meetingFile.meeting.invitedRecipients || [])
       .filter(recipient => !!recipient?.email)
       .map(recipient => ({email: recipient.email, name: recipient.name}));
@@ -91,8 +87,7 @@ export async function meetingCalendarFile(committeeFileId: string, req: Request)
       startTime: meetingFile.eventDate,
       durationMinutes: meetingFile.meeting.durationMinutes,
       description: descriptionLines.join("\n") || undefined,
-      location: joinLink || venue || undefined,
-      url: joinLink || undefined,
+      location: venue || undefined,
       organiserName: meetingFile.meeting.organiserName || fallbackOrganiser.name,
       organiserEmail: meetingFile.meeting.organiserEmail || fallbackOrganiser.email,
       attendees

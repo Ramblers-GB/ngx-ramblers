@@ -20,8 +20,10 @@ import {
   shouldPromptForGuestName,
   usableMeetingDisplayName,
   occupantIdentityKey,
+  isVideoMeetingGuestUrl,
   suggestedVideoMeetingTitle,
   tokenUserFromJwt,
+  withoutVideoMeetingGuestLines,
   videoMeetingTitleFromRoom,
   videoMeetingDisplayName,
   videoMeetingPeople,
@@ -451,6 +453,21 @@ describe("applyJitsiIframeAllow", () => {
     applyJitsiIframeAllow(iframe);
     expect(attributes.allow).toEqual(JITSI_IFRAME_ALLOW);
     expect(attributes.allowfullscreen).toEqual("true");
+  });
+
+});
+
+describe("video meeting guest URLs", () => {
+
+  it("recognises a guest join path so calendar previews can hide the truncated address", () => {
+    expect(isVideoMeetingGuestUrl("https://group.example.org.uk/video-meetings/guest/agm-room")).toBe(true);
+    expect(isVideoMeetingGuestUrl("Village Hall, High Street")).toBe(false);
+  });
+
+  it("drops description lines that only repeat that guest path", () => {
+    expect(withoutVideoMeetingGuestLines(
+      "Join the meeting: https://group.example.org.uk/video-meetings/guest/agm-room\nLocation: Village Hall"
+    )).toEqual("Location: Village Hall");
   });
 
 });

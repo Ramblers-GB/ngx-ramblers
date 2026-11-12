@@ -3,15 +3,18 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import { first, last } from "es-toolkit/compat";
-import { faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faCaretDown, faFileImport, faPrint, faEye } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faCaretDown, faFileImport, faPrint, faEye, faCalendarDays } from "@fortawesome/free-solid-svg-icons";
 import { BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective } from "ngx-bootstrap/dropdown";
 import { AuthService } from "../../../auth/auth.service";
-import { CommitteeDocumentEditMode, CommitteeFile } from "../../../models/committee.model";
+import { CommitteeDocumentEditMode, CommitteeFile, CommitteeFileEmailAction } from "../../../models/committee.model";
+import { ButtonDropdownComponent } from "../button-dropdown/button-dropdown";
+import { ButtonDropdownItem } from "../../../models/button-dropdown.model";
 import { NamedEventType } from "../../../models/broadcast.model";
 import { CommitteeDocumentsData, PageContent, PageContentRow, PathSegment } from "../../../models/content-text.model";
 import { SortDirection } from "../../../models/sort.model";
 import { FALLBACK_MEDIA } from "../../../models/walk.model";
 import { ConfirmType, StoredValue } from "../../../models/ui-actions.model";
+import { AdminPath } from "../../../models/admin-route-paths.model";
 import { AlertTarget } from "../../../models/alert-target.model";
 import { CommitteeFileService } from "../../../services/committee/committee-file.service";
 import { DocumentConversionService } from "../../../services/committee/document-conversion.service";
@@ -142,9 +145,17 @@ import { UIDateFormat } from "../../../models/date-format.model";
                             <li class="d-sm-none">
                               <a class="dropdown-item" role="button"
                                  (click)="sendNotification(committeeFile)">
-                                <fa-icon [icon]="faEnvelope" class="fa-icon me-2"/>Send Email
+                                <fa-icon [icon]="faEnvelope" class="fa-icon me-2"/>{{ canSendMeetingInvite(committeeFile) ? "Write an email" : "Send Email" }}
                               </a>
                             </li>
+                            @if (canSendMeetingInvite(committeeFile)) {
+                              <li class="d-sm-none">
+                                <a class="dropdown-item" role="button"
+                                   (click)="sendMeetingInvite(committeeFile)">
+                                  <fa-icon [icon]="faCalendarDays" class="fa-icon me-2"/>Send a meeting invite
+                                </a>
+                              </li>
+                            }
                           }
                           @if (display.allowDeleteCommitteeFile(committeeFile)) {
                             <li class="d-sm-none">
@@ -188,9 +199,16 @@ import { UIDateFormat } from "../../../models/date-format.model";
                             <fa-icon [icon]="faEdit" class="me-1"></fa-icon>Edit
                           </button>
                         }
-                        @if (display.allowEditCommitteeFile(committeeFile)) {
+                        @if (display.allowEditCommitteeFile(committeeFile) && canSendMeetingInvite(committeeFile)) {
+                          <app-button-dropdown compact
+                                               label="Send Email"
+                                               [icon]="faEnvelope"
+                                               buttonClass="btn btn-primary btn-sm"
+                                               [items]="sendEmailItems(committeeFile)"
+                                               (itemSelect)="onSendEmailAction($event, committeeFile)"/>
+                        } @else if (display.allowEditCommitteeFile(committeeFile)) {
                           <button (click)="sendNotification(committeeFile)"
-                                  class="btn btn-warning btn-sm">
+                                  class="btn btn-primary btn-sm">
                             <fa-icon [icon]="faEnvelope" class="me-1"></fa-icon>Send Email
                           </button>
                         }
@@ -222,7 +240,7 @@ import { UIDateFormat } from "../../../models/date-format.model";
       </div>
     </div>`,
   styleUrls: ["./committee-documents-row.sass"],
-  imports: [CommitteeFileEditor, FontAwesomeModule, BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective]
+  imports: [CommitteeFileEditor, FontAwesomeModule, BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective, ButtonDropdownComponent]
 })
 export class CommitteeDocumentsRow implements OnInit, OnDestroy {
 
@@ -238,6 +256,8 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
   faCaretDown = faCaretDown;
   faFileImport = faFileImport;
   faPrint = faPrint;
+  faCalendarDays = faCalendarDays;
+  protected readonly CommitteeFileEmailAction = CommitteeFileEmailAction;
   memberLoginService = inject(MemberLoginService);
   display = inject(CommitteeDisplayService);
   private authService = inject(AuthService);
@@ -614,6 +634,51 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
     this.urlService.navigateTo([...this.urlService.pathSegments(), PathSegment.EMAIL_COMPOSER], {
       [StoredValue.COMMITTEE_FILE]: slug,
       [StoredValue.SOURCE_PAGE]: this.urlService.urlPath()
+    });
+  }
+
+  canSendMeetingInvite(committeeFile: CommitteeFile): boolean {
+    return !!(committeeFile?.id && committeeFile?.eventDate && committeeFile?.meeting);
+  }
+
+  sendEmailItems(committeeFile: CommitteeFile): ButtonDropdownItem[] {
+    const date = this.dateUtils.yearMonthDayWithDashes(committeeFile.eventDate);
+    return [
+      {
+        id: CommitteeFileEmailAction.WRITE_EMAIL,
+        label: "Write an email",
+        icon: faEnvelope
+      },
+      {
+        id: CommitteeFileEmailAction.MEETING_INVITE,
+        label: "Send a meeting invite",
+        icon: faCalendarDays,
+        routerLink: "/" + AdminPath.MEETING_PLAN,
+        queryParams: {
+          [StoredValue.PLAN_DATE]: date,
+          [StoredValue.CALENDAR_DATE]: date,
+          [StoredValue.MEETING_TYPE]: this.display.fileTitle(committeeFile),
+          [StoredValue.COMMITTEE_FILE_ID]: committeeFile.id
+        }
+      }
+    ];
+  }
+
+  onSendEmailAction(action: string, committeeFile: CommitteeFile): void {
+    if (action === CommitteeFileEmailAction.WRITE_EMAIL) {
+      this.sendNotification(committeeFile);
+    }
+  }
+
+  sendMeetingInvite(committeeFile: CommitteeFile) {
+    const date = this.dateUtils.yearMonthDayWithDashes(committeeFile.eventDate);
+    this.router.navigate(["/" + AdminPath.MEETING_PLAN], {
+      queryParams: {
+        [StoredValue.PLAN_DATE]: date,
+        [StoredValue.CALENDAR_DATE]: date,
+        [StoredValue.MEETING_TYPE]: this.display.fileTitle(committeeFile),
+        [StoredValue.COMMITTEE_FILE_ID]: committeeFile.id
+      }
     });
   }
 

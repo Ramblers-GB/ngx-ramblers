@@ -88,6 +88,13 @@ export enum VideoMeetingPlanAction {
   DELETE = "delete"
 }
 
+export enum MeetingInviteSection {
+  ALL = "all",
+  DETAILS = "details",
+  PEOPLE = "people",
+  REPLIES = "replies"
+}
+
 export enum JitsiJoinMode {
   EMBED = "embed",
   HOST_PAGE = "host-page"

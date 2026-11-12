@@ -8,6 +8,7 @@ import { UIDateFormat } from "../models/date-format.model";
 import { ExtendedGroupEvent } from "../models/group-event.model";
 import { RamblersEventType, WalkStatus } from "../models/ramblers-walks-manager.model";
 import { escapeHtml, stripTrailingSlash } from "./strings";
+import { isVideoMeetingGuestUrl } from "./video-meeting-join";
 
 import { OutlookCalendarPlatform } from "../models/walk-programme.model";
 import { SectionToggleTab } from "../models/section-toggle.model";
@@ -245,7 +246,7 @@ function calendarBodyParts(event: CalendarPreviewEvent): {description: string; o
   const organiserLine = organiser && !description.toLowerCase().includes(organiser.toLowerCase())
     ? `${event.organiserLabel}: ${organiser}`
     : "";
-  const url = event.url && !description.includes(event.url) ? event.url : "";
+  const url = event.url && !description.includes(event.url) && !isVideoMeetingGuestUrl(event.url) ? event.url : "";
   return {description, organiser: organiserLine, url};
 }
 

@@ -2,7 +2,7 @@ import { ComposerExternalRecipient } from "../models/email-composer.model";
 import { CommitteeMember } from "../models/committee.model";
 import { Member } from "../models/member.model";
 import { committeeAssignedEmailsForMemberId, memberHoldsCommitteeRole } from "./committee-members";
-import { GUEST_MEETING_EMAIL_PARAM, GUEST_MEETING_NAME_PARAM } from "./video-meeting-join";
+import { GUEST_MEETING_EMAIL_PARAM, GUEST_MEETING_NAME_PARAM, MEETING_JOIN_LINK_LABEL } from "./video-meeting-join";
 import { escapeHtml, normaliseEmail } from "./strings";
 
 const INVITEE_NAME_MERGE_FIELD = "{{params.memberMergeFields.FULL_NAME}}";
@@ -66,6 +66,31 @@ export function personaliseJoinLinkHtml(html: string, joinUrl: string): string {
   }
 }
 
+export function personaliseGuestMeetingLinksInHtml(html: string): string {
+  const source = html || "";
+  if (!source) {
+    return source;
+  } else {
+    return source.replace(/href="([^"]*\/video-meetings\/guest\/[^"]*)"/g, (match, href) => {
+      if (href.includes(INVITEE_NAME_MERGE_FIELD)) {
+        return match;
+      } else {
+        return `href="${escapeHtml(personalisedGuestJoinUrl(href))}"`;
+      }
+    });
+  }
+}
+
+export function meetingInviteKindPhrase(kind: string): string {
+  const trimmed = (kind || "").trim() || "committee meeting";
+  if (/^[A-Z]{2,}$/.test(trimmed)) {
+    return `the ${trimmed}`;
+  } else {
+    const article = /^[aeiou]/i.test(trimmed) ? "an" : "a";
+    return `${article} ${trimmed}`;
+  }
+}
+
 export function meetingInviteBodyMarkdown(input: {
   dateLabel: string;
   timeLabel: string;
@@ -74,22 +99,34 @@ export function meetingInviteBodyMarkdown(input: {
   note: string;
   guestInstructions: string;
   signoff: string;
+  agendaItems?: string;
+  meetingKind?: string;
 }): string {
   const note = (input.note || "").trim();
-  const whereLines = [
-    input.joinUrl ? `**Join:** [${input.joinUrl}](${input.joinUrl})` : "",
-    input.location ? `**Where:** ${input.location}` : ""
-  ].filter(Boolean).join("\n\n");
-  const guidance = input.joinUrl
-    ? `Open the link above to join the meeting. ${input.guestInstructions}`
-    : "We look forward to seeing you there.";
+  const agenda = (input.agendaItems || "").trim();
   const signoff = (input.signoff || "").trim();
+  const guidance = input.joinUrl
+    ? (input.guestInstructions || "").trim()
+    : "We look forward to seeing you there.";
   return [
-    "You are invited to a committee meeting.",
+    meetingInviteOpening(input),
     note,
-    `**When:** ${input.dateLabel} at ${input.timeLabel}`,
-    whereLines,
+    agenda,
     guidance,
     signoff
   ].filter(Boolean).join("\n\n");
+}
+
+function meetingInviteOpening(input: {
+  dateLabel: string;
+  timeLabel: string;
+  joinUrl: string;
+  location: string;
+  meetingKind?: string;
+}): string {
+  const when = `You are invited to ${meetingInviteKindPhrase(input.meetingKind)} on ${input.dateLabel} at ${input.timeLabel}.`;
+  const place = (input.location || "").trim();
+  const atVenue = place && !/^online$/i.test(place) ? ` We are meeting at ${place}.` : "";
+  const join = input.joinUrl ? ` Please join using [${MEETING_JOIN_LINK_LABEL}](${input.joinUrl}).` : "";
+  return `## ${when}${atVenue}${join}`;
 }

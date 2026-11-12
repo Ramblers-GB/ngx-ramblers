@@ -34,7 +34,9 @@ import {storedZipFile} from "../../functions/zip-store";
                     (click)="attachmentPreview.open({filename: attachment.name, url: attachment.url, contentType: attachmentContentType(attachment.name)})">
               <fa-icon [icon]="faPaperclip" class="composer-attachment-icon"/>
               <span class="composer-attachment-name">{{ attachment.name }}</span>
-              <span class="composer-attachment-size text-muted">{{ numberUtils.humanFileSize(attachment.sizeBytes) }}</span>
+              @if ((attachment.sizeBytes || 0) > 0) {
+                <span class="composer-attachment-size text-muted">{{ numberUtils.humanFileSize(attachment.sizeBytes) }}</span>
+              }
             </button>
             <button type="button" class="composer-attachment-remove" tooltip="Remove attachment" container="body" (click)="removeAttachment(index)">
               <fa-icon [icon]="faXmark"/>

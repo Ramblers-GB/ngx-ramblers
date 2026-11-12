@@ -1,9 +1,15 @@
+import { Injector, runInInjectionContext } from "@angular/core";
 import { describe, expect, it, vi } from "vitest";
 import { faFolderOpen, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
 import { ButtonDropdownComponent } from "./button-dropdown";
 import { ButtonDropdownItem } from "../../../models/button-dropdown.model";
 
 describe("app-button-dropdown", () => {
+  it("hangs the menu from the trailing edge of the button without a per-screen override", () => {
+    const instance = runInInjectionContext(Injector.create({providers: []}), () => new ButtonDropdownComponent());
+    expect(instance["menuEnd"]).toBe(true);
+  });
+
   it("emits the chosen item id", () => {
     const instance: any = Object.create(ButtonDropdownComponent.prototype);
     instance.disabled = false;

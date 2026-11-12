@@ -138,11 +138,24 @@ describe("meetingIcalDocument", () => {
     expect(ics).not.toContain("ATTENDEE");
   });
 
-  it("includes the join link and a UTC start and end time", () => {
-    const ics = meetingIcalDocument({uid: "u", title: "Call", startTime: START, url: JOIN}, "cal");
-    expect(ics).toContain(`URL:${JOIN}`);
+  it("writes a UTC start and end time without a join URL", () => {
+    const ics = meetingIcalDocument({uid: "u", title: "Call", startTime: START}, "cal");
+    expect(ics).not.toContain("URL:");
     expect(ics).toMatch(/DTSTART:\d{8}T\d{6}Z/);
     expect(ics).toMatch(/DTEND:\d{8}T\d{6}Z/);
+  });
+
+  it("omits a guest join URL even when one is supplied", () => {
+    const ics = meetingIcalDocument({
+      uid: "u",
+      title: "AGM",
+      startTime: START,
+      url: JOIN,
+      location: JOIN,
+      description: `Join\n${JOIN}`
+    }, "cal");
+    expect(ics).not.toContain("URL:");
+    expect(ics).not.toContain("video-meetings/guest");
   });
 
   it("writes British Summer Time as UTC so calendar apps show the London clock time", () => {

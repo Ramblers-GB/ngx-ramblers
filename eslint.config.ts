@@ -83,6 +83,56 @@ const ngxConventions = {
         return {Program: reportNativeDateInputs};
       },
     },
+    "no-hand-rolled-dropdown": {
+      meta: {
+        type: "problem" as const,
+        docs: {
+          description: "Disallow ngx-bootstrap dropdownToggle outside the shared dropdown components. Use app-button-dropdown."
+        },
+        messages: {
+          banned: "Hand-rolled dropdownToggle is banned. Use app-button-dropdown (or an existing shared dropdown component). ({{digest}})"
+        },
+        schema: [
+          {
+            type: "object",
+            properties: {
+              baselinePath: {type: "string"},
+              ignoreBaseline: {type: "boolean"}
+            },
+            additionalProperties: false
+          }
+        ],
+      },
+      create(context: any) {
+        const options = context.options?.[0] || {};
+        const ignoreBaseline = options.ignoreBaseline === true;
+        const baselinePath = ignoreBaseline ? null : (options.baselinePath || ".eslint-baselines/no-hand-rolled-dropdown.json");
+        const baseline = lintBaselineSet(baselinePath);
+        const filename = context.filename || context.getFilename();
+        const relativePath = relative(process.cwd(), filename).split("\\").join("/");
+        const allowed = /\/(button-dropdown|actions-dropdown|image-actions-dropdown|contact-action-dropdown)\.ts$/.test(relativePath);
+        const sourceCode = context.sourceCode ?? context.getSourceCode();
+        return {
+          Program() {
+            if (allowed) {
+            } else {
+              const text: string = sourceCode.getText();
+              Array.from(text.matchAll(/\bdropdownToggle\b/g)).forEach(match => {
+                const digest = createHash("sha1").update(`dropdownToggle:${match.index}`).digest("hex").slice(0, 12);
+                const key = `${relativePath}:${digest}`;
+                if (!baseline.has(key)) {
+                  context.report({
+                    loc: sourceCode.getLocFromIndex(match.index || 0),
+                    messageId: "banned",
+                    data: {digest}
+                  });
+                }
+              });
+            }
+          }
+        };
+      },
+    },
     "no-early-return": {
       meta: {
         type: "problem" as const,
@@ -586,6 +636,7 @@ export default defineConfig([
     plugins: {ngx: ngxConventions},
     rules: {
       "ngx/no-native-date-input": "error",
+      "ngx/no-hand-rolled-dropdown": ["error", {baselinePath: ".eslint-baselines/no-hand-rolled-dropdown.json"}],
       "ngx/no-early-return": ["error", {baselinePath: ".eslint-baselines/no-early-return.json"}],
     },
   }

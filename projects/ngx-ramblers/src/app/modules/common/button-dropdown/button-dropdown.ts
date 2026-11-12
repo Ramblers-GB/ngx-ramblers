@@ -124,6 +124,10 @@ import { TOOLTIP_SHOW_DELAY_MS } from "../tooltip-config";
       padding-right: 0.75rem
       box-sizing: border-box
 
+    .btn-group > .dropdown-menu
+      right: 0
+      left: auto
+
     .btn-group > .dropdown-toggle-split
       flex: 0 0 var(--button-dropdown-caret-width, 1.75rem)
       width: var(--button-dropdown-caret-width, 1.75rem)
@@ -334,7 +338,7 @@ export class ButtonDropdownComponent {
   protected fullWidth = false;
   protected compact = false;
   protected insideClick = false;
-  protected menuEnd = false;
+  protected menuEnd = true;
   protected iconSpin = false;
   protected readonly ButtonDropdownItemType = ButtonDropdownItemType;
   protected readonly faCheck = faCheck;

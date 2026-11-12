@@ -30,6 +30,14 @@ describe("composer Exit destination", () => {
     expect(instance.router.navigateByUrl).toHaveBeenCalledWith("/admin/members/member-admin");
   });
 
+  it("returns to /admin from the top-level composer when there is no earlier page", () => {
+    const instance = composer({
+      router: {url: "/admin/email-composer", navigateByUrl: vi.fn(), navigate: vi.fn()}
+    });
+    instance.leaveComposer();
+    expect(instance.router.navigateByUrl).toHaveBeenCalledWith("/admin");
+  });
+
   it("returns to Inbox when this is a thread reply with no earlier page", () => {
     const instance = composer({
       router: {url: "/admin/email-composer?thread=abc", navigateByUrl: vi.fn(), navigate: vi.fn()},

@@ -1,0 +1,21 @@
+[
+  "projects/ngx-ramblers/src/app/carousel/edit/image-list-edit/image-list-edit.ts:589e9c4cfd64",
+  "projects/ngx-ramblers/src/app/modules/common/committee-documents/committee-documents-row.ts:c3cc4dd0413e",
+  "projects/ngx-ramblers/src/app/modules/common/dynamic-content/dynamic-content-view-map.ts:37e5c3102a11",
+  "projects/ngx-ramblers/src/app/modules/common/events/events-full.ts:b580173b9b4c",
+  "projects/ngx-ramblers/src/app/modules/common/third-parties/brevo-button.ts:7a217b786029",
+  "projects/ngx-ramblers/src/app/modules/common/tiptap-editor/content-text-editor.ts:f48964c49ba7",
+  "projects/ngx-ramblers/src/app/modules/common/tiptap-editor/content-text-editor.ts:ff90e8966392",
+  "projects/ngx-ramblers/src/app/pages/admin/estate-rebuild-capture/estate-rebuild-capture.component.ts:cb8da44ed958",
+  "projects/ngx-ramblers/src/app/pages/admin/inbox/inbox-message.component.ts:ad707c9e2531",
+  "projects/ngx-ramblers/src/app/pages/admin/inbox/inbox.component.ts:5e7edae9ba37",
+  "projects/ngx-ramblers/src/app/pages/admin/legacy-redirects/legacy-redirects.component.ts:7e88a25adf10",
+  "projects/ngx-ramblers/src/app/pages/admin/member-sync-notifications/member-sync-notifications.component.html:76f923d10f25",
+  "projects/ngx-ramblers/src/app/pages/admin/migration-health/migration-health.component.ts:f8ee5ab99a4c",
+  "projects/ngx-ramblers/src/app/pages/admin/send-emails/sender-replies-and-signoff.ts:0cfc7bf9428a",
+  "projects/ngx-ramblers/src/app/pages/admin/site-registrations/site-registrations.ts:999f2d3d36b6",
+  "projects/ngx-ramblers/src/app/pages/admin/system-settings/mail/email-body-editor.ts:08e18dabfe53",
+  "projects/ngx-ramblers/src/app/pages/banner/banner.component.ts:8cc4db175035",
+  "projects/ngx-ramblers/src/app/pages/video-meetings/video-meeting-plan.ts:a14eb01426db",
+  "projects/ngx-ramblers/src/app/pages/walks/walk-view/event-leader-phone-link.ts:53a1728536c3"
+]

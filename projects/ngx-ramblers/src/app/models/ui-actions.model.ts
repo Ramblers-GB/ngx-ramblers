@@ -185,6 +185,7 @@ export enum StoredValue {
   IMPORT_MODE = "import-mode",
   INBOX_FILTER = "inbox-filter",
   INCLUDE_SECRETS = "include-secrets",
+  INVITE_SECTION = "invite-section",
   LAT = "lat",
   LAYER = "layer",
   LEADERS = "leaders",

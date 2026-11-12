@@ -6,6 +6,7 @@ import { eventUrlFor } from "../shared/event-url";
 import { dateTimeFromIsoWithZone, dateTimeFromMillis, dateTimeNow, formatDateTime } from "../shared/dates";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 import { htmlToPlainText } from "../shared/string-utils";
+import { isVideoMeetingGuestUrl, withoutVideoMeetingGuestLines } from "../../../projects/ngx-ramblers/src/app/functions/video-meeting-join";
 
 const DEFAULT_EVENT_DURATION_HOURS = 3;
 const MAXIMUM_LINE_OCTETS = 75;
@@ -142,9 +143,8 @@ export function meetingIcalDocument(meeting: MeetingInvite, calendarName: string
     start ? `DTSTART:${start}` : null,
     end ? `DTEND:${end}` : null,
     `SUMMARY:${escapeIcalText(meeting.title)}`,
-    meeting.description ? `DESCRIPTION:${escapeIcalText(meeting.description)}` : null,
-    (meeting.location || meeting.url) ? `LOCATION:${escapeIcalText(meeting.location || meeting.url)}` : null,
-    meeting.url ? `URL:${escapeIcalText(meeting.url)}` : null,
+    withoutVideoMeetingGuestLines(meeting.description) ? `DESCRIPTION:${escapeIcalText(withoutVideoMeetingGuestLines(meeting.description))}` : null,
+    (meeting.location && !isVideoMeetingGuestUrl(meeting.location)) ? `LOCATION:${escapeIcalText(meeting.location)}` : null,
     organiser,
     ...attendeeLines,
     "STATUS:CONFIRMED",

@@ -8,6 +8,7 @@ import { NotificationConfig } from "./mail.model";
 import { Link } from "./page.model";
 import { Media } from "./ramblers-walks-manager.model";
 import { VideoMeetingInviteRecipient, VideoMeetingRsvp } from "./video-meeting.model";
+import { Venue } from "./event-venue.model";
 import { ProgrammeOverviewStatus, WalkProgrammeSummaryRow } from "./walk-programme.model";
 
 export interface GroupEventType {
@@ -65,6 +66,7 @@ export interface CommitteeFileMeeting {
   format: CommitteeMeetingFormat;
   room?: string;
   location?: string;
+  venue?: Venue;
   title?: string;
   inviteNote?: string;
   durationMinutes?: number;
@@ -138,6 +140,11 @@ export enum CommitteeFileKind {
 export enum CommitteeDocumentEditMode {
   EDIT = "edit",
   PREVIEW = "preview"
+}
+
+export enum CommitteeFileEmailAction {
+  MEETING_INVITE = "meeting-invite",
+  WRITE_EMAIL = "write-email"
 }
 
 export enum CommitteeMemberTab {

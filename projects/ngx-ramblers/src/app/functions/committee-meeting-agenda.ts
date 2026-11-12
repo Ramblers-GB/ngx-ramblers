@@ -1,4 +1,5 @@
 import { CommitteeFile, CommitteeMeetingFormat } from "../models/committee.model";
+import { MEETING_JOIN_LINK_LABEL } from "./video-meeting-join";
 
 export function committeeMeetingLocationLine(format: CommitteeMeetingFormat, venue: string): string {
   if (format === CommitteeMeetingFormat.ONLINE) {
@@ -65,7 +66,7 @@ export function committeeMeetingAgendaMarkdown(input: {
   joinUrl?: string;
   itemsMarkdown: string;
 }): string {
-  const meetingLink = input.joinUrl ? [`**Meeting link:** [${input.joinUrl}](${input.joinUrl})`, ""] : [];
+  const meetingLink = input.joinUrl ? [`**Meeting link:** [${MEETING_JOIN_LINK_LABEL}](${input.joinUrl})`, ""] : [];
   return [
     `# ${input.heading}`,
     "",
@@ -101,7 +102,7 @@ export function withCommitteeMeetingLocationLine(markdown: string, location: str
 
 export function withCommitteeMeetingLink(markdown: string, joinUrl: string): string {
   const source = markdown || "";
-  const linkLine = `**Meeting link:** [${joinUrl}](${joinUrl})`;
+  const linkLine = `**Meeting link:** [${MEETING_JOIN_LINK_LABEL}](${joinUrl})`;
   if (/\*\*Meeting link:\*\*.*/.test(source)) {
     return joinUrl
       ? source.replace(/\*\*Meeting link:\*\*.*/, linkLine)

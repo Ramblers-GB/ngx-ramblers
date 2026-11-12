@@ -48,7 +48,9 @@ expects code to be written. Claude Code picks it up automatically (via
 
 - Critical rules — never commit or push without being asked, no code comments,
   no AI attribution in commit messages, HTTP endpoints split into `*-routes.ts`
-  plus `*-controllers.ts`
+  plus `*-controllers.ts`, and **search before writing** (Critical Rule 6): reuse
+  `app-button-dropdown`, `app-sortable-table`, and the other house controls; do
+  not invent a second copy for this screen
 - ESLint-enforced bans that fail the build (`new Date()`, native `for` loops,
   `Object.keys`, inline Express handlers in route files, and others — each with
   the replacement to use)
