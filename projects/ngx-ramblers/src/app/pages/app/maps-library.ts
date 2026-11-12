@@ -904,8 +904,17 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    if (this.nativeSite.openSelectedGroup()) {
+    const openingGroup = this.nativeSite.openSelectedGroup();
+    if (openingGroup) {
       this.loading = true;
+      void openingGroup.catch(() => {
+        this.siteUrlDraft = this.nativeSite.origin() || "";
+        this.siteUrlEntry = true;
+        this.siteError = "Could not open your saved group website. Try again.";
+        this.choosingSite = true;
+        this.loading = false;
+        this.bindSiteKeyboard();
+      });
     } else if (this.nativeSite.needsChooser()) {
       this.choosingSite = true;
       this.loading = false;
@@ -970,7 +979,11 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
     if (!coldLaunch || !this.resumeActiveFollowSession()) {
       void this.load();
     }
-    void this.flushQueuedWebsiteSave();
+    this.subscriptions.push(this.routeSave.websiteSavesCompleted$.subscribe(() => {
+      this.activeSession = this.activeFollowSession();
+      void this.load();
+    }));
+    void this.routeSave.flushQueuedWebsiteSave();
     }
   }
 
@@ -1574,14 +1587,6 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
       const key = followCacheKey(route);
       return list.findIndex(item => followCacheKey(item) === key) === index;
     });
-  }
-
-  private async flushQueuedWebsiteSave(): Promise<void> {
-    const saved = await this.routeSave.flushQueuedWebsiteSave();
-    if (saved) {
-      this.activeSession = this.activeFollowSession();
-      void this.load();
-    }
   }
 
   private async load(): Promise<void> {

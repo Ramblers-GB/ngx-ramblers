@@ -1,5 +1,6 @@
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
+import { CustomDomainEntry } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import {
   cloudflareApi,
   CloudflareDnsConfig,
@@ -29,7 +30,7 @@ export function redirectRuleDescription(fromHost: string): string {
   return `${REDIRECT_RULE_PREFIX}: ${fromHost}`;
 }
 
-const RECOVERABLE_REDIRECT_STATUS_CODE = 302;
+export const RECOVERABLE_REDIRECT_STATUS_CODE = 307;
 
 function writableRule(rule: DynamicRedirectRule): DynamicRedirectRule {
   return {
@@ -58,14 +59,52 @@ function hostRedirectRule(fromHost: string, toHost: string, statusCode: number):
 }
 
 export async function getDynamicRedirectRules(config: CloudflareDnsConfig): Promise<DynamicRedirectRule[]> {
+  return (await dynamicRedirectRuleset(config, false))?.rules || [];
+}
+
+async function dynamicRedirectRuleset(config: CloudflareDnsConfig, failOnError: boolean): Promise<RulesetResult | null> {
   const url = cloudflareApi.zoneRulesetPhaseEntrypoint(config.zoneId, DYNAMIC_REDIRECT_PHASE);
   const response = await fetch(url, { headers: headers(config.apiToken) });
   const data: CloudflareResponse<RulesetResult> = await response.json();
-  if (!data.success) {
+  if (data.success) {
+    return data.result || null;
+  } else if (failOnError && response.status !== 404) {
+    throw new Error(`Could not read Cloudflare redirect rules in zone ${config.zoneId} (${response.status})`);
+  } else {
     debugLog("No dynamic redirect ruleset retrieved for zone %s: %o", config.zoneId, data.errors);
-    return [];
+    return null;
   }
-  return data.result?.rules || [];
+}
+
+export async function upgradeManagedHostRedirects(apiToken: string, domains: CustomDomainEntry[]): Promise<string[]> {
+  const zoneIds = new Set(domains.map(domain => domain.zoneId).filter(Boolean));
+  const updated: string[] = [];
+  for (const zoneId of zoneIds) {
+    const descriptions = new Set(domains.filter(domain => domain.zoneId === zoneId).flatMap(domain => {
+      const apex = domain.hostname.replace(/^www\./, "");
+      return [redirectRuleDescription(apex), redirectRuleDescription(`www.${apex}`)];
+    }));
+    const ruleset = await dynamicRedirectRuleset({apiToken, zoneId}, true);
+    const legacyRules = (ruleset?.rules || []).filter(rule => rule.id && rule.enabled !== false && rule.action === "redirect"
+      && descriptions.has(rule.description) && rule.action_parameters?.from_value?.status_code === 302);
+    for (const rule of legacyRules) {
+      const body = writableRule(rule);
+      body.action_parameters = {
+        from_value: {...body.action_parameters.from_value, status_code: RECOVERABLE_REDIRECT_STATUS_CODE}
+      };
+      const response = await fetch(cloudflareApi.zoneRulesetRule(zoneId, ruleset.id, rule.id), {
+        method: "PATCH",
+        headers: headers(apiToken),
+        body: JSON.stringify(body)
+      });
+      const data: CloudflareResponse<RulesetResult> = await response.json();
+      if (!data.success) {
+        throw new Error(`Could not update ${rule.description} in Cloudflare (${response.status})`);
+      }
+      updated.push(rule.description);
+    }
+  }
+  return updated;
 }
 
 async function putDynamicRedirectRules(config: CloudflareDnsConfig, rules: DynamicRedirectRule[]): Promise<void> {

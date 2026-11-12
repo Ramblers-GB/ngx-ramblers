@@ -39,6 +39,7 @@ import {
   faCloudArrowDown,
   faDownload,
   faCircle,
+  faCircleCheck,
   faCircleExclamation,
   faCompass,
   faCircleHalfStroke,
@@ -89,6 +90,7 @@ import {
   RouteFollowMode,
   RouteFollowSheetState,
   RouteFollowPayload,
+  RouteFollowPoint,
   RouteFollowProgress,
   RouteFollowReturnDirection,
   RouteFollowSession,
@@ -166,7 +168,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
 @Component({
   selector: "app-route-follow",
   template: `
-    <div class="follow-app">
+    <div class="follow-app" [class.is-wide]="followPanelWide">
       @if (error) {
         <div class="follow-status">
           <div class="follow-top-actions">
@@ -577,8 +579,20 @@ import { SystemConfigService } from "../../services/system/system-config.service
             </div>
           </div>
           </div>
-          <section #followSheet class="follow-sheet" [class.is-minimised]="sheetMinimised"
+          <section #followSheet class="follow-sheet" [class.is-minimised]="sheetMinimised && !pendingNetworkSave"
                    [class.is-editing]="progress?.mode === RouteFollowMode.EDITING">
+          @if (pendingNetworkSave) {
+            <div class="alert alert-success d-flex align-items-start gap-2 mt-3" role="status">
+              <fa-icon [icon]="faCircleCheck"/>
+              <div>
+                <strong class="d-block">Saved on this phone</strong>
+                <span>The app will upload your route when it can reach the website. You can leave this screen.</span>
+              </div>
+            </div>
+            <button class="btn btn-primary follow-main-btn" type="button" (click)="closeFollow()" [disabled]="savingRoute">
+              <fa-icon [icon]="faCircleCheck"/> Done
+            </button>
+          } @else {
           <button class="follow-sheet-handle" type="button"
                   (pointerdown)="onSheetHandlePointerDown($event)"
                   (pointermove)="onSheetPointerMove($event)"
@@ -604,7 +618,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
                     [attr.aria-expanded]="!sheetMinimised" aria-label="Recording controls">
               <fa-icon [icon]="faCircle" class="follow-recording-indicator"
                        [class.is-recording]="progress?.mode === RouteFollowMode.RECORDING"/>
-              <span aria-live="polite">{{ progress?.mode === RouteFollowMode.RECORDING ? "Recording. Walk as usual" : "Recording paused" }}</span>
+              <span aria-live="polite">{{ progress?.mode === RouteFollowMode.RECORDING ? "Recording" : "Recording paused" }}</span>
               <span>{{ remainingDistance }}</span>
             </button>
           }
@@ -635,7 +649,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
           </div>
           }
           @if (sheetMinimised && !followPanelWide && hasLine && payload?.source !== RouteFollowSource.RECORDING && !recordingSession) {
-            <div class="follow-recording-tray follow-peek-actions">
+            <div class="follow-recording-tray follow-peek-actions" [class.follow-start-actions]="progress?.mode === RouteFollowMode.IDLE">
               @if (progress?.mode === RouteFollowMode.EDITING) {
                 <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="onPeekCancelEdit($event)" [disabled]="savingRoute">
                   <fa-icon [icon]="faXmark"/>
@@ -746,9 +760,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
               </div>
             </div>
           }
-          @if (progress?.mode === RouteFollowMode.RECORDING) {
-            <p class="follow-library-note">Walk the route. It is recorded as you go. Pause when you need a break, then save when you finish.</p>
-          } @else if (!hasLine && !canEditRoute) {
+          @if (!recordingSession && !hasLine && !canEditRoute) {
             <p class="follow-library-note">Ramblers publish the start of this route. The route itself and the turn-by-turn stay on their site, so this screen will take you to the start.</p>
           }
           @if (loginPrompt) {
@@ -886,7 +898,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
               <div><strong class="d-block">Delete this route?</strong>This removes it from the group's Maps list and cannot be undone.</div>
             </div>
           }
-          <div class="follow-actions">
+          <div class="follow-actions" [class.follow-start-actions]="!followPanelWide && progress?.mode === RouteFollowMode.IDLE && !recordingSession && !plottingRoute()">
             @if (confirmingRecordingDiscard) {
               <button class="btn btn-primary follow-main-btn" type="button" (click)="confirmingRecordingDiscard = false">Back to recording</button>
               <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="confirmRecordingDiscard()">Confirm discard</button>
@@ -1027,6 +1039,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
             }
           </div>
           </div>
+          }
         </section>
         </div>
         }
@@ -1122,7 +1135,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected saveProgress = "";
   protected persistMessage = "";
   protected persistError: string | null = null;
-  private pendingNetworkSave = false;
+  protected pendingNetworkSave = false;
   private pendingSaveAsNew = false;
   protected distanceUnit = DistanceUnit.MILES;
   protected readonly distanceUnitTabs: SectionToggleTab[] = [
@@ -1187,6 +1200,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private sheetDrag = {active: false, pointerId: -1, startY: 0, lastY: 0, moved: false, target: null as HTMLElement | null};
   protected editTool = RouteFollowEditTool.PENCIL;
   protected readonly faCircle = faCircle;
+  protected readonly faCircleCheck = faCircleCheck;
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faCompass = faCompass;
   protected readonly faCircleHalfStroke = faCircleHalfStroke;
@@ -1295,6 +1309,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.routeSave.setFollowScreenOpen(true);
+    this.subscriptions.push(this.routeSave.websiteSaveRetry$.subscribe(() => this.retryPendingNetworkSave()));
     const storedDistanceUnit = this.uiActions.initialValueFor(StoredValue.DISTANCE_UNIT, DistanceUnit.MILES);
     this.distanceUnit = storedDistanceUnit === DistanceUnit.KILOMETRES ? DistanceUnit.KILOMETRES : DistanceUnit.MILES;
     this.followPanelWide = this.desktopFollowPanel();
@@ -1414,11 +1429,6 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     }
   }
 
-  @HostListener("window:online")
-  onNetworkRestored(): void {
-    this.retryPendingNetworkSave();
-  }
-
   @HostListener("document:freeze")
   onFreeze(): void {
     this.persistFollowSession(true);
@@ -1448,12 +1458,12 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   get remainingDistance(): string {
     if (this.progress?.mode === RouteFollowMode.EDITING) {
       return this.followService.formatDistance(this.followService.totalMetres(), this.distanceUnit, false);
+    } else if (this.recordingSession) {
+      return this.followService.formatDistance(this.followService.totalMetres(), DistanceUnit.MILES, true, 1);
     } else if (!this.hasLine && !this.progress?.position) {
       return "—";
     } else {
-      return this.followService.formatDistance(
-        this.recordingSession ? this.followService.totalMetres() : (this.progress?.remainingMetres ?? this.payload?.totalMetres ?? 0),
-        this.recordingSession ? DistanceUnit.FEET : DistanceUnit.METRES);
+      return this.followService.formatDistance(this.progress?.remainingMetres ?? this.payload?.totalMetres ?? 0);
     }
   }
 
@@ -2445,7 +2455,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       void this.router.navigate(["/app/route"], {queryParams: {[StoredValue.RECORD_ROUTE]: generateUid()}});
     } else {
       this.persistError = null;
-      this.persistMessage = "Walk as usual. Press Stop when you have finished.";
+      this.persistMessage = "";
       this.ensureRecordingTitle();
       this.lastRecordedPointCount = -1;
       this.draftPoints = this.followService.trackPoints().map(point => ({...point}));
@@ -2830,64 +2840,85 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       this.persistError = "Walk or plot at least two points first.";
     } else {
       this.ensureRecordingTitle();
+      const payload = this.payload;
       this.savingRoute = true;
       this.persistError = null;
       this.persistMessage = "Saving the route…";
+      if (asNew && !this.saveAsNewRecordingId) {
+        this.saveAsNewRecordingId = generateUid();
+      }
+      const saveAsNewRecordingId = this.saveAsNewRecordingId;
+      const save = {uploaded: false};
       try {
         if (this.recordingSession) {
           this.followService.pause();
           this.persistFollowSession(true);
         }
-        const standalone = asNew || this.payload.source === RouteFollowSource.RECORDING;
-        if (asNew) {
-          this.saveAsNewRecordingId = this.saveAsNewRecordingId || generateUid();
-          this.payload = await this.routeSave.saveAsNew(this.payload, recorded, this.saveAsNewRecordingId);
-          this.saveAsNewRecordingId = null;
-        } else if (standalone) {
-          this.payload = await this.routeSave.saveStandalone(this.payload, recorded);
+        const standalone = asNew || payload.source === RouteFollowSource.RECORDING;
+        if (!navigator.onLine) {
+          this.queueRouteSave(payload, recorded, asNew);
         } else {
-          const savedFile = await this.routeSave.save(this.payload, recorded);
-          this.payload = {...this.payload, points: recorded, gpxFile: savedFile,
-            createdDate: savedFile.createdDate, createdBy: savedFile.createdBy, createdByName: savedFile.createdByName,
-            updatedDate: savedFile.updatedDate, updatedBy: savedFile.updatedBy, updatedByName: savedFile.updatedByName};
-        }
-        this.rememberSavedStyle(this.payload);
-        this.draftPoints = [];
-        this.editVertices = [];
-        this.clearEditHandles();
-        this.followService.stop();
-        this.clearFollowSession();
-        void this.releaseWakeLock();
-        this.refreshArrows();
-        this.redraw();
-        this.pendingNetworkSave = false;
-        this.pendingSaveAsNew = false;
-        this.saveAsNewRecordingId = null;
-        this.routeSave.clearQueuedWebsiteSave();
-        this.persistMessage = standalone ? "Route saved in Maps." : "Route saved. The walk and map pages will use this line.";
-        if (standalone) {
-          try {
-            await this.followCache.savePayload(this.payload);
-          } catch (error) {
-            this.logger.warn("Saved route could not be cached locally", error);
+          if (asNew) {
+            this.payload = await this.routeSave.saveAsNew(payload, recorded, saveAsNewRecordingId);
+          } else if (standalone) {
+            this.payload = await this.routeSave.saveStandalone(this.payload, recorded);
+          } else {
+            const savedFile = await this.routeSave.save(this.payload, recorded);
+            this.payload = {...this.payload, points: recorded, gpxFile: savedFile,
+              createdDate: savedFile.createdDate, createdBy: savedFile.createdBy, createdByName: savedFile.createdByName,
+              updatedDate: savedFile.updatedDate, updatedBy: savedFile.updatedBy, updatedByName: savedFile.updatedByName};
           }
-          if (this.payload.routeNumber) {
-            await this.router.navigate(followRouteCommands(this.payload.routeNumber, this.payload.title), {replaceUrl: true});
-          } else if (this.payload.osMapsRouteId) {
-            await this.router.navigate(["/app/route"], {queryParams: {[StoredValue.OS_MAPS_ROUTE_ID]: this.payload.osMapsRouteId}, replaceUrl: true});
+          save.uploaded = true;
+          this.recordingDetailsOpen = false;
+          this.pendingNetworkSave = false;
+          this.pendingSaveAsNew = false;
+          this.saveAsNewRecordingId = null;
+          this.routeSave.clearQueuedWebsiteSave(payload, recorded, asNew, saveAsNewRecordingId);
+          this.rememberSavedStyle(this.payload);
+          this.draftPoints = [];
+          this.editVertices = [];
+          this.clearEditHandles();
+          this.followService.stop();
+          this.clearFollowSession();
+          void this.releaseWakeLock();
+          this.refreshArrows();
+          this.redraw();
+          this.persistMessage = standalone ? "Route saved in Maps." : "Route saved. The walk and map pages will use this line.";
+          if (standalone) {
+            try {
+              await this.followCache.savePayload(this.payload);
+            } catch (error) {
+              this.logger.warn("Saved route could not be cached locally", error);
+            }
+            if (this.payload.routeNumber) {
+              await this.router.navigate(followRouteCommands(this.payload.routeNumber, this.payload.title), {replaceUrl: true});
+            } else if (this.payload.osMapsRouteId) {
+              await this.router.navigate(["/app/route"], {queryParams: {[StoredValue.OS_MAPS_ROUTE_ID]: this.payload.osMapsRouteId}, replaceUrl: true});
+            }
           }
+          void this.saveOffline();
         }
-        void this.saveOffline();
       } catch (error) {
         this.logger.error("saveRoute failed", error);
-        this.pendingNetworkSave = true;
-        this.pendingSaveAsNew = asNew;
-        this.persistFollowSession(true);
-        this.persistError = null;
-        this.persistMessage = "This walk is saved on your phone. It will be saved fully to the website when the network returns.";
-        this.routeSave.queueWebsiteSave(this.payload, recorded, asNew, this.saveAsNewRecordingId);
+        if (!save.uploaded) {
+          this.queueRouteSave(payload, recorded, asNew);
+        }
+      } finally {
+        this.savingRoute = false;
       }
-      this.savingRoute = false;
+    }
+  }
+
+  private queueRouteSave(payload: RouteFollowPayload, points: RouteFollowPoint[], asNew: boolean): void {
+    this.persistMessage = "";
+    if (this.routeSave.queueWebsiteSave(payload, points, asNew, this.saveAsNewRecordingId)) {
+      this.pendingNetworkSave = true;
+      this.pendingSaveAsNew = asNew;
+      this.recordingDetailsOpen = false;
+      this.sessionStorageError = null;
+      this.clearFollowSession();
+    } else {
+      this.persistError = "This phone could not queue your route. Keep this screen open and try saving again.";
     }
   }
 
@@ -3311,7 +3342,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   closeFollow(confirmed = false): void {
-    if (this.recordingSession && !confirmed) {
+    if (this.recordingSession && !confirmed && !this.pendingNetworkSave) {
       this.discardAndClose = true;
       this.confirmingRecordingDiscard = true;
       this.expandSheet();
@@ -3320,7 +3351,9 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
         this.closeStylePicker();
       }
       this.followService.stop();
-      this.clearFollowSession();
+      if (!this.pendingNetworkSave) {
+        this.clearFollowSession();
+      }
       this.routerHistory.forgetCurrentPage();
       void this.releaseWakeLock();
       const returnUrl = this.walkDisplay.takeFollowReturnUrl();
@@ -3352,7 +3385,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private persistFollowSession(force = false): void {
-    if (this.payload && this.progress && isLiveFollowMode(this.progress.mode)) {
+    if (!this.pendingNetworkSave && this.payload && this.progress && isLiveFollowMode(this.progress.mode)) {
       const recording = this.followService.recordingSession();
       const count = this.followService.trackPoints().length;
       const unchangedRecording = recording && !force && count === this.lastRecordedPointCount;
@@ -3467,12 +3500,12 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       if (session.progress) {
         this.followService.restoreProgress(session.progress);
       }
-      this.pendingNetworkSave = !!session.pendingNetworkSave;
-      this.pendingSaveAsNew = !!session.pendingSaveAsNew;
+      this.pendingNetworkSave = false;
+      this.pendingSaveAsNew = false;
       this.saveAsNewRecordingId = session.saveAsNewRecordingId || null;
-      if (this.pendingNetworkSave) {
+      if (session.pendingNetworkSave && session.recordedPoints?.length >= 2) {
         this.persistError = null;
-        this.persistMessage = "This walk is saved on your phone. It will be saved fully to the website when the network returns.";
+        this.queueRouteSave(this.payload, session.recordedPoints, !!session.pendingSaveAsNew);
         this.retryPendingNetworkSave();
       }
     }

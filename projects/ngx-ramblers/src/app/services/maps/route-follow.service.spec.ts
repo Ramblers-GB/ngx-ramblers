@@ -285,12 +285,19 @@ describe("RouteFollowService", () => {
     expect(service.formatDistance(3200)).toContain("mile");
   });
 
-  it("formats recording distance in feet until a quarter mile, then miles", () => {
+  it("formats distances requested in feet until a quarter mile, then miles", () => {
     expect(service.formatDistance(0, DistanceUnit.FEET)).toBe("0 ft");
     expect(service.formatDistance(80, DistanceUnit.FEET)).toBe("262 ft");
     expect(service.formatDistance(KM_PER_MILE * 250 - 1, DistanceUnit.FEET)).toBe("1317 ft");
     expect(service.formatDistance(KM_PER_MILE * 250, DistanceUnit.FEET)).toBe("0.25 miles");
     expect(service.formatDistance(KM_PER_MILE * 1000, DistanceUnit.FEET)).toBe("1 mile");
+  });
+
+  it("formats recording mileage with a decimal at the start and beyond ten miles", () => {
+    expect(service.formatDistance(0, DistanceUnit.MILES, true, 1)).toBe("0.0 mi");
+    expect(service.formatDistance(KM_PER_MILE * 100, DistanceUnit.MILES, true, 1)).toBe("0.1 mi");
+    expect(service.formatDistance(KM_PER_MILE * 10000, DistanceUnit.MILES, true, 1)).toBe("10.0 mi");
+    expect(service.formatDistance(KM_PER_MILE * 12300, DistanceUnit.MILES, true, 1)).toBe("12.3 mi");
   });
 
   it("formats edited route totals in the selected unit with useful precision", () => {

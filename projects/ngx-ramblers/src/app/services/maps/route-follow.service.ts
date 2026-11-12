@@ -36,7 +36,7 @@ import { cumulativeDistances, projectOnSegment, simplifiedRoutePoints, snapToRou
 import { NativeCompassService } from "./native-compass.service";
 import { NativeRouteRecorderService } from "./native-route-recorder.service";
 import { NativeRouteError, NativeRouteFailure, NativeRoutePosition } from "../../models/native-route.model";
-import { generateUid } from "../../functions/numbers";
+import { asNumber, generateUid } from "../../functions/numbers";
 import { StringUtilsService } from "../string-utils.service";
 import { DistanceUnit, FEET_PER_METRE, KM_PER_MILE } from "../../models/walk.model";
 import { compassHeading, compassScreenAngle, smoothedCompassHeading } from "../../functions/compass-heading";
@@ -477,14 +477,14 @@ export class RouteFollowService {
     return reached[0]?.waypoint || null;
   }
 
-  formatDistance(metres: number | null, shortDistanceUnit = DistanceUnit.METRES, includeUnit = true): string {
+  formatDistance(metres: number | null, shortDistanceUnit = DistanceUnit.METRES, includeUnit = true, decimalPlaces: number | null = null): string {
     const milesInMetres = KM_PER_MILE * 1000;
     const shortDistanceLimit = shortDistanceUnit === DistanceUnit.FEET ? milesInMetres / 4 : 1000;
     if (!isNumber(metres) || metres < 0) {
       return "";
     } else if (shortDistanceUnit === DistanceUnit.MILES || shortDistanceUnit === DistanceUnit.KILOMETRES) {
       const value = metres / (shortDistanceUnit === DistanceUnit.MILES ? milesInMetres : 1000);
-      const amount = `${Number(value.toFixed(2))}`;
+      const amount = decimalPlaces === null ? String(asNumber(value, 2)) : value.toFixed(decimalPlaces);
       return includeUnit ? `${amount} ${shortDistanceUnit}` : amount;
     } else if (metres < shortDistanceLimit) {
       return shortDistanceUnit === DistanceUnit.FEET
@@ -493,7 +493,7 @@ export class RouteFollowService {
     } else {
       const miles = metres / milesInMetres;
       const decimals = miles >= 10 ? 0 : shortDistanceUnit === DistanceUnit.FEET && miles < 1 ? 2 : 1;
-      return this.stringUtils.pluraliseWithCount(Number(miles.toFixed(decimals)), "mile");
+      return this.stringUtils.pluraliseWithCount(asNumber(miles, decimals), "mile");
     }
   }
 

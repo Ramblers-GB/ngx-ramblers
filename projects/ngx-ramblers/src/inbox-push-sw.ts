@@ -11,6 +11,7 @@ interface InboxPushPayload {
 
 const FOLLOW_SHELL = "follow-shell-v5";
 const FOLLOW_TILES = "follow-tiles-v3";
+const FOLLOW_SHELL_TIMEOUT_MS = 4000;
 
 sw.addEventListener("install", () => {
   void sw.skipWaiting();
@@ -89,21 +90,23 @@ async function cacheFollowResources(urls: string[]): Promise<void> {
 
 async function followShell(request: Request): Promise<Response> {
   const cache = await caches.open(FOLLOW_SHELL);
-  const cached = await cache.match("/app") || await caches.match("/app");
-  if (cached) {
-    return cached;
-  } else {
-    try {
-      const fresh = await fetch(request, {cache: "no-store"});
-      if (fresh.ok) {
-        await cache.put("/app", fresh.clone());
-      }
-      return fresh;
-    } catch {
-      return new Response("This walking app is not available offline yet. Open it once while connected, then try again.", {
-        status: 503,
-        headers: {"Content-Type": "text/plain; charset=utf-8"}
-      });
+  const cached = await cache.match("/app");
+  const controller = new AbortController();
+  const timeout = cached ? sw.setTimeout(() => controller.abort(), FOLLOW_SHELL_TIMEOUT_MS) : null;
+  try {
+    const fresh = await fetch(request, {cache: "no-store", signal: controller.signal});
+    if (fresh.ok && !fresh.redirected) {
+      await cache.put("/app", fresh.clone()).catch(error => console.warn("Could not cache the walking app", error));
+    }
+    return fresh.status >= 500 && cached ? cached : fresh;
+  } catch {
+    return cached || new Response("This walking app is not available offline yet. Open it once while connected, then try again.", {
+      status: 503,
+      headers: {"Content-Type": "text/plain; charset=utf-8"}
+    });
+  } finally {
+    if (timeout !== null) {
+      sw.clearTimeout(timeout);
     }
   }
 }

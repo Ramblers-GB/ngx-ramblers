@@ -629,7 +629,7 @@
 .follow-sheet.is-minimised
   padding-bottom: max(12px, calc(4px + env(safe-area-inset-bottom, 0px)))
 
-@media (max-width: 899px)
+.follow-app:not(.is-wide)
   .follow-sheet.is-minimised
     position: relative
     display: grid
@@ -996,6 +996,9 @@
   margin-bottom: 0
   flex: 0 0 auto
 
+.follow-start-actions
+  grid-template-columns: minmax(0, 1fr)
+
 .follow-actions > .follow-actions-span
   grid-column: 1 / -1
 
@@ -1045,7 +1048,7 @@
   align-items: center
   line-height: 1
 
-@media (min-width: 900px)
+.follow-app.is-wide
   .follow-top
     left: var(--follow-desktop-panel)
 

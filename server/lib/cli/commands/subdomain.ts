@@ -19,7 +19,7 @@ import {
   verifyToken,
   zoneForHostname
 } from "../../cloudflare/cloudflare-dns";
-import { ensureHostRedirectRule, removeHostRedirectRule } from "../../cloudflare/cloudflare-redirect-rules";
+import { ensureHostRedirectRule, RECOVERABLE_REDIRECT_STATUS_CODE, removeHostRedirectRule } from "../../cloudflare/cloudflare-redirect-rules";
 import { AppIpAddresses, CertificateInfo, FlyConfig } from "../../fly/fly.model";
 import { appIpAddresses, addCertificate, deleteCertificate, queryCertificates, waitForCertificateReady } from "../../fly/fly-certificates";
 import { ensureAppPublicIps } from "../../fly/fly-public-ips";
@@ -805,7 +805,7 @@ async function applyDomainRedirectHygiene(
     const recordName = subdomainLabelForHostname(fromHost, zone);
     const existingRecords = await listDnsRecords(cloudflareConfig, fromHost);
     await reconcileRedirectPlaceholderRecord(step, cloudflareConfig, recordName, fromHost, existingRecords);
-    step(`  ✓ Redirect rule ${result.action}: ${fromHost} -> https://${publicHostname} (302, path + query preserved)`);
+    step(`  ✓ Redirect rule ${result.action}: ${fromHost} -> https://${publicHostname} (${RECOVERABLE_REDIRECT_STATUS_CODE}, method + path + query preserved)`);
   } catch (error) {
     step(`  ⚠ Could not set up the ${fromHost} redirect: ${redirectErrorDetail(error)}`);
   }
@@ -1154,7 +1154,7 @@ export function createSubdomainCommand(): Command {
 
   subdomain
     .command("apex-redirect <environment> <hostname>")
-    .description("Redirect the apex/www sibling of a hostname to it via a Cloudflare edge 302")
+    .description("Redirect the apex/www sibling of a hostname to it while preserving the HTTP method")
     .action(async (environment, hostname) => {
       try {
         await setupApexRedirectForEnvironment(environment, hostname);

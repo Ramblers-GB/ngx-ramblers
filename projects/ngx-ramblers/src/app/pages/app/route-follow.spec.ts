@@ -198,11 +198,16 @@ describe("route follow interrupted sessions", () => {
 });
 
 describe("route follow failed recording upload", () => {
-  it.each([RouteFollowSource.WALK, RouteFollowSource.RECORDING])("keeps the paused %s recording and its checkpoint when saving fails", async source => {
+  it.each([
+    [RouteFollowSource.WALK, true],
+    [RouteFollowSource.RECORDING, true],
+    [RouteFollowSource.RECORDING, false]
+  ])("dismisses the %s save form only if the offline queue was stored (%s)", async (source, stored) => {
     const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
     const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
     view["payload"] = {source, recordingId: "fictional-id", title: "Hillside trail", walkId: "fictional-walk", points} as RouteFollowPayload;
     view["progress"] = {mode: RouteFollowMode.RECORDING} as typeof view["progress"];
+    view["recordingDetailsOpen"] = true;
     view["followService"] = {
       recordingSession: () => true,
       trackPoints: () => points,
@@ -212,7 +217,7 @@ describe("route follow failed recording upload", () => {
     view["routeSave"] = {
       save: vi.fn().mockRejectedValue(new Error("Network unavailable")),
       saveStandalone: vi.fn().mockRejectedValue(new Error("Network unavailable")),
-      queueWebsiteSave: vi.fn()
+      queueWebsiteSave: vi.fn().mockReturnValue(stored)
     } as unknown as typeof view["routeSave"];
     view["logger"] = {error: vi.fn()} as unknown as typeof view["logger"];
     view["persistFollowSession"] = vi.fn();
@@ -221,10 +226,10 @@ describe("route follow failed recording upload", () => {
     expect(view["progress"].mode).toBe(RouteFollowMode.PAUSED);
     expect(view["followService"].trackPoints()).toEqual(points);
     expect(view["persistFollowSession"]).toHaveBeenCalledWith(true);
-    expect(view["clearFollowSession"]).not.toHaveBeenCalled();
-    expect(view["persistError"]).toBeNull();
-    expect(view["persistMessage"]).toContain("when the network returns");
-    expect(view["pendingNetworkSave"]).toBe(true);
+    expect(view["clearFollowSession"]).toHaveBeenCalledTimes(stored ? 1 : 0);
+    expect(view["persistError"]).toBe(stored ? null : "This phone could not queue your route. Keep this screen open and try saving again.");
+    expect(view["recordingDetailsOpen"]).toBe(!stored);
+    expect(view["pendingNetworkSave"] || false).toBe(stored);
     expect(view["routeSave"].queueWebsiteSave).toHaveBeenCalled();
     expect(view["savingRoute"]).toBe(false);
   });

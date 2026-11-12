@@ -98,9 +98,12 @@ describe("NativeSiteService", () => {
     expect(window.localStorage.getItem(StoredValue.APP_SITE_ORIGIN)).toBeNull();
   });
 
-  it("opens the saved group website from the local shell", () => {
+  it("registers the redirected saved group before opening it from the local shell", async () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    window.localStorage.setItem(StoredValue.APP_SITE_ORIGIN, "https://group.example.org.uk");
+    window.localStorage.setItem(StoredValue.APP_SITE_ORIGIN, "https://www.group.example.org.uk");
+    vi.mocked(TestBed.inject(NATIVE_HTTP).request).mockResolvedValue(nativeStatus(
+      "https://group.example.org.uk/api/health", 200, {}
+    ));
     const assign = vi.fn();
     vi.spyOn(window, "location", "get").mockReturnValue({
       hostname: "localhost",
@@ -108,7 +111,11 @@ describe("NativeSiteService", () => {
       origin: "https://localhost",
       assign
     } as unknown as Location);
-    expect(TestBed.inject(NativeSiteService).openSelectedGroup()).toBe(true);
+    await TestBed.inject(NativeSiteService).openSelectedGroup();
+    const navigation = TestBed.inject(NATIVE_SITE_NAVIGATION);
+    expect(navigation.selectSite).toHaveBeenCalledWith({origin: "https://group.example.org.uk"});
+    expect(vi.mocked(navigation.selectSite).mock.invocationCallOrder[0]).toBeLessThan(assign.mock.invocationCallOrder[0]);
+    expect(window.localStorage.getItem(StoredValue.APP_SITE_ORIGIN)).toBe("https://group.example.org.uk");
     expect(assign).toHaveBeenCalledWith("https://group.example.org.uk/app");
   });
 

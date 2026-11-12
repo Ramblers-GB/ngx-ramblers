@@ -16,14 +16,18 @@ export class NativeApiInterceptor implements HttpInterceptor {
       const parsed = new URL(url);
       const sameOrigin = parsed.origin === window.location.origin;
       if (isNativeLocalShell()) {
-        return defer(() => this.nativeHttp.request({
-          url: nativeApiUrl(request.urlWithParams),
+        const origin = request.method === "GET" || request.method === "HEAD"
+          ? () => Promise.resolve(parsed.origin)
+          : () => this.nativeSiteService.canonicalOrigin(parsed.origin);
+        const target = new URL(nativeApiUrl(request.urlWithParams));
+        return defer(origin).pipe(switchMap(resolvedOrigin => this.nativeHttp.request({
+          url: `${resolvedOrigin}${target.pathname}${target.search}`,
           method: request.method,
           headers: request.headers.keys().reduce((headers, key) => ({...headers, [key]: request.headers.get(key)}), request.body !== null && !request.headers.has("Content-Type") ? {"Content-Type": "application/json"} : {}),
           data: request.body,
           connectTimeout: 10000,
           readTimeout: 20000
-        })).pipe(switchMap(response => {
+        })), switchMap(response => {
           if (response.status >= 200 && response.status < 300) {
             return [new HttpResponse({body: response.data, status: response.status, url: response.url})];
           } else {

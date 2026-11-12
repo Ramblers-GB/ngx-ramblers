@@ -1,12 +1,16 @@
 import { inject, Injectable, OnDestroy } from "@angular/core";
-import { firstValueFrom } from "rxjs";
+import { filter, firstValueFrom, fromEvent, interval, merge, share, Subject, timeout } from "rxjs";
 import { isEqual, isNumber } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
+import { AuthService } from "../../auth/auth.service";
 import { FileNameData } from "../../models/aws-object.model";
 import { MapMarker, MapRoute, PageContent } from "../../models/content-text.model";
 import { UIDateFormat } from "../../models/date-format.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
 import {
+  QueuedWebsiteSave,
+  ROUTE_FOLLOW_NETWORK_TIMEOUT_MS,
+  ROUTE_FOLLOW_SAVE_RETRY_MS,
   RouteFollowPayload,
   RouteFollowPoint,
   RouteFollowSession,
@@ -25,17 +29,11 @@ import { RouteFollowPayloadService } from "./route-follow-payload.service";
 import { OsMapsExportService } from "./os-maps-export.service";
 import { escapeHtml, toSlug } from "../../functions/strings";
 
-interface QueuedWebsiteSave {
-  payload: RouteFollowPayload;
-  points: RouteFollowPoint[];
-  asNew: boolean;
-  saveAsNewRecordingId: string | null;
-}
-
 @Injectable({
   providedIn: "root"
 })
 export class RouteFollowSaveService implements OnDestroy {
+  private auth = inject(AuthService);
   private dateUtils = inject(DateUtilsService);
   private walkGpx = inject(WalkGpxService);
   private walksAndEvents = inject(WalksAndEventsService);
@@ -45,67 +43,102 @@ export class RouteFollowSaveService implements OnDestroy {
   private uiActions = inject(UiActionsService);
   private followCache = inject(RouteFollowCacheService);
   private logger = inject(LoggerFactory).createLogger("RouteFollowSaveService", NgxLoggerLevel.ERROR);
-  private queued: QueuedWebsiteSave | null = null;
   private flushing = false;
   private followScreenOpen = false;
-  private online = () => void this.flushQueuedWebsiteSave();
-
-  constructor() {
-    window.addEventListener("online", this.online);
-  }
+  private websiteSavesCompleted = new Subject<void>();
+  readonly websiteSavesCompleted$ = this.websiteSavesCompleted.asObservable();
+  readonly websiteSaveRetry$ = merge(fromEvent(window, "online"), fromEvent(document, "visibilitychange"), interval(ROUTE_FOLLOW_SAVE_RETRY_MS))
+    .pipe(filter(() => document.visibilityState !== "hidden" && navigator.onLine), share());
+  private websiteSaveRetrySubscription = this.websiteSaveRetry$.subscribe(() => void this.flushQueuedWebsiteSave());
 
   ngOnDestroy(): void {
-    window.removeEventListener("online", this.online);
+    this.websiteSaveRetrySubscription.unsubscribe();
   }
 
   setFollowScreenOpen(open: boolean): void {
     this.followScreenOpen = open;
   }
 
-  queueWebsiteSave(payload: RouteFollowPayload, points: RouteFollowPoint[], asNew = false, saveAsNewRecordingId: string | null = null): void {
-    this.queued = JSON.parse(JSON.stringify({payload, points, asNew, saveAsNewRecordingId}));
-    void this.flushQueuedWebsiteSave();
+  queueWebsiteSave(payload: RouteFollowPayload, points: RouteFollowPoint[], asNew = false, saveAsNewRecordingId: string | null = null): boolean {
+    try {
+      const memberId = this.auth.parseAuthToken()?.memberId || null;
+      const job: QueuedWebsiteSave = JSON.parse(JSON.stringify({memberId, payload, points, asNew, saveAsNewRecordingId}));
+      const queued = this.websiteSaveQueue();
+      return !!memberId && (queued.some(item => isEqual(item, job))
+        || this.uiActions.saveValueFor(StoredValue.FOLLOW_WEBSITE_SAVE_QUEUE, [...queued, job]));
+    } catch (error) {
+      this.logger.error("Could not queue website save", error);
+      return false;
+    }
   }
 
-  clearQueuedWebsiteSave(): void {
-    this.queued = null;
+  clearQueuedWebsiteSave(payload: RouteFollowPayload, points: RouteFollowPoint[], asNew: boolean, saveAsNewRecordingId: string | null): void {
+    const memberId = this.auth.parseAuthToken()?.memberId || null;
+    this.removeQueuedWebsiteSave({memberId, payload, points, asNew, saveAsNewRecordingId});
+  }
+
+  private removeQueuedWebsiteSave(saved: QueuedWebsiteSave): void {
+    try {
+      const job: QueuedWebsiteSave = JSON.parse(JSON.stringify(saved));
+      const queued = this.websiteSaveQueue();
+      const remaining = queued.filter(item => !isEqual(item, job));
+      if (remaining.length < queued.length) {
+        this.uiActions.saveValueFor(StoredValue.FOLLOW_WEBSITE_SAVE_QUEUE, remaining);
+      }
+    } catch (error) {
+      this.logger.warn("Could not clear queued website save", error);
+    }
+  }
+
+  private websiteSaveQueue(): QueuedWebsiteSave[] {
+    return this.uiActions.initialObjectValueFor<QueuedWebsiteSave[]>(StoredValue.FOLLOW_WEBSITE_SAVE_QUEUE, []) || [];
   }
 
   async flushQueuedWebsiteSave(): Promise<boolean> {
-    const job = this.queued || this.jobFromSession();
-    if (!job || this.flushing || this.followScreenOpen || !navigator.onLine) {
+    if (this.flushing || this.followScreenOpen || !navigator.onLine) {
       return false;
     } else {
       this.flushing = true;
-      const inFlight = job;
-      this.queued = job;
+      const progress = {uploaded: false};
       try {
-        const saved = job.asNew
-          ? await this.saveAsNew(job.payload, job.points, job.saveAsNewRecordingId || generateUid())
-          : job.payload.source === RouteFollowSource.RECORDING
-            ? await this.saveStandalone(job.payload, job.points)
-            : {...job.payload, points: job.points, gpxFile: await this.save(job.payload, job.points)};
-        try {
-          await this.followCache.savePayload(saved);
-        } catch (error) {
-          this.logger.warn("Queued website save could not be cached locally", error);
+        const queued = this.websiteSaveQueue();
+        const legacy = this.jobFromSession();
+        const jobs = legacy && !queued.some(job => isEqual(job, legacy)) ? [...queued, legacy] : queued;
+        for (const job of jobs) {
+          if (!this.followScreenOpen && navigator.onLine && job.memberId && job.memberId === this.auth.parseAuthToken()?.memberId) {
+            try {
+              await this.uploadQueuedSave(job);
+              progress.uploaded = true;
+            } catch (error) {
+              this.logger.error("Queued website save failed", error);
+            }
+          }
         }
-        this.completeQueuedSave(inFlight);
-        return true;
       } catch (error) {
-        this.logger.error("Queued website save failed", error);
-        return false;
+        this.logger.error("Could not read queued website saves", error);
       } finally {
         this.flushing = false;
       }
+      if (progress.uploaded) {
+        this.websiteSavesCompleted.next();
+      }
+      return progress.uploaded;
     }
   }
 
-  private completeQueuedSave(inFlight: QueuedWebsiteSave): void {
-    if (this.queued === inFlight) {
-      this.queued = null;
+  private async uploadQueuedSave(job: QueuedWebsiteSave): Promise<void> {
+    const saved = job.asNew
+      ? await this.saveAsNew(job.payload, job.points, job.saveAsNewRecordingId || generateUid())
+      : job.payload.source === RouteFollowSource.RECORDING
+        ? await this.saveStandalone(job.payload, job.points)
+        : {...job.payload, points: job.points, gpxFile: await this.save(job.payload, job.points)};
+    try {
+      await this.followCache.savePayload(saved);
+    } catch (error) {
+      this.logger.warn("Queued website save could not be cached locally", error);
     }
-    if (this.sessionMatchesJob(inFlight)) {
+    this.removeQueuedWebsiteSave(job);
+    if (this.sessionMatchesJob(job)) {
       this.clearPendingSession();
     }
   }
@@ -138,7 +171,13 @@ export class RouteFollowSaveService implements OnDestroy {
         const session = this.uiActions.initialObjectValueFor<RouteFollowSession>(StoredValue.FOLLOW_SESSION, null);
         const points = session?.recordedPoints || [];
         if (session?.pendingNetworkSave && session.payload && points.length >= 2) {
-          return {payload: session.payload, points, asNew: !!session.pendingSaveAsNew, saveAsNewRecordingId: session.saveAsNewRecordingId || null};
+          return {
+            memberId: this.auth.parseAuthToken()?.memberId || null,
+            payload: session.payload,
+            points,
+            asNew: !!session.pendingSaveAsNew,
+            saveAsNewRecordingId: session.saveAsNewRecordingId || null
+          };
         } else {
           return null;
         }
@@ -199,7 +238,8 @@ ${trackPoints}
     if (!payload.recordingId || !payload.title.trim() || points.length < 2) {
       throw new Error("Give the recording a name and record at least two points before saving.");
     } else {
-      const imported = await firstValueFrom(this.walkGpx.importGpxFile(this.gpxFile(payload, points), payload.title, payload.description || "", payload.recordingId));
+      const imported = await firstValueFrom(this.walkGpx.importGpxFile(this.gpxFile(payload, points), payload.title, payload.description || "", payload.recordingId)
+        .pipe(timeout(ROUTE_FOLLOW_NETWORK_TIMEOUT_MS)));
       if (!imported.routeId) {
         throw new Error("The saved route did not return an identifier. Your recording is kept for retry.");
       } else {

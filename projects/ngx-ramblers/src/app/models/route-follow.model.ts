@@ -268,6 +268,14 @@ export interface CachedFollowRoute {
   tileCount: number;
 }
 
+export interface QueuedWebsiteSave {
+  memberId: string | null;
+  payload: RouteFollowPayload;
+  points: RouteFollowPoint[];
+  asNew: boolean;
+  saveAsNewRecordingId: string | null;
+}
+
 export interface RouteFollowSession {
   recordingId?: string | null;
   recordingDetailsOpen?: boolean;
@@ -695,6 +703,7 @@ export function followRouteIdFromQuery(value: string | null | undefined): string
 
 export const APP_HOME_NETWORK_TIMEOUT_MS = 30000;
 export const ROUTE_FOLLOW_NETWORK_TIMEOUT_MS = 30000;
+export const ROUTE_FOLLOW_SAVE_RETRY_MS = 15000;
 
 export function formatDataSize(bytes: number): string {
   if (bytes < 1024) {

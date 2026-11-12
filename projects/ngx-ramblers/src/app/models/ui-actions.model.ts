@@ -163,6 +163,7 @@ export enum StoredValue {
   FOLLOW_PROGRESS_PAINT = "follow-progress-paint",
   FOLLOW_SESSION = "follow-session",
   FOLLOW_STEP_PINS_ON_MAP = "follow-step-pins-on-map",
+  FOLLOW_WEBSITE_SAVE_QUEUE = "follow-website-save-queue",
   FORMAT = "format",
   FORWARD = "forward",
   FREE_ONLY = "free-only",

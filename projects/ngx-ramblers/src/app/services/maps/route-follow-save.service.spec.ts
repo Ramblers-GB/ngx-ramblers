@@ -2,7 +2,7 @@ import { PageContent, PageContentType } from "../../models/content-text.model";
 import { TestBed } from "@angular/core/testing";
 import { provideHttpClient } from "@angular/common/http";
 import { provideHttpClientTesting } from "@angular/common/http/testing";
-import { of } from "rxjs";
+import { firstValueFrom, of, timeout } from "rxjs";
 import { LoggerTestingModule } from "ngx-logger/testing";
 import { RouteFollowMode, RouteFollowSource } from "../../models/route-follow.model";
 import { DateUtilsService } from "../date-utils.service";
@@ -16,12 +16,19 @@ import { RouteFollowPayloadService } from "./route-follow-payload.service";
 import { RouteFollowSaveService } from "./route-follow-save.service";
 import { OsMapsExportService } from "./os-maps-export.service";
 import { StoredValue } from "../../models/ui-actions.model";
+import { AuthService } from "../../auth/auth.service";
 
 describe("RouteFollowSaveService", () => {
   let service: RouteFollowSaveService;
+  const storage = new Map<StoredValue, unknown>();
+  const savedSession = vi.fn();
   const uiActions = {
     itemExistsFor: vi.fn(() => false),
-    initialObjectValueFor: vi.fn(() => null),
+    initialObjectValueFor: vi.fn((key: StoredValue) => key === StoredValue.FOLLOW_SESSION ? savedSession() : storage.get(key)),
+    saveValueFor: vi.fn((key: StoredValue, value: unknown) => {
+      storage.set(key, structuredClone(value));
+      return true;
+    }),
     removeItemFor: vi.fn()
   };
   const followCache = {savePayload: vi.fn(async () => undefined)};
@@ -56,7 +63,8 @@ describe("RouteFollowSaveService", () => {
 
   beforeEach(() => {
     uiActions.itemExistsFor.mockReturnValue(false);
-    uiActions.initialObjectValueFor.mockReturnValue(null);
+    storage.clear();
+    savedSession.mockReturnValue(null);
     uiActions.removeItemFor.mockReset();
     followCache.savePayload.mockClear();
     TestBed.configureTestingModule({
@@ -66,6 +74,7 @@ describe("RouteFollowSaveService", () => {
         provideHttpClientTesting(),
         RouteFollowSaveService,
         RouteFollowPayloadService,
+        {provide: AuthService, useValue: {parseAuthToken: () => ({memberId: "fictional-member"})}},
         DateUtilsService,
         {provide: WalksAndEventsService, useValue: walksAndEvents},
         {provide: WalkGpxService, useValue: walkGpx},
@@ -164,7 +173,7 @@ describe("RouteFollowSaveService", () => {
     const payload = TestBed.inject(RouteFollowPayloadService).recordingPayload("fictional-id");
     payload.title = "Hillside trail";
     uiActions.itemExistsFor.mockReturnValue(true);
-    uiActions.initialObjectValueFor.mockReturnValue({
+    savedSession.mockReturnValue({
       pendingNetworkSave: true,
       payload,
       recordedPoints: points,
@@ -189,7 +198,7 @@ describe("RouteFollowSaveService", () => {
       title: "Hillside Park circuit"
     };
     uiActions.itemExistsFor.mockReturnValue(true);
-    uiActions.initialObjectValueFor.mockReturnValue({
+    savedSession.mockReturnValue({
       pendingNetworkSave: true,
       pendingSaveAsNew: true,
       saveAsNewRecordingId: "copy-retry-id",
@@ -207,6 +216,39 @@ describe("RouteFollowSaveService", () => {
     saveAsNew.mockRestore();
   });
 
+  it("uploads two independently stored recordings even after the active checkpoint is gone", async () => {
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    const payloads = ["first-recording", "second-recording"].map(id => ({
+      ...TestBed.inject(RouteFollowPayloadService).recordingPayload(id),
+      title: id
+    }));
+    payloads.forEach(payload => expect(service.queueWebsiteSave(payload, points)).toBe(true));
+    expect(storage.get(StoredValue.FOLLOW_WEBSITE_SAVE_QUEUE)).toHaveLength(2);
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    expect(await service.flushQueuedWebsiteSave()).toBe(true);
+    expect(walkGpx.importGpxFile.mock.calls.slice(-2).map(call => (call as unknown[])[3]))
+      .toEqual(["first-recording", "second-recording"]);
+    expect(storage.get(StoredValue.FOLLOW_WEBSITE_SAVE_QUEUE)).toEqual([]);
+    expect(uiActions.removeItemFor).not.toHaveBeenCalled();
+    online.mockRestore();
+  });
+
+  it("retries the queue when the app returns to the foreground without an online event", async () => {
+    const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
+    const payload = {...TestBed.inject(RouteFollowPayloadService).recordingPayload("fictional-id"), title: "Hillside trail"};
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    expect(service.queueWebsiteSave(payload, points)).toBe(true);
+    expect(await service.flushQueuedWebsiteSave()).toBe(false);
+    online.mockReturnValue(true);
+    const completed = firstValueFrom(service.websiteSavesCompleted$.pipe(timeout(1000)));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await completed;
+    expect(storage.get(StoredValue.FOLLOW_WEBSITE_SAVE_QUEUE)).toEqual([]);
+    online.mockRestore();
+    visibility.mockRestore();
+  });
+
   it("does not upload a stale queued job after the follow screen saved the route", async () => {
     const points = [{latitude: 51, longitude: 0}, {latitude: 51.001, longitude: 0.001}];
     const payload = TestBed.inject(RouteFollowPayloadService).recordingPayload("fictional-id");
@@ -214,7 +256,7 @@ describe("RouteFollowSaveService", () => {
     service.setFollowScreenOpen(true);
     service.queueWebsiteSave(payload, points);
     const uploads = walkGpx.importGpxFile.mock.calls.length;
-    service.clearQueuedWebsiteSave();
+    service.clearQueuedWebsiteSave(payload, points, false, null);
     service.setFollowScreenOpen(false);
     const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     const saved = await service.flushQueuedWebsiteSave();
@@ -229,16 +271,17 @@ describe("RouteFollowSaveService", () => {
     payload.title = "Hillside trail";
     service.setFollowScreenOpen(true);
     service.queueWebsiteSave(payload, points);
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    service.setFollowScreenOpen(false);
+    const uploading = service.flushQueuedWebsiteSave();
     uiActions.itemExistsFor.mockReturnValue(true);
-    uiActions.initialObjectValueFor.mockReturnValue({
+    savedSession.mockReturnValue({
       pendingNetworkSave: true,
       payload: changedField === "title" ? {...payload, title: "Updated trail"} : payload,
       recordedPoints: changedField === "point" ? [points[0], {latitude: 51.002, longitude: 0.002}] : points,
       mode: RouteFollowMode.PAUSED
     });
-    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
-    service.setFollowScreenOpen(false);
-    const saved = await service.flushQueuedWebsiteSave();
+    const saved = await uploading;
     expect(saved).toBe(true);
     expect(uiActions.removeItemFor).not.toHaveBeenCalled();
     online.mockRestore();

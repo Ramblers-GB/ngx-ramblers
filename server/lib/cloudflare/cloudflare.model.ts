@@ -22,6 +22,7 @@ export const cloudflareApi = {
   accountWorkerScriptSubdomain: (accountId: string, scriptName: string) => `${CLOUDFLARE_API_BASE}/accounts/${accountId}/workers/scripts/${scriptName}/subdomain`,
   accountRumSites: (accountId: string) => `${CLOUDFLARE_API_BASE}/accounts/${accountId}/rum/site_info`,
   zoneRulesetPhaseEntrypoint: (zoneId: string, phase: string) => `${CLOUDFLARE_API_BASE}/zones/${zoneId}/rulesets/phases/${phase}/entrypoint`,
+  zoneRulesetRule: (zoneId: string, rulesetId: string, ruleId: string) => `${CLOUDFLARE_API_BASE}/zones/${zoneId}/rulesets/${rulesetId}/rules/${ruleId}`,
   graphql: () => `${CLOUDFLARE_API_BASE}/graphql`
 };
 

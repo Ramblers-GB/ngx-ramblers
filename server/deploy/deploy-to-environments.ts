@@ -25,6 +25,7 @@ import { DEPLOYMENT_DEFAULTS, EnvironmentsConfig, FLYIO_DEFAULTS } from "../../p
 import { BuildVersion } from "../../projects/ngx-ramblers/src/app/models/build-version.model";
 import { filterSecretsForSiteFlyDeploy } from "../lib/fly/fly-secrets-policy";
 import { pruneDisallowedFlySecrets } from "../lib/fly/fly-secrets-prune";
+import { upgradeManagedHostRedirects } from "../lib/cloudflare/cloudflare-redirect-rules";
 
 const debugLog = debug(envConfig.logNamespace("deploy-environments"));
 debugLog.enabled = true;
@@ -213,6 +214,11 @@ async function deployToEnvironments(environmentsFilter: string[]): Promise<void>
       await ensureScale(environmentConfig.appName, environmentConfig.scaleCount, environmentConfig.memory);
       if (imageTag && /^\d+$/.test(imageTag)) {
         await verifyDeployedBuildNumber(environmentConfig.appName, imageTag);
+      }
+      const customDomains = dbConfig.environments?.find(env => env.environment === environmentConfig.name)?.customDomains || [];
+      if (dbConfig.cloudflare?.apiToken) {
+        const updatedRedirects = await upgradeManagedHostRedirects(dbConfig.cloudflare.apiToken, customDomains);
+        updatedRedirects.forEach(description => debugLog("Updated Cloudflare rule to preserve HTTP methods: %s", description));
       }
     });
   }

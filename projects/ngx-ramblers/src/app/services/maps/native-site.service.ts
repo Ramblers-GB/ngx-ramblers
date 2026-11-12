@@ -86,14 +86,14 @@ export class NativeSiteService {
     return Capacitor.isNativePlatform() && isNativeLocalShell() && !nativeWalkingSite();
   }
 
-  openSelectedGroup(): boolean {
+  openSelectedGroup(): Promise<void> | null {
     const origin = nativeWalkingSite();
-    let opened = false;
-    if (Capacitor.isNativePlatform() && isNativeLocalShell() && origin) {
-      openNativeGroupApp(origin);
-      opened = true;
-    }
-    return opened;
+    return Capacitor.isNativePlatform() && isNativeLocalShell() && origin
+      ? this.canonicalOrigin(origin).then(async resolvedOrigin => {
+        await this.rememberSite(resolvedOrigin);
+        openNativeGroupApp(resolvedOrigin);
+      })
+      : null;
   }
 
   origin(): string | null {
@@ -123,11 +123,15 @@ export class NativeSiteService {
 
   async connect(rawUrl: string, groupCode: string | null = null): Promise<NativeWalkingSite> {
     const site = await this.check(rawUrl, groupCode);
-    if (Capacitor.isNativePlatform()) {
-      await this.navigation.selectSite({origin: site.origin});
-    }
-    saveNativeWalkingSite(site.origin);
+    await this.rememberSite(site.origin);
     return site;
+  }
+
+  private async rememberSite(origin: string): Promise<void> {
+    if (Capacitor.isNativePlatform()) {
+      await this.navigation.selectSite({origin});
+    }
+    saveNativeWalkingSite(origin);
   }
 
   async clear(): Promise<void> {

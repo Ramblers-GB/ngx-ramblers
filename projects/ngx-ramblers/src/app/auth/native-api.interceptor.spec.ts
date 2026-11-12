@@ -25,8 +25,10 @@ describe("Native API routing", () => {
 
   it("sends the login POST directly to the canonical origin with its body and headers intact", async () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    vi.mocked(TestBed.inject(NATIVE_HTTP).request).mockResolvedValue({
-      status: 200, url: "https://www.group.example.org.uk/api/database/auth/login", headers: {}, data: {loginResponse: {memberLoggedIn: true}}
+    vi.mocked(TestBed.inject(NATIVE_HTTP).request).mockResolvedValueOnce({
+      status: 200, url: "https://group.example.org.uk/api/health", headers: {}, data: {}
+    }).mockResolvedValueOnce({
+      status: 200, url: "https://group.example.org.uk/api/database/auth/login", headers: {}, data: {loginResponse: {memberLoggedIn: true}}
     });
     const body = {userName: "alex.reed", password: "test-password"};
     const completed = firstValueFrom(TestBed.inject(HttpClient).post("/api/database/auth/login", body, {
@@ -34,7 +36,7 @@ describe("Native API routing", () => {
     }));
     await expect(completed).resolves.toEqual({loginResponse: {memberLoggedIn: true}});
     expect(TestBed.inject(NATIVE_HTTP).request).toHaveBeenCalledWith(expect.objectContaining({
-      url: "https://www.group.example.org.uk/api/database/auth/login", method: "POST", data: body, headers: {"X-Test-Header": "retained", "Content-Type": "application/json"}
+      url: "https://group.example.org.uk/api/database/auth/login", method: "POST", data: body, headers: {"X-Test-Header": "retained", "Content-Type": "application/json"}
     }));
     expect(localStorage.getItem(StoredValue.APP_SITE_ORIGIN)).toBe("https://www.group.example.org.uk");
   });
@@ -65,7 +67,11 @@ describe("Native API routing", () => {
 
   it("preserves API failures from native requests", async () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    vi.mocked(TestBed.inject(NATIVE_HTTP).request).mockResolvedValue({status: 401, url: "https://www.group.example.org.uk/api/database/auth/login", headers: {}, data: {message: "Invalid login"}});
+    vi.mocked(TestBed.inject(NATIVE_HTTP).request).mockResolvedValueOnce({
+      status: 200, url: "https://www.group.example.org.uk/api/health", headers: {}, data: {}
+    }).mockResolvedValueOnce({
+      status: 401, url: "https://www.group.example.org.uk/api/database/auth/login", headers: {}, data: {message: "Invalid login"}
+    });
     await expect(firstValueFrom(TestBed.inject(HttpClient).post("/api/database/auth/login", {}))).rejects.toMatchObject({status: 401, error: {message: "Invalid login"}});
   });
 

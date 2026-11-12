@@ -50,7 +50,7 @@ export class UiActionsService {
   }
 
   private storageKey(parameter: string): string {
-    return [StoredValue.FOLLOW_SESSION, StoredValue.APP_FAVOURITE_ROUTES, StoredValue.APP_HIDDEN_ROUTES].some(key => key === parameter)
+    return [StoredValue.FOLLOW_SESSION, StoredValue.FOLLOW_WEBSITE_SAVE_QUEUE, StoredValue.APP_FAVOURITE_ROUTES, StoredValue.APP_HIDDEN_ROUTES].some(key => key === parameter)
       ? nativeWalkingStorageKey(parameter)
       : parameter;
   }
