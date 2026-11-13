@@ -146,13 +146,24 @@ async function provisionRegistration(registration: StoredSiteRegistration): Prom
   const environments = await configuredEnvironments();
   const cluster = registrationMongoCluster(environments, details.serviceConfigs.mongodb.cluster);
   await assertClusterHasCapacityForNewEnvironment(cluster);
-  const atlas = await platformAtlasAccess();
   const existing = await findEnvironmentFromDatabase(name);
   if (existing && existing.name !== name) {
     throw new Error("An environment already exists for this group. Please contact the platform administrator.");
   } else if (existing?.mongo?.username && existing.mongo.username !== environmentDatabaseUserName(name)) {
     throw new Error("An environment already exists for this group under a different database user. Please contact the platform administrator.");
+  } else if (existing) {
+    const context = await loadEnvironmentContext(name);
+    const connection = await connectToEnvironmentMongo(context.envConfigData);
+    try {
+      const system = await connection.db.collection("config").findOne({key: ConfigKey.SYSTEM});
+      if (system?.value?.group?.groupCode !== registration.group.group_code) {
+        throw new Error("Existing environment has no matching group configuration. Repair it in Environment Setup before retrying.");
+      }
+    } finally {
+      await connection.client.close();
+    }
   }
+  const atlas = await platformAtlasAccess();
   const reportMongo = mongoUser => attempt => {
     void pushProgress(registration, "MongoDB", attempt ? SetupStepStatus.Running : SetupStepStatus.Completed,
       attempt ? `Waiting for MongoDB Atlas to activate the database user ${mongoUser.username} (check ${attempt})` : `Database user ${mongoUser.username} is ready`);
@@ -199,16 +210,6 @@ async function provisionRegistration(registration: StoredSiteRegistration): Prom
   try {
     await report({step: "Provision", status: SetupStepStatus.Running, message: existing ? "Resuming the existing review site" : "Creating the review site"});
     if (existing) {
-      const context = await loadEnvironmentContext(name);
-      const connection = await connectToEnvironmentMongo(context.envConfigData);
-      try {
-        const system = await connection.db.collection("config").findOne({key: ConfigKey.SYSTEM});
-        if (system?.value?.group?.groupCode !== registration.group.group_code) {
-          throw new Error("Existing environment has no matching group configuration. Repair it in Environment Setup before retrying.");
-        }
-      } finally {
-        await connection.client.close();
-      }
       await resumeEnvironment(name, {runDbInit: false, runFlyDeployment: true}, report);
     } else {
       await createEnvironment(request, report);

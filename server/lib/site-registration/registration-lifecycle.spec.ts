@@ -18,6 +18,7 @@ import * as registrationLogos from "./registration-logos";
 import * as osMapsProvision from "../os-maps/provision-os-maps-key";
 import * as environmentDetailsModule from "../environment-setup/environment-details";
 import * as mongoDatabaseUser from "../environment-setup/mongo-database-user";
+import * as atlasClusters from "../environment-setup/atlas-clusters";
 import * as systemConfigModule from "../config/system-config";
 import { approveRegistration, runRegistrationJobs, submitRegistration } from "./registration-jobs";
 import { confirmRegistration, startRegistration, startRegistrationAsAdmin } from "./registration-service";
@@ -225,6 +226,40 @@ describe("site registration lifecycle", () => {
     expect(sendEmail.callCount).toBe(3);
     expect(sendEmail.thirdCall.args[2]).toBe("committee@example.com");
     expect(sendEmail.thirdCall.args[3].actionUrl).toContain("/admin/set-password/");
+  });
+
+  it("does not change the Atlas user when the existing site belongs to another group", async () => {
+    const environmentName = "example-ramblers";
+    const state = {registration: {
+      id: "registration-retry", group, environmentName, state: RegistrationState.QUEUED,
+      provisionedAt: null, progress: [], leaseUntil: 0, leaseOwner: null
+    } as StoredSiteRegistration};
+    const sandbox = sandboxState.sandbox;
+    sandbox.stub(registrationStore, "registrations").returns(inMemoryRegistrations(state));
+    sandbox.stub(registrationStore, "recordRegistrationHistory").resolves();
+    sandbox.stub(registrationStore, "registrationSettings").resolves(settings);
+    sandbox.stub(groupsApi, "fetchRamblersGroupsFromApi").resolves([group]);
+    sandbox.stub(environmentDetailsModule, "environmentDetails").resolves(createEmptySetupRequest() as any);
+    sandbox.stub(systemConfigModule, "systemConfig").resolves({} as any);
+    sandbox.stub(environmentsConfig, "configuredEnvironments").resolves({environments: []} as any);
+    sandbox.stub(atlasClusters, "assertClusterHasCapacityForNewEnvironment").resolves();
+    sandbox.stub(environmentsConfig, "findEnvironmentFromDatabase").resolves({name: environmentName} as any);
+    const atlasAccess = sandbox.stub(mongoDatabaseUser, "platformAtlasAccess");
+    const ensureMongoUser = sandbox.stub(mongoDatabaseUser, "ensureEnvironmentMongoUser");
+    sandbox.stub(environmentContext, "loadEnvironmentContext").resolves({envConfigData: {environment: environmentName}} as any);
+    const close = sandbox.stub().resolves();
+    sandbox.stub(environmentContext, "connectToEnvironmentMongo").resolves({
+      db: {collection: () => ({findOne: sandbox.stub().resolves({value: {group: {groupCode: "CD02"}}})})},
+      client: {close}
+    } as any);
+
+    await runRegistrationJobs();
+
+    expect(state.registration.state).toBe(RegistrationState.FAILED);
+    expect(state.registration.error).toContain("no matching group configuration");
+    expect(atlasAccess.called).toBe(false);
+    expect(ensureMongoUser.called).toBe(false);
+    expect(close.calledOnce).toBe(true);
   });
 
   it("imports a generic Full registration and saves its editable Migration Settings config before review", async () => {
