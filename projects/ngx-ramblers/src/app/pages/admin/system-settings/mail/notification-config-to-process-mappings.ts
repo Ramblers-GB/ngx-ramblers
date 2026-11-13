@@ -133,6 +133,20 @@ import { volunteerManagementEnabled } from "../../../../functions/volunteer-mana
         </div>
         <div class="col-sm-12">
           <div class="form-group">
+            <label for="process-mapping-meeting-invite">Video Meeting Invite Uses Email Configuration</label>
+            <select [(ngModel)]="mailMessagingConfig.mailConfig.meetingInviteNotificationConfigId"
+              id="process-mapping-meeting-invite"
+              class="form-control input-sm">
+              @for (mapping of notificationConfigsPlusNone; track mapping.id) {
+                <option
+                  [ngValue]="mapping.id">{{ mapping?.subject?.text || '(no subject)' }}
+                </option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="col-sm-12">
+          <div class="form-group">
             <label for="process-mapping-photo-upload-notification">Walk Photos Added By Members Uses Email Configuration</label>
             <select [(ngModel)]="mailMessagingConfig.mailConfig.photoUploadNotificationConfigId"
               id="process-mapping-photo-upload-notification"

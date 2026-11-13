@@ -1,9 +1,9 @@
 import { AfterViewInit, Component, inject, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { ActivatedRoute, Router } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faCircleCheck, faEllipsis, faFileLines, faFloppyDisk, faPaperPlane, faRightToBracket, faSpinner, faTrash } from "@fortawesome/free-solid-svg-icons";
-import { BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective } from "ngx-bootstrap/dropdown";
+import { ButtonDropdownComponent } from "../../modules/common/button-dropdown/button-dropdown";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "../../services/logger-factory.service";
 import { DateUtilsService } from "../../services/date-utils.service";
@@ -20,7 +20,7 @@ import { AiService } from "../../services/ai/ai.service";
 import { CommitteeConfigService } from "../../services/committee/commitee-config.service";
 import { CommitteeFileService } from "../../services/committee/committee-file.service";
 import { DocumentConversionService } from "../../services/committee/document-conversion.service";
-import { ListInfo, MailMessagingConfig } from "../../models/mail.model";
+import { ListInfo, MailMessagingConfig, NotificationConfig } from "../../models/mail.model";
 import { Member } from "../../models/member.model";
 import { CommitteeFile, CommitteeFileMeeting, CommitteeFileMeetingRole, CommitteeFileType, CommitteeMeetingFormat, CommitteeMeetingType, CommitteeMember, OTHER_MEETING_CATEGORY, meetingHasVenue, meetingIsOnline } from "../../models/committee.model";
 import { Venue, VenueWithUsageStats } from "../../models/event-venue.model";
@@ -50,6 +50,7 @@ import {
   UpcomingBookedMeeting,
   VideoMeetingCancellationPerson,
   VideoMeetingInviteHandoff,
+  VideoMeetingInviteMoreAction,
   VideoMeetingInviteRecipient,
   VideoMeetingPlanAction,
   VideoMeetingRsvpPerson,
@@ -63,6 +64,7 @@ import { videoMeetingRsvpLabel, videoMeetingRsvpPeople } from "../../functions/v
 import { ASCENDING, DESCENDING } from "../../models/table-filtering.model";
 import { SortDirection } from "../../models/sort.model";
 import { StoredValue } from "../../models/ui-actions.model";
+import { ButtonDropdownItem } from "../../models/button-dropdown.model";
 import { UiActionsService } from "../../services/ui-actions.service";
 import { UIDateFormat } from "../../models/date-format.model";
 import { suggestedVideoMeetingTitle, videoMeetingDateSlug } from "../../functions/video-meeting-join";
@@ -79,7 +81,7 @@ import { storedMeetingVenue, venueMarkdownLink, venueSearchLabel } from "../../f
 
 @Component({
   selector: "app-video-meeting-plan",
-  imports: [FormsModule, FontAwesomeModule, RouterLink, WalkProgrammeCalendarComponent, DraggableModalComponent, TimePicker, MailingListRadiosComponent, NextCommitteeMeetingBannerComponent, ThumbnailHeadingFrameComponent, RecipientFieldComponent, AlertPanelComponent, LabelledFieldRowComponent, LabelledFieldComponent, BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective, SortableTableComponent, SortableTableCellDirective, SectionToggle, VenueAutocompleteComponent],
+  imports: [FormsModule, FontAwesomeModule, WalkProgrammeCalendarComponent, DraggableModalComponent, TimePicker, MailingListRadiosComponent, NextCommitteeMeetingBannerComponent, ThumbnailHeadingFrameComponent, RecipientFieldComponent, AlertPanelComponent, LabelledFieldRowComponent, LabelledFieldComponent, ButtonDropdownComponent, SortableTableComponent, SortableTableCellDirective, SectionToggle, VenueAutocompleteComponent],
   styleUrls: ["./video-meeting-plan.sass"],
   template: `
     @if (sendNotice) {
@@ -274,32 +276,12 @@ import { storedMeetingVenue, venueMarkdownLink, venueSearchLabel } from "../../f
       <button modalFooter type="button" class="btn btn-quiet btn-sm" [disabled]="working" (click)="cancel()">
         Close
       </button>
-      <div modalFooter dropdown [dropup]="true" class="btn-group" [class.d-none]="!isEditing()">
-        <button dropdownToggle type="button" class="btn btn-quiet btn-sm dropdown-toggle" [disabled]="working">
-          <fa-icon [icon]="faEllipsis" class="me-2"/>More actions
-        </button>
-        <ul *dropdownMenu class="dropdown-menu dropdown-menu-end" role="menu">
-          @if (editingMeetingRoom) {
-            <li>
-              <a class="dropdown-item" role="button" (click)="joinFromInvite()">
-                <fa-icon [icon]="faRightToBracket" class="me-2"/>Join
-              </a>
-            </li>
-          }
-          @if (editingCommitteePath) {
-            <li>
-              <a class="dropdown-item" [routerLink]="'/' + editingCommitteePath" [queryParams]="existingCommitteeQuery()">
-                <fa-icon [icon]="faFileLines" class="me-2"/>Committee page
-              </a>
-            </li>
-          }
-          <li>
-            <a class="dropdown-item text-danger" role="button" (click)="deleteFromInvite()">
-              <fa-icon [icon]="faTrash" class="me-2"/>Delete meeting
-            </a>
-          </li>
-        </ul>
-      </div>
+      <app-button-dropdown modalFooter compact dropup label="More actions" [icon]="faEllipsis"
+                          buttonClass="btn btn-quiet btn-sm"
+                          [class.d-none]="!isEditing()"
+                          [disabled]="working"
+                          [items]="moreActionItems()"
+                          (itemSelect)="onMoreAction($event)"/>
       <button modalFooter type="button" class="btn btn-primary btn-sm" [class.d-none]="!isEditing()"
               [disabled]="working || !existingReady" (click)="saveChanges()">
         <fa-icon [icon]="saveWorking() ? faSpinner : faFloppyDisk" [animation]="saveWorking() ? 'spin' : null" class="me-2"/>
@@ -812,6 +794,39 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
     return !!(this.editingFile || this.loadingEntryId);
   }
 
+  moreActionItems(): ButtonDropdownItem[] {
+    return [
+      {
+        id: VideoMeetingInviteMoreAction.JOIN,
+        label: "Join",
+        icon: this.faRightToBracket,
+        hidden: !this.editingMeetingRoom
+      },
+      {
+        id: VideoMeetingInviteMoreAction.COMMITTEE_PAGE,
+        label: "Committee page",
+        icon: this.faFileLines,
+        hidden: !this.editingCommitteePath,
+        routerLink: this.editingCommitteePath ? "/" + this.editingCommitteePath : null,
+        queryParams: this.existingCommitteeQuery()
+      },
+      {
+        id: VideoMeetingInviteMoreAction.DELETE,
+        label: "Delete meeting",
+        icon: this.faTrash,
+        danger: true
+      }
+    ];
+  }
+
+  onMoreAction(actionId: string): void {
+    if (actionId === VideoMeetingInviteMoreAction.JOIN) {
+      this.joinFromInvite();
+    } else if (actionId === VideoMeetingInviteMoreAction.DELETE) {
+      this.deleteFromInvite();
+    }
+  }
+
   existingCommitteeQuery(): Record<string, string> {
     if (!this.editingCommitteeSlug) {
       return {};
@@ -1057,6 +1072,9 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
     } else if (!this.canSendNow()) {
       this.confirmingSend = false;
       this.sendError = "Add guests or include a list before sending.";
+    } else if (!this.meetingInviteNotificationConfig()) {
+      this.confirmingSend = false;
+      this.sendError = "Send now needs a Video meeting invite email configuration. Choose one under Mail Settings, Built-in Processes.";
     } else {
       this.sendError = null;
       this.confirmingSend = true;
@@ -1240,8 +1258,17 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
     return {startTime, meetingTitle, committeeFileId: this.editingFile?.id || null, joinUrl, location: venue, savedFile, committeePagePath: committeePagePath || null};
   }
 
+  private meetingInviteNotificationConfig(): NotificationConfig | null {
+    const mailMessagingConfig = this.mailMessagingService.currentConfig();
+    const configId = mailMessagingConfig?.mailConfig?.meetingInviteNotificationConfigId;
+    return configId
+      ? mailMessagingConfig.notificationConfigs?.find(item => item.id === configId) || null
+      : null;
+  }
+
   private async sendInviteNow(invite: VideoMeetingInviteHandoff): Promise<void> {
     const role = this.senderRole();
+    const notificationConfig = this.meetingInviteNotificationConfig();
     const memberIds = invite.selectedListId == null
       ? []
       : this.mailListUpdaterService.subscribedMembers(this.members, invite.selectedListId)
@@ -1255,23 +1282,29 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
       this.sendError = "Send now needs you to be linked to a committee role with an email address. Continue in the email composer instead, or ask a site administrator.";
     } else if (memberIds.length === 0 && externalRecipients.length === 0) {
       this.sendError = "Add guests or include a list before sending.";
+    } else if (!notificationConfig?.id) {
+      this.sendError = "Send now needs a Video meeting invite email configuration. Choose one under Mail Settings, Built-in Processes.";
     } else {
       this.workingMessage = "Sending invite…";
       try {
         const htmlBody = personaliseGuestMeetingLinksInHtml(this.rendering.markdownToHtml(invite.body));
+        const signoffRoles = notificationConfig.signOffRoles || [];
+        const signoffHtml = signoffRoles.length > 0 ? this.mailMessagingService.signoffNames(signoffRoles) : "";
         const start = await this.sendService.startBatch({
-          bannerId: null,
+          notificationConfigId: notificationConfig.id,
+          bannerId: notificationConfig.bannerId || null,
           subject: invite.subject,
           addresseeType: AddresseeType.NONE,
-          signoffRoles: [],
+          signoffRoles,
           htmlBody,
           htmlBodyTop: htmlBody,
-          htmlBodyBottom: "",
+          htmlBodyBottom: signoffHtml,
           memberIds,
           externalRecipients,
           attachments: invite.attachments,
-          brandingMode: BrandingMode.UNBRANDED,
-          unbrandedSenderRoleType: role.type,
+          brandingMode: BrandingMode.BRANDED,
+          senderRoleOverride: notificationConfig.senderRole,
+          replyToRoleOverride: notificationConfig.replyToRole,
           useCommitteeRoleAddresses: invite.useCommitteeRoleAddresses === true
         });
         this.sendNotice = `The invite is being sent to ${this.stringUtils.pluraliseWithCount(start.totalRecipients, "recipient")}.`;

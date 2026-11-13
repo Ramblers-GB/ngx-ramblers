@@ -88,6 +88,12 @@ export enum VideoMeetingPlanAction {
   DELETE = "delete"
 }
 
+export enum VideoMeetingInviteMoreAction {
+  JOIN = "join",
+  COMMITTEE_PAGE = "committee-page",
+  DELETE = "delete"
+}
+
 export enum MeetingInviteSection {
   ALL = "all",
   DETAILS = "details",

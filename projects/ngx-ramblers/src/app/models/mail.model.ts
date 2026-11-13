@@ -464,6 +464,7 @@ export interface BuiltInProcessMappings {
   memberBulkLoadDigestConfigId: string;
   photoUploadNotificationConfigId: string;
   meetingMinutesNotificationConfigId: string;
+  meetingInviteNotificationConfigId: string;
   registrationConfirmationConfigId: string;
   registrationInvitationConfigId: string;
   registrationReviewConfigId: string;
@@ -473,6 +474,7 @@ export const VOLUNTEER_NOTIFICATION_SUBJECT_TEXT = "Rights of Way Volunteer Corr
 export const MEMBER_BULK_LOAD_DIGEST_SUBJECT_TEXT = "Member bulk load summary";
 export const PHOTO_UPLOAD_NOTIFICATION_SUBJECT_TEXT = "Walk photos added";
 export const MEETING_MINUTES_NOTIFICATION_SUBJECT_TEXT = "Meeting minutes ready";
+export const MEETING_INVITE_NOTIFICATION_SUBJECT_TEXT = "Video meeting invite";
 export const REGISTRATION_CONFIRMATION_SUBJECT_TEXT = "Confirm your NGX registration";
 export const REGISTRATION_INVITATION_SUBJECT_TEXT = "Your NGX site is ready to try";
 export const REGISTRATION_REVIEW_SUBJECT_TEXT = "NGX site ready for review";
@@ -487,6 +489,7 @@ export const BUILT_IN_PROCESS_NOTIFICATION_MAPPINGS: Partial<Record<keyof BuiltI
   volunteerNotificationConfigId: VOLUNTEER_NOTIFICATION_SUBJECT_TEXT,
   photoUploadNotificationConfigId: PHOTO_UPLOAD_NOTIFICATION_SUBJECT_TEXT,
   meetingMinutesNotificationConfigId: MEETING_MINUTES_NOTIFICATION_SUBJECT_TEXT,
+  meetingInviteNotificationConfigId: MEETING_INVITE_NOTIFICATION_SUBJECT_TEXT,
   registrationConfirmationConfigId: REGISTRATION_CONFIRMATION_SUBJECT_TEXT,
   registrationInvitationConfigId: REGISTRATION_INVITATION_SUBJECT_TEXT,
   registrationReviewConfigId: REGISTRATION_REVIEW_SUBJECT_TEXT
