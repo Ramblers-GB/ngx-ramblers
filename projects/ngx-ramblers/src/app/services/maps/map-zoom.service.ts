@@ -66,15 +66,33 @@ export class MapZoomService {
     return zoomLevel;
   }
 
+  isDegenerateBounds(bounds: L.LatLngBounds | null | undefined, minSpanMetres = 50): boolean {
+    if (!bounds || !bounds.isValid()) {
+      return true;
+    } else {
+      return bounds.getNorthEast().distanceTo(bounds.getSouthWest()) < minSpanMetres;
+    }
+  }
+
   applyBoundsToMap(map: L.Map, bounds: L.LatLngBounds, options: FitBoundsOptions = {}): void {
     const maxZoom = options.maxZoom ?? 15;
 
     this.logger.info("applyBoundsToMap: Applying bounds with maxZoom:", maxZoom);
 
-    try {
-      map.fitBounds(bounds, { maxZoom });
-    } catch (error) {
-      this.logger.error("applyBoundsToMap: Error applying bounds:", error);
+    if (!bounds?.isValid()) {
+      this.logger.warn("applyBoundsToMap: Ignoring invalid bounds");
+    } else {
+      try {
+        if (this.isDegenerateBounds(bounds)) {
+          const zoom = this.calculateSinglePointZoom(map, {defaultZoom: 13, mapMaxZoom: maxZoom});
+          this.logger.info("applyBoundsToMap: Degenerate bounds, using single-point zoom:", zoom);
+          map.setView(bounds.getCenter(), zoom);
+        } else {
+          map.fitBounds(bounds, { maxZoom });
+        }
+      } catch (error) {
+        this.logger.error("applyBoundsToMap: Error applying bounds:", error);
+      }
     }
   }
 

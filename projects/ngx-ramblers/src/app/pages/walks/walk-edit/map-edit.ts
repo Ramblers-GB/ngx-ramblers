@@ -336,7 +336,8 @@ export class MapEditComponent implements OnInit, OnDestroy, OnChanges {
       ? L.latLng(this.locationDetails.latitude, this.locationDetails.longitude)
       : L.latLng(UK_MAP_CENTER[0], UK_MAP_CENTER[1]);
     const endLatLng = hasEnd ? L.latLng(this.endLocationDetails.latitude, this.endLocationDetails.longitude) : null;
-    const bounds = hasStart && hasEnd ? L.latLngBounds(startLatLng, endLatLng).pad(COMBINED_MAP_BOUNDS_PADDING) : undefined;
+    const combinedBounds = hasStart && hasEnd ? L.latLngBounds(startLatLng, endLatLng).pad(COMBINED_MAP_BOUNDS_PADDING) : undefined;
+    const bounds = this.mapZoom.isDegenerateBounds(combinedBounds) ? undefined : combinedBounds;
     const center = bounds ? bounds.getCenter() : startLatLng;
     const initialZoom = this.preview
       ? this.mapTiles.matchingZoom(
