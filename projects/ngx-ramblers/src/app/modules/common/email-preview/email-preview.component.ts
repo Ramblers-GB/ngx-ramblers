@@ -7,6 +7,7 @@ import { faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
 import { TemplateRenderRequest } from "../../../models/mail.model";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { MailService } from "../../../services/mail/mail.service";
+import { neutraliseUnresolvedMergeFieldUrls } from "../../../functions/email-merge-field-urls";
 
 @Component({
   selector: "app-email-preview",
@@ -84,7 +85,7 @@ export class EmailPreviewComponent implements OnDestroy {
     this.loading = false;
     this.error = null;
     this.previewHtml = html;
-    this.previewUrl = this.toPreviewUrl(this.withBaseHref(this.rewriteDevHostUrls(this.neutralisePreviewMirrorLinks(html))));
+    this.previewUrl = this.toPreviewUrl(this.withBaseHref(this.rewriteDevHostUrls(neutraliseUnresolvedMergeFieldUrls(html))));
   }
 
   async render(request: TemplateRenderRequest): Promise<void> {
@@ -97,7 +98,7 @@ export class EmailPreviewComponent implements OnDestroy {
       if (revision === this.renderRevision) {
         this.clearObservers();
         this.previewHtml = response.htmlContent;
-        this.previewUrl = this.toPreviewUrl(this.withBaseHref(this.rewriteDevHostUrls(this.neutralisePreviewMirrorLinks(response.htmlContent))));
+        this.previewUrl = this.toPreviewUrl(this.withBaseHref(this.rewriteDevHostUrls(neutraliseUnresolvedMergeFieldUrls(response.htmlContent))));
       }
     } catch (error) {
       if (revision === this.renderRevision) {
@@ -172,14 +173,6 @@ export class EmailPreviewComponent implements OnDestroy {
 
   private rewriteDevHostUrls(html: string): string {
     return html.replace(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\//gi, `${window.location.origin}/`);
-  }
-
-  private neutralisePreviewMirrorLinks(html: string): string {
-    if (!html) {
-      return html;
-    } else {
-      return html.replace(/(\s(?:href)\s*=\s*)(["'])(?:\{\{\s*mirror\s*\}\}|#view-in-browser)\2/gi, "$1$2#$2");
-    }
   }
 
   private withBaseHref(html: string): string {

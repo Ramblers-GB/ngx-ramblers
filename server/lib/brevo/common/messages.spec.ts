@@ -65,7 +65,7 @@ describe("brevo messages", () => {
     expect(output.htmlContent).not.toContain("/mirror");
   });
 
-  it("leaves the Brevo mirror placeholder on a transactional send so View in browser is not the group site", async () => {
+  it("leaves View in browser as Brevo {{ mirror }} on a transactional send, never a group-site URL", async () => {
     const body = "<h3>Hillside Park</h3><p>Walk details</p>";
     const output = {} as Brevo.SendTransacEmailRequest;
     await performTemplateSubstitution({
@@ -81,7 +81,8 @@ describe("brevo messages", () => {
         accountMergeFields: {}
       } as any
     }, output, debug("test:transactional-mirror"));
-    expect(output.htmlContent).toContain('href="{{ mirror }}"');
+    expect(output.htmlContent).toContain("View this email in your browser");
+    expect(output.htmlContent).toContain(`href="{{ mirror }}"`);
     expect(output.htmlContent).not.toContain("/api/mail/view/");
     expect(output.htmlContent).not.toContain("/mirror");
     expect(output.htmlContent).not.toMatch(/href="https:\/\/group\.example\.org\.uk">View this email in your browser/);

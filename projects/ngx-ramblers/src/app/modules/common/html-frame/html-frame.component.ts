@@ -1,6 +1,7 @@
 import { booleanAttribute, Component, ElementRef, inject, Input, OnDestroy, ViewChild } from "@angular/core";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { isUndefined } from "es-toolkit/compat";
+import { neutraliseUnresolvedMergeFieldUrls } from "../../../functions/email-merge-field-urls";
 
 @Component({
   selector: "app-html-frame",
@@ -106,10 +107,11 @@ export class HtmlFrameComponent implements OnDestroy {
   }
 
   private wrap(html: string): string {
+    const body = neutraliseUnresolvedMergeFieldUrls(html);
     const base = `<base href="${window.location.origin}/" target="_blank">`;
     const shrink = this.fitContentToWidth ? "" : "img{max-width:100%;height:auto;}table{max-width:100%;}";
     const reset = `<style>html,body{margin:0;padding:0;background:#fff;overflow:visible;}blockquote{border-left:4px solid #9bc8ab;margin:16px 0;padding:12px 20px;background-color:#f7fbf8;color:#343a40;font-style:italic;}blockquote p:first-child{margin-top:0;}blockquote p:last-child{margin-bottom:0;}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;}body{overflow-wrap:anywhere;transform-origin:0 0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5;}${shrink}</style>`;
-    return `<!doctype html><html><head><meta charset="utf-8">${base}${reset}</head><body>${html}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8">${base}${reset}</head><body>${body}</body></html>`;
   }
 
   resize(): void {

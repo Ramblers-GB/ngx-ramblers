@@ -50,7 +50,7 @@ describe("rendered email previews", () => {
       return html;
     });
     fixture.componentInstance.renderHtml(`<html><head></head><body><a href="{{ mirror }}">View this email in your browser</a></body></html>`);
-    expect(captured[0]).toContain(`href="#"`);
+    expect(captured[0]).toContain("<a>View this email in your browser</a>");
     expect(captured[0]).toContain(`<base href="./">`);
     expect(captured[0]).not.toContain("{{ mirror }}");
     expect(captured[0]).not.toContain(`${window.location.origin}/`);
