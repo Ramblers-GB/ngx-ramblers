@@ -87,6 +87,7 @@ import { integrationWorkerWalksManagerSyncCallbackRoutes } from "./ramblers/inte
 import { integrationWorkerResizeCallbackRoutes } from "./ramblers/integration-worker-resize-callback-routes";
 import { integrationWorkerContentMigrationCallbackRoutes } from "./ramblers/integration-worker-content-migration-callback-routes";
 import { integrationWorkerSocialPublishCallbackRoutes } from "./ramblers/integration-worker-social-publish-callback-routes";
+import { integrationWorkerBackupsCallbackRoutes } from "./ramblers/integration-worker-backups-callback-routes";
 import { geoJsonRoutes } from "./geojson/geojson-routes";
 import { regions } from "./geojson/regions";
 import { parishRoutes } from "./parishes/parish-routes";
@@ -238,6 +239,7 @@ app.use("/api/integration-worker/walks-manager-sync", integrationWorkerWalksMana
 app.use("/api/integration-worker/resize", integrationWorkerResizeCallbackRoutes);
 app.use("/api/integration-worker/content-migration", integrationWorkerContentMigrationCallbackRoutes);
 app.use("/api/integration-worker/social-publish", integrationWorkerSocialPublishCallbackRoutes);
+app.use("/api/integration-worker/backups", integrationWorkerBackupsCallbackRoutes);
 app.use("/api/routes", mapRouteRoutes);
 app.use(spatialFeaturesController);
 app.use("/api/aws", awsRoutes);

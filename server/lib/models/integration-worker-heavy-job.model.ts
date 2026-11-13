@@ -6,6 +6,7 @@ export enum IntegrationWorkerHeavyJobType {
   ContentMigration = "content-migration",
   WalksManagerSync = "walks-manager-sync",
   SocialPublish = "social-publish",
+  Backups = "backups",
 }
 
 export interface IntegrationWorkerHeavyJob {

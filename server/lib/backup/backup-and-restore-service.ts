@@ -65,6 +65,7 @@ export interface BackupOptions {
   s3ObjectBackupConcurrency?: number;
   user?: string;
   triggeredBy?: BackupSessionTrigger;
+  executeLocally?: boolean;
 }
 
 export interface RestoreOptions {
@@ -190,13 +191,35 @@ export class BackupAndRestoreService {
       await this.notificationService.notifyBackupStarted(savedSession);
     }
 
-    withBackupSlot(`backup ${options.environment}`, () =>
-      this.executeBackup(savedSession._id!.toString(), config, options, backupName, envBackupConfig)
-    ).catch(err => {
-      this.updateSessionError(savedSession._id!.toString(), err.message);
-    });
+    if (options.executeLocally !== false) {
+      withBackupSlot(`backup ${options.environment}`, () =>
+        this.executeBackup(savedSession._id!.toString(), config, options, backupName, envBackupConfig)
+      ).catch(err => {
+        this.updateSessionError(savedSession._id!.toString(), err.message);
+      });
+    }
 
     return savedSession;
+  }
+
+  async executeQueuedBackup(mongoId: string, options: BackupOptions): Promise<void> {
+    const config = this.findEnvironmentConfig(options.environment);
+    if (!config || !config.mongo) {
+      throw new Error(`Environment "${options.environment}" is not configured for backup`);
+    } else {
+      const savedSession = await backupSession.findById(mongoId);
+      if (!savedSession) {
+        throw new Error(`Backup session ${mongoId} was not found`);
+      } else if (savedSession.type !== BackupSessionType.BACKUP || savedSession.environment !== options.environment) {
+        throw new Error(`Backup session ${mongoId} does not match environment "${options.environment}"`);
+      } else if (savedSession.status === BackupSessionStatus.PENDING) {
+        const envBackupConfig = environmentConfigFor(this.backupConfig, options.environment);
+        const backupName = savedSession.sessionId.replace(/^backup-/, "");
+        await withBackupSlot(`backup ${options.environment}`, () =>
+          this.executeBackup(mongoId, config, options, backupName, envBackupConfig)
+        );
+      }
+    }
   }
 
   async startRestore(options: RestoreOptions): Promise<BackupSession> {
@@ -823,20 +846,25 @@ export class BackupAndRestoreService {
     await this.emitSessionUpdated(sessionId);
   }
 
-  private async updateSessionError(sessionId: string, error: string): Promise<void> {
-    await backupSession.updateOne(
-      { _id: sessionId },
+  async failPendingBackup(sessionId: string, error: string): Promise<void> {
+    await this.updateSessionError(sessionId, error, BackupSessionStatus.PENDING);
+  }
+
+  private async updateSessionError(sessionId: string, error: string, expectedStatus?: BackupSessionStatus): Promise<void> {
+    const result = await backupSession.updateOne(
+      { _id: sessionId, ...(expectedStatus ? {status: expectedStatus, type: BackupSessionType.BACKUP} : {}) },
       { $set: { status: BackupSessionStatus.FAILED, error, endTime: dateTimeNow().toJSDate() }, $currentDate: { updatedAt: true } }
     );
-    await this.emitSessionUpdated(sessionId);
-
-    if (this.notificationService) {
-      const failedSession = await this.session(sessionId);
-      if (failedSession) {
-        if (failedSession.type === BackupSessionType.BACKUP) {
-          await this.notificationService.notifyBackupCompleted(failedSession);
-        } else {
-          await this.notificationService.notifyRestoreCompleted(failedSession);
+    if (result.modifiedCount > 0) {
+      await this.emitSessionUpdated(sessionId);
+      if (this.notificationService) {
+        const failedSession = await this.session(sessionId);
+        if (failedSession) {
+          if (failedSession.type === BackupSessionType.BACKUP) {
+            await this.notificationService.notifyBackupCompleted(failedSession);
+          } else {
+            await this.notificationService.notifyRestoreCompleted(failedSession);
+          }
         }
       }
     }

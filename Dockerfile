@@ -13,10 +13,26 @@
 # The two stages share no layers (different base images) but live in one file so
 # operators can see the full deployment surface at a glance.
 
+FROM node:24.14.0 AS backup-tools
+
+RUN apt-get update && apt-get install -y curl gnupg2 ca-certificates
+
+ARG MONGOSH_VERSION=2.2.7
+ARG DBTOOLS_VERSION=100.9.4
+RUN curl -fsSL https://pgp.mongodb.com/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg \
+  && echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg arch=amd64 ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" > /etc/apt/sources.list.d/mongodb-server-7.0.list \
+  && apt-get update \
+  && mkdir -p /opt/mongodb-tools \
+  && (cd /opt/mongodb-tools && apt-get download mongodb-database-tools) \
+  && apt-get install -y mongodb-mongosh /opt/mongodb-tools/*.deb \
+  && mongosh --version \
+  && mongodump --version \
+  && mongorestore --version
+
 # =============================================================================
 # Website stage (default target)
 # =============================================================================
-FROM node:24.14.0 AS website
+FROM backup-tools AS website
 
 ENV NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
@@ -28,16 +44,6 @@ RUN apt-get update && apt-get install -y wget curl unzip gnupg2 ca-certificates 
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
   && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
   && apt-get update && apt-get install -y gh
-
-ARG MONGOSH_VERSION=2.2.7
-ARG DBTOOLS_VERSION=100.9.4
-RUN curl -fsSL https://pgp.mongodb.com/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg \
-  && echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg arch=amd64 ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" > /etc/apt/sources.list.d/mongodb-server-7.0.list \
-  && apt-get update \
-  && apt-get install -y mongodb-mongosh mongodb-database-tools \
-  && mongosh --version \
-  && mongodump --version \
-  && mongorestore --version
 
 RUN curl -fsSL https://fly.io/install.sh | FLYCTL_INSTALL=/usr/local sh \
   && ln -sf /usr/local/bin/flyctl /usr/bin/flyctl \
@@ -104,6 +110,12 @@ ENV NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 
 USER root
+
+RUN --mount=type=bind,from=backup-tools,source=/opt/mongodb-tools,target=/tmp/mongodb-tools \
+  apt-get update \
+  && apt-get install -y /tmp/mongodb-tools/*.deb \
+  && mongodump --version \
+  && mongorestore --version
 
 RUN echo "worker-node-diag:" && (which curl tar node npm bash || true) && (node -v || true) && (npm -v || true) && (npm config get prefix || true) \
   && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz" -o /tmp/node.tar.gz \

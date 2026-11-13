@@ -20,6 +20,7 @@ import { integrationWorkerContentMigrationRoutes } from "./integration-worker-co
 import { integrationWorkerSocialPublishRoutes } from "./integration-worker-social-publish-routes";
 import { integrationWorkerAiRoutes } from "./integration-worker-ai-routes";
 import { documentConversionWorkerRoutes } from "../document-conversion/document-conversion-worker-routes";
+import { integrationWorkerBackupsRoutes } from "./integration-worker-backups-routes";
 
 install();
 
@@ -77,6 +78,7 @@ app.use("/api/integration-worker/content-migration", integrationWorkerContentMig
 app.use("/api/integration-worker/social-publish", integrationWorkerSocialPublishRoutes);
 app.use("/api/integration-worker/ai", integrationWorkerAiRoutes);
 app.use("/api/integration-worker/document-conversion", documentConversionWorkerRoutes);
+app.use("/api/integration-worker/backups", integrationWorkerBackupsRoutes);
 
 if (app.get("env") === "dev") {
   app.use(errorHandler());

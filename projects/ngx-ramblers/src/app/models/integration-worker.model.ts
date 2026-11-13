@@ -311,3 +311,38 @@ export interface IntegrationWorkerContentMigrationResultCallback {
   errorMessage?: string;
   cancelled?: boolean;
 }
+
+export interface IntegrationWorkerBackupOptions {
+  environment: string;
+  database?: string;
+  collections?: string[];
+  scaleDown?: boolean;
+  upload?: boolean;
+  includeS3?: boolean;
+  s3ObjectBackupConcurrency?: number;
+  user?: string;
+}
+
+export interface IntegrationWorkerBackupsJobRequest {
+  jobId: string;
+  encryptedMongoUri: string;
+  callback: IntegrationWorkerCallbackConfig;
+  sessionMongoId?: string;
+  options?: IntegrationWorkerBackupOptions;
+}
+
+export interface IntegrationWorkerBackupsProgressCallback {
+  jobId: string;
+  message: string;
+  queued?: boolean;
+  queuePosition?: number;
+  activeJobType?: string;
+  sessionMongoId?: string;
+}
+
+export interface IntegrationWorkerBackupsResultCallback {
+  jobId: string;
+  sessionMongoId?: string;
+  status: IntegrationWorkerResultStatus;
+  errorMessage?: string;
+}

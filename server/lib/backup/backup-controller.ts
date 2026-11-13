@@ -6,6 +6,11 @@ import { createBackupAndRestoreService } from "./backup-service-factory";
 import { initializeAndMergeBackupConfig } from "./config-initializer";
 import { asNumber } from "../../../projects/ngx-ramblers/src/app/functions/numbers";
 import { isArray, isString } from "es-toolkit/compat";
+import { booleanOf } from "../shared/string-utils";
+import {
+  integrationWorkerBackupsAvailable,
+  submitEnvironmentBackupToIntegrationWorker
+} from "../ramblers/integration-worker-backups-client";
 
 const debugLog = debug(envConfig.logNamespace("backup"));
 debugLog.enabled = false;
@@ -74,13 +79,39 @@ export async function startBackup(req: Request, res: Response) {
   try {
     const svc = await service();
     const user = (req as any).user?.username || "unknown";
+    const upload = booleanOf(req.body?.upload);
+    const scaleDown = booleanOf(req.body?.scaleDown);
+    const includeS3 = booleanOf(req.body?.includeS3, true);
+    const runOnWorker = upload && !scaleDown && integrationWorkerBackupsAvailable();
     const options = {
       ...req.body,
-      user
+      upload,
+      scaleDown,
+      includeS3,
+      user,
+      executeLocally: !runOnWorker
     };
 
-    debugLog("startBackup:request:", options);
+    debugLog("startBackup:request:", options, "runOnWorker:", runOnWorker);
     const session = await svc.startBackup(options);
+    if (runOnWorker && session._id) {
+      const sessionId = session._id.toString();
+      try {
+        await submitEnvironmentBackupToIntegrationWorker(sessionId, {
+          environment: options.environment,
+          database: options.database,
+          collections: options.collections,
+          scaleDown: options.scaleDown,
+          upload: options.upload,
+          includeS3: options.includeS3,
+          s3ObjectBackupConcurrency: options.s3ObjectBackupConcurrency,
+          user
+        });
+      } catch (error) {
+        await svc.failPendingBackup(sessionId, (error as Error).message);
+        throw error;
+      }
+    }
     debugLog("startBackup:response:", session.sessionId);
     res.status(200).json(session);
   } catch (error) {
