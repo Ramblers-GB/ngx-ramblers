@@ -21,6 +21,11 @@ export function fieldEqualsValue(fieldValue: string): MongoRegex {
   return {$regex: "^" + fieldValue + "$", $options: "i"};
 }
 
+export function fieldEqualsAnyValue(fieldValues: string[]): MongoRegex {
+  const pattern = fieldValues.map(value => escapeRegExp(value)).join("|");
+  return {$regex: `^(${pattern})$`, $options: "i"};
+}
+
 export interface ParsedMongoUri {
   uri: string;
   cluster: string;

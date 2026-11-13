@@ -9,6 +9,7 @@ import {
   ChangeClassFn,
   GetYearLabelFn
 } from "../../../models/agm-stats.model";
+import { AGM_STATS_CHANGE_COLUMN } from "../../../functions/agm-stats-change";
 
 @Component({
   selector: "[app-agm-summary-table]",
@@ -41,7 +42,7 @@ import {
             </th>
           }
           <th class="sortable" (click)="toggleSortFn(summaryKey, 'changeValue')">
-            Change (Current vs Previous)
+            {{ changeColumn }}
             @if (sortIconFn(summaryKey, 'changeValue')) {
               <fa-icon [icon]="sortIconFn(summaryKey, 'changeValue')" class="ms-1" size="xs"/>
             }
@@ -81,4 +82,5 @@ export class AGMSummaryTableComponent {
   @Input() sortIconFn: SortIconFn;
   @Input() changeClassFn: ChangeClassFn;
   @Input() getYearLabelFn: GetYearLabelFn;
+  changeColumn = AGM_STATS_CHANGE_COLUMN;
 }

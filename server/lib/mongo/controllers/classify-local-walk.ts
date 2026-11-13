@@ -2,8 +2,8 @@ import { isArray } from "es-toolkit/compat";
 import { EventSource, InputSource } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { EventField, EventType } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
 import { sortBy } from "../../../../projects/ngx-ramblers/src/app/functions/arrays";
+import { walkEventIsWalksManagerSourced } from "../../../../projects/ngx-ramblers/src/app/functions/walks/walk-leader-fields";
 import { dateTimeFromIso } from "../../shared/dates";
-import { EventPopulation } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { LocalWalkStatus } from "../models/walk-admin.model";
 
 const STATUS_CHANGE_EVENT_TYPES = [
@@ -22,8 +22,7 @@ function latestStatusEventType(events: any[]): EventType | null {
 }
 
 export function walksManagerCachedWalk(walk: any): boolean {
-  return walk?.source === EventSource.WALKS_MANAGER
-    || walk?.fields?.inputSource === InputSource.WALKS_MANAGER_CACHE;
+  return walkEventIsWalksManagerSourced(walk);
 }
 
 export function walksManagerSourceQuery(): Record<string, unknown> {
@@ -59,9 +58,9 @@ export function classifyWalksManagerWalk(walk: any): LocalWalkStatus {
   }
 }
 
-export function bucketWalksForStats(walks: any[], nowMillis: number, population: EventPopulation): WalkStatBuckets {
+export function bucketWalksForStats(walks: any[], nowMillis: number): WalkStatBuckets {
   return (walks || []).reduce((buckets, walk) => {
-    const status = population === EventPopulation.WALKS_MANAGER
+    const status = walksManagerCachedWalk(walk)
       ? classifyWalksManagerWalk(walk)
       : classifyLocalWalk(walk, nowMillis);
     if (status === LocalWalkStatus.EVENING) {

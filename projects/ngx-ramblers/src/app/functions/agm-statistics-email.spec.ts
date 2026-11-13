@@ -35,25 +35,28 @@ describe("agmStatisticsEmailMarkdown", () => {
     expect(html).toContain("Assistant");
     expect(html).toContain("Total Walks on Programme");
     expect(html).toContain("24");
+    expect(html).toContain("Change (Current vs Previous)");
+    expect(html).toContain("+20.0%");
     expect(html).not.toContain("Total Paid");
   });
 
-  it("puts the introductory text above the heading as escaped paragraphs", () => {
-    const withIntro = {...data, introText: "Hello all,\nHere are the figures for the AGM.\n\nQuestions & comments welcome <before> Thursday."};
+  it("puts the introductory markdown above the heading as formatted html", () => {
+    const withIntro = {...data, introText: "Hello all,\n\nHere are the figures for the **AGM**.\n\nQuestions & comments welcome before Thursday."};
     const html = agmStatisticsEmailHtml([AgmStatsEmailSection.WALKS], withIntro);
-    const introIndex = html.indexOf("Hello all,<br>Here are the figures for the AGM.");
+    const introIndex = html.indexOf("Hello all,");
     expect(introIndex).toBeGreaterThan(-1);
     expect(introIndex).toBeLessThan(html.indexOf("Committee statistics from"));
-    expect(html).toContain("Questions &amp; comments welcome &lt;before&gt; Thursday.");
+    expect(html).toContain("<strong>AGM</strong>");
+    expect(html).toContain("Questions &amp; comments welcome before Thursday.");
     expect(agmStatisticsEmailMarkdown([AgmStatsEmailSection.WALKS], withIntro).startsWith("Hello all,")).toBe(true);
   });
 
   it("builds a csv of the selected tables with one row per metric", () => {
     const csv = agmStatisticsEmailCsv([AgmStatsEmailSection.WALKS, AgmStatsEmailSection.EXPENSES], data);
     expect(csv.split("\r\n")).toEqual([
-      "Section,Statistic,Previous,Current",
-      "Walk statistics,Total Walks on Programme,20,24",
-      "Expense statistics,Total Paid,£12.50,£25.00"
+      "Section,Statistic,Previous,Current,Change (Current vs Previous)",
+      "Walk statistics,Total Walks on Programme,20,24,+20.0%",
+      "Expense statistics,Total Paid,£12.50,£25.00,+100.0%"
     ]);
   });
 

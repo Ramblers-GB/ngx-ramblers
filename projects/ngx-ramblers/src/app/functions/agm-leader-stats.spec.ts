@@ -9,7 +9,7 @@ import {
   UNKNOWN_WALK_LEADER_KEY,
   UNKNOWN_WALK_LEADER_NAME
 } from "./agm-leader-stats";
-import { LeaderStats } from "../models/group-event.model";
+import { EventSource, InputSource, LeaderStats } from "../models/group-event.model";
 
 describe("asLeaderStats", () => {
   it("keeps string names and emails", () => {
@@ -105,6 +105,22 @@ describe("leaderIdentityFromWalk", () => {
       groupEvent: {walk_leader: {name: "Kerry Example"}}
     })).toEqual({id: "kerry@example.com", name: "Kerry Example", email: "kerry@example.com"});
   });
+
+  it("reads a Walks Manager listed name when the event is Walks Manager sourced", () => {
+    expect(leaderIdentityFromWalk({
+      source: EventSource.WALKS_MANAGER,
+      fields: {inputSource: InputSource.WALKS_MANAGER_CACHE, contactDetails: {displayName: ""}},
+      groupEvent: {walk_leader: {id: "wm-9", name: "Dave M"}}
+    })).toEqual({id: "wm-9", name: "Dave M", email: ""});
+  });
+
+  it("reads a local display name when the event is locally sourced", () => {
+    expect(leaderIdentityFromWalk({
+      source: EventSource.LOCAL,
+      fields: {inputSource: InputSource.MANUALLY_CREATED, contactDetails: {memberId: "member-2", displayName: "Rachel M"}},
+      groupEvent: {walk_leader: []}
+    })).toEqual({id: "member-2", name: "Rachel M", email: ""});
+  });
 });
 
 describe("newLeadersFromPeriod", () => {
@@ -148,6 +164,18 @@ describe("leaderStatsFromWalks", () => {
     expect(rows).toEqual([
       {id: UNKNOWN_WALK_LEADER_KEY, name: UNKNOWN_WALK_LEADER_NAME, email: "", walkCount: 2, totalMiles: 10.5},
       {id: "tom@example.com", name: "Tom G", email: "tom@example.com", walkCount: 1, totalMiles: 8}
+    ]);
+  });
+
+  it("merges walks led by the same display name when Walks Manager gives each walk a different contact id", () => {
+    const rows = leaderStatsFromWalks([
+      {fields: {contactDetails: {memberId: "wm-1", displayName: "Dave M"}}, groupEvent: {distance_miles: 12}},
+      {fields: {contactDetails: {memberId: "wm-2", displayName: "Dave M"}}, groupEvent: {distance_miles: 11}},
+      {fields: {contactDetails: {memberId: "wm-3", displayName: "Linda B"}}, groupEvent: {distance_miles: 10}}
+    ]);
+    expect(rows).toEqual([
+      {id: "wm-1", name: "Dave M", email: "", walkCount: 2, totalMiles: 23},
+      {id: "wm-3", name: "Linda B", email: "", walkCount: 1, totalMiles: 10}
     ]);
   });
 });

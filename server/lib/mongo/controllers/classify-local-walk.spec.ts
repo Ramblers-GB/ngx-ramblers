@@ -2,7 +2,7 @@ import expect from "expect";
 import { describe, it } from "mocha";
 import { EventSource, InputSource } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { EventType } from "../../../../projects/ngx-ramblers/src/app/models/walk.model";
-import { EventPopulation } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
+
 import { dateTimeFromIso } from "../../shared/dates";
 import { LocalWalkStatus } from "../models/walk-admin.model";
 import {
@@ -184,12 +184,9 @@ describe("bucketWalksForStats", () => {
       fields: {inputSource: InputSource.WALKS_MANAGER_CACHE},
       groupEvent: {title: "", start_date_time: "2025-01-04T10:00:00.000Z"}
     });
-    const localBuckets = bucketWalksForStats([localEmpty, wmCache], NOW, EventPopulation.LOCAL);
-    expect(localBuckets.unfilled).toEqual([localEmpty]);
-    expect(localBuckets.morning).toEqual([wmCache]);
-    const wmBuckets = bucketWalksForStats([localEmpty, wmCache], NOW, EventPopulation.WALKS_MANAGER);
-    expect(wmBuckets.unfilled).toEqual([]);
-    expect(wmBuckets.morning.length).toEqual(2);
+    const buckets = bucketWalksForStats([localEmpty, wmCache], NOW);
+    expect(buckets.unfilled).toEqual([localEmpty]);
+    expect(buckets.morning).toEqual([wmCache]);
   });
 });
 

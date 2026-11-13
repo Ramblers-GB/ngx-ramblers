@@ -1,5 +1,7 @@
 import { AGM_STATS_CURRENCY_METRICS, AgmStatsDetailColumnKind, AgmStatsDetailTable, AgmStatsEmailData, AgmStatsEmailSection, SummaryRow } from "../models/agm-stats.model";
+import { AGM_STATS_CHANGE_COLUMN, summaryRowChange } from "./agm-stats-change";
 import { detailCellText, isDetailLink } from "./agm-statistics-details";
+import { renderEmailComposerMarkdown } from "./email-composer-markdown";
 import { escapeHtml } from "./strings";
 
 const SECTION_TITLES: Record<AgmStatsEmailSection, string> = {
@@ -42,9 +44,9 @@ function detailMarkdown(table: AgmStatsDetailTable): string {
 }
 
 export function agmStatisticsEmailCsv(selectedSections: AgmStatsEmailSection[], data: AgmStatsEmailData): string {
-  const header = ["Section", "Statistic", ...data.periodLabels].map(csvCell).join(",");
+  const header = ["Section", "Statistic", ...data.periodLabels, AGM_STATS_CHANGE_COLUMN].map(csvCell).join(",");
   const rows = selectedSections.flatMap(section => (data.summaries[section] || []).map(row =>
-    [SECTION_TITLES[section], row.metric, ...row.values.map(value => displayValue(section, row.metric, value))].map(csvCell).join(",")
+    [SECTION_TITLES[section], row.metric, ...row.values.map(value => displayValue(section, row.metric, value)), summaryRowChange(row).display].map(csvCell).join(",")
   ));
   const detailBlocks = selectedSections.flatMap(section => detailTablesFor(data, section).map(table => [
     "",
@@ -61,13 +63,7 @@ function csvCell(value: string): string {
 }
 
 export function agmStatisticsEmailIntroHtml(introText: string | undefined): string {
-  return (introText || "")
-    .trim()
-    .split(/\n\s*\n/)
-    .map(paragraph => paragraph.trim())
-    .filter(paragraph => !!paragraph)
-    .map(paragraph => `<p style="font-family:${FONT};margin:0 0 14px 0;color:${GRANITE};font-size:15px;">${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
-    .join("");
+  return renderEmailComposerMarkdown((introText || "").trim());
 }
 
 export function agmStatisticsEmailHtml(selectedSections: AgmStatsEmailSection[], data: AgmStatsEmailData): string {
@@ -85,14 +81,14 @@ export function agmStatisticsEmailHtml(selectedSections: AgmStatsEmailSection[],
 }
 
 function summaryMarkdown(section: AgmStatsEmailSection, periodLabels: string[], rows: SummaryRow[]): string {
-  const header = ["Statistic", ...periodLabels].map(markdownCell).join(" | ");
-  const divider = ["---", ...periodLabels.map(() => "---:")].join(" | ");
-  const body = rows.map(row => [row.metric, ...row.values.map(value => displayValue(section, row.metric, value))].map(markdownCell).join(" | "));
+  const header = ["Statistic", ...periodLabels, AGM_STATS_CHANGE_COLUMN].map(markdownCell).join(" | ");
+  const divider = ["---", ...periodLabels.map(() => "---:"), "---:"].join(" | ");
+  const body = rows.map(row => [row.metric, ...row.values.map(value => displayValue(section, row.metric, value)), summaryRowChange(row).display].map(markdownCell).join(" | "));
   return [`## ${SECTION_TITLES[section]}`, `| ${header} |`, `| ${divider} |`, ...body.map(line => `| ${line} |`)].join("\n");
 }
 
 function summaryHtml(section: AgmStatsEmailSection, periodLabels: string[], rows: SummaryRow[]): string {
-  const headerCells = ["Statistic", ...periodLabels].map((label, index) =>
+  const headerCells = ["Statistic", ...periodLabels, AGM_STATS_CHANGE_COLUMN].map((label, index) =>
     `<th style="${headerCellStyle(index === 0)}">${escapeHtml(label)}</th>`
   ).join("");
   const bodyRows = rows.map((row, rowIndex) => {
@@ -101,7 +97,9 @@ function summaryHtml(section: AgmStatsEmailSection, periodLabels: string[], rows
     const valueCells = row.values.map(value =>
       `<td style="${bodyCellStyle(false, background)}">${escapeHtml(displayValue(section, row.metric, value))}</td>`
     ).join("");
-    return `<tr>${metricCell}${valueCells}</tr>`;
+    const change = summaryRowChange(row);
+    const changeCell = `<td style="${bodyCellStyle(false, background)}${changeCellColour(change.current, change.previous)}">${escapeHtml(change.display)}</td>`;
+    return `<tr>${metricCell}${valueCells}${changeCell}</tr>`;
   }).join("");
   return `<h2 style="font-family:${FONT};font-size:18px;font-weight:700;color:${GRANITE};margin:0 0 10px 0;padding:0;">${escapeHtml(SECTION_TITLES[section])}</h2>
 <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin:0 0 28px 0;">
@@ -140,6 +138,16 @@ function headerCellStyle(firstColumn: boolean): string {
 function bodyCellStyle(firstColumn: boolean, background: string): string {
   const align = firstColumn ? "left" : "right";
   return `font-family:${FONT};background:${background};color:${GRANITE};text-align:${align};padding:9px 12px;border-bottom:1px solid ${ROW_BORDER};font-size:14px;`;
+}
+
+function changeCellColour(current: number, previous: number): string {
+  if (current > previous) {
+    return "color:#198754;font-weight:700;";
+  } else if (current < previous) {
+    return "color:#dc3545;font-weight:700;";
+  } else {
+    return "";
+  }
 }
 
 function displayValue(section: AgmStatsEmailSection, metric: string, value: number): string {

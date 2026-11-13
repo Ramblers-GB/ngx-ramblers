@@ -21,8 +21,8 @@ describe("buildAgmStatsWorkbook", () => {
     expect(workbook.worksheets.map(sheet => sheet.name)).toEqual(["Walks", "Socials", "Membership", "Expenses"]);
     const walks = workbook.getWorksheet("Walks");
     expect(walks).toBeTruthy();
-    expect(walks.getRow(1).values).toEqual([undefined, "Statistic", "Previous", "Current"]);
-    expect(walks.getRow(2).values).toEqual([undefined, "Total Walks on Programme", 20, 24]);
+    expect(walks.getRow(1).values).toEqual([undefined, "Statistic", "Previous", "Current", "Change (Current vs Previous)"]);
+    expect(walks.getRow(2).values).toEqual([undefined, "Total Walks on Programme", 20, 24, "+20.0%"]);
     const expenses = workbook.getWorksheet("Expenses");
     expect(expenses).toBeTruthy();
     expect(expenses.getRow(2).getCell(3).numFmt).toEqual("\"£\"#,##0.00");

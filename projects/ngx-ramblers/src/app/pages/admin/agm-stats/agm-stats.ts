@@ -19,7 +19,8 @@ import { GroupEventDisplayService } from "../../group-events/group-event-display
 import { UIDateFormat } from "../../../models/date-format.model";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faChevronDown, faChevronUp, faCircleCheck, faCircleExclamation, faFileExcel, faPaperPlane, faSpinner } from "@fortawesome/free-solid-svg-icons";
-import { aggregateLeaderStats, asLeaderStats } from "../../../functions/agm-leader-stats";
+import { aggregateLeaderStats } from "../../../functions/agm-leader-stats";
+import { agmStatsPercentageChange } from "../../../functions/agm-stats-change";
 import { sortBy } from "../../../functions/arrays";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { isNull, isNumber, isUndefined, kebabCase, values } from "es-toolkit/compat";
@@ -36,7 +37,7 @@ import { CommitteeFileService } from "../../../services/committee/committee-file
 import { CommitteeConfigService } from "../../../services/committee/commitee-config.service";
 import { firstValueFrom } from "rxjs";
 import { take } from "rxjs/operators";
-import { committeeEventComparisonPeriods, committeeStatisticsEvents } from "../../../functions/committee-statistics-events";
+import { committeeEventComparisonPeriods, committeeStatisticsEvents, latestAgmReportingRange } from "../../../functions/committee-statistics-events";
 import { CommitteeRoleMultiSelectComponent } from "../../../committee/role-multi-select/committee-role-multi-select";
 import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
 import { EmailPreviewComponent } from "../../../modules/common/email-preview/email-preview.component";
@@ -52,19 +53,22 @@ import { UrlService } from "../../../services/url.service";
 import { EmailAttachment } from "../../../models/mail.model";
 import { extractErrorMessage, stripTrailingSlash } from "../../../functions/strings";
 import { downloadBlob } from "../../../functions/file-download";
+import { TiptapMarkdownEditor } from "../../../modules/common/tiptap-editor/tiptap-markdown-editor";
 
 Chart.register(...registerables);
 
 @Component({
   selector: "app-agm-stats",
-  imports: [FormsModule, DateRangeSlider, FontAwesomeModule, TabsetComponent, TabDirective, AGMWalksTabComponent, AGMSocialsTabComponent, AGMExpensesTabComponent, AGMMembershipTabComponent, PageComponent, CommitteeRoleMultiSelectComponent, AlertPanelComponent, EmailPreviewComponent],
+  imports: [FormsModule, DateRangeSlider, FontAwesomeModule, TabsetComponent, TabDirective, AGMWalksTabComponent, AGMSocialsTabComponent, AGMExpensesTabComponent, AGMMembershipTabComponent, PageComponent, CommitteeRoleMultiSelectComponent, AlertPanelComponent, EmailPreviewComponent, TiptapMarkdownEditor],
   styleUrls: ["./agm-stats.sass"],
   template: `
     <app-page autoTitle pageTitle="AGM Statistics Report">
       <div class="container-fluid">
 
         @if (error) {
-          <div class="alert alert-danger">{{ error }}</div>
+          <app-alert-panel class="mb-3" title="Statistics could not be loaded" [variant]="AlertPanelVariant.DANGER" [icon]="faCircleExclamation">
+            {{ error }}
+          </app-alert-panel>
         }
         @if (emailNotice) {
           <app-alert-panel class="mb-3" title="Statistics email queued" [variant]="AlertPanelVariant.SUCCESS" [icon]="faCircleCheck">
@@ -117,10 +121,11 @@ Chart.register(...registerables);
             </div>
             <small class="text-muted d-block mb-3">Adds the walk lists, leader tables, social events, organisers and expense claims beneath each summary.</small>
             <div class="mb-3">
-              <label class="form-label" for="email-statistics-intro">Introduction (optional)</label>
-              <textarea class="form-control" id="email-statistics-intro" rows="4" [(ngModel)]="emailIntroText"
-                        (ngModelChange)="onEmailIntroChange()"
-                        placeholder="A few words to go above the figures, for example what the committee should look at or decide."></textarea>
+              <label class="form-label">Introduction (optional)</label>
+              <app-tiptap-markdown-editor [value]="emailIntroText"
+                                          (valueChange)="emailIntroText = $event; onEmailIntroChange()"
+                                          placeholder="A few words to go above the figures, for example what the committee should look at or decide."
+                                          [constrainToEmailWidth]="true"/>
             </div>
             @if (emailError) {
               <app-alert-panel class="mb-3" title="Statistics email not sent" [variant]="AlertPanelVariant.DANGER">
@@ -231,9 +236,9 @@ Chart.register(...registerables);
                [sortIconFn]="sortIconFn"
                [changeClassFn]="changeClassFn"
                [getYearLabelFn]="getYearLabelFn"
-               [currentLeaders]="leaderRows()"
+               [currentLeaders]="currentLeaders"
                [newLeadersList]="newLeadersList()"
-               [aggregateLeaders]="aggregateLeaderRows()"
+               [aggregateLeaders]="aggregateLeaders"
                [aggregateYearsLabel]="aggregateYearsLabel()"
                [cancelledWalksList]="cancelledWalksList()"
                [eveningWalksList]="eveningWalksList()"
@@ -378,6 +383,8 @@ export class AGMStatsComponent implements OnInit {
     labels: [],
     datasets: []
   };
+  currentLeaders: RankedLeaderRow[] = [];
+  aggregateLeaders: RankedLeaderRow[] = [];
 
   socialChartData: ChartConfiguration["data"] = {
     labels: [],
@@ -450,15 +457,21 @@ export class AGMStatsComponent implements OnInit {
       const senderRole = this.statisticsEmailSenderRole();
       this.selectedEmailRecipientRoles = senderRole ? [senderRole.type] : [];
       const files = await this.committeeFileService.all({sort: {eventDate: -1}});
-      this.committeeEvents = committeeStatisticsEvents(files, config.fileTypes, this.dateUtils.dateTimeNow().toMillis(), value => this.dateUtils.asString(value, null, UIDateFormat.DISPLAY_DATE_AT_TIME));
+      this.committeeEvents = committeeStatisticsEvents(files, config.fileTypes, value => this.dateUtils.asString(value, null, UIDateFormat.DISPLAY_DATE_AT_TIME));
       this.fromCommitteeEventDate = this.committeeEventMatching(this.fromDate)?.date
         || (this.datesRestoredFromUrl ? this.fromDate : this.committeeEvents[0]?.date)
         || null;
       this.toCommitteeEventDate = this.committeeEventMatching(this.toDate)?.date
         || (this.datesRestoredFromUrl ? this.toDate : this.committeeEvents[0]?.date)
         || null;
-      if (!this.datesRestoredFromUrl && this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS && this.fromCommitteeEventDate === this.toCommitteeEventDate) {
-        this.fromCommitteeEventDate = this.committeeEvents[1]?.date || this.fromCommitteeEventDate;
+      if (!this.datesRestoredFromUrl && this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS) {
+        const agmRange = latestAgmReportingRange(this.committeeEvents);
+        if (agmRange) {
+          this.fromCommitteeEventDate = agmRange.fromDate;
+          this.toCommitteeEventDate = agmRange.toDate;
+        } else if (this.fromCommitteeEventDate === this.toCommitteeEventDate) {
+          this.fromCommitteeEventDate = this.committeeEvents[1]?.date || this.fromCommitteeEventDate;
+        }
       }
       if (this.eventPresetSelected() && !this.datesRestoredFromUrl) {
         this.applyCommitteeEventDates();
@@ -668,8 +681,8 @@ export class AGMStatsComponent implements OnInit {
         cancelledWalks: this.cancelledWalksList(),
         eveningWalks: this.eveningWalksList(),
         newLeaders: this.newLeadersList(),
-        currentLeaders: this.leaderRows(),
-        aggregateLeaders: this.aggregateLeaderRows(),
+        currentLeaders: this.currentLeaders,
+        aggregateLeaders: this.aggregateLeaders,
         aggregateYearsLabel: this.aggregateYearsLabel()
       },
       socials: {
@@ -841,7 +854,10 @@ export class AGMStatsComponent implements OnInit {
           this.logger.info("AGM stats loaded:", response);
         },
         error: (err) => {
-          this.error = err.message || "Failed to load AGM stats";
+          const message = extractErrorMessage(err);
+          this.error = /timed out|MongoNetworkTimeout/i.test(message)
+            ? "The database took too long to answer. Try Load Stats again."
+            : message || "The statistics could not be loaded.";
           this.loading = false;
           this.logger.error("Error loading AGM stats:", err);
         }
@@ -877,8 +893,14 @@ export class AGMStatsComponent implements OnInit {
     if (this.preset === AgmStatsPreset.ALL_TIME) {
       this.applyAllTimePreset();
     } else if (this.eventPresetSelected()) {
-      if (this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS && this.fromCommitteeEventDate === this.toCommitteeEventDate) {
-        this.fromCommitteeEventDate = this.committeeEvents[1]?.date || this.fromCommitteeEventDate;
+      if (this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS) {
+        const agmRange = latestAgmReportingRange(this.committeeEvents);
+        if (agmRange) {
+          this.fromCommitteeEventDate = agmRange.fromDate;
+          this.toCommitteeEventDate = agmRange.toDate;
+        } else if (this.fromCommitteeEventDate === this.toCommitteeEventDate) {
+          this.fromCommitteeEventDate = this.committeeEvents[1]?.date || this.fromCommitteeEventDate;
+        }
       }
       this.applyCommitteeEventDates();
     } else {
@@ -1057,6 +1079,9 @@ export class AGMStatsComponent implements OnInit {
         membership: yearStat.membership
       })) || [];
     const labels = yearlyPeriods.length ? yearlyPeriods.map(period => period.label) : walkPeriods.map(period => period.label);
+
+    this.currentLeaders = this.leaderRows();
+    this.aggregateLeaders = this.aggregateLeaderRows();
 
     this.walkChartData = {
       labels,
@@ -1359,10 +1384,7 @@ export class AGMStatsComponent implements OnInit {
     if (!this.stats?.currentYear) {
       return [];
     }
-    return (this.stats.currentYear.walks?.allLeaders || []).map((leader, index) => ({
-      ...asLeaderStats(leader),
-      rank: index + 1
-    }));
+    return aggregateLeaderStats(this.stats.currentYear.walks?.allLeaders || []);
   }
 
   aggregateLeaderRows(): RankedLeaderRow[] {
@@ -1370,17 +1392,8 @@ export class AGMStatsComponent implements OnInit {
       return [];
     }
     const source: YearComparison[] = this.stats.yearlyStats?.length ? this.stats.yearlyStats : [this.stats.twoYearsAgo, this.stats.previousYear, this.stats.currentYear].filter(Boolean);
-    this.logger.info(`aggregateLeaderRows: using ${source.length} periods, yearlyStats.length=${this.stats.yearlyStats?.length || 0}`);
     const leaders: LeaderStats[] = source.flatMap(year => year.walks?.allLeaders || []);
-    this.logger.info(`aggregateLeaderRows: total leader entries before aggregation: ${leaders.length}`);
-    this.logger.info(`aggregateLeaderRows: sample leader entries:`, leaders.slice(0, 5));
-
-    const result: RankedLeaderRow[] = aggregateLeaderStats(leaders);
-
-    this.logger.warn(`aggregateLeaderRows: final aggregated leaders count: ${result.length}`);
-    this.logger.warn(`aggregateLeaderRows: top 5 leaders:`, result.slice(0, 5));
-
-    return result;
+    return aggregateLeaderStats(leaders);
   }
 
   aggregateYearsLabel(): string {
@@ -1498,11 +1511,7 @@ export class AGMStatsComponent implements OnInit {
   }
 
   percentageChange(current: number, previous: number): string {
-    if (previous === 0) {
-      return "N/A";
-    }
-    const change = ((current - previous) / previous) * 100;
-    return change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
+    return agmStatsPercentageChange(current, previous);
   }
 
   changeClass(current: number, previous: number): string {

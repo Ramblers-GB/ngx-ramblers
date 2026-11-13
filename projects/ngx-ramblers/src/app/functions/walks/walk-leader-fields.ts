@@ -1,4 +1,4 @@
-import { ExtendedGroupEvent, GroupEvent } from "../../models/group-event.model";
+import { EventSource, ExtendedGroupEvent, GroupEvent, InputSource } from "../../models/group-event.model";
 import { Contact, RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { isArray } from "es-toolkit/compat";
 import { jointWalkLeaderNames, normalisedWalkLeaderName } from "./joint-walk-leaders";
@@ -44,10 +44,37 @@ export function walkLeaderFirstNameForAlbumThanks(walk: ExtendedGroupEvent): str
   }
 }
 
-export function walksManagerWalkLeaderNameFromGroupEvent(groupEvent: GroupEvent): WalksManagerListedWalkLeaderName {
+export function walkEventIsWalksManagerSourced(walk: ExtendedGroupEvent | {source?: EventSource; fields?: {inputSource?: InputSource}}): boolean {
+  return walk?.source === EventSource.WALKS_MANAGER
+    || walk?.fields?.inputSource === InputSource.WALKS_MANAGER_CACHE;
+}
+
+function walksManagerWalkLeaderContact(groupEvent: GroupEvent): Contact | null {
   const contact = groupEvent?.walk_leader as Contact | Contact[] | null;
-  const walkLeader = isArray(contact) ? contact[0] : contact;
-  return normalisedWalkLeaderName(walkLeader?.name || "");
+  if (isArray(contact)) {
+    return contact[0] || null;
+  } else {
+    return contact || null;
+  }
+}
+
+export function walksManagerWalkLeaderNameFromGroupEvent(groupEvent: GroupEvent): WalksManagerListedWalkLeaderName {
+  return normalisedWalkLeaderName(walksManagerWalkLeaderContact(groupEvent)?.name || "");
+}
+
+export function walksManagerWalkLeaderIdFromGroupEvent(groupEvent: GroupEvent): string {
+  return (walksManagerWalkLeaderContact(groupEvent)?.id || "").trim();
+}
+
+export function walkLeaderNameForStats(walk: ExtendedGroupEvent): string {
+  const displayName = websiteWalkLeaderDisplayName(walk);
+  const listedName = walksManagerWalkLeaderNameFromGroupEvent(walk?.groupEvent);
+  const publishedName = walksManagerContactNamesForCsv(walk);
+  if (walkEventIsWalksManagerSourced(walk)) {
+    return listedName || displayName || publishedName;
+  } else {
+    return displayName || publishedName || listedName;
+  }
 }
 
 export function remoteWalksManagerContactNameForCompare(

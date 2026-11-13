@@ -4,7 +4,11 @@ import { LeaderStats } from "../models/group-event.model";
 import { sortBy } from "./arrays";
 import { trimmedNamePart } from "./member-names";
 import { entries } from "./object-utils";
-import { walksManagerWalkLeaderNameFromGroupEvent } from "./walks/walk-leader-fields";
+import {
+  walkEventIsWalksManagerSourced,
+  walkLeaderNameForStats,
+  walksManagerWalkLeaderIdFromGroupEvent
+} from "./walks/walk-leader-fields";
 
 export const UNKNOWN_WALK_LEADER_NAME = "Unknown";
 export const UNKNOWN_WALK_LEADER_KEY = "unknown";
@@ -34,11 +38,9 @@ export function isUnknownWalkLeader(leader: {id?: unknown; name?: unknown}): boo
 }
 
 export function walkLeaderIdentityTokens(walk: any): string[] {
-  const displayName = trimmedNamePart(walk?.fields?.contactDetails?.displayName);
-  const listedName = walksManagerWalkLeaderNameFromGroupEvent(walk?.groupEvent);
-  const name = displayName || listedName;
+  const name = trimmedNamePart(walkLeaderNameForStats(walk));
   const memberId = trimmedNamePart(walk?.fields?.contactDetails?.memberId);
-  const walkLeaderId = trimmedNamePart(walk?.groupEvent?.walk_leader?.id);
+  const walkLeaderId = walksManagerWalkLeaderIdFromGroupEvent(walk?.groupEvent);
   const email = trimmedNamePart(walk?.fields?.contactDetails?.email).toLowerCase();
   const tokens: string[] = [];
   if (email) {
@@ -97,16 +99,16 @@ export function newLeadersFromPeriod(periodLeaders: LeaderStats[], historicalTok
 }
 
 export function leaderIdentityFromWalk(walk: any): {id: string; name: string; email: string} {
-  const displayName = trimmedNamePart(walk?.fields?.contactDetails?.displayName);
+  const name = trimmedNamePart(walkLeaderNameForStats(walk));
   const memberId = trimmedNamePart(walk?.fields?.contactDetails?.memberId);
-  const listedName = walksManagerWalkLeaderNameFromGroupEvent(walk?.groupEvent);
-  const name = displayName || listedName;
+  const walkLeaderId = walksManagerWalkLeaderIdFromGroupEvent(walk?.groupEvent);
   const email = trimmedNamePart(walk?.fields?.contactDetails?.email);
-  if (isUnknownWalkLeaderName(name) && !memberId && !email) {
+  const id = walkEventIsWalksManagerSourced(walk) ? (walkLeaderId || memberId) : (memberId || walkLeaderId);
+  if (isUnknownWalkLeaderName(name) && !id && !email) {
     return {id: UNKNOWN_WALK_LEADER_KEY, name: UNKNOWN_WALK_LEADER_NAME, email: ""};
   } else {
     return {
-      id: walkLeaderAggregateKey({id: memberId, name, email}),
+      id: walkLeaderAggregateKey({id, name, email}),
       name: isUnknownWalkLeaderName(name) ? UNKNOWN_WALK_LEADER_NAME : name,
       email
     };
@@ -134,9 +136,7 @@ export function leaderStatsFromWalks(walks: any[]): LeaderStats[] {
     acc.set(identity.id, existing);
     return acc;
   }, new Map<string, LeaderStats>());
-  return Array.from(aggregated.values())
-    .map(leader => asLeaderStats(leader))
-    .sort(sortBy("-walkCount", "-totalMiles"));
+  return aggregateLeaderStats(Array.from(aggregated.values())).map(leader => asLeaderStats(leader));
 }
 
 export function asLeaderStats(leader: Partial<LeaderStats> & {_id?: unknown}): LeaderStats {

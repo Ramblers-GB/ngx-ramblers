@@ -14,6 +14,7 @@ import {
   AgmStatsExcelExportRequest,
   SummaryRow
 } from "../../../../projects/ngx-ramblers/src/app/models/agm-stats.model";
+import { AGM_STATS_CHANGE_COLUMN, summaryRowChange } from "../../../../projects/ngx-ramblers/src/app/functions/agm-stats-change";
 
 const messageType = "agm-stats-excel";
 const debugLog = debug(envConfig.logNamespace(messageType));
@@ -60,18 +61,19 @@ function addSummarySheet(workbook: Workbook, sheetName: string, periodLabels: st
   const worksheet = workbook.addWorksheet(sheetName);
   worksheet.columns = [
     {header: "Statistic", width: METRIC_COLUMN_WIDTH},
-    ...periodLabels.map(label => ({header: label, width: PERIOD_COLUMN_WIDTH}))
+    ...periodLabels.map(label => ({header: label, width: PERIOD_COLUMN_WIDTH})),
+    {header: AGM_STATS_CHANGE_COLUMN, width: METRIC_COLUMN_WIDTH}
   ];
   worksheet.getRow(1).font = {bold: true};
   rows.forEach(row => {
-    const added = worksheet.addRow([row.metric, ...row.values]);
+    const added = worksheet.addRow([row.metric, ...row.values, summaryRowChange(row).display]);
     if (AGM_STATS_CURRENCY_METRICS.includes(row.metric)) {
       row.values.forEach((_, index) => {
         added.getCell(index + 2).numFmt = CURRENCY_FORMAT;
       });
     }
   });
-  worksheet.autoFilter = {from: {row: 1, column: 1}, to: {row: 1, column: 1 + periodLabels.length}};
+  worksheet.autoFilter = {from: {row: 1, column: 1}, to: {row: 1, column: 2 + periodLabels.length}};
   worksheet.views = [{state: "frozen", ySplit: 1}];
 }
 

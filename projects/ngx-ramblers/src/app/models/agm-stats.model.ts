@@ -48,6 +48,7 @@ export enum AGMStatsTab {
 export interface CommitteeStatisticsEvent {
   date: number;
   label: string;
+  meetingCategory: string;
 }
 
 export enum AgmStatsEmailSection {
