@@ -277,11 +277,10 @@ export class BackupAndRestoreService {
     envBackupConfig?: ReturnType<typeof environmentConfigFor>
   ): Promise<void> {
     let originalScaleCount: number | undefined;
+    const dbName = options.database || config.mongo!.db;
+    const outDir = path.join(this.dumpBaseDir, "backups", backupName);
     try {
       await this.updateSession(sessionId, { status: BackupSessionStatus.IN_PROGRESS });
-
-      const dbName = options.database || config.mongo!.db;
-      const outDir = path.join(this.dumpBaseDir, "backups", backupName);
 
       await fs.mkdir(outDir, { recursive: true });
       if (dbName === mongoose.connection.name) {
@@ -386,6 +385,9 @@ export class BackupAndRestoreService {
       await this.updateSessionError(sessionId, error.message);
       throw error;
     } finally {
+      if (options.upload) {
+        await this.removeLocalDump(outDir, sessionId);
+      }
       if (options.scaleDown && !isUndefined(originalScaleCount)) {
         try {
           await this.scaleApp(config, originalScaleCount);
@@ -394,6 +396,15 @@ export class BackupAndRestoreService {
           await this.addLog(sessionId, `Warning: Failed to restore scale count: ${scaleError.message}`);
         }
       }
+    }
+  }
+
+  private async removeLocalDump(outDir: string, sessionId: string): Promise<void> {
+    try {
+      await fs.rm(outDir, { recursive: true, force: true });
+      await this.addLog(sessionId, `Removed local dump after upload: ${outDir}`);
+    } catch (error: any) {
+      await this.addLog(sessionId, `Warning: failed to remove local dump ${outDir}: ${error.message}`);
     }
   }
 

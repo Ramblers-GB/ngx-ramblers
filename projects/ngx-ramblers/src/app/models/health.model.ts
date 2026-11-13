@@ -261,3 +261,16 @@ export enum FlyRestartStatus {
 export interface FlyRestartResponse {
   message: string;
 }
+
+export enum WatchdogExitDecision {
+  EXIT = "exit",
+  HELD = "held",
+  STARTUP_GRACE = "startup-grace",
+  MACHINE_PRESSURE = "machine-pressure",
+  RESTART_LOOP = "restart-loop"
+}
+
+export interface WatchdogRestartHistory {
+  restarts: number[];
+  lastLoopAlertAt: number | null;
+}

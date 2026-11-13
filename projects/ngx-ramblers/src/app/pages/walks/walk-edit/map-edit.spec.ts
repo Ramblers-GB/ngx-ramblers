@@ -22,6 +22,7 @@ describe("walk thumbnail map initialisation", () => {
         matchingZoom: () => 7
       },
       markerStyle: {smallPreviewPinIcon: () => L.divIcon()},
+      mapZoom: {isDegenerateBounds: () => false},
       logger: {info: vi.fn(), error: vi.fn()},
       renderWaypoints: vi.fn()
     });

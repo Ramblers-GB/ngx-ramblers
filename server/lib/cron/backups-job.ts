@@ -158,6 +158,7 @@ async function backupAllEnvironments(): Promise<void> {
       }
     }
   } finally {
+    await waitUntilMachineMemoryAllows(80, "post-backup watchdog release");
     releaseMemoryWatchdogRestart();
   }
 }

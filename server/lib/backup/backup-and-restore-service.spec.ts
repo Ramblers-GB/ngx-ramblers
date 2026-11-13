@@ -1,6 +1,9 @@
 import expect from "expect";
 import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
 import { BackupAndRestoreService } from "./backup-and-restore-service";
 import { backupEvents } from "./backup-events";
 import { backupSession } from "../mongo/models/backup-session";
@@ -66,6 +69,16 @@ describe("backup database traffic", () => {
       {_id: "example-session"},
       {$push: {logs: {$each: ["Uploaded one dump file"], $slice: -200}}, $currentDate: {updatedAt: true}}
     ]);
+  });
+
+  it("deletes the local dump directory after an uploaded backup", async () => {
+    const outDir = await fs.mkdtemp(path.join(os.tmpdir(), "ngx-ramblers-dump-"));
+    await fs.writeFile(path.join(outDir, "chunk.bson.gz"), "example");
+    sandbox.stub(backupEvents, "listenerCount").returns(0);
+    sandbox.stub(backupSession, "updateOne").resolves({} as any);
+    await service["removeLocalDump"](outDir, "example-session");
+    const stillPresent = await fs.access(outDir).then(() => true).catch(() => false);
+    expect(stillPresent).toEqual(false);
   });
 
   it("continues to publish full progress to a connected observer", async () => {
