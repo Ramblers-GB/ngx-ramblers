@@ -1,6 +1,7 @@
 import { Marked } from "marked";
 import { escapeHtml } from "./strings";
 import { resourceAwsImageUrls } from "./aws-image-paths";
+import { expandMarkdownTableRules } from "./email-composer-programme";
 import {EmailImageLayout, EVENT_EMAIL_IMAGE_HEIGHT, eventEmailImageStyle} from "../models/email-composer.model";
 
 const emailComposerMarked = new Marked({
@@ -21,7 +22,7 @@ export function renderEmailComposerMarkdown(markdown: string, imageLayout = Emai
     return "";
   }
   try {
-    const rendered = emailComposerMarked.parse(markdown, {async: false}) as string;
+    const rendered = emailComposerMarked.parse(expandMarkdownTableRules(markdown), {async: false}) as string;
     return formatEmailComposerHtml(rendered, imageLayout, imageHeight);
   } catch {
     return `<pre>${escapeHtml(markdown)}</pre>`;

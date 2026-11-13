@@ -14,7 +14,7 @@ describe("event format selection", () => {
     const settings = {format: ProgrammeEventFormat.DETAILED};
     const programme = {settings: () => settings, selectFormat: vi.fn(), applyTemplate: vi.fn(), applySavedFormatIfNeeded: vi.fn()};
     const requestStep = new Subject<EmailComposerStepKey>();
-    const session = {requestStep};
+    const session = {requestStep, activeStep: EmailComposerStepKey.COMPOSE};
     TestBed.configureTestingModule({imports: [EmailComposerProgrammeComponent],
       providers: [provideRouter([]),
         {provide: EmailComposerProgrammeService, useValue: programme},
@@ -28,6 +28,7 @@ describe("event format selection", () => {
   it("changes format without a generate step or an in-place preview", async () => {
     const {fixture, programme, host} = await setup();
     expect(host.textContent).toContain("Preview & Review");
+    expect(host.textContent).toContain("Event format");
     expect(host.textContent).not.toContain("Generate");
     expect(host.querySelector("app-email-preview")).toBeNull();
     expect(host.querySelector("app-committee-document-editor")).toBeNull();
@@ -38,6 +39,16 @@ describe("event format selection", () => {
     await fixture.whenStable();
     expect(programme.selectFormat).toHaveBeenCalledOnce();
     expect(host.querySelector("a")?.getAttribute("href")).toContain("tab=event-templates");
+    expect(host.querySelector("a")?.getAttribute("href")).toContain("event-format=compact");
+    expect(host.querySelector("a")?.getAttribute("href")).not.toContain("fragments");
+  });
+
+  it("opens Mail Settings on the Print / post format currently selected", async () => {
+    const {fixture, host} = await setup();
+    const programme = TestBed.inject(EmailComposerProgrammeService) as {settings: () => {format: ProgrammeEventFormat}};
+    programme.settings().format = ProgrammeEventFormat.PRINT;
+    fixture.detectChanges();
+    expect(host.querySelector("a")?.getAttribute("href")).toContain("event-format=print-post");
   });
 
   it("opens Preview and Review from the format panel", async () => {

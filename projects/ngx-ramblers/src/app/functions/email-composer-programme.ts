@@ -69,15 +69,12 @@ export function programmeMarkdown(events: GroupEventSummary[], settings: EmailCo
         const value = [...group.matchAll(/\{\{\s*([a-z-]+(?::\d+)?)\s*}}/g)]
           .map(([match, token]) => tokens[programmeEventFieldName(token) as ProgrammeEventToken] ?? match)
           .filter(value => value.trim()).join(" · ");
-        return printableTemplate.startsWith("|")
-          ? value.replace(/\|/g, "&#124;").replace(/\r?\n/g, "<br>")
-          : value;
+        return tableTemplate(printableTemplate) ? tableCellValue(value) : value;
       });
       if (markdown === null || markdown === undefined) {
         throw new Error("Choose an email template before generating the default layout.");
       }
-      return {format, markdown: markdown
-        .replace(/\n{3,}/g, "\n\n").trim()};
+      return {format, markdown: collapseEmptyTableMarkup(markdown.replace(/\n{3,}/g, "\n\n").trim())};
     }).reduce((sections: ProgrammeEventSection[], event) => {
       const previous = sections[sections.length - 1];
       const tableHeading = event.markdown.split("\n").slice(0, 2).join("\n");
@@ -91,10 +88,47 @@ export function programmeMarkdown(events: GroupEventSummary[], settings: EmailCo
 }
 
 function keepTogetherMarkdown(markdown: string): string {
-  if (/^\|/.test(markdown.trim())) {
+  const trimmed = markdown.trim();
+  if (/^\|/.test(trimmed)) {
     return markdown;
+  } else if (/<table\b/i.test(trimmed)) {
+    return `<div class="committee-document-keep">${trimmed}</div>`;
   } else {
     return `<div class="committee-document-keep">\n\n${markdown}\n\n</div>`;
+  }
+}
+
+function tableTemplate(template: string): boolean {
+  return /^\s*\|/.test(template) || /<table\b/i.test(template);
+}
+
+function tableCellValue(value: string): string {
+  return markdownLinksToHtml(value.replace(/\|/g, "&#124;").replace(/\r?\n/g, "<br>"));
+}
+
+function markdownLinksToHtml(value: string): string {
+  return value.replace(/(^|[^!])\[([^\]]+)\]\(([^)\s]+)\)/g, (_match, prefix, label, href) => `${prefix}<a href="${href}">${label}</a>`);
+}
+
+export function expandMarkdownTableRules(markdown: string): string {
+  if (!/<table\b/i.test(markdown || "")) {
+    return markdown || "";
+  } else {
+    return markdown
+      .replace(/<td([^>]*)>(?:\s*<p>)?\s*-{3,}\s*(?:<\/p>)?(?:\s*<br\s*\/?>)?/gi, "<td$1><hr>")
+      .replace(/<tr>\s*<td([^>]*)>\s*<hr>\s*<\/td>\s*(?:<td[^>]*>\s*<\/td>\s*)+<\/tr>/gi, "<tr><td$1 colspan=\"2\"><hr></td></tr>");
+  }
+}
+
+function collapseEmptyTableMarkup(markdown: string): string {
+  if (!/<table\b/i.test(markdown)) {
+    return markdown;
+  } else {
+    return expandMarkdownTableRules(markdown)
+      .replace(/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, "")
+      .replace(/<br\s*\/?>\s*(?=<br\s*\/?>|<\/td>|<\/p>|<hr\b)/gi, "")
+      .replace(/(<td[^>]*>)\s*(?:<br\s*\/?>)+/gi, "$1")
+      .replace(/<tr>\s*<td[^>]*>\s*<\/td>\s*<\/tr>/gi, "");
   }
 }
 

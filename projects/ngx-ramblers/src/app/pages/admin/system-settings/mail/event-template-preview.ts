@@ -4,7 +4,7 @@ import {Subscription} from "rxjs";
 import {FormsModule} from "@angular/forms";
 import {NgSelectModule} from "@ng-select/ng-select";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
-import {faCircleExclamation, faEnvelope, faFilePdf, faRotate, faSpinner} from "@fortawesome/free-solid-svg-icons";
+import {faCircleExclamation, faEnvelope, faPrint, faRotate, faSpinner} from "@fortawesome/free-solid-svg-icons";
 import {CommitteeFile, GroupEventsFilter, GroupEventSummary, GroupEventTypes, Notification} from "../../../../models/committee.model";
 import {PUBLIC_GROUP_EVENT_SELECT} from "../../../../models/walk.model";
 import {EVENT_EMAIL_IMAGE_HEIGHT, EventListingPreview, ProgrammeEventFormat, SectionDividerStyle} from "../../../../models/email-composer.model";
@@ -68,7 +68,7 @@ import {SectionToggle} from "../../../../shared/components/section-toggle";
           </div>
         } @else if (preview === EventListingPreview.EMAIL) {
           @if (defaultLayout) {
-            <p class="small text-muted mt-3 mb-2">Default email cards use the standard newsletter layout. Select PDF to preview edits to this template.</p>
+            <p class="small text-muted mt-3 mb-2">Default email cards use the standard newsletter layout. Select Printable to preview edits to this template.</p>
             <div class="print-preview p-3" style="height: auto; overflow: visible">
               <div class="default-email-preview mx-auto bg-white p-4">
                 <app-committee-notification-details [notification]="cardNotification()" [betweenEventsDivider]="emailDivider"/>
@@ -114,7 +114,7 @@ export class EventTemplatePreviewComponent implements OnInit, OnDestroy {
   protected readonly faRotate = faRotate;
   protected readonly previewTabs: SectionToggleTab[] = [
     {value: EventListingPreview.EMAIL, label: "Email", icon: faEnvelope},
-    {value: EventListingPreview.PDF, label: "PDF", icon: faFilePdf}
+    {value: EventListingPreview.PRINTABLE, label: "Printable", icon: faPrint, aliases: ["pdf", "word"]}
   ];
 
   ngOnInit(): void {

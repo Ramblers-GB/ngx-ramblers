@@ -1,6 +1,5 @@
 import {NgSelectModule} from "@ng-select/ng-select";
-import {ChangeDetectorRef, Component, inject, OnInit} from "@angular/core";
-import {ActivatedRoute, Router} from "@angular/router";
+import {ChangeDetectorRef, Component, inject, OnInit, ViewChild} from "@angular/core";
 import {FormsModule} from "@angular/forms";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
 import {faCircleCheck, faCircleExclamation, faCopy, faSave, faSpinner} from "@fortawesome/free-solid-svg-icons";
@@ -10,6 +9,8 @@ import {StoredValue} from "../../../../models/ui-actions.model";
 import {TiptapMarkdownEditor} from "../../../../modules/common/tiptap-editor/tiptap-markdown-editor";
 import {EventTemplateService} from "../../../../services/mail/event-template.service";
 import {EventTemplatePreviewComponent} from "./event-template-preview";
+import {StringUtilsService} from "../../../../services/string-utils.service";
+import {UiActionsService} from "../../../../services/ui-actions.service";
 
 @Component({
   selector: "app-event-template-settings",
@@ -31,7 +32,7 @@ import {EventTemplatePreviewComponent} from "./event-template-preview";
         <label for="event-template-name" class="form-label">Format name</label>
         <input id="event-template-name" type="text" class="form-control mb-3" [(ngModel)]="name" placeholder="Name for this format">
         <p>Choose a format to edit. Save changes updates that format. To keep the original, change the name and use Save as new.</p>
-        <app-tiptap-markdown-editor [value]="markdown" (valueChange)="markdown = $event"
+        <app-tiptap-markdown-editor #templateEditor [value]="markdown" (valueChange)="markdown = $event"
                                    [showMergeFields]="true" [mergeFieldCatalogue]="eventFields"
                                    [(eventImageHeight)]="imageHeight"/>
         <div class="d-flex flex-wrap gap-2 mt-3">
@@ -54,10 +55,11 @@ import {EventTemplatePreviewComponent} from "./event-template-preview";
   `
 })
 export class EventTemplateSettingsComponent implements OnInit {
+  @ViewChild("templateEditor") private templateEditor: TiptapMarkdownEditor | null = null;
   private changes = inject(ChangeDetectorRef);
-  private route = inject(ActivatedRoute);
-  private router = inject(Router);
   private templates = inject(EventTemplateService);
+  private stringUtils = inject(StringUtilsService);
+  private uiActions = inject(UiActionsService);
   protected available: PageContent[] = [];
   protected selected: PageContent | null = null;
   protected selectedPath = "";
@@ -77,15 +79,15 @@ export class EventTemplateSettingsComponent implements OnInit {
   protected readonly faSpinner = faSpinner;
 
   async ngOnInit(): Promise<void> {
-    const requested = this.route.snapshot.queryParamMap.get(StoredValue.EVENT_FORMAT);
+    const requested = this.uiActions.queryParameter(StoredValue.EVENT_FORMAT);
     this.available = this.templates.suppliedFormats();
-    this.selectedPath = this.available.some(template => template.path === requested) ? requested : this.available[0]?.path || "";
+    this.selectedPath = this.pathForRequestedFormat(requested) || this.available[0]?.path || "";
     this.select(false);
     this.loading = false;
     this.changes.markForCheck();
     try {
       this.available = await this.templates.available();
-      this.selectedPath = this.available.some(template => template.path === this.selectedPath) ? this.selectedPath : this.available[0]?.path || "";
+      this.selectedPath = this.pathForRequestedFormat(requested) || this.pathForRequestedFormat(this.stringUtils.lastItemFrom(this.selectedPath)) || this.available[0]?.path || "";
       this.select(false);
     } catch {
       this.failed = true;
@@ -122,6 +124,8 @@ export class EventTemplateSettingsComponent implements OnInit {
   }
 
   private async persist(name: string, existing: PageContent | null, success: string): Promise<void> {
+    this.templateEditor?.flushMarkdownEmit();
+    this.markdown = this.templateEditor?.markdown() ?? this.markdown;
     this.busy = true;
     this.message = "";
     try {
@@ -147,7 +151,12 @@ export class EventTemplateSettingsComponent implements OnInit {
   }
 
   private rememberSelection(): void {
-    void this.router.navigate([], {relativeTo: this.route, queryParamsHandling: "merge", replaceUrl: true,
-      queryParams: {[StoredValue.EVENT_FORMAT]: this.selectedPath || null}});
+    const format = this.stringUtils.lastItemFrom(this.selectedPath);
+    void this.uiActions.updateQueryParameter(StoredValue.EVENT_FORMAT, format ? this.uiActions.queryValueAliasFor(format) : null);
+  }
+
+  private pathForRequestedFormat(requested: string | null): string {
+    const format = this.uiActions.queryValueForAlias(requested, this.available.map(template => this.stringUtils.lastItemFrom(template.path)));
+    return this.available.find(template => this.stringUtils.lastItemFrom(template.path) === format)?.path || "";
   }
 }

@@ -1,11 +1,70 @@
-import {ComposerMessagePreferencesService} from "../../services/email-composer/composer-message-preferences.service";
-import {parseEmailHeadersFromMarkdown, emailHeadersNearTop, formattedPasteMarkdown} from "../../functions/email-composer-intro-paste";
+import { ComposerMessagePreferencesService } from "../../services/email-composer/composer-message-preferences.service";
+import {
+  emailHeadersNearTop,
+  extractLeadingTitle,
+  formattedPasteMarkdown,
+  parseEmailHeadersFromMarkdown,
+  planTitledIntroPaste,
+  subjectNeedsPersonalising,
+  subjectStillDefault,
+  subjectTextFromPaste
+} from "../../functions/email-composer-intro-paste";
 import { EmailComposerSenderService } from "../../services/email-composer/email-composer-sender.service";
-import {EmailComposerDraftingComponent} from "./email-composer-drafting.component";
-import {EmailComposerDraftingMode} from "../../models/email-composer.model";
+import { EmailComposerDraftingComponent } from "./email-composer-drafting.component";
+import {
+  ADDRESSEE_OPTIONS,
+  AddresseeType,
+  ArticleBlock,
+  BATCH_SEND_JOB_LOST_MESSAGE,
+  BatchSendEntryStatus,
+  BatchSendProgress,
+  BatchSendStatus,
+  BatchTransactionalSendRequest,
+  BRANDING_MODE_OPTIONS,
+  BrandingMode,
+  CommitteeFileEmailInclude,
+  ComposerAddSectionAction,
+  ComposerExternalRecipient,
+  ComposerFragment,
+  ComposerFragmentKind,
+  ComposerSaveAction,
+  ComposerShowAction,
+  DEFAULT_COLUMN_GAP_PX,
+  DragHoverPosition,
+  EMAIL_COMPOSER_STEPS,
+  EmailComposerContextSource,
+  EmailComposerDraftingMode,
+  EmailComposerState,
+  EmailComposerStepKey,
+  EmailComposition,
+  EmailCompositionKind,
+  EmailCompositionStatus,
+  EmailCompositionSummary,
+  EventInclusionMode,
+  EventListingPreview,
+  MERGE_FIELD_CATALOGUE,
+  MergeFieldGroup,
+  PreviewStepDirection,
+  PriorSendExclusion,
+  PROMOTIONAL_LANGUAGE_PATTERN,
+  RecipientAddressMode,
+  RecipientField,
+  RecipientMode,
+  REPLY_OR_FORWARD_SUBJECT_PATTERN,
+  SectionDividerStyle,
+  SendingChannel,
+  UNBRANDED_HARD_CAP_RECIPIENTS,
+  UNBRANDED_LONG_BODY_CHAR_THRESHOLD,
+  UNBRANDED_RECIPIENT_LIST_ERROR,
+  ValidationError,
+  ValidationErrorWithLink,
+  VOLUNTEER_MERGE_FIELD_CATALOGUE
+} from "../../models/email-composer.model";
 import { EmailComposerDraftingService } from "../../services/email-composer/email-composer-drafting.service";
-import { EmailComposerEventSelectionService } from "../../services/email-composer/email-composer-event-selection.service";
-import {EmailComposerDocumentComponent} from "./email-composer-document.component";
+import {
+  EmailComposerEventSelectionService
+} from "../../services/email-composer/email-composer-event-selection.service";
+import { EmailComposerDocumentComponent } from "./email-composer-document.component";
 import { EmailComposerDocumentsService } from "../../services/email-composer/email-composer-documents.service";
 import { FocusInputDirective } from "../../modules/common/focus-input/focus-input.directive";
 import { SuppressAutofillDirective } from "../../modules/common/suppress-autofill/suppress-autofill.directive";
@@ -22,55 +81,6 @@ import {
 import {
   EmailComposerUpdateSettingsService
 } from "../../services/email-composer/email-composer-update-settings.service";
-import {
-  ADDRESSEE_OPTIONS,
-  AddresseeType,
-  ArticleBlock,
-  BatchSendEntryStatus,
-  BatchSendProgress,
-  BatchSendStatus,
-  BATCH_SEND_JOB_LOST_MESSAGE,
-  BatchTransactionalSendRequest,
-  BRANDING_MODE_OPTIONS,
-  BrandingMode,
-  CommitteeFileEmailInclude,
-  ComposerExternalRecipient,
-  ComposerFragment,
-  ComposerFragmentKind,
-  DEFAULT_COLUMN_GAP_PX,
-  DragHoverPosition,
-  EMAIL_COMPOSER_STEPS,
-  EmailComposerContextSource,
-  EmailComposerState,
-  EmailComposerStepKey,
-  EmailComposition,
-  EmailCompositionKind,
-  EmailCompositionStatus,
-  EmailCompositionSummary,
-  ComposerAddSectionAction,
-  ComposerSaveAction,
-  ComposerShowAction,
-  EventInclusionMode,
-  EventListingPreview,
-  MERGE_FIELD_CATALOGUE,
-  MergeFieldGroup,
-  NewsletterWindow,
-  PreviewStepDirection,
-  PriorSendExclusion,
-  PROMOTIONAL_LANGUAGE_PATTERN,
-  RecipientAddressMode,
-  RecipientField,
-  RecipientMode,
-  REPLY_OR_FORWARD_SUBJECT_PATTERN,
-  SectionDividerStyle,
-  SendingChannel,
-  UNBRANDED_HARD_CAP_RECIPIENTS,
-  UNBRANDED_RECIPIENT_LIST_ERROR,
-  UNBRANDED_LONG_BODY_CHAR_THRESHOLD,
-  ValidationError,
-  ValidationErrorWithLink,
-  VOLUNTEER_MERGE_FIELD_CATALOGUE
-} from "../../models/email-composer.model";
 import { EmailComposerAttachmentsComponent } from "./email-composer-attachments.component";
 import {
   EmailCompositionListComponent
@@ -80,7 +90,7 @@ import { EmailComposerFragmentsService } from "../../services/email-composer/ema
 import { EmailComposerEventsComponent } from "./email-composer-events.component";
 import { applyMediaSelection, clampMediaIndex } from "../../functions/email-composer-event-media";
 import { AdminMembersPath, AdminPath } from "../../models/admin-route-paths.model";
-import { PathSegment } from "../../models/content-text.model";
+import { EM_DASH_WITH_SPACES, PathSegment } from "../../models/content-text.model";
 import { RouterHistoryService } from "../../services/router-history.service";
 import {
   ChangeDetectorRef,
@@ -113,7 +123,7 @@ import { volunteerMergeFieldsFor } from "../../functions/volunteer-management";
 import { HttpClient } from "@angular/common/http";
 import { MemberResourcesReferenceDataService } from "../../services/member/member-resources-reference-data.service";
 import { switchMap } from "rxjs/operators";
-import { cloneDeep, isArray, isBoolean, isNumber, isString, kebabCase, keys, values } from "es-toolkit/compat";
+import { cloneDeep, isBoolean, isNumber, isString, kebabCase, values } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
 import {
   faAngleDoubleLeft,
@@ -123,23 +133,24 @@ import {
   faArrowLeft,
   faArrowRight,
   faArrowRotateLeft,
+  faBookOpen,
   faCheckCircle,
-  faRotateLeft,
   faChevronDown,
   faChevronRight,
-  faEnvelope,
-  faFilePdf,
-  faFileWord,
-  faPenToSquare,
   faCircleInfo,
   faCompress,
+  faEnvelope,
   faExpand,
   faFile,
+  faFileLines,
   faFolderOpen,
   faGear,
   faLock,
   faPaperPlane,
+  faPenToSquare,
   faPlus,
+  faPrint,
+  faRotateLeft,
   faSpinner,
   faTableColumns,
   faTrash,
@@ -150,8 +161,7 @@ import {
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { Step, StepList, StepPanel, StepPanels, Stepper, StepperModule } from "primeng/stepper";
 import { Logger, LoggerFactory } from "../../services/logger-factory.service";
-import { AlertInstance, NotifierService } from "../../services/notifier.service";
-import { AlertTarget } from "../../models/alert-target.model";
+import { NotifierService } from "../../services/notifier.service";
 import { ComposerLeaveCheck } from "../../guards/composer-leave-guard";
 import { PageComponent } from "../../page/page.component";
 import { Member, MemberBulkLoadDateMap } from "../../models/member.model";
@@ -160,56 +170,31 @@ import {
   appendUniqueRecipients,
   batchSendJobWasLost,
   batchSendRecipientSplit,
+  COMPOSER_SUBJECT_REQUIRED_MESSAGE,
   composerCommitteeRecipients,
   composerContentHasPersonalisation,
-  COMPOSER_SUBJECT_REQUIRED_MESSAGE,
-  defaultAddresseeTypeForBranding,
   composerRecipientAddressesArePrivate,
   composerRecipientCount,
   composerSendProgressDescription,
-  composerSenderIdentities,
-  defaultBrandedSenderEmail,
+  composerSharesRecipientHeaders,
+  defaultAddresseeTypeForBranding,
   defaultEmailComposerState,
   defaultNewsletterSettings,
   defaultReleaseNoteUpdateSettings,
   dividerHtml,
   findRecycledTrackingUrls,
   fragmentIdsWithContent,
-  releaseNoteUpdateArticlesFrom,
-  releaseNoteUpdateFragmentOrder,
   releaseNoteUpdateSettingsFrom,
-  releaseNoteUpdateSubject,
-  composerSharesRecipientHeaders
+  releaseNoteUpdateSubject
 } from "../../functions/email-composer";
-import {
-  committeeFileEmailHtml,
-  committeeFileEmailSendsContent,
-  committeeMarkdownForEmail,
-  hasCommitteeDocumentContent,
-  resolvedCommitteeFileEmailInclude
-} from "../../functions/committee-file-email";
-import {
-  markEventsNewSinceLastNewsletter,
-  newEventCount,
-  newsletterWindowFrom
-} from "../../functions/newsletter-window";
+import { committeeFileEmailHtml, hasCommitteeDocumentContent } from "../../functions/committee-file-email";
 import { AiService } from "../../services/ai/ai.service";
-import {
-  DEFAULT_NEWSLETTER_INTRO_PURPOSE,
-  NEWSLETTER_INTRO_PURPOSE_OPTIONS,
-  NewsletterIntroEvent,
-  NewsletterIntroPurpose,
-  NewsletterPlan,
-  ReleaseNoteUpdateDraftOutcome,
-  ReleaseNoteUpdateResponse
-} from "../../models/ai.model";
-import { eventsForPurpose, RESEND_WITHIN_PERIOD_LABEL } from "../../functions/newsletter-purpose";
+import { RESEND_WITHIN_PERIOD_LABEL } from "../../functions/newsletter-purpose";
 import {
   COMMITTEE_ROLE_CAMPAIGN_EXCLUSION_LIST_NAME,
-  ComposerDrafting,
-  emailAttachmentSupported,
   ComposerRoleDefaults,
   CreateCampaignRequest,
+  emailAttachmentSupported,
   MemberSelection,
   NotificationConfig,
   SendSmtpEmailParams,
@@ -250,13 +235,6 @@ import {
   newestInboxMessage,
   replyAllRecipients
 } from "../../functions/inbox-thread";
-import {
-  extractLeadingTitle,
-  planTitledIntroPaste,
-  subjectNeedsPersonalising,
-  subjectStillDefault,
-  subjectTextFromPaste
-} from "../../functions/email-composer-intro-paste";
 import { TiptapPasteEvent } from "../../models/tiptap-editor.model";
 import { parseEmailAddressList } from "../../functions/email-addresses";
 import { InboxAttachment, InboxReplyComposeResponse } from "../../models/inbox.model";
@@ -269,33 +247,17 @@ import { EmailPreviewComponent } from "../../modules/common/email-preview/email-
 import { CommitteeDocumentEditor } from "../committee/document/committee-document-editor";
 import { SectionToggle } from "../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../models/section-toggle.model";
-import {EmailComposerProgrammeService} from "../../services/email-composer/email-composer-programme.service";
-import {EmailComposerProgrammeComponent} from "./email-composer-programme.component";
+import { EmailComposerProgrammeService } from "../../services/email-composer/email-composer-programme.service";
+import { EmailComposerProgrammeComponent } from "./email-composer-programme.component";
 import { NotificationDirective } from "../../notifications/common/notification.directive";
-import { SystemConfig } from "../../models/system.model";
 import { CommitteeReferenceData } from "../../services/committee/committee-reference-data";
 import { CommitteeConfigService } from "../../services/committee/commitee-config.service";
 
-import {
-  COMMITTEE_DOCUMENT_LAYOUTS,
-  CommitteeDocumentLayout,
-  CommitteeFile,
-  committeeMailboxAddresses,
-  CommitteeMailboxKind,
-  CommitteeMember,
-  GroupEventSummary,
-  Notification,
-  NotificationItem,
-  roleEmailAddresses
-} from "../../models/committee.model";
-import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
+import { CommitteeDocumentLayout, GroupEventSummary, Notification } from "../../models/committee.model";
 import { DocumentConversionService } from "../../services/committee/document-conversion.service";
 import { CONVERTIBLE_DOCUMENT_EXTENSIONS } from "../../models/aws-object.model";
 import { CommitteeDisplayService } from "../committee/committee-display.service";
-import { EM_DASH_WITH_SPACES, PageContent } from "../../models/content-text.model";
 import { ExternalRecipientService } from "../../services/external-recipient/external-recipient.service";
-import { ExtendedGroupEvent } from "../../models/group-event.model";
-import { eventSlug } from "../../functions/walks/event-slug";
 import { DateValue } from "../../models/date.model";
 import {
   CommitteeNotificationDetailsComponent
@@ -970,7 +932,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
       </div>
       }
       <div class="d-none" #eventsContent>
-        @if (!eventsStepOmitted() && (state.eventInclusion === EventInclusionMode.AUTO_INCLUDE || state.eventInclusion === EventInclusionMode.SINGLE_EVENT) && committeeNotification) {
+        @if (captureDefaultEventCards && !eventsStepOmitted() && (state.eventInclusion === EventInclusionMode.AUTO_INCLUDE || state.eventInclusion === EventInclusionMode.SINGLE_EVENT) && committeeNotification) {
           <app-committee-notification-details
             [notification]="committeeNotification"
             [members]="recipientSources.members"
@@ -1288,10 +1250,11 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
             <li>Estimated send time: <strong>{{ estimatedSendTime() }}</strong></li>
           }
         </ul>
-        <p class="text-muted small">Email is the message as recipients will see it. PDF, Word and the editable document use the same programme, including your introduction, events and sign-off. Walks stay on one page; if a walk does not fit, it starts on the next page. Choose a page layout to see the grid of pages as they will print.</p>
-        @if (listingPreview === EventListingPreview.EMAIL) {
-          <div class="d-flex flex-wrap align-items-center mb-3" style="gap: 0.5rem;">
-            <button type="button" class="btn btn-primary" (click)="refreshPreview()">Refresh preview</button>
+        <p class="text-muted small">Email is the message as recipients will see it. Printable is the same programme on A4, A5 or an A5 booklet, with Print / Save as PDF and Download Word on that view. Edit document is the markdown behind it. Walks stay on one page; if a walk does not fit, it starts on the next page.</p>
+        <app-email-composer-programme compact/>
+        <div class="d-flex flex-wrap align-items-center mb-3" style="gap: 0.5rem;">
+          <button type="button" class="btn btn-primary" (click)="refreshListingPreview()">Refresh preview</button>
+          @if (listingPreview === EventListingPreview.EMAIL) {
             <div class="btn-group" role="group" aria-label="Step through recipients">
               <button type="button" class="btn btn-primary"
                       [disabled]="!canStepPreview(PreviewStepDirection.First)"
@@ -1315,7 +1278,9 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
               </button>
             </div>
             <span class="text-muted small">{{ previewRecipientLabel() }}</span>
-          </div>
+          }
+        </div>
+        @if (listingPreview === EventListingPreview.EMAIL) {
           <div class="row">
             <div class="col-sm-12">
               <app-email-preview #emailPreview/>
@@ -1330,8 +1295,9 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                                          [editable]="listingPreview === EventListingPreview.DOCUMENT"
                                          [previewing]="listingPreview !== EventListingPreview.DOCUMENT"
                                          [value]="programmeDocument.document?.markdown || ''"
-                                         (valueChange)="programme.updateDocumentMarkdown($event)">
-            <app-section-toggle [tabs]="documentLayoutTabs" [selectedTab]="programme.settings().layout || CommitteeDocumentLayout.A4_PORTRAIT"
+                                         (valueChange)="onProgrammeDocumentChange($event)">
+            <app-section-toggle [tabs]="documentLayoutTabs"
+                                [selectedTab]="programme.settings().layout || CommitteeDocumentLayout.A4_PORTRAIT"
                                 [queryParamKey]="StoredValue.DOCUMENT_LAYOUT"
                                 (selectedTabChange)="onDocumentLayoutChange($event)"/>
           </app-committee-document-editor>
@@ -1528,11 +1494,14 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   protected listingPreview = EventListingPreview.EMAIL;
   protected readonly listingPreviewTabs: SectionToggleTab[] = [
     {value: EventListingPreview.EMAIL, label: "Email", icon: faEnvelope},
-    {value: EventListingPreview.PDF, label: "PDF", icon: faFilePdf},
-    {value: EventListingPreview.WORD, label: "Word", icon: faFileWord},
-    {value: EventListingPreview.DOCUMENT, label: "Editable document", icon: faPenToSquare}
+    {value: EventListingPreview.PRINTABLE, label: "Printable", icon: faPrint, aliases: ["pdf", "word"]},
+    {value: EventListingPreview.DOCUMENT, label: "Edit document", icon: faPenToSquare}
   ];
-  protected readonly documentLayoutTabs: SectionToggleTab[] = COMMITTEE_DOCUMENT_LAYOUTS.map(layout => ({value: layout.value, label: layout.label}));
+  protected readonly documentLayoutTabs: SectionToggleTab[] = [
+    {value: CommitteeDocumentLayout.A4_PORTRAIT, label: "A4 pages", icon: faFile},
+    {value: CommitteeDocumentLayout.A5_PORTRAIT, label: "A5 pages", icon: faFileLines},
+    {value: CommitteeDocumentLayout.A5_BOOKLET, label: "A5 booklet (two-up on A4)", icon: faBookOpen}
+  ];
   protected readonly EventListingPreview = EventListingPreview;
   protected readonly CommitteeDocumentLayout = CommitteeDocumentLayout;
   protected readonly StoredValue = StoredValue;
@@ -1597,7 +1566,6 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   protected readonly faAngleRight = faAngleRight;
   protected readonly faAngleDoubleRight = faAngleDoubleRight;
   protected readonly faEnvelope = faEnvelope;
-  protected readonly faFilePdf = faFilePdf;
   protected readonly faPaperPlane = faPaperPlane;
   protected readonly faXmark = faXmark;
   protected readonly faExpand = faExpand;
@@ -1668,6 +1636,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     this.subscriptions.push(this.session.contentChanged.subscribe(() => {
       this.changeDetector.detectChanges();
       this.maybeAutoRefreshPreview();
+      this.refreshReviewAfterContentChange();
     }));
     this.subscriptions.push(this.programme.edited.subscribe(() => this.userHasEditedComposer = true));
     void this.loadSavedExternalRecipients();
@@ -1985,8 +1954,11 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
 
   protected committeeNotification: Notification | null = null;
   private committeeNotificationInputs: unknown[] = [];
+  protected captureDefaultEventCards = false;
   ngDoCheck(): void {
-    this.refreshCommitteeNotification();
+    if (this.captureDefaultEventCards) {
+      this.refreshCommitteeNotification();
+    }
   }
 
   protected onSubjectModelChange(value: string): void {
@@ -2053,6 +2025,41 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
         };
       }
     }
+  }
+
+  private usesDefaultEventCards(): boolean {
+    return !this.eventsStepOmitted()
+      && this.session.state.eventInclusion !== EventInclusionMode.NONE
+      && !this.programme.generated()
+      && !this.programme.formatted();
+  }
+
+  private async prepareDefaultEventCards(): Promise<void> {
+    if (this.usesDefaultEventCards()) {
+      this.captureDefaultEventCards = true;
+      this.refreshCommitteeNotification();
+      this.changeDetector.detectChanges();
+      await this.whenDefaultEventCardsReady();
+    } else {
+      this.captureDefaultEventCards = false;
+    }
+  }
+
+  private whenDefaultEventCardsReady(): Promise<void> {
+    return new Promise(resolve => {
+      const progress = {attempts: 0};
+      const check = () => {
+        const host = this.eventsContent?.nativeElement;
+        const selected = this.session.state.groupEvents.filter(event => event.selected && !event.deleted);
+        if (selected.length === 0 || host?.querySelector("[data-composer-event-id]") || progress.attempts >= 20) {
+          resolve();
+        } else {
+          progress.attempts += 1;
+          setTimeout(check, 50);
+        }
+      };
+      check();
+    });
   }
 
   private renderedEventsHtml(): string {
@@ -2462,6 +2469,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       const matchingStep = EMAIL_COMPOSER_STEPS.find(step => step.key === tab);
       if (matchingStep && matchingStep.key !== this.stepperActiveTab) {
         this.stepperActiveTab = matchingStep.key;
+        this.session.activeStep = matchingStep.key;
         queueMicrotask(() => this.stepperRef?.value?.set(matchingStep.key as unknown as number));
       }
       if (matchingStep?.key === EmailComposerStepKey.REVIEW) {
@@ -2503,7 +2511,10 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
     if (!storedCompositionRoute && this.session.state.eventInclusion === EventInclusionMode.AUTO_INCLUDE && this.session.state.groupEventsFilter) {
       this.events.selectedDateRangePreset = this.events.matchPresetToCurrentRange();
-      void this.events.populateGroupEvents();
+      const eventsAlreadyLoaded = this.session.state.groupEvents.length > 0;
+      if (!eventsAlreadyLoaded) {
+        void this.events.populateGroupEvents();
+      }
     }
     this.recipients.applyForcedMemberSelection();
     this.applyInboxReplyHandoffIfAny(queryParams);
@@ -3625,6 +3636,12 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   private setActiveStepperTab(key: EmailComposerStepKey, queryParams: Record<string, string | null | undefined> = {}): void {
     this.releaseComposerChangeDetection("step");
     this.stepperActiveTab = key;
+    this.session.activeStep = key;
+    if (key === EmailComposerStepKey.REVIEW || key === EmailComposerStepKey.SEND) {
+      void this.prepareDefaultEventCards();
+    } else {
+      this.captureDefaultEventCards = false;
+    }
     this.session.syncStateToUrl({...queryParams, [StoredValue.TAB]: key});
   }
 
@@ -4368,6 +4385,15 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
 
   private autoPreviewAttempts = 0;
 
+  private refreshReviewAfterContentChange(): void {
+    if (this.stepperActiveTab === EmailComposerStepKey.REVIEW) {
+      this.changeDetector.detectChanges();
+      if (this.listingPreview === EventListingPreview.EMAIL) {
+        this.refreshPreview().catch(error => this.logger.error("preview refresh after content change failed", error));
+      }
+    }
+  }
+
   private maybeAutoRefreshPreview(): void {
     if (!(!this.autoPreviewPending)) {
       if (this.stepperActiveTab !== EmailComposerStepKey.REVIEW) {
@@ -4434,6 +4460,12 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
   }
 
+  protected onProgrammeDocumentChange(markdown: string): void {
+    if (this.listingPreview === EventListingPreview.DOCUMENT) {
+      this.programme.updateDocumentMarkdown(markdown);
+    }
+  }
+
   protected onDocumentLayoutChange(layout: CommitteeDocumentLayout): void {
     this.programme.selectLayout(layout);
   }
@@ -4466,12 +4498,21 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
   }
 
+  protected async refreshListingPreview(): Promise<void> {
+    await this.programme.applySavedFormatIfNeeded(true);
+    if (this.listingPreview === EventListingPreview.EMAIL) {
+      await this.refreshPreview();
+    }
+  }
+
   async refreshPreview(): Promise<void> {
+    await this.programme.applySavedFormatIfNeeded();
     const isUnbranded = this.session.state.brandingMode === BrandingMode.UNBRANDED;
     if (!isUnbranded && !this.session.state.notificationConfig?.templateName) {
       this.emailPreview?.showError("Choose a template to render the preview.");
     } else {
       try {
+        await this.prepareDefaultEventCards();
         await this.documents.resolveCommitteeFileLinksForSend();
       } catch (error) {
         this.logger.error("refreshPreview committee file link resolution failed", error);
@@ -4844,6 +4885,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     const groupMembers = await this.memberService.privilegedFields(this.memberService.filterFor.GROUP_MEMBERS);
     await this.mailListUpdaterService.updateMailLists(this.session.notify, groupMembers);
     const member = await this.memberService.getById(this.memberLoginService.loggedInMember().memberId);
+    await this.prepareDefaultEventCards();
     await this.documents.resolveCommitteeFileLinksForSend();
     const {top, bottom, combined} = this.composedBodyParts();
     const campaignTop = toCampaignContactTokens(top);
@@ -4982,6 +5024,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   private async startBatchTransactionalSend(memberIds: string[] = this.sendMemberIds()): Promise<void> {
+    await this.prepareDefaultEventCards();
     await this.documents.resolveCommitteeFileLinksForSend();
     const {top, bottom, combined} = this.composedBodyParts();
     const isUnbranded = this.session.state.brandingMode === BrandingMode.UNBRANDED;

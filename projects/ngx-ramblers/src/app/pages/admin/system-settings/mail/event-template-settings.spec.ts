@@ -3,12 +3,15 @@ import {Component, EventEmitter, Input, Output} from "@angular/core";
 import {TestBed} from "@angular/core/testing";
 import {By} from "@angular/platform-browser";
 import {provideRouter} from "@angular/router";
+import {LoggerTestingModule} from "ngx-logger/testing";
 import {describe, expect, it, vi} from "vitest";
 import {EventTemplateSettingsComponent} from "./event-template-settings";
 import {EventTemplatePreviewComponent} from "./event-template-preview";
 import {TiptapMarkdownEditor} from "../../../../modules/common/tiptap-editor/tiptap-markdown-editor";
 import {EventTemplateService} from "../../../../services/mail/event-template.service";
 import {PageContent} from "../../../../models/content-text.model";
+import {StoredValue} from "../../../../models/ui-actions.model";
+import {UiActionsService} from "../../../../services/ui-actions.service";
 
 @Component({selector: "app-tiptap-markdown-editor", template: `<div>{{value}}</div>`})
 class EditorStub {
@@ -18,6 +21,8 @@ class EditorStub {
   @Input() eventImageHeight = 240;
   @Output() valueChange = new EventEmitter<string>();
   @Output() eventImageHeightChange = new EventEmitter<number>();
+  flushMarkdownEmit(): void {}
+  markdown(): string { return this.value; }
 }
 
 @Component({selector: "app-event-template-preview", template: `<div>{{template}}</div>`})
@@ -29,16 +34,23 @@ class PreviewStub {
 
 describe("existing event format settings", () => {
   const original = {path: "fragments/templates/event-programme/detailed", migrationTemplate: {templateName: "Detailed"}} as PageContent;
+  const printPost = {path: "fragments/templates/event-programme/print-post", migrationTemplate: {templateName: "Print / post"}} as PageContent;
 
-  async function setup() {
-    const templates = {suppliedFormats: () => [original], available: vi.fn().mockResolvedValue([original]), content: () => "{{title}}", imageHeight: () => 240,
+  async function setup(formatParam = "") {
+    const templates = {suppliedFormats: () => [original, printPost], available: vi.fn().mockResolvedValue([original, printPost]), content: (template: PageContent) => template.path.endsWith("print-post") ? "{{title}} print" : "{{title}}", imageHeight: () => 240,
       save: vi.fn().mockImplementation(async (name: string, markdown: string, existing: PageContent | null) => ({
         ...original, id: existing ? "saved-format" : "copied-format",
         path: existing ? original.path : "fragments/templates/event-programme/walk-with-image",
         migrationTemplate: {templateName: name}, markdown
       }))};
-    TestBed.configureTestingModule({imports: [EventTemplateSettingsComponent],
-      providers: [provideRouter([]), {provide: EventTemplateService, useValue: templates}]});
+    TestBed.configureTestingModule({imports: [EventTemplateSettingsComponent, LoggerTestingModule],
+      providers: [provideRouter([]), {provide: EventTemplateService, useValue: templates},
+        {provide: UiActionsService, useValue: {
+          queryParameter: (key: StoredValue) => key === StoredValue.EVENT_FORMAT && formatParam ? formatParam : null,
+          updateQueryParameter: vi.fn().mockResolvedValue(true),
+          queryValueAliasFor: (value: string) => value,
+          queryValueForAlias: (alias: string | null, allowed: string[]) => alias ? allowed.find(value => value === alias) || null : null
+        }}]});
     TestBed.overrideComponent(EventTemplateSettingsComponent, {remove: {imports: [TiptapMarkdownEditor, EventTemplatePreviewComponent]},
       add: {imports: [EditorStub, PreviewStub]}});
     const fixture = TestBed.createComponent(EventTemplateSettingsComponent);
@@ -79,6 +91,11 @@ describe("existing event format settings", () => {
     expect(templates.save).toHaveBeenCalledWith("Walk with image", "{{title}} {{image}}", null, 240);
     expect(host.querySelector<HTMLInputElement>("#event-template-name").value).toBe("Walk with image");
     expect(host.textContent).toContain("The original is unchanged");
+  });
+
+  it("opens the format named in the event-format query", async () => {
+    const {fixture} = await setup("print-post");
+    expect(fixture.debugElement.query(By.directive(NgSelectComponent)).componentInstance.selectedItems[0].label).toContain("Print / post");
   });
 
   it("asks for a new name before saving a copy of the same format", async () => {

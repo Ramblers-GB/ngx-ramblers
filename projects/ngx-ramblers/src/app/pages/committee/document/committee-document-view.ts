@@ -1,5 +1,6 @@
 import {DocumentAppearance, documentAppearance} from "../../../models/document-appearance.model";
 import { AfterViewInit, Component, ElementRef, inject, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild } from "@angular/core";
+import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { NgxLoggerLevel } from "ngx-logger";
 import { fromEvent, Subscription } from "rxjs";
 import { debounceTime } from "rxjs/operators";
@@ -15,6 +16,7 @@ import { SystemConfigService } from "../../../services/system/system-config.serv
 import { UrlService } from "../../../services/url.service";
 import { stripTrailingSlash } from "../../../functions/strings";
 import { encodeMarkdownLinkUrls } from "../../../functions/markdown";
+import { renderCommitteeDocumentMarkdown } from "../../../modules/common/markdown-options";
 
 @Component({
   selector: "app-committee-document-view",
@@ -57,7 +59,7 @@ import { encodeMarkdownLinkUrls } from "../../../functions/markdown";
             </div>
           }
           <div class="committee-document-body">
-            <markdown [data]="renderableMarkdown()" (ready)="onMarkdownReady()"/>
+            <div class="committee-document-markdown" [innerHTML]="renderedBody()"></div>
           </div>
         </div>
         <div #masterFooter>
@@ -103,6 +105,7 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
   private logger: Logger = inject(LoggerFactory).createLogger("CommitteeDocumentView", NgxLoggerLevel.ERROR);
   private systemConfigService = inject(SystemConfigService);
   private committeeConfigService = inject(CommitteeConfigService);
+  private sanitizer = inject(DomSanitizer);
   private zone = inject(NgZone);
   protected dateUtils = inject(DateUtilsService);
   urlService = inject(UrlService);
@@ -110,6 +113,7 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
   private subscriptions: Subscription[] = [];
   private sourceMarkdown: string | null = null;
   private encodedMarkdown = "";
+  private renderedHtml: SafeHtml = "";
   private contentBlocks: HTMLElement[] = [];
   private paginationTimer: ReturnType<typeof setTimeout>;
   private paginationGeneration = 0;
@@ -184,9 +188,15 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
     const markdown = this.committeeFile?.document?.markdown || "";
     if (markdown !== this.sourceMarkdown) {
       this.sourceMarkdown = markdown;
-    this.encodedMarkdown = encodeMarkdownLinkUrls((this.committeeFile?.document?.markdown || "").replace(/^[ \t]*PAGEBREAK[ \t]*$/gmi, "\n<div class=\"committee-document-page-break\"></div>\n"));
+      this.encodedMarkdown = encodeMarkdownLinkUrls((this.committeeFile?.document?.markdown || "").replace(/^[ \t]*PAGEBREAK[ \t]*$/gmi, "\n<div class=\"committee-document-page-break\"></div>\n"));
+      this.renderedHtml = this.sanitizer.bypassSecurityTrustHtml(renderCommitteeDocumentMarkdown(this.encodedMarkdown));
     }
     return this.encodedMarkdown;
+  }
+
+  renderedBody(): SafeHtml {
+    this.renderableMarkdown();
+    return this.renderedHtml;
   }
 
   bodyProvidesTitle(): boolean {
@@ -199,10 +209,6 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
 
   displayHref(): string {
     return stripTrailingSlash((this.group?.href || "").replace(/^https?:\/\//, ""));
-  }
-
-  onMarkdownReady(): void {
-    this.schedulePagination();
   }
 
   private decorateHeadings(host: HTMLElement): void {
@@ -276,20 +282,29 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
     }
   }
 
+  private markdownBlocks(host: HTMLElement): HTMLElement[] {
+    const children = Array.from(host.children) as HTMLElement[];
+    if (children.length === 1 && children[0].tagName === "DIV" && !children[0].classList.contains("committee-document-keep")) {
+      return Array.from(children[0].children) as HTMLElement[];
+    } else {
+      return children;
+    }
+  }
+
   private collectBlocks(): void {
     const content = this.masterContent.nativeElement;
     this.fitTables(content);
     this.decorateHeadings(content);
-    const markdownHost = content.querySelector("markdown");
+    const markdownHost = content.querySelector(".committee-document-markdown") as HTMLElement | null;
     const titleBlock = content.querySelector(".committee-document-title-block");
-    const markdownBlocks = markdownHost ? Array.from(markdownHost.children) as HTMLElement[] : [];
+    const markdownBlocks = markdownHost ? this.markdownBlocks(markdownHost) : [];
     this.contentBlocks = [...(titleBlock ? [titleBlock as HTMLElement] : []), ...markdownBlocks];
   }
 
   private paginate(): void {
     const host = this.pagesHost?.nativeElement;
     const measureBody = this.measureBody?.nativeElement;
-    if (!host || !this.masterContent?.nativeElement || !this.committeeFile?.document || !measureBody) {
+    if (!host || !this.masterContent?.nativeElement || !measureBody) {
     } else {
       this.collectBlocks();
       if (this.contentBlocks.length > 0) {

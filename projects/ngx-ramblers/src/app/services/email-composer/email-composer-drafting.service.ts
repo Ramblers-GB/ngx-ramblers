@@ -247,6 +247,7 @@ export class EmailComposerDraftingService {
         });
       } else {
         this.creatingNewsletter = true;
+        this.session.contentChanged.next();
         try {
           await this.buildNewsletter(this.newsletterStartMode === NewsletterStartMode.FREE_TEXT ? await this.plannedNewsletter(freeText) : null);
         } catch (error) {
@@ -301,6 +302,8 @@ export class EmailComposerDraftingService {
   }
 
   ensurePeriodEvents(): void {
+    this.fragmentEditor.addIntroFragment(this.session.state);
+    this.fragmentEditor.expandedFragmentIds.add("intro");
     void this.startPeriodEvents();
   }
 
@@ -366,8 +369,9 @@ export class EmailComposerDraftingService {
     await this.events.populateGroupEvents();
     this.session.state.groupEvents = this.session.state.groupEvents.map(event => ({...event, selected: this.selectEventForDraft(event)}));
     this.events.addEventsFragment();
+    this.fragmentEditor.addIntroFragment(this.session.state);
+    this.fragmentEditor.expandedFragmentIds.add("intro");
     this.applyNewsletterSubject();
-    await this.refreshWalkChangeIntroEvents();
   }
 
   selectEventForDraft(event: GroupEventSummary): boolean {
@@ -442,7 +446,6 @@ export class EmailComposerDraftingService {
     this.session.state.groupEvents = this.session.state.groupEvents.map(event => ({...event, selected: this.selectEventForDraft(event)}));
     this.events.addEventsFragment();
     this.applyNewsletterSubject();
-    await this.refreshWalkChangeIntroEvents();
     this.session.contentChanged.next();
   }
 

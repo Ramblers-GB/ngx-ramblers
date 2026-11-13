@@ -26,6 +26,9 @@ describe("composer branding mode", () => {
       uiActions: {saveValueFor: vi.fn()},
       session: {
         syncStateToUrl: vi.fn(),
+        eventsStepOmitted() {
+          return this.state.brandingMode === BrandingMode.UNBRANDED || !!this.state.notificationConfig?.omitEventsStep;
+        },
         state: {
           brandingMode: BrandingMode.BRANDED,
           recipientMode: RecipientMode.ENTIRE_LIST,

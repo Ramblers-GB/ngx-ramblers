@@ -54,6 +54,20 @@ describe("keep-together document pagination", () => {
     expect(pages[1][0].nodes.map(node => node.textContent)).toEqual(["Second stretch."]);
   });
 
+  it("keeps a print/post presentation table on one page", () => {
+    const table = document.createElement("table");
+    table.setAttribute("role", "presentation");
+    const first = document.createElement("tr");
+    first.appendChild(block("TD", 40, "", "Monday 10:30"));
+    const second = document.createElement("tr");
+    second.appendChild(block("TD", 80, "", "A riverside walk."));
+    table.append(first, second);
+    const units = keepTogetherUnits([table]);
+    expect(units).toHaveLength(1);
+    expect(units[0].kind).toBe(KeepUnitKind.KEEP);
+    expect(units[0].nodes).toEqual([table]);
+  });
+
   it("pairs A5 booklet pages into two-up spreads", () => {
     expect(bookletSpreads(["1", "2", "3"])).toEqual([["1", "2"], ["3", null]]);
   });

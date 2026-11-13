@@ -159,7 +159,7 @@ describe("programme draft and output", () => {
     state.groupEvents = [{id: "walk-1", selected: true, title: "Hillside Park", eventDate: 1000,
       gridReference: "SU123456", mapUrl: "/locate?lat=51&lon=-1"} as GroupEventSummary];
     programme.generate();
-    expect(programme.settings().markdown).toContain("[SU 123 456](https://group.example.org.uk/locate?lat=51&lon=-1)");
+    expect(programme.settings().markdown).toContain("<a href=\"https://group.example.org.uk/locate?lat=51&lon=-1\">SU 123 456</a>");
     expect(state.groupEvents[0].mapUrl).toBe("/locate?lat=51&lon=-1");
   });
 
@@ -183,6 +183,39 @@ describe("programme draft and output", () => {
     expect(programme.settings().templateId).toBe("saved-default");
     expect(programme.settings().imageHeight).toBe(160);
     expect(programme.emailHtml()).toContain("Saved default Hillside Park");
+  });
+
+  it("refreshes a live listing template only when requested", async () => {
+    const {programme, state, pages} = setup();
+    state.groupEvents = [{id: "walk-1", selected: true, title: "Hillside Park", eventDate: 1000} as GroupEventSummary];
+    programme.settings().format = ProgrammeEventFormat.PRINT;
+    pages.all.mockResolvedValue([{id: "print-1", path: PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "print-post",
+      rows: [{columns: [{contentText: "<table role=\"presentation\"><tr><td>{{title}}</td></tr><tr><td>{{description}}</td></tr><tr><td><hr></td></tr></table>"}]}]}]);
+    await programme.applySavedFormatIfNeeded();
+    expect(programme.settings().customTemplate).toContain("<hr>");
+    pages.all.mockResolvedValue([{id: "print-1", path: PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "print-post",
+      rows: [{columns: [{contentText: "<table role=\"presentation\"><tr><td>{{title}}</td></tr><tr><td>{{description}}<hr></td></tr></table>"}]}]}]);
+    await programme.applySavedFormatIfNeeded();
+    expect(programme.settings().customTemplate).toContain("<td><hr>");
+    await programme.applySavedFormatIfNeeded(true);
+    expect(programme.document().document.markdown).toContain("Hillside Park");
+    expect(programme.settings().customTemplate).toContain("{{description}}<hr>");
+  });
+
+  it.each(["markdown", "documentMarkdown"] as const)("preserves a saved draft's %s when the shared template changes", async field => {
+    const {programme, pages} = setup();
+    const settings = programme.settings();
+    settings.format = ProgrammeEventFormat.DETAILED;
+    settings.templateId = "saved-format";
+    settings.customTemplate = "Original {{title}}";
+    settings[field] = "Keep my edits";
+    pages.all.mockResolvedValue([{id: "saved-format", path: PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "detailed",
+      rows: [{columns: [{contentText: "Revised {{title}}"}]}]}]);
+
+    await programme.applySavedFormatIfNeeded();
+
+    expect(settings[field]).toBe("Keep my edits");
+    expect(settings.customTemplate).toBe("Original {{title}}");
   });
 
   it("uses saved edits when selecting a supplied format in the composer", async () => {
@@ -223,6 +256,19 @@ describe("programme draft and output", () => {
     expect(programme.previewHtml()).not.toContain("walk.jpg");
     expect(programme.emailHtml()).not.toContain("walk.jpg");
     expect(programme.document().document.markdown).not.toContain("walk.jpg");
+  });
+
+  it("still returns a printable document after a live markdown failure", () => {
+    const {programme, state} = setup();
+    state.subject = "Winter programme";
+    programme.settings().customTemplate = null as unknown as string;
+    programme.settings().format = ProgrammeEventFormat.CUSTOM;
+    state.groupEvents = [{id: "walk-1", selected: true, title: "Hillside Park", eventDate: 1000} as GroupEventSummary];
+    const document = programme.document();
+    expect(document.document.title).toBe("Winter programme");
+    expect(document.document.markdown).toContain("# Winter programme");
+    programme.settings().customTemplate = "## {{title}}";
+    expect(programme.document().document.markdown).toContain("Hillside Park");
   });
 
   it("previews the first selected event but includes every selected event in the output", () => {

@@ -22,6 +22,7 @@ export class EmailComposerSessionService {
   private scheduledUrlSync: Promise<boolean> | null = null;
   readonly requestStep = new Subject<EmailComposerStepKey>();
   readonly contentChanged = new Subject<void>();
+  activeStep: EmailComposerStepKey = EmailComposerStepKey.TEMPLATE;
   attachmentWarning: string | null = null;
   state: EmailComposerState = defaultEmailComposerState();
   public inboxReplyContext: InboxReplyOutboundContext | null = null;

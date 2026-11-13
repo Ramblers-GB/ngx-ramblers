@@ -36,13 +36,19 @@ export function renderLinkMarkdown(node: JSONContent, helpers: MarkRenderHelpers
 
 export const HtmlBold = Bold.extend({
   renderMarkdown(node: JSONContent, helpers: MarkRenderHelpers): string {
-    return `<strong>${helpers.renderChildren(node.content ?? [])}</strong>`;
+    const inner = helpers.renderChildren(node.content ?? []);
+    if (!inner.trim() || /^\s*<strong>[\s\S]*<\/strong>\s*$/.test(inner)) {
+      return inner;
+    } else {
+      return `<strong>${inner}</strong>`;
+    }
   }
 });
 
 export const HtmlItalic = Italic.extend({
   renderMarkdown(node: JSONContent, helpers: MarkRenderHelpers): string {
-    return `<em>${helpers.renderChildren(node.content ?? [])}</em>`;
+    const inner = helpers.renderChildren(node.content ?? []);
+    return inner.trim() ? `<em>${inner}</em>` : inner;
   }
 });
 

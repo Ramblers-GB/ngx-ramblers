@@ -22,10 +22,9 @@ import { HtmlBold, HtmlItalic, HtmlLink, SafeParagraph, markdownMarksForClipboar
 import { ImageAlign, ImageResizeCorner, ImageSpacing, SpacedImage } from "./spaced-image.extension";
 import { Markdown } from "@tiptap/markdown";
 import { MermaidCodeBlock, refreshMermaidCodeBlockPreviews } from "./mermaid-code-block.extension";
-import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
-import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
+import { ProgrammeTable, ProgrammeTableCell } from "./programme-table.extension";
 import { TiptapEditorDirective } from "ngx-tiptap";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import {
@@ -596,15 +595,13 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
         this.editor.commands.setContent(incoming, { contentType: "markdown", emitUpdate: false });
         const canonical = this.currentMarkdown();
         this.appliedMarkdown = canonical;
+        this.lastEmittedMarkdown = canonical;
         const end = this.editor.state.doc.content.size;
         if (selection > 0 && selection < end) {
           this.editor.commands.setTextSelection(Math.min(selection, end));
         }
         this.clearEditorHistory();
         this.queueMermaidPreviewRefresh();
-        if (canonical.trimEnd() !== this.documentConversionService.relativeImageUrls(incoming).trimEnd() && !this.editor.isFocused) {
-          this.emitMarkdown(canonical);
-        }
       }
     } else {
       this.pendingValue = incoming;
@@ -880,10 +877,10 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
       LinkToken,
       PageBreak,
       Markdown,
-      Table.configure({ resizable: false, allowTableNodeSelection: true, HTMLAttributes: { class: "tiptap-table" } }),
+      ProgrammeTable.configure({ resizable: false, allowTableNodeSelection: true, HTMLAttributes: { class: "tiptap-table" } }),
       TableRow,
       TableHeader,
-      TableCell
+      ProgrammeTableCell
     ];
     this.zone.runOutsideAngular(() => {
     this.editor = new Editor({

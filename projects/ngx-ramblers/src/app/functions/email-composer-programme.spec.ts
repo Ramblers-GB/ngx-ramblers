@@ -1,9 +1,10 @@
 import {describe, expect, it} from "vitest";
-import {programmeLocation, programmeMarkdown} from "./email-composer-programme";
+import {expandMarkdownTableRules, programmeLocation, programmeMarkdown} from "./email-composer-programme";
 import {GroupEventSummary, GroupEventsFilter} from "../models/committee.model";
 import {EmailComposerProgramme, ProgrammeEventFormat, PROGRAMME_EVENT_TEMPLATES} from "../models/email-composer.model";
 import {LocationDetails} from "../models/ramblers-walks-manager.model";
 import {renderEmailComposerMarkdown} from "./email-composer-markdown";
+import {renderCommitteeDocumentMarkdown} from "../modules/common/markdown-options";
 import {StoredValue} from "../models/ui-actions.model";
 import {Editor} from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -25,6 +26,64 @@ describe("editable event programme", () => {
     format, customTemplate: PROGRAMME_EVENT_TEMPLATES[ProgrammeEventFormat.CUSTOM], eventFormats: {}, markdown: null
   });
   const dateLabel = (value: number) => `Day ${value}`;
+
+  it("lays print/post walks out like a postal programme: date left, title right, description across both columns", () => {
+    const markdown = programmeMarkdown([first], settings(ProgrammeEventFormat.PRINT), null, dateLabel);
+    const html = renderEmailComposerMarkdown(markdown);
+    expect(markdown).toContain("committee-document-keep");
+    expect(markdown).toMatch(/committee-document-keep">\s*<table/);
+    expect(markdown).toContain("role=\"presentation\"");
+    expect(html).toContain("role=\"presentation\"");
+    expect(html).toContain("text-align:right");
+    expect(html).toContain("text-align:justify");
+    expect(html).toContain("border-collapse:collapse");
+    expect(html).toContain("<hr>");
+    expect(html).toContain("colspan=\"2\"");
+    expect(html).toContain("A riverside walk");
+    expect(html).toContain("<strong>");
+    expect(html).toContain("Hillside Park");
+    expect(html).toContain("Alex Reed");
+    expect(html).toContain("SU123456");
+    expect(html).not.toContain("border:1px solid");
+    const printable = renderCommitteeDocumentMarkdown(markdown);
+    expect(printable).toContain("Hillside Park");
+    expect(printable).toContain("<strong>");
+    expect(printable).toContain("committee-document-keep");
+    expect(printable).toContain("<hr>");
+  });
+
+  it("turns three dashes in a table cell into a full-width rule", () => {
+    const html = renderCommitteeDocumentMarkdown("<table role=\"presentation\"><tr><td>---</td><td></td></tr><tr><td colspan=\"2\">Hillside Park</td></tr></table>");
+    expect(html).toContain("<hr>");
+    expect(html).not.toContain("---");
+    expect(expandMarkdownTableRules("<table><tr><td>---</td><td></td></tr></table>")).toContain("colspan=\"2\"");
+  });
+
+  it("drops an empty grid and contact line when those fields are blank", () => {
+    const agm = {
+      ...first,
+      title: "PVR AGM",
+      gridReference: null,
+      mapUrl: null,
+      distance: null,
+      contactName: null,
+      contactPhone: null,
+      contactEmail: null
+    } as GroupEventSummary;
+    const html = renderEmailComposerMarkdown(programmeMarkdown([agm], settings(ProgrammeEventFormat.PRINT), null, dateLabel));
+    expect(html).toContain("PVR AGM");
+    expect(html).toContain("A riverside walk");
+    expect(html).not.toContain("</strong><br>");
+    expect(html).toContain("<strong>");
+    const fromEditor = programmeMarkdown([agm], {
+      ...settings(ProgrammeEventFormat.CUSTOM),
+      format: ProgrammeEventFormat.CUSTOM,
+      templateId: "print-1",
+      customTemplate: "<table role=\"presentation\"><tr><td><p><strong>{{date}} {{time}}</strong></p><p>{{grid-reference}} {{distance}}</p></td><td style=\"text-align:right\"><p><strong>{{title}}</strong></p><p>{{contact-name}} {{contact-phone}}</p></td></tr><tr><td colspan=\"2\">{{description}}<hr></td></tr></table>"
+    }, null, dateLabel);
+    expect(fromEditor).not.toMatch(/<p>\s*<\/p>/);
+    expect(fromEditor).not.toContain("</strong><br>");
+  });
 
   it("generates one three-column listing in date order with linked grid references and editable descriptions", () => {
     const events = [second, {...first, id: "excluded", selected: false}, {...first, id: "deleted", deleted: true}, first];

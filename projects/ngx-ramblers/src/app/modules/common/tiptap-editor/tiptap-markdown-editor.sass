@@ -507,6 +507,7 @@ app-tiptap-markdown-editor
 .tiptap-content merge-field,
 .tiptap-content .merge-field-chip
   display: inline-block
+  vertical-align: middle
   background-color: rgba(249, 177, 4, 0.18)
   border: 1px solid rgb(249, 177, 4)
   border-radius: 4px
@@ -517,12 +518,17 @@ app-tiptap-markdown-editor
   color: #6b5200
   cursor: default
 
+.tiptap-content strong merge-field,
+.tiptap-content strong .merge-field-chip
+  font-weight: 700
+  border-width: 2px
+
 .tiptap-content merge-field.ProseMirror-selectednode
   box-shadow: 0 0 0 2px rgba(249, 177, 4, 0.55)
 
 .tiptap-content .merge-field-chip-link
   color: #c05711
-  text-decoration: underline
+  text-decoration: none
   background-color: rgba(192, 87, 17, 0.08)
   border-color: #c05711
 
@@ -627,10 +633,65 @@ app-tiptap-markdown-editor
   vertical-align: top
   min-width: 50px
 
+.tiptap-content table td p,
+.tiptap-content table th p
+  margin: 0
+  text-align: inherit
+
+.tiptap-content table td p:empty,
+.tiptap-content table th p:empty
+  display: none
+
 .tiptap-content table th
   background-color: #f8f9fa
   font-weight: bold
   text-align: left
+
+.tiptap-content table td[style*="text-align: right"],
+.tiptap-content table td[style*="text-align:right"],
+.tiptap-content table th[style*="text-align: right"],
+.tiptap-content table th[style*="text-align:right"]
+  text-align: right
+
+.tiptap-content table td[style*="text-align: justify"],
+.tiptap-content table td[style*="text-align:justify"]
+  text-align: justify
+
+.tiptap-content table[role="presentation"]
+  table-layout: fixed
+  width: 100%
+
+.tiptap-content table[role="presentation"] td,
+.tiptap-content table[role="presentation"] th
+  border: 1px dashed #dee2e6
+  width: 50%
+  vertical-align: top
+
+.tiptap-content table[role="presentation"] td[colspan],
+.tiptap-content table[role="presentation"] th[colspan]
+  width: auto
+
+.tiptap-content table[role="presentation"] td p:has(> br.ProseMirror-trailingBreak:only-child),
+.tiptap-content table[role="presentation"] td:has(> hr) > p:not(:has(merge-field))
+  display: none
+  height: 0
+  margin: 0
+
+.tiptap-content table[role="presentation"] tr:not(:has(merge-field)):has(hr) td
+  padding: 0
+  min-width: 0
+  height: auto
+  line-height: 0
+  p
+    display: none
+    height: 0
+    margin: 0
+
+.tiptap-content table[role="presentation"] hr
+  border: 0
+  border-top: 1px solid #212529
+  margin: 0
+  width: 100%
 
 .tiptap-content .ProseMirror
   position: relative

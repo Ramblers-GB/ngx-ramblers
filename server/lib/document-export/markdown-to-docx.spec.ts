@@ -33,6 +33,51 @@ describe("programme Word export", () => {
   });
 });
 
+describe("print/post Word tables", () => {
+  const branding = {groupName: "Hillside Park", groupHref: "https://group.example.org.uk", contactEmail: "", logo: null};
+
+  it("keeps grey borders on the three-column listing", async () => {
+    const markdown = "| Date | Walk | Description |\n| --- | --- | --- |\n| Wednesday | Hillside Park | A riverside walk |";
+    const xml = new AdmZip(await markdownToDocx({title: "Programme", markdown}, branding)).readAsText("word/document.xml");
+    expect(xml).toContain("DEE2E6");
+  });
+
+  it("drops borders, honours right-align and spans the description on a presentation table", async () => {
+    const markdown = `<table role="presentation"><tr><td>Wednesday 11 November 2026</td><td style="text-align:right"><strong>Hillside Park</strong></td></tr><tr><td colspan="2" style="text-align:justify">See the <a href="https://explore.osmaps.com/route/123">OS Maps route</a> and then continue along the river.</td></tr></table>`;
+    const xml = new AdmZip(await markdownToDocx({title: "Programme", markdown}, branding)).readAsText("word/document.xml");
+    expect(xml).not.toContain("DEE2E6");
+    expect(xml).toContain("w:jc w:val=\"right\"");
+    expect(xml).toContain("w:gridSpan w:val=\"2\"");
+    expect(xml).toContain("OS Maps route");
+    expect(xml).toContain("continue along the river");
+    expect(xml).toMatch(/w:hyperlink[\s\S]*w:sz w:val="22"/);
+  });
+
+  it("draws a continuous rule from a presentation-table hr or three dashes", async () => {
+    const withHr = `<table role="presentation"><tr><td>Wednesday</td><td style="text-align:right"><strong>Hillside Park</strong></td></tr><tr><td colspan="2"><hr></td></tr><tr><td colspan="2">A riverside walk.</td></tr></table>`;
+    const withDashes = `<table role="presentation"><tr><td>---</td><td></td></tr><tr><td colspan="2">A riverside walk.</td></tr></table>`;
+    const hrXml = new AdmZip(await markdownToDocx({title: "Programme", markdown: withHr}, branding)).readAsText("word/document.xml");
+    const dashXml = new AdmZip(await markdownToDocx({title: "Programme", markdown: withDashes}, branding)).readAsText("word/document.xml");
+    expect(hrXml).toContain("w:bottom");
+    expect(hrXml).toContain("404141");
+    expect(hrXml).not.toContain("---");
+    expect(hrXml.match(/<w:tr[\s>]/g)?.length).toBe(2);
+    expect(dashXml).toContain("w:bottom");
+    expect(dashXml).not.toContain("---");
+    const merged = `<table role="presentation"><tr><td>Wednesday</td><td style="text-align:right"><strong>Hillside Park</strong></td></tr><tr><td colspan="2"><hr>A riverside walk.</td></tr></table>`;
+    const mergedXml = new AdmZip(await markdownToDocx({title: "Programme", markdown: merged}, branding)).readAsText("word/document.xml");
+    expect(mergedXml.match(/<w:tr[\s>]/g)?.length).toBe(2);
+    expect(mergedXml).toContain("w:bottom");
+    expect(mergedXml).toContain("A riverside walk");
+    const keepXml = new AdmZip(await markdownToDocx({title: "Programme", markdown: withHr}, branding)).readAsText("word/document.xml");
+    expect(keepXml.match(/<w:keepNext\/>/g)?.length).toBe(1);
+    const blankLine = `<table role="presentation"><tr><td><strong>Sunday 1:30 pm</strong><br></td><td style="text-align:right"><strong>PVR AGM</strong><br></td></tr><tr><td colspan="2">A short walk then lunch.</td></tr></table>`;
+    const blankXml = new AdmZip(await markdownToDocx({title: "Programme", markdown: blankLine}, branding)).readAsText("word/document.xml");
+    expect(blankXml).toContain("PVR AGM");
+    expect(blankXml).not.toMatch(/<w:br\/>/);
+  });
+});
+
 describe("Word export image boundaries", () => {
   const branding = {groupName: "Hillside Park", groupHref: "https://group.example.org.uk", contactEmail: "", logo: null};
 

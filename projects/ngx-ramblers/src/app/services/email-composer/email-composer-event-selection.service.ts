@@ -123,17 +123,36 @@ export class EmailComposerEventSelectionService {
     } as GroupEventSummary;
   }
 
+  private lastGroupEventsQueryKey: string | null = null;
+
+  groupEventsQueryKey(): string {
+    const filter = this.session.state.groupEventsFilter;
+    return JSON.stringify({
+      inclusion: this.session.state.eventInclusion,
+      from: filter?.fromDate?.value ?? null,
+      to: filter?.toDate?.value ?? null,
+      walks: !!filter?.includeWalks,
+      social: !!filter?.includeSocialEvents,
+      committee: !!filter?.includeCommitteeEvents
+    });
+  }
+
   async populateGroupEvents(): Promise<void> {
     if (!(this.session.state.eventInclusion !== EventInclusionMode.AUTO_INCLUDE)) {
       if (!this.session.state.groupEventsFilter) {
         this.ensureGroupEventsFilter();
       }
-      try {
-        const events = await this.committeeQueryService.groupEvents(this.session.state.groupEventsFilter!);
-        const priorById = new Map(this.session.state.groupEvents.map(item => [item.id, item]));
-        this.session.state.groupEvents = this.markNewSinceLastNewsletter(events.map(event => this.mergePriorSelection(event, priorById.get(event.id))));
-      } catch (error) {
-        this.logger.error("populateGroupEvents failed", error);
+      const queryKey = this.groupEventsQueryKey();
+      if (queryKey !== this.lastGroupEventsQueryKey || this.session.state.groupEvents.length === 0) {
+        try {
+          const events = await this.committeeQueryService.groupEvents(this.session.state.groupEventsFilter!);
+          const priorById = new Map(this.session.state.groupEvents.map(item => [item.id, item]));
+          this.session.state.groupEvents = this.markNewSinceLastNewsletter(events.map(event => this.mergePriorSelection(event, priorById.get(event.id))));
+          this.lastGroupEventsQueryKey = queryKey;
+          this.onGroupEventSelectionChanged();
+        } catch (error) {
+          this.logger.error("populateGroupEvents failed", error);
+        }
       }
     }
   }
@@ -343,9 +362,7 @@ export class EmailComposerEventSelectionService {
   mergePriorSelection(event: GroupEventSummary, prior?: GroupEventSummary): GroupEventSummary {
     const merged: GroupEventSummary = {
       ...event,
-      selected: this.session.state.groupEventsFilter?.selectAll
-        ? this.selectedByDefault(event)
-        : prior ? prior.selected : this.selectedByDefault(event)
+      selected: prior ? prior.selected : this.selectedByDefault(event)
     };
     applyMediaSelection(merged, clampMediaIndex(merged, prior?.selectedMediaIndex));
     return merged;
@@ -353,6 +370,7 @@ export class EmailComposerEventSelectionService {
 
   addEventsFragment(notifyAdded = false): void {
     if (!this.session.eventsStepOmitted()) {
+      this.fragmentEditor.ensureFragmentOrder(this.session.state);
       if (this.fragmentEditor.hasFragmentKindAtTopLevel(this.session.state, ComposerFragmentKind.EVENTS)) {
         this.fragmentEditor.expandedFragmentIds.add("events");
       } else {

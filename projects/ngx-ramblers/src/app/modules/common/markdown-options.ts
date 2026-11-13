@@ -1,5 +1,8 @@
+import { marked } from "marked";
 import { MarkedOptions, MarkedRenderer } from "ngx-markdown";
 import { awsImageResourcePath, resourceAwsImageUrls } from "../../functions/aws-image-paths";
+import { expandMarkdownTableRules } from "../../functions/email-composer-programme";
+import { renderEmailComposerMarkdown } from "../../functions/email-composer-markdown";
 import { nativeApiUrl } from "../../functions/native-walking";
 
 export function markdownOptions(): MarkedOptions {
@@ -8,10 +11,24 @@ export function markdownOptions(): MarkedOptions {
   const renderHtml = renderer.html;
   const imagePath = (path: string) => nativeApiUrl(awsImageResourcePath(path));
   renderer.image = function(token) {
-    return renderImage.call(this, {...token, href: imagePath(token.href)});
+    const href = token?.href || "";
+    return renderImage.call(this, {...token, href: imagePath(href)});
   };
   renderer.html = function(token) {
-    return renderHtml.call(this, {...token, text: resourceAwsImageUrls(token.text, imagePath)});
+    const text = token?.text ?? token?.raw ?? "";
+    return renderHtml.call(this, {...token, text: resourceAwsImageUrls(text, imagePath)});
   };
   return {renderer};
+}
+
+export function renderCommitteeDocumentMarkdown(markdown: string): string {
+  if (!markdown) {
+    return "";
+  } else {
+    try {
+      return marked.parse(expandMarkdownTableRules(markdown), {...markdownOptions(), async: false}) as string;
+    } catch {
+      return renderEmailComposerMarkdown(expandMarkdownTableRules(markdown));
+    }
+  }
 }

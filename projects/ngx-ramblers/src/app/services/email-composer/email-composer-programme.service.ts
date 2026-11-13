@@ -22,6 +22,7 @@ export class EmailComposerProgrammeService {
   private templates = inject(EventTemplateService);
   private previewSignature = "";
   private previewDocument: CommitteeFile | null = null;
+  private previewRevision = 0;
 
 
   settings(): EmailComposerProgramme {
@@ -59,21 +60,34 @@ export class EmailComposerProgrammeService {
   async selectFormat(): Promise<void> {
     this.settings().templateId = null;
     this.formatChanged();
-    return this.applySavedFormatIfNeeded();
+    await this.applySavedFormatIfNeeded();
+    this.previewSignature = "";
+    this.previewDocument = null;
+    this.previewRevision += 1;
+    this.session.contentChanged.next();
   }
 
-  applySavedFormatIfNeeded(): Promise<void> {
-    return this.loadSavedFormat();
+  applySavedFormatIfNeeded(refreshLiveTemplate = false): Promise<void> {
+    return this.loadSavedFormat(refreshLiveTemplate);
   }
 
-  private async loadSavedFormat(): Promise<void> {
+  private async loadSavedFormat(refreshLiveTemplate: boolean): Promise<void> {
     const programme = this.session.state.programme;
     const format = programme?.format ?? ProgrammeEventFormat.EMAIL;
-    if (programme && format !== ProgrammeEventFormat.CUSTOM && !programme.templateId) {
+    if (programme && format !== ProgrammeEventFormat.CUSTOM) {
       try {
         const saved = (await this.templates.available()).find(template => template.path.endsWith(`/${format}`) && template.id);
-        if (saved && this.session.state.programme?.format === format && !this.session.state.programme?.templateId) {
-          this.applyTemplate(saved, format);
+        if (saved && this.session.state.programme === programme && programme.format === format
+          && programme.markdown == null && programme.documentMarkdown == null
+          && (refreshLiveTemplate || !programme.templateId)) {
+          const markdown = this.templates.content(saved);
+          const live = this.session.state.programme;
+          if (live.customTemplate !== markdown || live.templateId !== saved.id) {
+            live.templateId = saved.id ?? null;
+            live.customTemplate = markdown;
+            live.imageHeight = this.templates.imageHeight(saved);
+            this.useLiveEvents();
+          }
         }
       } catch (error) {
         this.session.notify.error({title: "Could not load the saved event format", message: error.message});
@@ -129,8 +143,15 @@ export class EmailComposerProgrammeService {
   useLiveEvents(): void {
     this.settings().markdown = null;
     this.settings().documentMarkdown = null;
+    this.previewSignature = "";
+    this.previewDocument = null;
+    this.previewRevision += 1;
     this.edited.next();
     this.session.contentChanged.next();
+  }
+
+  documentRevision(): number {
+    return this.previewRevision;
   }
 
   updateDocumentMarkdown(value: string): void {
@@ -176,18 +197,24 @@ export class EmailComposerProgrammeService {
 
   document(preferStored = true): CommitteeFile {
     const title = this.session.state.subject || "Events programme";
-    const stored = this.settings().documentMarkdown || "";
-    const storedHasContent = !!stored.trim() && stored.trim() !== `# ${title.replace(/[\r\n]+/g, " ")}`;
-    const source = preferStored && storedHasContent ? stored : this.composedMarkdown();
-    const signoff = this.signoffParts();
     const layout = this.settings().layout || CommitteeDocumentLayout.A4_PORTRAIT;
-    const signature = JSON.stringify([title, source, signoff, layout, preferStored]);
-    if (signature !== this.previewSignature) {
-      this.previewSignature = signature;
-      const markdown = this.withSignoff(source, signoff);
-      this.previewDocument = {fileType: "Events programme", document: {title, markdown, layout}};
+    try {
+      const stored = this.settings().documentMarkdown || "";
+      const storedHasContent = !!stored.trim() && stored.trim() !== `# ${title.replace(/[\r\n]+/g, " ")}`;
+      const source = preferStored && storedHasContent ? stored : this.composedMarkdown();
+      const signoff = this.signoffParts();
+      const signature = JSON.stringify([title, source, signoff, layout, preferStored, this.settings().format, this.previewRevision]);
+      if (signature !== this.previewSignature || !this.previewDocument?.document?.markdown) {
+        this.previewSignature = signature;
+        const markdown = this.withSignoff(source, signoff);
+        this.previewDocument = {fileType: "Events programme", document: {title, markdown, layout}};
+      }
+      return this.previewDocument;
+    } catch {
+      this.previewSignature = "";
+      this.previewDocument = {fileType: "Events programme", document: {title, markdown: `# ${title.replace(/[\r\n]+/g, " ")}`, layout}};
+      return this.previewDocument;
     }
-    return this.previewDocument;
   }
 
   private signoffParts(): string[] {

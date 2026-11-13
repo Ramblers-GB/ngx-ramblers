@@ -20,7 +20,7 @@ describe("reusable event templates", () => {
   it("offers populated supplied formats without creating records on read", async () => {
     const {service, pages} = setup();
     const formats = await service.available();
-    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Default layout", "Programme listing (three columns)", "Detailed", "Compact"]);
+    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Default layout", "Programme listing (three columns)", "Print / post", "Detailed", "Compact"]);
     expect(formats.every(format => service.content(format).includes("{{title}}"))).toBe(true);
     expect(pages.all).toHaveBeenCalledWith({criteria: {path: fieldStartsWithValue(PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX)}});
     expect(pages.create).not.toHaveBeenCalled();
@@ -31,7 +31,7 @@ describe("reusable event templates", () => {
     const {service, pages} = setup();
     pages.all.mockRejectedValue(new Error("MongoNetworkTimeoutError"));
     const formats = await service.available();
-    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Default layout", "Programme listing (three columns)", "Detailed", "Compact"]);
+    expect(formats.map(format => format.migrationTemplate.templateName)).toEqual(["Default layout", "Programme listing (three columns)", "Print / post", "Detailed", "Compact"]);
   });
 
   it("loads a saved supplied-format edit in place of its default", async () => {
@@ -39,9 +39,9 @@ describe("reusable event templates", () => {
     const saved = {id: "saved-layout", path: PROGRAMME_EVENT_TEMPLATE_PATH_PREFIX + "detailed", rows: [{columns: [{contentText: "Updated {{title}}"}]}]} as PageContent;
     pages.all.mockResolvedValue([saved]);
     const formats = await service.available();
-    expect(formats).toHaveLength(4);
-    expect(formats[2]).toBe(saved);
-    expect(service.content(formats[2])).toBe("Updated {{title}}");
+    expect(formats).toHaveLength(5);
+    expect(formats.find(format => format.path.endsWith("/detailed"))).toBe(saved);
+    expect(service.content(saved)).toBe("Updated {{title}}");
   });
 
   it("saves a supplied default into its fixed path the first time it is edited", async () => {

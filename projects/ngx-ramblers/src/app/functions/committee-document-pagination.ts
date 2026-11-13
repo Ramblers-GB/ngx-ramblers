@@ -33,7 +33,11 @@ export function keepTogetherUnits(blocks: HTMLElement[]): KeepUnit[] {
     if (block.classList?.contains("committee-document-page-break")) {
       return [...units, {kind: KeepUnitKind.BREAK, nodes: [block]}];
     } else if (block.tagName === "TABLE") {
-      return [...units, ...tableRowUnits(block as HTMLTableElement)];
+      if ((block.getAttribute("role") || "").toLowerCase() === "presentation") {
+        return [...units, {kind: KeepUnitKind.KEEP, nodes: [block]}];
+      } else {
+        return [...units, ...tableRowUnits(block as HTMLTableElement)];
+      }
     } else if (block.classList?.contains("committee-document-keep")) {
       const children = (Array.from(block.children) as HTMLElement[]).filter(blockHasContent);
       if (children.length > 0) {

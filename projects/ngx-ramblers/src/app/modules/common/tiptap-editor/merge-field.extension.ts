@@ -10,7 +10,7 @@ export const MergeField = Node.create({
   group: "inline",
   atom: true,
   selectable: true,
-  marks: "",
+  marks: "_",
   addAttributes() {
     return {
       token: {
@@ -49,5 +49,16 @@ export const MergeField = Node.create({
     }
   },
   parseMarkdown: token => ({ type: MERGE_FIELD_NODE_NAME, attrs: { token: token["token"] } }),
-  renderMarkdown: node => `{{${node.attrs?.["token"]}}}`
+  renderMarkdown: node => {
+    const token = `{{${node.attrs?.["token"]}}}`;
+    return (node.marks || []).reduce((html, mark) => {
+      if (mark.type === "bold") {
+        return `<strong>${html}</strong>`;
+      } else if (mark.type === "italic") {
+        return `<em>${html}</em>`;
+      } else {
+        return html;
+      }
+    }, token);
+  }
 });

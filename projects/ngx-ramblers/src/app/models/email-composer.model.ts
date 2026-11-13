@@ -93,14 +93,14 @@ export enum EventInclusionMode {
 
 export enum EventListingPreview {
   EMAIL = "email",
-  PDF = "pdf",
-  WORD = "word",
+  PRINTABLE = "printable",
   DOCUMENT = "document"
 }
 
 export enum ProgrammeEventFormat {
   EMAIL = "email-layout",
   LISTING = "programme-listing",
+  PRINT = "print-post",
   DETAILED = "detailed",
   COMPACT = "compact",
   CUSTOM = "custom"
@@ -167,6 +167,7 @@ export interface ProgrammeEventSection {
 export const PROGRAMME_EVENT_FORMATS = [
   {value: ProgrammeEventFormat.EMAIL, label: "Default layout"},
   {value: ProgrammeEventFormat.LISTING, label: "Programme listing (three columns)"},
+  {value: ProgrammeEventFormat.PRINT, label: "Print / post"},
   {value: ProgrammeEventFormat.DETAILED, label: "Detailed"},
   {value: ProgrammeEventFormat.COMPACT, label: "Compact"},
   {value: ProgrammeEventFormat.CUSTOM, label: "Custom template"}
@@ -175,6 +176,7 @@ export const PROGRAMME_EVENT_FORMATS = [
 export const PROGRAMME_EVENT_TEMPLATES: Record<ProgrammeEventFormat, string> = {
   [ProgrammeEventFormat.EMAIL]: "{{image}}\n\n**{{title}}**\n\n{{date}} · {{time}} · {{distance}} · {{grade}}\n\n{{location}}\n\n{{grid-reference}} {{postcode}}\n\n{{contact-name}} · {{contact-phone}} · {{contact-email}}\n\n{{description}}\n\n{{event-url}}",
   [ProgrammeEventFormat.LISTING]: "| Date, start and distance | Walk and leader | Description |\n| --- | --- | --- |\n| {{date}}<br>{{time}}<br>{{grid-reference}}<br>{{distance}} | **{{title}}**<br>{{contact-name}} · {{contact-phone}} · {{contact-email}} | {{description}} |",
+  [ProgrammeEventFormat.PRINT]: "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:collapse;table-layout:fixed;width:100%\"><tr><td width=\"50%\" style=\"width:50%;padding:0 12px 4px 0;vertical-align:top\"><strong>{{date}} {{time}}</strong><br>{{grid-reference}} {{distance}}</td><td width=\"50%\" style=\"width:50%;padding:0 0 4px 12px;text-align:right;vertical-align:top\"><strong>{{title}}</strong><br>{{contact-name}} {{contact-phone}}</td></tr><tr><td colspan=\"2\"><hr></td></tr><tr><td colspan=\"2\" style=\"padding-top:8px;text-align:justify\">{{description}}</td></tr></table>",
   [ProgrammeEventFormat.DETAILED]: "## {{title}}\n\n**{{date}} · {{time}} · {{distance}}**\n\n{{location}}\n\n{{grid-reference}} {{postcode}}\n\n{{contact-name}} · {{contact-phone}} · {{contact-email}}\n\n{{description}}\n\n{{image}}",
   [ProgrammeEventFormat.COMPACT]: "### {{title}}\n\n{{date}} · {{time}} · {{distance}}\n\n{{grid-reference}} {{postcode}} · {{contact-name}} · {{contact-phone}} · {{contact-email}}",
   [ProgrammeEventFormat.CUSTOM]: "## {{title}}\n\n{{date}} · {{time}} · {{distance}}\n\n{{location}}\n\n{{grid-reference}} {{postcode}}\n\n{{contact-name}} · {{contact-phone}} · {{contact-email}}\n\n{{description}}"

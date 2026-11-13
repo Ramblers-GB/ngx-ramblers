@@ -22,6 +22,7 @@ import {
   UnderlineType,
   WidthType
 } from "docx";
+import {expandMarkdownTableRules} from "../../../projects/ngx-ramblers/src/app/functions/email-composer-programme";
 import {encodeMarkdownLinkUrls} from "../../../projects/ngx-ramblers/src/app/functions/markdown";
 import {JSDOM} from "jsdom";
 import {CommitteeDocumentLayout, DocumentExportRequest} from "../../../projects/ngx-ramblers/src/app/models/committee.model";
@@ -295,7 +296,7 @@ async function bodyParagraphs(markdown: string, title: string, imageHeight: numb
   const titleBlock = titled ? [] : [headingParagraph(title, HeadingLevel.HEADING_1)];
   return pages.reduce(async (previous, page, index) => {
     const accumulated = await previous;
-    const html = new JSDOM(renderMarkdownToHtml(encodeMarkdownLinkUrls(page)));
+    const html = new JSDOM(renderMarkdownToHtml(encodeMarkdownLinkUrls(expandMarkdownTableRules(page))));
     if (publicBaseUrl) {
       Array.from(html.window.document.querySelectorAll("a[href]")).forEach(anchor => {
         const href = anchor.getAttribute("href") || "";
@@ -324,19 +325,21 @@ function headingParagraph(text: string, level: (typeof HeadingLevel)[keyof typeo
   });
 }
 
-async function htmlToBlocks(html: string, keepTogether: boolean, imageHeight: number, imageWidth = 480): Promise<DocChild[]> {
+type ParagraphAlignment = (typeof AlignmentType)[keyof typeof AlignmentType];
+
+async function htmlToBlocks(html: string, keepTogether: boolean, imageHeight: number, imageWidth = 480, alignment: ParagraphAlignment | null = null): Promise<DocChild[]> {
   const dom = new JSDOM(`<body>${html}</body>`);
   return Array.from(dom.window.document.body.childNodes).reduce(async (previous, node) => {
     const accumulated = await previous;
-    return [...accumulated, ...(await htmlNodeToBlocks(node, keepTogether, imageHeight, imageWidth))];
+    return [...accumulated, ...(await htmlNodeToBlocks(node, keepTogether, imageHeight, imageWidth, alignment))];
   }, Promise.resolve([] as DocChild[]));
 }
 
-async function htmlNodeToBlocks(node: ChildNode, keepTogether: boolean, imageHeight: number, imageWidth: number): Promise<DocChild[]> {
+async function htmlNodeToBlocks(node: ChildNode, keepTogether: boolean, imageHeight: number, imageWidth: number, alignment: ParagraphAlignment | null): Promise<DocChild[]> {
   if (node.nodeType !== 1) {
     const text = (node.textContent || "").trim();
     if (text) {
-      return [new Paragraph({children: [new TextRun({text, color: CHARCOAL})], keepLines: keepTogether})];
+      return [new Paragraph({children: [new TextRun({text, color: CHARCOAL})], keepLines: keepTogether, alignment: alignment || undefined})];
     } else {
       return [];
     }
@@ -347,38 +350,46 @@ async function htmlNodeToBlocks(node: ChildNode, keepTogether: boolean, imageHei
     if (["div", "section", "article", "figure"].includes(tag)) {
       return Array.from(element.childNodes).reduce(async (previous, child) => {
         const accumulated = await previous;
-        return [...accumulated, ...(await htmlNodeToBlocks(child, together, imageHeight, imageWidth))];
+        return [...accumulated, ...(await htmlNodeToBlocks(child, together, imageHeight, imageWidth, alignment))];
       }, Promise.resolve([] as DocChild[]));
     } else if (tag === "h1" || tag === "h2" || tag === "h3") {
       const level = tag === "h1" ? HeadingLevel.HEADING_1 : tag === "h2" ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3;
       return [headingParagraph(element.textContent || "", level)];
+    } else if (tag === "hr") {
+      return [ruleParagraph()];
     } else if (tag === "table") {
       return [await htmlTable(element, together, imageHeight, imageWidth)];
     } else if (tag === "ul" || tag === "ol") {
       return Promise.all(Array.from(element.children).map(async item => new Paragraph({
         keepLines: together,
+        alignment: alignment || undefined,
         numbering: {reference: tag === "ol" ? "programme-numbers" : "programme-bullets", level: 0},
         children: await runsWithImages(item as HTMLElement, imageHeight, imageWidth)
       })));
     } else if (tag === "p" || tag === "blockquote") {
-      return [new Paragraph({
-        children: await runsWithImages(element, imageHeight, imageWidth),
-        keepLines: together,
-        keepNext: together,
-        spacing: {after: 160},
-        border: tag === "blockquote" ? {left: {style: BorderStyle.SINGLE, size: 12, color: SUNRISE, space: 8}} : undefined
-      })];
+      if (!(element.textContent || "").trim() && !element.querySelector("img")) {
+        return [];
+      } else {
+        return [new Paragraph({
+          children: await runsWithImages(element, imageHeight, imageWidth),
+          keepLines: together,
+          keepNext: false,
+          alignment: alignment || undefined,
+          spacing: {after: 160},
+          border: tag === "blockquote" ? {left: {style: BorderStyle.SINGLE, size: 12, color: SUNRISE, space: 8}} : undefined
+        })];
+      }
     } else if (tag === "img") {
       const image = await imageFrom(element.getAttribute("src") || "", imageHeight, imageWidth);
       if (image) {
-        return [new Paragraph({children: [image], keepLines: together, spacing: {after: 160}})];
+        return [new Paragraph({children: [image], keepLines: together, alignment: alignment || undefined, spacing: {after: 160}})];
       } else {
         return [];
       }
     } else {
       const text = (element.textContent || "").trim();
       if (text) {
-        return [new Paragraph({children: runsFrom(element), keepLines: together})];
+        return [new Paragraph({children: runsFrom(element), keepLines: together, alignment: alignment || undefined})];
       } else {
         return [];
       }
@@ -386,26 +397,162 @@ async function htmlNodeToBlocks(node: ChildNode, keepTogether: boolean, imageHei
   }
 }
 
+function cellAlignment(cell: HTMLTableCellElement): ParagraphAlignment | null {
+  const style = (cell.getAttribute("style") || "").toLowerCase();
+  const align = (cell.align || cell.getAttribute("align") || "").toLowerCase();
+  if (style.includes("text-align:right") || align === "right") {
+    return AlignmentType.RIGHT;
+  } else if (style.includes("text-align:center") || align === "center") {
+    return AlignmentType.CENTER;
+  } else if (style.includes("text-align:justify") || align === "justify" || align === "both") {
+    return AlignmentType.JUSTIFIED;
+  } else if (style.includes("text-align:left") || align === "left") {
+    return AlignmentType.LEFT;
+  } else {
+    return null;
+  }
+}
+
+const RULE_BORDER = {style: BorderStyle.SINGLE, size: 8, color: CHARCOAL};
+
+function ruleParagraph(): Paragraph {
+  return new Paragraph({
+    border: {bottom: {style: BorderStyle.SINGLE, size: 8, color: CHARCOAL, space: 1}},
+    spacing: {before: 40, after: 80},
+    children: [new TextRun({text: " "})]
+  });
+}
+
+function nodeIsRule(node: ChildNode | null): boolean {
+  if (!node) {
+    return false;
+  } else if (node.nodeType === 3) {
+    return /^\s*-{3,}\s*$/.test(node.textContent || "") || !(node.textContent || "").trim();
+  } else if (node.nodeName === "HR") {
+    return true;
+  } else if (node.nodeName === "BR") {
+    return true;
+  } else if (node.nodeName === "P" || node.nodeName === "DIV") {
+    const element = node as HTMLElement;
+    return !!element.querySelector("hr") && !(element.textContent || "").replace(/[\s-]/g, "")
+      || /^\s*-{3,}\s*$/.test(element.textContent || "");
+  } else {
+    return false;
+  }
+}
+
+function peelCellRules(cell: HTMLTableCellElement): {ruleAbove: boolean; ruleBelow: boolean} {
+  const flags = {ruleAbove: false, ruleBelow: false};
+  const strip = (fromStart: boolean) => {
+    const node = fromStart ? cell.firstChild : cell.lastChild;
+    if (!node) {
+      return false;
+    } else if (node.nodeType === 3 && !(node.textContent || "").trim()) {
+      cell.removeChild(node);
+      return true;
+    } else if (node.nodeName === "HR" || ((node.nodeName === "P" || node.nodeName === "DIV") && nodeIsRule(node)) || (node.nodeType === 3 && /^\s*-{3,}\s*$/.test(node.textContent || ""))) {
+      cell.removeChild(node);
+      if (fromStart) {
+        flags.ruleAbove = true;
+      } else {
+        flags.ruleBelow = true;
+      }
+      return true;
+    } else {
+      return false;
+    }
+  };
+  const drain = (fromStart: boolean): void => {
+    if (strip(fromStart)) {
+      drain(fromStart);
+    }
+  };
+  drain(true);
+  drain(false);
+  return flags;
+}
+
+function cellIsRule(cell: HTMLTableCellElement): boolean {
+  const leftover = (cell.textContent || "").replace(/[\s-]/g, "");
+  return leftover.length === 0 && (!!cell.querySelector("hr") || /^\s*-{3,}\s*$/.test((cell.textContent || "").trim()));
+}
+
+function rowIsRule(row: HTMLTableRowElement): boolean {
+  const cells = Array.from(row.cells);
+  return cells.length > 0 && cells.every(cell => cellIsRule(cell) || !(cell.textContent || "").trim()) && cells.some(cellIsRule);
+}
+
+function cellBorders(table: HTMLElement, cell: HTMLTableCellElement, ruleBelow: boolean, ruleAbove: boolean) {
+  if (/presentation/i.test(table.getAttribute("role") || "")) {
+    const style = cell.getAttribute("style") || "";
+    const bottom = /border-bottom/i.test(style) || cellIsRule(cell) || ruleBelow;
+    const top = /border-top/i.test(style) || ruleAbove;
+    return {
+      top: top ? RULE_BORDER : NONE_BORDER,
+      bottom: bottom ? RULE_BORDER : NONE_BORDER,
+      left: NONE_BORDER,
+      right: NONE_BORDER
+    };
+  } else {
+    const cellBorder = {style: BorderStyle.SINGLE, size: 4, color: "DEE2E6"};
+    return {top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder};
+  }
+}
+
 async function htmlTable(table: HTMLElement, keepTogether: boolean, imageHeight: number, imageWidth: number): Promise<Table> {
   const rows = Array.from((table as HTMLTableElement).rows);
-  const columns = Math.max(...rows.map(row => row.children.length), 1);
+  const presentation = /presentation/i.test(table.getAttribute("role") || "");
+  const prepared = rows.map((row, index) => {
+    const cells = Array.from(row.cells).map(cell => {
+      const clone = cell.cloneNode(true) as HTMLTableCellElement;
+      const peeled = peelCellRules(clone);
+      return {cell: clone, ...peeled};
+    });
+    const leadingRule = cells.some(entry => entry.ruleAbove);
+    const trailingRule = cells.some(entry => entry.ruleBelow);
+    return {
+      row,
+      cells,
+      skip: presentation && (rowIsRule(row) || cells.every(entry => !(entry.cell.textContent || "").trim() && (entry.ruleAbove || entry.ruleBelow || cellIsRule(row.cells[0])))),
+      leadingRule,
+      trailingRule,
+      ruleBelow: presentation && !!rows[index + 1] && rowIsRule(rows[index + 1]),
+      ruleAbove: false
+    };
+  });
+  prepared.forEach((entry, index) => {
+    if (entry.leadingRule && index > 0) {
+      prepared[index - 1].ruleBelow = true;
+      entry.leadingRule = false;
+    }
+    if (entry.skip && index > 0) {
+      prepared[index - 1].ruleBelow = true;
+    }
+  });
+  const source = prepared.filter(entry => !entry.skip);
+  const rowsToRender = source.length ? source : prepared.map(entry => ({...entry, skip: false}));
+  const columns = Math.max(...rowsToRender.map(entry => entry.cells.reduce((total, item) => total + Math.max(item.cell.colSpan || 1, 1), 0)), 1);
   const width = Math.round(imageWidth * TWIPS_PER_PIXEL);
   const columnWidth = Math.round(width / columns);
-  const cellBorder = {style: BorderStyle.SINGLE, size: 4, color: "DEE2E6"};
-  const borders = {top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder};
   return new Table({
     width: {size: width, type: WidthType.DXA},
     columnWidths: Array.from({length: columns}, () => columnWidth),
-    rows: await Promise.all(rows.map(async row => new TableRow({
-      cantSplit: true,
-      children: await Promise.all(Array.from(row.children).map(async cell => {
+    borders: presentation ? NO_BORDERS : undefined,
+    rows: await Promise.all(rowsToRender.map(async (entry, rowIndex) => new TableRow({
+      cantSplit: presentation ? rowIndex === 0 : true,
+      children: await Promise.all(entry.cells.map(async item => {
+        const cell = item.cell;
+        const span = Math.max(cell.colSpan || 1, 1);
+        const alignment = cellAlignment(cell);
         const hasBlocks = Array.from(cell.children).some(child => ["P", "DIV", "TABLE", "UL", "OL", "H1", "H2", "H3", "BLOCKQUOTE"].includes(child.tagName));
-        const html = hasBlocks ? cell.innerHTML : `<p>${cell.innerHTML}</p>`;
+        const html = (hasBlocks ? cell.innerHTML : `<p>${cell.innerHTML}</p>`).replace(/<br\s*\/?>/gi, "</p><p>");
+        const children = await htmlToBlocks(html, keepTogether, imageHeight, Math.max(1, Math.floor(imageWidth / columns) * span - 12), alignment);
         return new TableCell({
-        width: {size: columnWidth, type: WidthType.DXA},
-        borders,
-        margins: {top: 60, bottom: 60, left: 80, right: 80},
-        children: await htmlToBlocks(html, keepTogether, imageHeight, Math.max(1, Math.floor(imageWidth / columns) - 12))
+        width: {size: columnWidth * span, type: WidthType.DXA},
+        columnSpan: span,
+        borders: cellBorders(table, cell, entry.ruleBelow || item.ruleBelow, item.ruleAbove),
+        margins: {top: 40, bottom: 40, left: 80, right: 80},
+        children: children.length ? children : [new Paragraph({})]
         });
       }))
     })))
@@ -449,7 +596,7 @@ function flattenText(node: ChildNode, marks: {bold?: boolean; italics?: boolean}
       if (label && href) {
         return [new ExternalHyperlink({
           link: href,
-          children: [new TextRun({text: label, bold: next.bold, color: LINK, style: "Hyperlink"})]
+          children: [new TextRun({text: label, bold: next.bold, color: LINK, size: 22, font: "Calibri", style: "Hyperlink"})]
         })];
       } else if (label) {
         return [new TextRun({text: label, bold: next.bold, color: CHARCOAL})];
