@@ -1,6 +1,6 @@
 import debug from "debug";
 import { envConfig } from "../lib/env-config/env-config";
-import { configuredEnvironments } from "../lib/environments/environments-config";
+import { configuredEnvironments, estateDeployEnvironments } from "../lib/environments/environments-config";
 
 const debugLog = debug(envConfig.logNamespace("list-environment-names"));
 debugLog.enabled = true;
@@ -16,8 +16,12 @@ async function listEnvironmentNames(): Promise<void> {
   }
 
   const dbConfig = await configuredEnvironments();
-  const names = (dbConfig?.environments || []).map(environment => environment.environment);
+  const names = estateDeployEnvironments(dbConfig).map(environment => environment.environment);
+  const requested = process.argv[2]?.trim().split(/\s+/) || ["all"];
+  const selected = requested.length === 1 && requested.includes("all")
+    ? names
+    : names.filter(name => requested.includes(name));
 
-  debugLog(`Resolved ${names.length} environment names from database`);
-  process.stdout.write(`${JSON.stringify(names)}\n`);
+  debugLog(`Resolved ${selected.length} eligible deployment targets from database`);
+  process.stdout.write(`${JSON.stringify(selected)}\n`);
 }

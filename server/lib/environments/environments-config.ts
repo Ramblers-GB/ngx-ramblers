@@ -140,6 +140,10 @@ export async function configuredEnvironments(): Promise<EnvironmentsConfig> {
   throw new Error("No environments configuration found in database or local manifest. Configure environments via /admin/environment-management, or add non-vcs/secrets/environments.local.json for offline development.");
 }
 
+export function estateDeployEnvironments(config: EnvironmentsConfig) {
+  return (config.environments || []).filter(environment => environment.estateDeploy !== false);
+}
+
 export async function encryptStoredEnvironmentsSecrets(): Promise<void> {
   if (!environmentsEncryptionConfigured()) {
     debugLog(`${Environment.ENVIRONMENTS_ENCRYPTION_KEY} is not set: config.environments secrets stay as stored`);

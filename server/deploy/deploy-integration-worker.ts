@@ -51,8 +51,8 @@ async function deployIntegrationWorker(): Promise<void> {
     throw new Error(`Worker Fly config not found at ${flyTomlPath}`);
   }
 
-  importWorkerSecrets(workerConfig.appName, dbConfig.secrets, workerConfig.sharedSecret, workerConfig.encryptionKey);
   runCommand(`flyctl config validate --config ${flyTomlPath} --app ${workerConfig.appName}`);
+  importWorkerSecrets(workerConfig.appName, dbConfig.secrets, workerConfig.sharedSecret, workerConfig.encryptionKey);
   runCommand(`flyctl deploy --app ${workerConfig.appName} --config ${flyTomlPath} --image ${image} --strategy rolling --wait-timeout 600`);
   runCommand(`flyctl scale count ${scaleCount} --app ${workerConfig.appName} --yes`);
   runCommand(`flyctl scale memory ${memory} --app ${workerConfig.appName}`);
@@ -93,7 +93,7 @@ export function importWorkerSecrets(
 
   try {
     fs.writeFileSync(tempFile, lines.join("\n"), { encoding: "utf-8" });
-    runCommand(`flyctl secrets import --app ${appName} < ${tempFile}`);
+    runCommand(`flyctl secrets import --stage --app ${appName} < ${tempFile}`);
   } finally {
     if (fs.existsSync(tempFile)) {
       fs.unlinkSync(tempFile);

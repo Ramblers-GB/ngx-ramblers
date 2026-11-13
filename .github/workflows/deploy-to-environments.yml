@@ -92,17 +92,15 @@ jobs:
         env:
           ADMIN_MONGODB_URI: ${{ secrets.ADMIN_MONGODB_URI }}
           ENVIRONMENTS_ENCRYPTION_KEY: ${{ secrets.ENVIRONMENTS_ENCRYPTION_KEY }}
+          REQUESTED_ENVIRONMENTS: ${{ inputs.environments }}
         run: |
-          if [ "${{ github.event.inputs.environments }}" = "all" ]; then
-            MATRIX=$(./server/node_modules/.bin/tsx server/deploy/list-environment-names.ts 2>/dev/null | tail -n 1)
-          else
-            MATRIX='["'$(echo "${{ github.event.inputs.environments }}" | sed 's/ /","/g')'"]'
-          fi
+          MATRIX=$(./server/node_modules/.bin/tsx server/deploy/list-environment-names.ts "$REQUESTED_ENVIRONMENTS" | tail -n 1)
           echo "Matrix: $MATRIX"
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   deploy:
     needs: [set-environments, validate-image-tag]
+    if: needs.set-environments.outputs.matrix != '[]'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false

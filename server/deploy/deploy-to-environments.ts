@@ -21,7 +21,7 @@ import { DeploymentConfig, EnvironmentConfig, RuntimeConfig } from "./deploy.mod
 import { booleanOf, pluraliseWithCount } from "../lib/shared/string-utils";
 import { envConfig } from "../lib/env-config/env-config";
 import { buildSecretsContent, loadSecretsForEnvironmentFromDatabase, parseSecretsFile } from "../lib/shared/secrets";
-import { configuredEnvironments } from "../lib/environments/environments-config";
+import { configuredEnvironments, estateDeployEnvironments } from "../lib/environments/environments-config";
 import { DEPLOYMENT_DEFAULTS, EnvironmentsConfig, FLYIO_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { BuildVersion } from "../../projects/ngx-ramblers/src/app/models/build-version.model";
 import { filterSecretsForSiteFlyDeploy } from "../lib/fly/fly-secrets-policy";
@@ -43,7 +43,7 @@ deployToEnvironments(config.targetEnvironments).then(() => process.exit(0)).catc
 });
 
 function buildDeploymentConfig(dbConfig: EnvironmentsConfig): DeploymentConfig {
-  const environments = (dbConfig?.environments || []).filter(env => env.estateDeploy !== false).map(env => ({
+  const environments = estateDeployEnvironments(dbConfig).map(env => ({
     name: env.environment,
     nativeMailTls: booleanOf(env.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]),
     apiKey: env.flyio?.apiKey || "",

@@ -31,15 +31,15 @@ no `configs.json` file; the workflow reads the database directly at run time.
   - Installs root and `server/` dependencies.
   - **Resolve environment matrix from database** (`id: set-matrix`): connects to the admin
     database using the `ADMIN_MONGODB_URI` secret.
-    - If `environments` is `all`, runs `server/deploy/list-environment-names.ts` to read every
-      environment name from the database.
-    - Otherwise, parses the space-separated input into a JSON array.
+    - Runs `server/deploy/list-environment-names.ts` to select all eligible environments or
+      match the space-separated selection against eligible environments. Environments with
+      **Include in estate deploys** turned off are excluded in both cases.
     - Writes the result to the `matrix` step output via `$GITHUB_OUTPUT`.
 - **Job Output**: `matrix` — consumed by the `deploy` job.
 
 ### 3. `deploy` Job
 
-- **Depends on**: `set-environments`.
+- **Depends on**: `set-environments` and `validate-image-tag`. Skips deployment if the matrix is empty.
 - **Strategy Matrix**: runs once per environment, up to 12 in parallel (`max-parallel: 12`,
   `fail-fast: false`, so one failing environment does not stop the others).
 - **GitHub Environment**: each matrix run uses `environment: <environment-name>`, so any

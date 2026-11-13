@@ -59,7 +59,10 @@ async function request(configuration: AppleStoreReleaseConfiguration, path: stri
       break;
     } else {
       const bodyText = await response.text();
-      if (retryableStatus(response.status) && progress.attempt < maxAttempts) {
+      if (response.status === 403 && bodyText.includes("FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED")) {
+        outcome.error = "App Store Connect requires the Account Holder to accept or renew an agreement. Review https://appstoreconnect.apple.com/business, then rerun the failed iOS job.";
+        break;
+      } else if (retryableStatus(response.status) && progress.attempt < maxAttempts) {
         logger("App Store Connect %s returned %s; retrying %s/%s: %s", path, response.status, progress.attempt, maxAttempts, bodyText);
       } else {
         outcome.error = `App Store Connect request failed (${response.status}): ${bodyText}`;

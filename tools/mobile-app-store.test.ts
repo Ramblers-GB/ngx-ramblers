@@ -60,6 +60,18 @@ test("fails when Apple rejects a build", async () => {
   }
 });
 
+test("identifies an outstanding Apple agreement without retrying", async () => {
+  const mock = mockApple(() => jsonResponse({
+    errors: [{code: "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED"}]
+  }, 403));
+  try {
+    await assert.rejects(resolveStoreVersion(configuration), /Account Holder to accept or renew an agreement/);
+    assert.equal(mock.requests.length, 1);
+  } finally {
+    mock.restore();
+  }
+});
+
 test("creates version 1.1, attaches the build and submits it for App Review", async () => {
   const mock = mockApple((url, method) => {
     if (url.pathname === "/v1/builds") {
