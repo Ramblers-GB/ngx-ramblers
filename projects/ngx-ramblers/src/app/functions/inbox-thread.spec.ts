@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { foldersExcludedFromInboxList, foldersExcludedFromLiveMatch, hiddenInboxFolders, InboxMessage, InboxMessageDirection, InboxReplyComposeResponse, InboxThread, InboxThreadFolder } from "../models/inbox.model";
 import {
   collapseInboxSends,
+  inboxDisplayedAddressLine,
+  inboxMessageRecipientLine,
+  inboxSendWasSeparateCopies,
   inboxFolderMovedToTrash,
   inboxFolderSlug,
   inboxMessageAt,
@@ -312,6 +315,14 @@ describe("inboxThreadHeaderFrom and inboxThreadHeaderTo", () => {
     expect(inboxThreadHeaderTo([])).toEqual([]);
   });
 
+  it("does not list every address when several people were on To", () => {
+    expect(inboxDisplayedAddressLine([{email: "one@example.com", name: "One"}])).toEqual("One <one@example.com>");
+    expect(inboxDisplayedAddressLine([
+      {email: "one@example.com", name: "One"},
+      {email: "two@example.com", name: "Two"}
+    ])).toEqual("2 recipients");
+  });
+
 });
 
 describe("inboxMessageMatchingId", () => {
@@ -429,7 +440,10 @@ describe("collapseInboxSends", () => {
     });
     const collapsed = collapseInboxSends([first, copy]);
     expect(collapsed.length).toEqual(1);
-    expect(collapsed[0].to.map(address => address.email)).toEqual(["one@example.com", "two@example.com"]);
+    expect(collapsed[0].to.map(address => address.email)).toEqual(["one@example.com"]);
+    expect(collapsed[0].deliveryRecipients.map(address => address.email)).toEqual(["one@example.com", "two@example.com"]);
+    expect(inboxMessageRecipientLine(collapsed[0])).toEqual("Sent as 2 separate emails");
+    expect(inboxSendWasSeparateCopies(collapsed[0])).toEqual(true);
   });
 
   it("fills an empty stub from the later copy of the same send", () => {

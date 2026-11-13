@@ -19,7 +19,7 @@ import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { InboxService } from "../../../services/inbox/inbox.service";
 import { InboxReplyHandoffService } from "../../../services/inbox/inbox-reply-handoff.service";
-import { addressLabel, aliasMailboxAddresses, aliasMailboxExtraCaption, aliasMailboxHeading, aliasMailboxLabel, collapseInboxSends, formatInboxAddress, inboxFolderMovedToTrash, inboxThreadHeaderFrom, inboxThreadHeaderTo, inboxThreadId, inboxThreadLocationLabel, inboxThreadRoleLine, inboxThreadRowFrom, inboxThreadRowPreview, inboxThreadRowTo, inboxThreadUrlSlug, inboxUserFolderIdFromView, inboxUserFolderView, isInboxUserFolderView, replyAllRecipients, validatedInboxColumnShare } from "../../../functions/inbox-thread";
+import { addressLabel, aliasMailboxAddresses, aliasMailboxExtraCaption, aliasMailboxHeading, aliasMailboxLabel, collapseInboxSends, formatInboxAddress, inboxDisplayedAddressLine, inboxFolderMovedToTrash, inboxMessageRecipientLine, inboxSendWasSeparateCopies, inboxThreadHeaderFrom, inboxThreadHeaderTo, inboxThreadId, inboxThreadLocationLabel, inboxThreadRoleLine, inboxThreadRowFrom, inboxThreadRowPreview, inboxThreadRowTo, inboxThreadUrlSlug, inboxUserFolderIdFromView, inboxUserFolderView, isInboxUserFolderView, newestInboxMessage, replyAllRecipients, validatedInboxColumnShare } from "../../../functions/inbox-thread";
 import { InboxPushSubscriptionService } from "../../../services/inbox/inbox-push-subscription.service";
 import { InboxNotificationService } from "../../../services/inbox/inbox-notification.service";
 import { WebSocketClientService } from "../../../services/websockets/websocket-client.service";
@@ -758,7 +758,7 @@ import { DELAYED_TOOLTIP_PROVIDERS } from "../../../modules/common/tooltip-confi
                   <small class="text-muted d-block">From {{ fromLabel }}</small>
                 }
                 @if (threadToLabel(); as toLabel) {
-                  <small class="text-muted d-block">To {{ toLabel }}</small>
+                  <small class="text-muted d-block">{{ threadToPrefix() }}{{ toLabel }}</small>
                 }
               </div>
               @if (!layout.mobile && !conversationPanel.maximised) {
@@ -1007,7 +1007,8 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   hasMultipleRecipients(message: InboxMessage): boolean {
-    return ((message.to?.length ?? 0) + (message.cc?.length ?? 0)) > 1;
+    return !inboxSendWasSeparateCopies(message)
+      && ((message.to?.length ?? 0) + (message.cc?.length ?? 0)) > 1;
   }
 
   get viewingJunk(): boolean {
@@ -3135,7 +3136,7 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   formatAddresses(addresses: InboxAddress[]): string {
-    return (addresses ?? []).map(address => this.formatAddress(address)).join(", ");
+    return inboxDisplayedAddressLine(addresses) || "";
   }
 
   formatAddress(address: InboxAddress): string {
@@ -3239,8 +3240,23 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   threadToLabel(): string | null {
-    const to = inboxThreadHeaderTo(this.displayMessages);
-    return to.length ? this.formatAddresses(to) : null;
+    const newest = newestInboxMessage(this.displayMessages);
+    const line = inboxMessageRecipientLine(newest);
+    if (line) {
+      return line;
+    } else {
+      const to = inboxThreadHeaderTo(this.displayMessages);
+      return to.length ? this.formatAddresses(to) : null;
+    }
+  }
+
+  threadToPrefix(): string {
+    const newest = newestInboxMessage(this.displayMessages);
+    if (inboxSendWasSeparateCopies(newest)) {
+      return "";
+    } else {
+      return "To ";
+    }
   }
 
   selectedThreadRecipient(): string | null {

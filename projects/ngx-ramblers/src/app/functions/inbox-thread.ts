@@ -215,9 +215,11 @@ export function inboxThreadRowFrom(thread: InboxThread): string | null {
 }
 
 export function inboxThreadRowTo(thread: InboxThread, roleAddress: InboxAddress | null): string | null {
-  return thread?.receivedTo?.length
-    ? thread.receivedTo.map(formatInboxAddress).filter(Boolean).join(", ")
-    : formatInboxAddress(roleAddress || thread?.deliveredTo) || null;
+  if (thread?.receivedTo?.length) {
+    return inboxDisplayedAddressLine(thread.receivedTo);
+  } else {
+    return formatInboxAddress(roleAddress || thread?.deliveredTo) || null;
+  }
 }
 
 export function addressLabel(address: {name?: string | null; email?: string | null} | null | undefined): string | null {
@@ -228,6 +230,66 @@ export function formatInboxAddress(address: {name?: string | null; email?: strin
   const name = address?.name?.trim() || "";
   const email = address?.email?.trim() || "";
   return name && email && name.toLowerCase() !== email.toLowerCase() ? `${name} <${email}>` : email;
+}
+
+export function inboxRecipientCountLabel(count: number): string {
+  if (count === 1) {
+    return "1 recipient";
+  } else {
+    return `${count} recipients`;
+  }
+}
+
+export function inboxDisplayedAddressLine(addresses: InboxAddress[] | null | undefined): string | null {
+  const list = (addresses ?? []).filter(address => !!(address?.email || address?.name));
+  if (list.length === 0) {
+    return null;
+  } else if (list.length === 1) {
+    return formatInboxAddress(list[0]) || null;
+  } else {
+    return inboxRecipientCountLabel(list.length);
+  }
+}
+
+export function inboxMessageToAddresses(message: InboxMessage | null | undefined): InboxAddress[] {
+  if (!message) {
+    return [];
+  } else if ((message.deliveryRecipients?.length ?? 0) > (message.to?.length ?? 0)) {
+    return message.deliveryRecipients;
+  } else {
+    return message.to ?? [];
+  }
+}
+
+export function inboxSeparateCopyCount(message: InboxMessage | null | undefined): number {
+  const copies = message?.deliveryRecipients?.length ?? 0;
+  const visibleTo = message?.to?.length ?? 0;
+  if (copies > 1 && visibleTo <= 1) {
+    return copies;
+  } else {
+    return 0;
+  }
+}
+
+export function inboxSendWasSeparateCopies(message: InboxMessage | null | undefined): boolean {
+  return inboxSeparateCopyCount(message) > 1;
+}
+
+export function inboxSeparateCopiesHeading(count: number): string {
+  return `Sent as ${count} separate emails`;
+}
+
+export function inboxSeparateCopiesDetail(count: number): string {
+  return `Each of the ${count} people received their own copy with only their address on To. Nobody else was on that copy.`;
+}
+
+export function inboxMessageRecipientLine(message: InboxMessage | null | undefined): string | null {
+  const copies = inboxSeparateCopyCount(message);
+  if (copies > 1) {
+    return inboxSeparateCopiesHeading(copies);
+  } else {
+    return inboxDisplayedAddressLine(inboxMessageToAddresses(message));
+  }
 }
 
 export function inboxThreadRowPreview(thread: InboxThread): string {
@@ -242,7 +304,7 @@ export function inboxThreadHeaderFrom(messages: InboxMessage[] | null | undefine
 }
 
 export function inboxThreadHeaderTo(messages: InboxMessage[] | null | undefined): InboxAddress[] {
-  return newestInboxMessage(messages)?.to ?? [];
+  return inboxMessageToAddresses(newestInboxMessage(messages));
 }
 
 export function inboxMessageIdKey(messageId: string): string {
@@ -353,10 +415,17 @@ export function collapseInboxSends(messages: InboxMessage[]): InboxMessage[] {
       const richer = takeRicherInboxBody(group, message);
       group.bodyHtml = richer.bodyHtml;
       group.bodyText = richer.bodyText;
-      group.to = unionInboxAddresses(group.to, message.to);
-      group.cc = unionInboxAddresses(group.cc, message.cc);
+      group.deliveryRecipients = unionInboxAddresses(
+        group.deliveryRecipients?.length ? group.deliveryRecipients : (group.to ?? []),
+        [...(message.to ?? []), ...(message.deliveryRecipients ?? [])]
+      );
     } else {
-      const created = {...message, to: [...(message.to ?? [])], cc: [...(message.cc ?? [])]};
+      const created = {
+        ...message,
+        to: [...(message.to ?? [])],
+        cc: [...(message.cc ?? [])],
+        deliveryRecipients: [...(message.deliveryRecipients?.length ? message.deliveryRecipients : (message.to ?? []))]
+      };
       groups.push(created);
       groupsByKey.set(key, [...candidates, created]);
     }

@@ -78,9 +78,6 @@ export async function meetingCalendarFile(committeeFileId: string, req: Request)
     const host = baseUrl.replace(/^https?:\/\//, "") || "ngx-ramblers";
     const venue = meetingHasVenue(meetingFile.meeting.format) ? meetingFile.meeting.location : null;
     const descriptionLines = [venue ? `Location: ${venue}` : null].filter(Boolean);
-    const attendees = (meetingFile.meeting.invitedRecipients || [])
-      .filter(recipient => !!recipient?.email)
-      .map(recipient => ({email: recipient.email, name: recipient.name}));
     const document = meetingIcalDocument({
       uid: `meeting-${id}@${host}`,
       title: committeeFileMeetingTitle(meetingFile),
@@ -89,8 +86,7 @@ export async function meetingCalendarFile(committeeFileId: string, req: Request)
       description: descriptionLines.join("\n") || undefined,
       location: venue || undefined,
       organiserName: meetingFile.meeting.organiserName || fallbackOrganiser.name,
-      organiserEmail: meetingFile.meeting.organiserEmail || fallbackOrganiser.email,
-      attendees
+      organiserEmail: meetingFile.meeting.organiserEmail || fallbackOrganiser.email
     }, calendarNameFor(config));
     return {document, fileName: `${id}.ics`};
   }

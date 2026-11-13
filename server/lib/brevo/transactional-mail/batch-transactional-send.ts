@@ -36,7 +36,7 @@ import { Member, MemberEmailBlock } from "../../../../projects/ngx-ramblers/src/
 import { applyPostSendActionsToMembers } from "../../mongo/controllers/member-bulk-delete";
 import { CommitteeConfig, CommitteeMember, committeeRoleMatchingEmail, roleEmailAddresses, roleRecipientMemberIds } from "../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { outboundEmailForMember } from "../../../../projects/ngx-ramblers/src/app/functions/committee-members";
-import { batchSendRecipientSplit, composerContentHasPersonalisation, composerRecipientKeepsRoleMailbox, composerRecipientIsExpandableSet, composerSharesRecipientHeaders } from "../../../../projects/ngx-ramblers/src/app/functions/email-composer";
+import { batchSendRecipientSplit, composerAddressIsCommitteeRoleMailbox, composerContentHasPersonalisation, composerRecipientKeepsRoleMailbox, composerRecipientIsExpandableSet, composerSharesRecipientHeaders } from "../../../../projects/ngx-ramblers/src/app/functions/email-composer";
 import { joinNotificationSubject } from "../../../../projects/ngx-ramblers/src/app/functions/notification-subject";
 import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette.model";
 import { BannerConfig } from "../../../../projects/ngx-ramblers/src/app/models/banner-configuration.model";
@@ -695,10 +695,12 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
     progress.entries = [...memberEntries, ...externalEntries];
     progress.startedAt = dateTimeNow().toMillis();
     const referenceListId = request.narrowListId ?? notifConfig?.defaultListId ?? null;
-    const shareTo = request.sharedToRecipients === true
-      && composerSharesRecipientHeaders(request, personalised || contentHasVolunteerMergeFields(request));
+    const delivery = {
+      share: request.sharedToRecipients === true
+        && composerSharesRecipientHeaders(request, personalised || contentHasVolunteerMergeFields(request))
+    };
 
-    if (shareTo) {
+    if (delivery.share) {
       const eligibleMemberAddresses: EmailAddress[] = [];
       memberEntries.forEach(entry => {
         const memberRecord = membersById.get(entry.memberId);
@@ -727,10 +729,12 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
         memberRecipientsAsBcc: request.sharedMemberRecipientsAsBcc === true
       });
       const sharedTo = sharedHeaders.to;
+      const visibleAddresses = [...sharedTo, ...ccAddresses];
+      delivery.share = visibleAddresses.every(address => composerAddressIsCommitteeRoleMailbox(address.email, committeeRoles));
       if (sharedTo.length === 0) {
         progress.completedAt = dateTimeNow().toMillis();
         progress.status = progress.failedCount === 0 ? BatchSendStatus.COMPLETED : BatchSendStatus.COMPLETED_WITH_ERRORS;
-      } else {
+      } else if (delivery.share) {
         try {
           const sharedParams: SendSmtpEmailParams = {
             messageMergeFields: {
@@ -800,7 +804,8 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
           debugLog("shared To send failed:", failureMessage, "raw:", error);
         }
       }
-    } else {
+    }
+    if (!delivery.share) {
     for (const item of workItems) {
       if (cancelled.has(jobId)) {
         progress.status = BatchSendStatus.CANCELLED;

@@ -51,6 +51,17 @@ describe("mail client setup instructions", () => {
     expect(fixture.nativeElement.textContent).not.toContain("Re-test");
   });
 
+  it("tells Outlook on Mac to skip Microsoft 365 and turn cloud sync off", () => {
+    queryParams.next({[StoredValue.MAIL_CLIENT_APP]: OutlookCalendarPlatform.MAC, [StoredValue.MAIL_CLIENT_PLATFORM]: MailClientSetupPlatform.MAC});
+    const fixture = TestBed.createComponent(MailClientSetupComponent);
+    fixture.componentRef.setInput("settings", settings);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain("Sync with Microsoft Cloud");
+    expect(fixture.nativeElement.textContent).toContain("Not Microsoft 365?");
+    expect(fixture.nativeElement.textContent).toContain("Please sign in again");
+    expect(fixture.nativeElement.textContent).not.toContain("File → Add Account");
+  });
+
   it("shows a preselected platform bar and filters its apps without an extra device button", () => {
     queryParams.next({[StoredValue.MAIL_CLIENT_PLATFORM]: MailClientSetupPlatform.MAC});
     const fixture = TestBed.createComponent(MailClientSetupComponent);

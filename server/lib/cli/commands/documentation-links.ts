@@ -6,7 +6,7 @@ import { PageContent, PageContentPatch } from "../../../../projects/ngx-ramblers
 import { DocumentationLinkChange, DocumentationLinkSweepOptions, DocumentationSweepReport } from "../../../../projects/ngx-ramblers/src/app/models/documentation-links.model";
 import { Environment } from "../../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { documentationSiteOrigin } from "../../../../projects/ngx-ramblers/src/app/functions/documentation-links";
-import { fetchAllPages, login, queryPages, updatePageContent } from "../../shared/cms-client";
+import { login, queryPages, updatePageContent } from "../../shared/cms-client";
 import { documentationFeaturePath, documentationMenuLinks, sweepDocumentationPage } from "../../documentation/documentation-link-sweep";
 import { publicDocumentationSites } from "../../documentation/documentation-sites";
 import { connect } from "../../mongo/mongoose-client";
@@ -24,23 +24,49 @@ function fragmentIds(value: unknown): string[] {
 }
 
 export function documentationPages(pages: PageContent[]): PageContent[] {
-  const selected = new Set(pages.filter(page => page.path === "how-to" || page.path.startsWith("how-to/")).map(page => page.id));
-  const addFragments = (page: PageContent): void => {
+  return pages;
+}
+
+async function queryAllPages(auth: Awaited<ReturnType<typeof login>>, criteria: object): Promise<PageContent[]> {
+  const limit = 200;
+  const pages: PageContent[] = [];
+  const progress = {page: 1};
+  let batch: PageContent[] = [];
+  do {
+    batch = await queryPages(auth, {criteria, limit, page: progress.page, sort: {path: 1}});
+    pages.push(...batch);
+    progress.page += 1;
+  } while (batch.length === limit);
+  return pages;
+}
+
+async function fetchDocumentationPages(auth: Awaited<ReturnType<typeof login>>): Promise<PageContent[]> {
+  const pages = await queryAllPages(auth, {});
+  const byId = new Map(pages.filter(page => page.id).map(page => [page.id, page]));
+  const missing = new Set<string>();
+  const collectMissing = (page: PageContent): void => {
     fragmentIds(page).forEach(id => {
-      const fragment = pages.find(candidate => candidate.id === id);
-      if (fragment && !selected.has(id)) {
-        selected.add(id);
-        addFragments(fragment);
+      if (!byId.has(id)) {
+        missing.add(id);
       }
     });
   };
-  pages.filter(page => selected.has(page.id)).forEach(addFragments);
-  return pages.filter(page => selected.has(page.id));
+  pages.forEach(collectMissing);
+  while (missing.size) {
+    const ids = [...missing];
+    missing.clear();
+    const extra = await queryPages(auth, {criteria: {id: {$in: ids}}});
+    extra.forEach(page => {
+      byId.set(page.id, page);
+      collectMissing(page);
+    });
+  }
+  return [...byId.values()];
 }
 
 export async function sweepCmsDocumentation(options: DocumentationLinkSweepOptions): Promise<DocumentationSweepReport> {
   const auth = await login(options.url, process.env[Environment.CMS_USERNAME], process.env[Environment.CMS_PASSWORD]);
-  const pages = await fetchAllPages(auth);
+  const pages = await fetchDocumentationPages(auth);
   await connect();
   const sites = await publicDocumentationSites();
   const context = {origins: [documentationSiteOrigin(options.url), ...sites.map(site => site.url)].filter(Boolean), menuLinks: documentationMenuLinks(pages)};
@@ -91,7 +117,7 @@ export async function sweepCmsDocumentation(options: DocumentationLinkSweepOptio
 
 export function createDocumentationLinksCommand(): Command {
   return new Command("documentation-links")
-    .description("Preview or apply website-aware links throughout CMS documentation and its shared fragments")
+    .description("Preview or apply website-aware links throughout every CMS page and shared fragment")
     .requiredOption("--url <url>", "CMS website to audit")
     .option("--report <file>", "JSON report and original page backup", `documentation-links-${dateTimeNow().toFormat(UIDateFormat.FILE_TIMESTAMP_COMPACT)}.json`)
     .option("--apply", "apply changes with valid fallback destinations and a backup of the original pages", false)

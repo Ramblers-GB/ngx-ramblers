@@ -72,14 +72,18 @@ import {browserCalendarClientHints, browserDeviceKind, outlookPlatformTabs} from
                   If a dialog says <strong>Cannot Connect Using SSL</strong>, choose <strong>No</strong>. Do not set the account up without SSL. Correct the host names, then try Next again.</p>
               }
               @case (OutlookCalendarPlatform.MAC) {
-                <p>In Outlook on your Mac, open <strong>Outlook → Settings → Accounts → Add Account</strong>.
-                  Paste the email address below and choose <strong>Continue</strong>.
-                  If asked to choose a provider, choose <strong>IMAP</strong>. Enter the settings in step 3.</p>
+                <p>In Outlook on your Mac, first remove any earlier copy of this address: <strong>Outlook → Settings → Accounts</strong>, select it, then <strong>Manage → Remove Account</strong>.
+                  Do not click <strong>Sign in</strong> on a pink “Something went wrong. Please sign in again” banner: that is Microsoft account sign-in, not committee IMAP.</p>
+                <p>Then <strong>Add Account</strong>, paste the email address below and choose <strong>Continue</strong>.
+                  Outlook will try Microsoft 365. Choose <strong>Not Microsoft 365?</strong> (or <strong>Not Office 365?</strong>) at the top, turn <strong>Sync with Microsoft Cloud</strong> off, then choose <strong>IMAP</strong>.
+                  Turn on <strong>Show advanced settings</strong> and enter the settings in step 3.
+                  If Outlook still opens a Microsoft sign-in page, cancel, open the <strong>Outlook</strong> menu, turn <strong>New Outlook</strong> off, and add the account again as IMAP in classic Outlook.</p>
               }
               @case (OutlookCalendarPlatform.WINDOWS_NEW) {
-                <p>In new Outlook, open <strong>Settings → Accounts → Your accounts → Add Account</strong>.
+                <p>In new Outlook, first remove any earlier copy of this address, then open <strong>Settings → Accounts → Your accounts → Add Account</strong>.
                   Paste the email address below and choose <strong>Continue</strong>.
-                  Choose <strong>IMAP</strong> if asked for the account type. Expand <strong>Show more</strong> or <strong>Advanced settings</strong> to enter the settings in step 3.</p>
+                  Outlook will try Microsoft 365. Choose <strong>IMAP</strong>, turn <strong>Sync with Microsoft Cloud</strong> off if shown, then expand <strong>Show more</strong> or <strong>Advanced settings</strong> to enter the settings in step 3.
+                  Do not click <strong>Sign in</strong> on a pink “sign in again” banner.</p>
               }
               @case (OutlookCalendarPlatform.WINDOWS_CLASSIC) {
                 <p>In classic Outlook, open <strong>File → Add Account</strong>.

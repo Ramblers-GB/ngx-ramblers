@@ -407,11 +407,34 @@ export function syncedRecipientAddressMode(options: {
   }
 }
 
+export function composerRecipientIsCommitteeRoleMailbox(recipient: ComposerExternalRecipient | null | undefined): boolean {
+  return !!(recipient?.committeeRoleType && recipient.email);
+}
+
+export function composerAddressIsCommitteeRoleMailbox(email: string | null | undefined, roles: {email?: string}[]): boolean {
+  const normalised = (email || "").trim().toLowerCase();
+  return !!normalised && roles.some(role => (role.email || "").trim().toLowerCase() === normalised);
+}
+
+export function composerVisibleRecipientsAreCommitteeRoleMailboxes(
+  options: Pick<BatchTransactionalSendRequest, "externalRecipients" | "ccRecipients" | "useCommitteeRoleAddresses">
+): boolean {
+  const visible = [...(options.externalRecipients || []), ...(options.ccRecipients || [])]
+    .filter(recipient => !!recipient?.email && !recipient.listId && !recipient.filterKey);
+  if (visible.length > 0) {
+    return visible.every(recipient => composerRecipientIsCommitteeRoleMailbox(recipient));
+  } else {
+    return options.useCommitteeRoleAddresses === true;
+  }
+}
+
 export function composerSharesRecipientHeaders(
-  options: Pick<BatchTransactionalSendRequest, "brandingMode" | "recipientMode" | "compositionKind" | "externalRecipients" | "ccRecipients" | "bccRecipients">,
+  options: Pick<BatchTransactionalSendRequest, "brandingMode" | "recipientMode" | "compositionKind" | "externalRecipients" | "ccRecipients" | "bccRecipients" | "useCommitteeRoleAddresses">,
   personalised: boolean
 ): boolean {
-  return options.brandingMode === BrandingMode.UNBRANDED && !personalised;
+  return options.brandingMode === BrandingMode.UNBRANDED
+    && !personalised
+    && composerVisibleRecipientsAreCommitteeRoleMailboxes(options);
 }
 
 export function composerContentHasPersonalisation(

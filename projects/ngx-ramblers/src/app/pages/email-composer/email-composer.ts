@@ -4677,12 +4677,15 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   protected recipientAddressesArePrivate(): boolean {
     return !this.session.inboxReplyContext && composerRecipientAddressesArePrivate(
       this.recipientResolution.totalRecipientCount(),
-      composerSharesRecipientHeaders(this.session.state, this.contentIsPersonalised())
+      this.canShareRecipientAddressesOnTo()
     );
   }
 
   protected canShareRecipientAddressesOnTo(): boolean {
-    return composerSharesRecipientHeaders(this.session.state, this.contentIsPersonalised())
+    return composerSharesRecipientHeaders({
+      ...this.session.state,
+      useCommitteeRoleAddresses: this.recipientResolution.useCommitteeRoleAddresses()
+    }, this.contentIsPersonalised())
       && this.recipientResolution.totalRecipientCount() > 0;
   }
 

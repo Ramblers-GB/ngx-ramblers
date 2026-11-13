@@ -116,22 +116,27 @@ describe("composer batch delivery and sent inbox headers", () => {
     expect(response.json.firstCall.args[0].error.message).toContain("all on the committee");
   });
 
-  it("sends one mixed unbranded message and records the shared To and Cc without exposing Bcc", async () => {
+  it("sends mixed personal and guest addresses as separate copies", async () => {
     const sent = await send();
+    expect(sent).toHaveLength(to.length);
+    expect(sent.map(request => request.to.map(recipient => recipient.email))).toEqual(to.map(recipient => [recipient.email]));
+  });
+
+  it("sends one unbranded message when every visible address is a committee role mailbox", async () => {
+    const chair = {type: "chair", memberId: senderId, email: "chair@group.example.org.uk", fullName: "Alex Reed"};
+    (config.queryKey as sinon.SinonStub).callsFake(async key => ({value: key === ConfigKey.COMMITTEE ? {roles: [role, chair]} : {}}));
+    const roleTo = [{email: "chair@group.example.org.uk", committeeRoleType: "chair"}];
+    const sent = await send({externalRecipients: roleTo, ccRecipients: [], bccRecipients: []});
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({to: to.map(recipient => ({...recipient, name: recipient.email})), cc: cc.map(recipient => ({...recipient, name: recipient.email})), bcc: bcc.map(recipient => ({...recipient, name: recipient.email})), replyTo: {email: role.email}});
-    const record = (inbox.recordOutboundMessage as sinon.SinonStub).firstCall.args[1];
-    expect(record.to.map(recipient => recipient.email)).toEqual(to.map(recipient => recipient.email));
-    expect(record.cc.map(recipient => recipient.email)).toEqual(cc.map(recipient => recipient.email));
-    expect(JSON.stringify(record)).not.toContain(bcc[0].email);
+    expect(sent[0].to.map(recipient => recipient.email)).toEqual(["chair@group.example.org.uk"]);
   });
 
   it("keeps an explicitly chosen role mailbox even when its holder has another role", async () => {
     (member.find as sinon.SinonStub).returns({lean: async () => [{_id: senderId, email: "alex.reed@example.com"}]});
     const chosen = [{email: "treasurer@group.example.org.uk", memberId: senderId, committeeRoleType: "treasurer"}, to[1]];
     const sent = await send({externalRecipients: chosen, useCommitteeRoleAddresses: true});
-    expect(sent).toHaveLength(1);
-    expect(sent[0].to.map(recipient => recipient.email)).toEqual(chosen.map(recipient => recipient.email));
+    expect(sent).toHaveLength(chosen.length);
+    expect(sent.map(request => request.to.map(recipient => recipient.email))).toEqual(chosen.map(recipient => [recipient.email]));
     expect((member.find as sinon.SinonStub).called).toBe(false);
   });
 
@@ -139,13 +144,11 @@ describe("composer batch delivery and sent inbox headers", () => {
     {label: "a retained newsletter type", overrides: {compositionKind: EmailCompositionKind.NEWSLETTER}},
     {label: "a committee mailing list", overrides: {recipientMode: RecipientMode.ENTIRE_LIST, recipientListIds: [7]}}
   ].forEach(({label, overrides}) => {
-    it(`sends one shared unbranded email with ${label}`, async () => {
+    it(`sends ${label} to each personal address separately`, async () => {
       (member.find as sinon.SinonStub).returns({lean: async () => [{committee: true, email: "chair@group.example.org.uk"}]});
       const sent = await send(overrides);
-      expect(sent).toHaveLength(1);
-      expect(sent[0].to.map(recipient => recipient.email)).toEqual(to.map(recipient => recipient.email));
-      expect(sent[0].cc.map(recipient => recipient.email)).toEqual(cc.map(recipient => recipient.email));
-      expect(sent[0].bcc.map(recipient => recipient.email)).toEqual(bcc.map(recipient => recipient.email));
+      expect(sent).toHaveLength(to.length);
+      expect(sent.map(request => request.to.map(recipient => recipient.email))).toEqual(to.map(recipient => [recipient.email]));
     });
   });
 
