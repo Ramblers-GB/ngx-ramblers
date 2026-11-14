@@ -82,7 +82,13 @@ import { DESCENDING } from "../../../models/table-filtering.model";
       @if (emailEnabled && !member?.emailBlock) {
         <div class="alert alert-success small d-flex align-items-start">
           <fa-icon [icon]="faCircleCheck" class="me-2"></fa-icon>
-          <div><strong>Email block cleared</strong><div>Review their list subscriptions below.</div></div>
+          <div>
+            <strong>Email block cleared</strong>
+            @if (restoredEmailLists.length) {
+              <div>Restored {{ restoredEmailLists.length }} {{ restoredEmailLists.length === 1 ? "list" : "lists" }}: {{ restoredEmailLists.join(", ") }}.</div>
+            }
+            <div>Select Save to apply any further changes to this member.</div>
+          </div>
         </div>
       }
       @if (member) {
@@ -172,6 +178,7 @@ export class MailSubscriptionSettingsComponent implements OnInit {
   protected confirmingEmailEnable = false;
   protected enablingEmail = false;
   protected emailEnabled = false;
+  protected restoredEmailLists: string[] = [];
   protected emailEnableError: string | null = null;
   protected readonly faEnvelope = faEnvelope;
   protected readonly faXmark = faXmark;
@@ -293,12 +300,17 @@ export class MailSubscriptionSettingsComponent implements OnInit {
           if (result?.removed) {
             const updated = await this.memberService.getById(editedMember.id);
             editedMember.emailBlock = updated.emailBlock ?? null;
+            const savedSubscriptions = new Map((saved.mail?.subscriptions ?? []).map(subscription => [subscription.id, subscription]));
+            const updatedSubscriptions = updated.mail?.subscriptions ?? [];
+            const listNames = new Map((this.mailMessagingConfig?.brevo?.lists?.lists ?? []).map(list => [list.id, list.name]));
+            this.restoredEmailLists = updatedSubscriptions
+              .filter(subscription => subscription.subscribed && savedSubscriptions.get(subscription.id)?.subscribed === false)
+              .map(subscription => listNames.get(subscription.id) ?? `List ${subscription.id}`);
             if (editedMember.mail) {
-              const savedSubscriptions = new Map((saved.mail?.subscriptions ?? []).map(subscription => [subscription.id, subscription]));
-              const updatedSubscriptions = new Map((updated.mail?.subscriptions ?? []).map(subscription => [subscription.id, subscription]));
+              const updatedSubscriptionsById = new Map(updatedSubscriptions.map(subscription => [subscription.id, subscription]));
               editedMember.mail.subscriptions = (editedMember.mail.subscriptions ?? []).map(subscription =>
                 subscription.subscribed === savedSubscriptions.get(subscription.id)?.subscribed
-                  ? updatedSubscriptions.get(subscription.id) ?? subscription
+                  ? updatedSubscriptionsById.get(subscription.id) ?? subscription
                   : subscription);
             }
             this.emailEnabled = !editedMember.emailBlock;

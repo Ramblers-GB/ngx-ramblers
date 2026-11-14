@@ -2,7 +2,8 @@ import { mergeTransactionalSendsIntoEvents } from "../../../functions/brevo-cont
 import { Component, EventEmitter, inject, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faArrowsRotate, faChevronDown, faChevronUp, faCircleExclamation, faCopy, faEnvelopeOpen, faExternalLinkAlt, faHandPointer, faPaperPlane, faSquareCheck, faTriangleExclamation, faUserSlash } from "@fortawesome/free-solid-svg-icons";
+import { faArrowsRotate, faCheck, faChevronDown, faChevronUp, faCircleExclamation, faCopy, faEnvelopeOpen, faExternalLinkAlt, faHandPointer, faPaperPlane, faSquareCheck, faTriangleExclamation, faUserSlash } from "@fortawesome/free-solid-svg-icons";
+import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { DateUtilsService } from "../../../services/date-utils.service";
@@ -24,7 +25,7 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
 
 @Component({
   selector: "app-brevo-contact-view",
-  imports: [FontAwesomeModule],
+  imports: [FontAwesomeModule, TooltipDirective],
   template: `
     <div>
       <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
@@ -145,29 +146,38 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
                         <div class="small text-muted">The delivery reason is not available in NGX. Use Open in Brevo for campaign history.</div>
                       }
                       @if (event.reason || event.sendingIp) {
-                        <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
-                          <button type="button" class="btn btn-sm btn-quiet"
-                                  (click)="toggleBounceDetails(event)">
-                            <fa-icon [icon]="expandedBounceKey === eventKey(event) ? faChevronUp : faChevronDown" class="me-1"></fa-icon>
-                            {{ expandedBounceKey === eventKey(event) ? "Hide details" : "Show details" }}
-                          </button>
-                          <button type="button" class="btn btn-sm btn-quiet"
-                                  (click)="copyBounceDetails(event)">
-                            <fa-icon [icon]="faCopy" class="me-1"></fa-icon>
-                            {{ copiedBounceKey === eventKey(event) ? "Copied" : "Copy details" }}
-                          </button>
-                        </div>
+                        <button type="button" class="btn btn-sm btn-link p-0 small"
+                                [attr.aria-expanded]="expandedBounceKey === eventKey(event)"
+                                (click)="toggleBounceDetails(event)">
+                          <fa-icon [icon]="expandedBounceKey === eventKey(event) ? faChevronUp : faChevronDown" class="me-1"/>
+                          {{ expandedBounceKey === eventKey(event) ? "Hide bounce details" : "Bounce details" }}
+                        </button>
                         @if (expandedBounceKey === eventKey(event)) {
-                          <div class="border rounded p-2 mt-1 small bg-light">
-                            <div><span class="text-muted">Classification:</span> {{ labelFor(event.event) }}</div>
-                            @if (event.sendingIp) {
-                              <div><span class="text-muted">Sending IP:</span> {{ event.sendingIp }}</div>
-                            }
-                            @if (event.campaignId) {
-                              <div><span class="text-muted">Campaign:</span> {{ event.campaignId }}</div>
-                            }
-                            @if (event.reason) {
-                              <div class="mt-1 text-break">{{ event.reason }}</div>
+                          <div class="border rounded p-2 small">
+                            <div class="d-flex align-items-start gap-2">
+                              <div class="flex-grow-1 text-break">
+                                @if (event.reason) {
+                                  <div>{{ event.reason }}</div>
+                                }
+                                <div class="d-flex flex-wrap gap-2 text-muted" [class.mt-1]="event.reason">
+                                  @if (event.sendingIp) {
+                                    <span>Sending IP {{ event.sendingIp }}</span>
+                                  }
+                                  @if (event.campaignId) {
+                                    <span>Campaign #{{ event.campaignId }}</span>
+                                  }
+                                </div>
+                              </div>
+                              <button type="button" class="btn btn-quiet btn-icon flex-shrink-0"
+                                      aria-label="Copy bounce details"
+                                      [tooltip]="copiedBounceKey === eventKey(event) ? 'Copied' : 'Copy bounce details'"
+                                      (click)="copyBounceDetails(event)">
+                                <fa-icon [icon]="copiedBounceKey === eventKey(event) ? faCheck : faCopy"/>
+                              </button>
+                              <span class="visually-hidden" aria-live="polite">{{ copiedBounceKey === eventKey(event) ? "Bounce details copied" : "" }}</span>
+                            </div>
+                            @if (failedBounceCopyKey === eventKey(event)) {
+                              <div class="small mt-1" role="status">Couldn’t copy. Select and copy the response above.</div>
                             }
                           </div>
                         }
@@ -255,6 +265,7 @@ export class BrevoContactViewComponent implements OnChanges {
   protected previewedEventKey: string | null = null;
   protected expandedBounceKey: string | null = null;
   protected copiedBounceKey: string | null = null;
+  protected failedBounceCopyKey: string | null = null;
   protected previewState: { loading: boolean; error: string | null; content: BrevoEmailPreviewContent | null } = { loading: false, error: null, content: null };
   protected safePreviewBody: SafeHtml | null = null;
   private previewKeyCache: { events: BrevoEmailEvent[]; campaignEvents: BrevoEmailEvent[]; keys: Set<string> } | null = null;
@@ -266,6 +277,7 @@ export class BrevoContactViewComponent implements OnChanges {
   protected readonly faChevronUp = faChevronUp;
   protected readonly faExternalLinkAlt = faExternalLinkAlt;
   protected readonly faCircleExclamation = faCircleExclamation;
+  protected readonly faCheck = faCheck;
   protected readonly faCopy = faCopy;
   private readonly EVENT_ICONS: Record<string, any> = {
     [BrevoEventType.REQUESTS]: faPaperPlane,
@@ -456,8 +468,12 @@ export class BrevoContactViewComponent implements OnChanges {
   }
 
   protected async copyBounceDetails(event: BrevoEmailEvent): Promise<void> {
-    await this.clipboardService.copyToClipboard(bounceCopyText(event));
-    this.copiedBounceKey = this.eventKey(event);
+    const key = this.eventKey(event);
+    this.copiedBounceKey = null;
+    this.failedBounceCopyKey = null;
+    const copied = await this.clipboardService.copyToClipboard(bounceCopyText(event));
+    this.copiedBounceKey = copied ? key : null;
+    this.failedBounceCopyKey = copied ? null : key;
   }
 
   private isCampaignEvent(event: BrevoEmailEvent): boolean {

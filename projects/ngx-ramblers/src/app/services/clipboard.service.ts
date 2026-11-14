@@ -1,5 +1,4 @@
 import { inject, Injectable } from "@angular/core";
-import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "./logger-factory.service";
 import { FileUtilsService } from "../file-utils.service";
@@ -18,28 +17,39 @@ export class ClipboardService {
     return e?.clipboardData || window["clipboardData"];
   }
 
-  public async copyToClipboard(item: string): Promise<void> {
-    if (item) {
+  public async copyToClipboard(item: string): Promise<boolean> {
+    if (!item) {
+      return false;
+    } else {
       try {
         if (navigator.clipboard && window.isSecureContext) {
           await navigator.clipboard.writeText(item);
           this.lastCopiedText = item;
-          this.logger.info("copied using navigator.clipboard:", this.lastCopiedText);
+          return true;
         } else {
-          const listener = (e: ClipboardEvent) => {
-            const clipboard: DataTransfer = this.clipboardData(e);
-            clipboard.setData("text", item);
-            this.lastCopiedText = item;
-            e.preventDefault();
-            this.logger.info("copied using execCommand:", this.lastCopiedText);
+          const result = {copied: false};
+          const listener = (event: ClipboardEvent) => {
+            const clipboard = this.clipboardData(event);
+            if (clipboard) {
+              clipboard.setData("text", item);
+              event.preventDefault();
+              result.copied = true;
+            }
           };
-
           document.addEventListener("copy", listener, false);
-          document.execCommand("copy");
-          document.removeEventListener("copy", listener, false);
+          try {
+            const copied = document.execCommand("copy") && result.copied;
+            if (copied) {
+              this.lastCopiedText = item;
+            }
+            return copied;
+          } finally {
+            document.removeEventListener("copy", listener, false);
+          }
         }
-      } catch (err) {
-        this.logger.error("failed to copy to clipboard:", err);
+      } catch (error) {
+        this.logger.error("failed to copy to clipboard:", error);
+        return false;
       }
     }
   }
