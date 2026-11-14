@@ -211,7 +211,7 @@ import {DisplayDateAndTimePipe} from "../../../pipes/display-date-and-time.pipe"
           </app-sortable-table>
 
           <div class="last-checked">
-            Latest result: {{ healthResponse.timestamp | displayDateAndTime }}
+            Last checked {{ healthResponse.timestamp | displayDateAndTime }}. Select Refresh to run a new check.
           </div>
         }
       </div>

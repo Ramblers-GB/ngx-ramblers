@@ -4,7 +4,7 @@ import sinon from "sinon";
 import * as configuration from "../environments/environments-config";
 import * as certificates from "../fly/fly-certificates";
 import {crossEnvironmentHealth} from "./cross-environment-health";
-import {EnvironmentHealthEvent, EnvironmentHealthEventType, HealthStatus} from "../../../projects/ngx-ramblers/src/app/models/health.model";
+import {EnvironmentHealthEvent, EnvironmentHealthEventType, EnvironmentHealthCheckStatus, HealthStatus, HttpProbeMethod} from "../../../projects/ngx-ramblers/src/app/models/health.model";
 
 const sandbox = sinon.createSandbox();
 
@@ -71,6 +71,25 @@ describe("cross-environment health progress", () => {
     expect(response.summary.total).toBe(1);
     expect(response.summary.healthy).toBe(1);
     expect(response.environments[0].hostnames.map(host => host.hostname)).toEqual(["group.example.org.uk", "hillside.platform.example.org.uk"]);
+  });
+
+  it("reports the site unreachable when the public page body fails after successful headers", async () => {
+    sandbox.stub(configuration, "environmentsConfigFromDatabase").resolves({environments: [{environment: "hillside"}], cloudflare: {baseDomain: "platform.example.org.uk"}});
+    const fetch = sandbox.stub(globalThis, "fetch").callsFake(async input => {
+      if (String(input).endsWith("/api/system-status")) {
+        return healthyResponse();
+      } else {
+        const body = new ReadableStream({
+          pull(controller) {
+            controller.error(new Error("Connection closed before the page arrived"));
+          }
+        });
+        return new Response(body, {status: 200});
+      }
+    });
+    const response = await crossEnvironmentHealth();
+    expect(response.environments[0].checkStatus).toBe(EnvironmentHealthCheckStatus.UNREACHABLE);
+    expect(fetch.secondCall.args[1]).toMatchObject({method: HttpProbeMethod.GET, redirect: "follow"});
   });
 
   it("completes an empty configuration without checking any sites", async () => {

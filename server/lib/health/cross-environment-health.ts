@@ -16,7 +16,9 @@ import {
   EnvironmentHealthCheckStatus,
   EnvironmentHealthFinding,
   EnvironmentHealthFindingSeverity,
-  HealthResponse
+  HealthResponse,
+  HealthStatus,
+  HttpProbeMethod
 } from "../../../projects/ngx-ramblers/src/app/models/health.model";
 import {
   CERT_EXPIRY_WARNING_DAYS,
@@ -86,6 +88,11 @@ async function checkSingleEnvironment(env: EnvironmentConfig, baseDomain: string
     const requestSignal = AbortSignal.timeout(TIMEOUT_MS);
     const response = await fetch(statusUrl, { signal: signal ? AbortSignal.any([signal, requestSignal]) : requestSignal });
     const healthResponse: Partial<HealthResponse> = await response.json();
+    if (healthResponse.status !== HealthStatus.OK && healthResponse.status !== HealthStatus.DEGRADED) {
+      throw new Error(`Unexpected system status response (HTTP ${response.status})`);
+    } else if (!response.ok && (response.status !== 503 || healthResponse.status !== HealthStatus.DEGRADED)) {
+      throw new Error(`System status returned HTTP ${response.status}`);
+    }
     findings.push({
       name: EnvironmentHealthCheckName.MACHINE,
       severity: EnvironmentHealthFindingSeverity.OK,
@@ -96,10 +103,10 @@ async function checkSingleEnvironment(env: EnvironmentConfig, baseDomain: string
     const visitorHost = visitorHostnameFromSiteUrl(siteHref, environmentName, baseDomain);
     const ngxHost = `${environmentName}.${baseDomain}`;
     const publicUrl = `https://${visitorHost}`;
-    const publicProbe = await probeHttp(visitorHost, signal);
+    const publicProbe = await probeHttp(visitorHost, signal, HttpProbeMethod.GET);
     const ngxProbe = visitorHost === ngxHost || publicHttpSucceeded(publicProbe.httpStatus)
       ? publicProbe
-      : await probeHttp(ngxHost, signal);
+      : await probeHttp(ngxHost, signal, HttpProbeMethod.GET);
     if (publicHttpSucceeded(publicProbe.httpStatus)) {
       findings.push({
         name: EnvironmentHealthCheckName.PUBLIC_HTTP,
@@ -167,7 +174,7 @@ async function checkSingleEnvironment(env: EnvironmentConfig, baseDomain: string
     });
     const publicHostname = visitorHostnameFromSiteUrl(undefined, environmentName, baseDomain);
     const publicUrl = `https://${publicHostname}`;
-    const publicProbe = await probeHttp(publicHostname, signal);
+    const publicProbe = await probeHttp(publicHostname, signal, HttpProbeMethod.GET);
     if (publicHttpSucceeded(publicProbe.httpStatus)) {
       findings.push({
         name: EnvironmentHealthCheckName.PUBLIC_HTTP,
