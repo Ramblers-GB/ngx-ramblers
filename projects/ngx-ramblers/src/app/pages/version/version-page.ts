@@ -130,7 +130,7 @@ const RELEASE_FEED_LIMIT = 20;
                   </tr>
                   <tr>
                     <th>Source</th>
-                    <td><a [href]="info.repositoryUrl" target="_blank" rel="noopener"><fa-icon [icon]="faGithub" class="me-1"/>{{ repositoryLabel() }} <fa-icon [icon]="faArrowUpRightFromSquare" class="ms-1 small"/></a></td>
+                    <td><a [href]="info.repositoryUrl" target="_blank" rel="noopener"><fa-icon [icon]="faGithub" class="me-1"/>{{ repositoryLabel() }}</a></td>
                   </tr>
                   </tbody>
                 </table>
