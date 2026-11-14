@@ -542,6 +542,12 @@ export default defineConfig([
     },
   },
   {
+    files: ["server/lib/shared/on-demand-modules.ts"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
     files: ["server/lib/serenity-js/**/*.ts"],
     rules: {
       "no-restricted-syntax": [

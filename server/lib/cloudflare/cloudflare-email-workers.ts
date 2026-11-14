@@ -2,7 +2,7 @@ import { toPairs } from "es-toolkit/compat";
 import debug from "debug";
 import * as fs from "fs";
 import * as path from "path";
-import ts from "typescript";
+import { typescriptCompiler } from "../shared/on-demand-modules";
 import { CloudflareConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import {
   EmailForwardingMode,
@@ -42,6 +42,7 @@ function loadTranspiledTemplate(templateBaseName: string): string {
   const tsPath = path.join(TEMPLATE_DIR, `${templateBaseName}.template.ts`);
   const tsSource = fs.readFileSync(tsPath, "utf-8");
   const inlined = resolveLocalImports(tsPath, tsSource);
+  const ts = typescriptCompiler();
   const result = ts.transpileModule(inlined, {
     compilerOptions: {
       target: ts.ScriptTarget.ES2022,

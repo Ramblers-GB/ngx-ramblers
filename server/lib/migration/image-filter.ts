@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { jsdomFor } from "../shared/on-demand-modules";
 import { ScrapedImage } from "../../../projects/ngx-ramblers/src/app/models/migration-scraping.model";
 import { uniqBy } from "es-toolkit/compat";
 
@@ -24,7 +24,7 @@ export function layoutImage(image: ScrapedImage): boolean {
 }
 
 export function withoutLayoutImages(html: string, pageUrl: string): string {
-  const document = new JSDOM(html, {url: pageUrl}).window.document;
+  const document = jsdomFor(html, {url: pageUrl}).window.document;
   [...document.querySelectorAll("img")].forEach(image => {
     const raw = image.getAttribute("data-large") || image.getAttribute("data-src") || image.getAttribute("src") || "";
     try {
@@ -44,7 +44,7 @@ export function albumContentImages(images: ScrapedImage[]): ScrapedImage[] {
 }
 
 export function contentImagesFromHtml(html: string, pageUrl: string): ScrapedImage[] {
-  const document = new JSDOM(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
+  const document = jsdomFor(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
   const images = [...document.querySelectorAll("img")].map(image => {
     const raw = image.getAttribute("data-large") || image.getAttribute("data-src") || image.getAttribute("src") || "";
     try {

@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { jsdomFor } from "../shared/on-demand-modules";
 
 export enum DiscoveredSocialNetwork {
   FACEBOOK = "facebook",
@@ -35,7 +35,7 @@ function networkForHost(host: string): DiscoveredSocialNetwork | null {
 }
 
 export function socialLinksFromHtml(html: string, pageUrl = "https://group.example.org.uk/"): DiscoveredSocialLink[] {
-  const document = new JSDOM(html || "", {url: pageUrl}).window.document;
+  const document = jsdomFor(html || "", {url: pageUrl}).window.document;
   return [...document.querySelectorAll("a[href]")].reduce((found, anchor) => {
     try {
       const url = new URL((anchor as HTMLAnchorElement).href, pageUrl);

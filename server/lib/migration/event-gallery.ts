@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { jsdomFor } from "../shared/on-demand-modules";
 import { PageLink } from "../../../projects/ngx-ramblers/src/app/models/migration-config.model";
 import { ScrapedImage } from "../../../projects/ngx-ramblers/src/app/models/migration-scraping.model";
 
@@ -34,7 +34,7 @@ export function isEventGalleryListingUrl(url: string): boolean {
 }
 
 export function isEventGalleryListingHtml(html: string, pageUrl = ""): boolean {
-  const document = new JSDOM(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
+  const document = jsdomFor(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
   const egLinks = document.querySelectorAll("[data-eg-link]").length;
   const grid = document.querySelector(".eventgallery-events, .eventgallery-events-gridlist, .eventgallery-categories, .eventgallery-events-list");
   const componentMarker = /com_eventgallery/i.test(html || "");
@@ -67,7 +67,7 @@ export function eventGalleryDisplayUrl(src: string): string {
 }
 
 export function eventGalleryAlbumLinksFromHtml(html: string, pageUrl: string): PageLink[] {
-  const document = new JSDOM(html, {url: pageUrl}).window.document;
+  const document = jsdomFor(html, {url: pageUrl}).window.document;
   const items = [...document.querySelectorAll("[data-eg-link], a[href]")].map(node => {
     const href = node.getAttribute("data-eg-link") || (node as HTMLAnchorElement).href || "";
     const image = node.querySelector("img") || (node.matches("img") ? node as HTMLImageElement : null);
@@ -78,7 +78,7 @@ export function eventGalleryAlbumLinksFromHtml(html: string, pageUrl: string): P
 }
 
 export function eventGalleryPaginationUrls(html: string, pageUrl: string): string[] {
-  const document = new JSDOM(html, {url: pageUrl}).window.document;
+  const document = jsdomFor(html, {url: pageUrl}).window.document;
   const listingPath = (() => {
     try {
       return new URL(pageUrl).pathname;
@@ -106,7 +106,7 @@ export function eventGalleryPaginationUrls(html: string, pageUrl: string): strin
 }
 
 export function eventGalleryImagesFromHtml(html: string, pageUrl: string): ScrapedImage[] {
-  const document = new JSDOM(html, {url: pageUrl}).window.document;
+  const document = jsdomFor(html, {url: pageUrl}).window.document;
   const images = [...document.querySelectorAll("img")].map(image => {
     const src = eventGalleryDisplayUrl(image.getAttribute("data-src") || image.src || "");
     return {src, alt: (image.getAttribute("alt") || "").trim()};
@@ -142,7 +142,7 @@ export function queryAlbumHref(href: string): boolean {
 }
 
 export function queryAlbumLinksFromHtml(html: string, pageUrl: string): PageLink[] {
-  const document = new JSDOM(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
+  const document = jsdomFor(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
   const items = [...document.querySelectorAll("a[href]")].map(node => {
     try {
       const href = new URL((node as HTMLAnchorElement).href, pageUrl).href;

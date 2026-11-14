@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { createHash } from "crypto";
 import debug from "debug";
-import { Workbook, Worksheet } from "exceljs";
+import type { Worksheet } from "exceljs";
+import { exceljsFrom } from "../ramblers/workbook-reader";
 import { isArray, isBoolean, isObject, isString, keys } from "es-toolkit/compat";
 import { mkdirSync, writeFileSync } from "fs";
 import { MongoClient } from "mongodb";
@@ -739,6 +740,7 @@ async function buildWorkbook(
   platformRows: EstateRebuildPlatformCaptureRow[],
   includeSecrets: boolean
 ): Promise<Buffer> {
+  const {Workbook} = exceljsFrom(await import("exceljs"));
   const workbook = new Workbook();
   workbook.creator = "ngx-ramblers";
   workbook.created = dateTimeNow().toJSDate();

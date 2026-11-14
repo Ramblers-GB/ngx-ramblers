@@ -1,7 +1,6 @@
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { Request, Response } from "express";
 import { SecureContextOptions } from "tls";
-import { Client, crypto, directory } from "acme-client";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 import { mailClientHostname } from "./mail-client-auth";
@@ -57,6 +56,7 @@ export async function mailClientTlsOptions(): Promise<SecureContextOptions | nul
 }
 
 async function issueMailClientCertificate(hostname: string, existing: MailClientTlsCredentials | null, secret: string): Promise<MailClientTlsCredentials> {
+  const {Client, crypto, directory} = await import("acme-client");
   const owner = await acquireMailClientCertificateLease(hostname);
   try {
     const accountKey = existing?.accountKey || (await crypto.createPrivateKey()).toString();

@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { jsdomFor } from "../shared/on-demand-modules";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
 
@@ -124,7 +124,7 @@ export function registrationPageType(path: string, title = "", sourcePath = ""):
 }
 
 export function ramblersHostedContactPhone(html: string): string {
-  const document = new JSDOM(html).window.document;
+  const document = jsdomFor(html).window.document;
   const card = [...document.querySelectorAll("main .card")].find(item => /get in touch/i.test(item.textContent || ""));
   const phone = (card?.textContent || "").match(/(?:Call|Phone|Tel)\s*:?\s*(\+?[\d][\d\s]{8,15}\d)/i)?.[1];
   return phone ? phone.replace(/\s+/g, " ").trim() : "";
@@ -258,7 +258,7 @@ export function isCrawlableRegistrationPageUrl(url: URL): boolean {
 }
 
 export function discoverRegistrationPages(html: string, website: string): {pages: RegistrationPage[]; flavour: RegistrationSiteFlavour} {
-  const document = new JSDOM(html, {url: website}).window.document;
+  const document = jsdomFor(html, {url: website}).window.document;
   document.querySelectorAll("br").forEach(lineBreak => lineBreak.replaceWith(" "));
   const base = publicSiteUrl(website);
   const hostedPath = ramblersHostedGroupPath(base) || ramblersHostedGroupPath(ramblersCanonicalUrl(document, base));
@@ -368,7 +368,7 @@ export function registrationSourceUrl(value: string): string {
 }
 
 export function isNgxRamblersSite(html: string, website: string): boolean {
-  const document = new JSDOM(html, {url: website}).window.document;
+  const document = jsdomFor(html, {url: website}).window.document;
   const hostname = publicSiteUrl(website).hostname.toLowerCase();
   const ngxHostname = hostname === "ngx-ramblers.org.uk" || hostname.endsWith(".ngx-ramblers.org.uk");
   const ngxGenerator = document.querySelector('meta[name="generator"][content="NGX Ramblers"]');
@@ -399,7 +399,7 @@ export async function discoverRegistrationWebsite(website: string, groupCode = "
     throw new Error("This website is already an NGX Ramblers site, so it does not need to be converted. Contact the platform administrator if you need help with it.");
   } else {
     const initial = discoverRegistrationPages(initialHtml, initialUrl);
-    const document = new JSDOM(initialHtml, {url: initialUrl}).window.document;
+    const document = jsdomFor(initialHtml, {url: initialUrl}).window.document;
     const sourceTitle = document.querySelector("h1")?.textContent?.replace(/\s+/g, " ").trim() || document.title.replace(/\s+/g, " ").trim() || publicSiteUrl(initialUrl).hostname;
     const homePage: RegistrationPage = {url: initialUrl, path: "home", title: RegistrationNavbarTitle.HOME, type: RegistrationPageType.TEXT, selected: true, parentPath: null, proposed: false};
     const initialPages = initial.pages.some(page => page.path === RegistrationNavbarPath.HOME) ? initial.pages : [homePage, ...initial.pages.filter(page => page.path !== "home")];

@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import debug from "debug";
-import { JSDOM } from "jsdom";
+import { jsdomFor } from "../../shared/on-demand-modules";
 import TurndownService from "turndown";
 import { log, error as logError } from "../cli-logger";
 import { dateTimeNow, dateTimeFromIso } from "../../shared/dates";
@@ -107,7 +107,7 @@ async function fetchOldSite(baseUrl: string): Promise<ReconciliationPage[]> {
   }
 
   const homeHtml = await homeResponse.text();
-  const dom = new JSDOM(homeHtml);
+  const dom = jsdomFor(homeHtml);
   const doc = dom.window.document;
 
   const navLinks = new Set<string>();
@@ -149,7 +149,7 @@ async function fetchOldSite(baseUrl: string): Promise<ReconciliationPage[]> {
       }
 
       const html = await response.text();
-      const pageDom = new JSDOM(html);
+      const pageDom = jsdomFor(html);
       const pageDoc = pageDom.window.document;
 
       const mainContent = pageDoc.querySelector("main, article, .content, #content, .main-content, [role='main']") || pageDoc.body;

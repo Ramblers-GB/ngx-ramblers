@@ -1,8 +1,8 @@
 import { RAMBLERS_EMAIL_TOKENS as T } from "./ramblers-design-tokens";
-import { JSDOM } from "jsdom";
+import { jsdomFor } from "../../shared/on-demand-modules";
 
 export function normaliseUnbrandedEmailContent(html: string): string {
-  const document = new JSDOM(html).window.document;
+  const document = jsdomFor(html).window.document;
   document.querySelectorAll("style, link[rel=stylesheet]").forEach(element => element.remove());
   const headingSizes = new Map([
     ["H1", T.h2Size],

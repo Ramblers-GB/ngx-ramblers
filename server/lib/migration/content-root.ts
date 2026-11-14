@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { jsdomFor } from "../shared/on-demand-modules";
 
 export function selectorList(selector: string): string[] {
   return (selector || "").split(",").map(item => item.trim()).filter(Boolean);
@@ -84,7 +84,7 @@ export function contentHtmlFromDocument(document: Document, contentSelector: str
 }
 
 export function contentHtmlFromPage(html: string, pageUrl: string, contentSelector: string, excludeSelectors: string[] = []): string {
-  const document = new JSDOM(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
+  const document = jsdomFor(html || "", {url: pageUrl || "https://group.example.org.uk/"}).window.document;
   return contentHtmlFromDocument(document, contentSelector, excludeSelectors);
 }
 

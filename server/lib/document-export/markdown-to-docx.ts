@@ -24,7 +24,7 @@ import {
 } from "docx";
 import {expandMarkdownTableRules} from "../../../projects/ngx-ramblers/src/app/functions/email-composer-programme";
 import {encodeMarkdownLinkUrls} from "../../../projects/ngx-ramblers/src/app/functions/markdown";
-import {JSDOM} from "jsdom";
+import { jsdomFor } from "../shared/on-demand-modules";
 import {CommitteeDocumentLayout, DocumentExportRequest} from "../../../projects/ngx-ramblers/src/app/models/committee.model";
 import {ramblersLegalBoilerplate} from "../../../projects/ngx-ramblers/src/app/models/ramblers-legal.model";
 import {renderMarkdownToHtml} from "../shared/markdown-renderer";
@@ -296,7 +296,7 @@ async function bodyParagraphs(markdown: string, title: string, imageHeight: numb
   const titleBlock = titled ? [] : [headingParagraph(title, HeadingLevel.HEADING_1)];
   return pages.reduce(async (previous, page, index) => {
     const accumulated = await previous;
-    const html = new JSDOM(renderMarkdownToHtml(encodeMarkdownLinkUrls(expandMarkdownTableRules(page))));
+    const html = jsdomFor(renderMarkdownToHtml(encodeMarkdownLinkUrls(expandMarkdownTableRules(page))));
     if (publicBaseUrl) {
       Array.from(html.window.document.querySelectorAll("a[href]")).forEach(anchor => {
         const href = anchor.getAttribute("href") || "";
@@ -328,7 +328,7 @@ function headingParagraph(text: string, level: (typeof HeadingLevel)[keyof typeo
 type ParagraphAlignment = (typeof AlignmentType)[keyof typeof AlignmentType];
 
 async function htmlToBlocks(html: string, keepTogether: boolean, imageHeight: number, imageWidth = 480, alignment: ParagraphAlignment | null = null): Promise<DocChild[]> {
-  const dom = new JSDOM(`<body>${html}</body>`);
+  const dom = jsdomFor(`<body>${html}</body>`);
   return Array.from(dom.window.document.body.childNodes).reduce(async (previous, node) => {
     const accumulated = await previous;
     return [...accumulated, ...(await htmlNodeToBlocks(node, keepTogether, imageHeight, imageWidth, alignment))];
