@@ -63,8 +63,8 @@ export function nativeWalkingSite(): string | null {
   return origin;
 }
 
-export function openNativeGroupApp(origin: string): void {
-  window.location.assign(`${origin}/app`);
+export function openNativeGroupApp(origin: string, search = ""): void {
+  window.location.assign(`${origin}/app${search}`);
 }
 
 export function returnNativeShell(): void {

@@ -649,7 +649,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
           </div>
           }
           @if (sheetMinimised && !followPanelWide && hasLine && payload?.source !== RouteFollowSource.RECORDING && !recordingSession) {
-            <div class="follow-recording-tray follow-peek-actions" [class.follow-start-actions]="progress?.mode === RouteFollowMode.IDLE">
+            <div class="follow-recording-tray follow-peek-actions">
               @if (progress?.mode === RouteFollowMode.EDITING) {
                 <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="onPeekCancelEdit($event)" [disabled]="savingRoute">
                   <fa-icon [icon]="faXmark"/>
@@ -898,7 +898,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
               <div><strong class="d-block">Delete this route?</strong>This removes it from the group's Maps list and cannot be undone.</div>
             </div>
           }
-          <div class="follow-actions" [class.follow-start-actions]="!followPanelWide && progress?.mode === RouteFollowMode.IDLE && !recordingSession && !plottingRoute()">
+          <div class="follow-actions">
             @if (confirmingRecordingDiscard) {
               <button class="btn btn-primary follow-main-btn" type="button" (click)="confirmingRecordingDiscard = false">Back to recording</button>
               <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="confirmRecordingDiscard()">Confirm discard</button>

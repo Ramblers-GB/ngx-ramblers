@@ -37,8 +37,13 @@ public class SiteResourceWebViewClient extends BridgeWebViewClient {
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
         Uri target = request.getUrl();
-        String selected = NativeSiteNavigationPlugin.selectedOrigin(bridge.getContext());
+        String stored = NativeSiteNavigationPlugin.selectedOrigin(bridge.getContext());
         String origin = origin(target);
+        boolean movedWithinSite = !stored.isEmpty() && !origin.equals(stored) && siteOrigin(origin).equals(siteOrigin(stored));
+        if (movedWithinSite) {
+            NativeSiteNavigationPlugin.storeOrigin(bridge.getContext(), origin);
+        }
+        String selected = movedWithinSite ? origin : stored;
         if (origin.equals(selected) && !selected.isEmpty()) {
             if (origin.equals(preparedOrigin)) {
                 return false;
@@ -96,6 +101,10 @@ public class SiteResourceWebViewClient extends BridgeWebViewClient {
     private static String nativeAppJavaScript() {
         return "window.ngxNativeBuildNumber=" + org.json.JSONObject.quote(Integer.toString(BuildConfig.VERSION_CODE)) + ";"
             + "if(!localStorage.getItem(\"app-appearance\")){localStorage.setItem(\"app-appearance\",\"light\");}";
+    }
+
+    private static String siteOrigin(String origin) {
+        return origin.toLowerCase(java.util.Locale.ROOT).replaceFirst("^(https?://)www\\.", "$1");
     }
 
     private static String origin(Uri uri) {

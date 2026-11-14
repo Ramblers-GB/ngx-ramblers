@@ -70,10 +70,27 @@ public class NativeSiteNavigationPlugin: CAPPlugin, CAPBridgedPlugin {
         if let url = navigationAction.request.url,
            let selected = UserDefaults.standard.string(forKey: "native-site-origin"),
            let origin = URL(string: selected),
-           url.scheme == origin.scheme && url.host == origin.host && url.port == origin.port {
+           let host = url.host,
+           let selectedHost = origin.host,
+           url.scheme == origin.scheme && url.port == origin.port && Self.siteHost(host) == Self.siteHost(selectedHost) {
+            if host != selectedHost {
+                var components = URLComponents()
+                components.scheme = url.scheme
+                components.host = host
+                components.port = url.port
+                if let moved = components.url?.absoluteString {
+                    UserDefaults.standard.set(moved, forKey: "native-site-origin")
+                    Self.configure(bridge?.webView)
+                }
+            }
             return false
         } else {
             return nil
         }
+    }
+
+    private static func siteHost(_ host: String) -> String {
+        let lower = host.lowercased()
+        return lower.hasPrefix("www.") ? String(lower.dropFirst(4)) : lower
     }
 }

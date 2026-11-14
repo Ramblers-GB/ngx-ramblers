@@ -91,7 +91,7 @@ export class NativeSiteService {
     return Capacitor.isNativePlatform() && isNativeLocalShell() && origin
       ? this.canonicalOrigin(origin).then(async resolvedOrigin => {
         await this.rememberSite(resolvedOrigin);
-        openNativeGroupApp(resolvedOrigin);
+        openNativeGroupApp(resolvedOrigin, window.location.search);
       })
       : null;
   }
