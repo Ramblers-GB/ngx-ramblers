@@ -1,5 +1,6 @@
 import { currentMemberSession } from "./member-session";
 import { compare, hash } from "bcryptjs";
+import { isString } from "es-toolkit/compat";
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { uid } from "rand-token";
@@ -57,7 +58,21 @@ export function signValue(value: string | object, expiry: number) {
 }
 
 export function compareValue(inputValue: string, storedValue: string) {
-  return compare(inputValue, storedValue);
+  if (!isString(inputValue) || !isString(storedValue) || inputValue.length === 0 || storedValue.length === 0) {
+    return Promise.resolve(false);
+  } else {
+    return compare(inputValue, storedValue);
+  }
+}
+
+export function compareMemberPassword(input: string, stored: string): Promise<boolean> {
+  if (!isString(input) || !input || !isString(stored) || !stored) {
+    return Promise.resolve(false);
+  } else if (stored.startsWith("$2")) {
+    return compareValue(input, stored);
+  } else {
+    return Promise.resolve(input === stored);
+  }
 }
 
 export function authenticate() {
@@ -85,6 +100,15 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return;
   }
   next();
+}
+
+export function requireMemberAdmin(req: Request, res: Response, next: NextFunction): void {
+  const user = req.user as Partial<Member>;
+  if (user?.memberAdmin) {
+    next();
+  } else {
+    res.status(403).json({error: "Member admin access required"});
+  }
 }
 
 export function requireFileOrMemberAdmin(req: Request, res: Response, next: NextFunction) {

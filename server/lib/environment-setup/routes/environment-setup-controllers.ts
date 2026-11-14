@@ -62,6 +62,7 @@ import { isString, keys } from "es-toolkit/compat";
 import {
   baseDomainFrom,
   connectToEnvironmentMongo,
+  connectToLiveEnvironmentMongo,
   EnvironmentNotFoundError,
   loadEnvironmentContext,
   withBrevoApiKey
@@ -1341,7 +1342,7 @@ export async function adminPasswordResetRequest(req: Request, res: Response) {
     debugLog("Admin password reset request received for:", environmentName);
 
     const { environmentsConfig, envConfigData } = await loadEnvironmentContext(environmentName);
-    const { client, db } = await connectToEnvironmentMongo(envConfigData);
+    const { client, db } = await connectToLiveEnvironmentMongo(envConfigData);
     try {
       const membersCollection = db.collection("members");
       const adminMember = await membersCollection.findOne({ memberAdmin: true });

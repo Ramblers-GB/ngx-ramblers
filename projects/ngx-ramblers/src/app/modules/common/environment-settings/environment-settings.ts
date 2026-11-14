@@ -76,7 +76,7 @@ import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
         @if (showSubTab(EnvironmentSettingsSubTab.GLOBAL)) {
           <app-environment-global-settings [config]="editableConfig"/>
         }
-        @if (showSubTab(EnvironmentSettingsSubTab.ENVIRONMENTS)) {
+        @if (showSubTab(EnvironmentSettingsSubTab.ENVIRONMENTS) && configReady) {
           <app-environment-per-env-settings [config]="editableConfig"/>
         }
       </form>
@@ -107,6 +107,7 @@ export class EnvironmentSettings implements OnInit, OnDestroy {
     cancel: () => this.cancel()
   };
   public saving = false;
+  public configReady = false;
 
   notifyTarget: AlertTarget = {};
   notify: AlertInstance;
@@ -149,6 +150,7 @@ export class EnvironmentSettings implements OnInit, OnDestroy {
           this.configJson = JSON.stringify(config, null, 2);
           this.populateFormFromConfig(config);
           this.configError = "";
+          this.configReady = true;
         },
         error: err => {
           this.configErrorTitle = "Error loading configuration";

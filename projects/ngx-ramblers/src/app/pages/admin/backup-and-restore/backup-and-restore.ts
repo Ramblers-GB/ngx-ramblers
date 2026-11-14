@@ -171,7 +171,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         [showSelectAllHeader]="true"
                         [(selected)]="selectedEnvironments"
                         (selectedChange)="onEnvironmentsChange($event)"></app-environment-select>
-                      @if (environments.length === 0) {
+                      @if (environmentsLoaded && environments.length === 0) {
                         <small class="form-text text-warning">
                           No environments configured. Please configure environments in the
                           Settings tab first.
@@ -249,7 +249,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         [(selectedName)]="restoreRequest.environment"
                         (selectedNameChange)="onRestoreEnvironmentChange($event)"
                         placeholder="Select environment..."></app-environment-select>
-                      @if (environments.length === 0) {
+                      @if (environmentsLoaded && environments.length === 0) {
                         <small class="form-text text-warning">
                           No environments configured. Please configure environments in the
                           Settings tab first.
@@ -733,6 +733,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   notify = this.notifierService.createAlertInstance(this.notifyTarget);
 
   environments: EnvironmentInfo[] = [];
+  environmentsLoaded = false;
   environmentsWithMongo: EnvironmentInfo[] = [];
   selectedEnvironments: EnvironmentInfo[] = [];
   backups: BackupListItem[] = [];
@@ -1295,13 +1296,17 @@ export class BackupAndRestore implements OnInit, OnDestroy {
         next: envs => {
           this.environments = envs;
           this.environmentsWithMongo = envs.filter(environment => environment.hasMongoConfig);
+          this.environmentsLoaded = true;
           this.logger.info("Loaded environments:", envs);
           this.syncEnvironmentsFromUrl();
         },
-        error: err => this.notify.error({
-          title: "Error loading environments",
-          message: err.message
-        })
+        error: err => {
+          this.environmentsLoaded = true;
+          this.notify.error({
+            title: "Error loading environments",
+            message: err.message
+          });
+        }
       })
     );
   }

@@ -87,6 +87,9 @@ import { EnvironmentDestroy } from "./environment-destroy";
     .env-details-value
       font-weight: 600
       word-break: break-word
+
+    .manage-action-choices
+      padding-top: 0.75rem
   `],
   template: `
     @if (!enabled) {
@@ -96,12 +99,12 @@ import { EnvironmentDestroy } from "./environment-destroy";
         Please use the CLI or staging environment.
       </div>
     } @else {
-      @if (existingEnvironments.length === 0) {
+      @if (!loading && existingEnvironments.length === 0) {
         <div class="alert alert-warning">
           <fa-icon [icon]="faExclamationTriangle" class="me-2"></fa-icon>
           No environments configured yet. Add environments in the Settings tab first.
         </div>
-      } @else {
+      } @else if (existingEnvironments.length > 0) {
         <div class="row thumbnail-heading-frame">
           <div class="thumbnail-heading">Change existing environment</div>
           <div class="col-12">
@@ -160,27 +163,29 @@ import { EnvironmentDestroy } from "./environment-destroy";
             </div>
 
             @if (loadingStatus) {
-              <div class="mt-3">
-                <div class="mb-2">Detecting environment state</div>
-                <ul class="list-unstyled mb-0">
-                  @for (probe of statusProbes; track probe.id) {
-                    <li class="d-flex align-items-start mb-1">
-                      @if (probe.state === StatusProbeState.DONE) {
-                        <fa-icon [icon]="faCheckCircle" class="me-2 mt-1 text-success"></fa-icon>
-                      } @else if (probe.state === StatusProbeState.FAILED) {
-                        <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1 text-danger"></fa-icon>
-                      } @else {
-                        <fa-icon [icon]="faSpinner" animation="spin" class="me-2 mt-1"></fa-icon>
-                      }
-                      <span [class.text-muted]="probe.state !== StatusProbeState.DONE">{{ probe.label }}</span>
-                    </li>
-                  }
-                </ul>
+              <div class="row thumbnail-heading-frame mt-3">
+                <div class="thumbnail-heading">Detecting environment state</div>
+                <div class="col-12">
+                  <ul class="list-unstyled mb-0">
+                    @for (probe of statusProbes; track probe.id) {
+                      <li class="d-flex align-items-start mb-1">
+                        @if (probe.state === StatusProbeState.DONE) {
+                          <fa-icon [icon]="faCheckCircle" class="me-2 mt-1 text-success"></fa-icon>
+                        } @else if (probe.state === StatusProbeState.FAILED) {
+                          <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1 text-danger"></fa-icon>
+                        } @else {
+                          <fa-icon [icon]="faSpinner" animation="spin" class="me-2 mt-1"></fa-icon>
+                        }
+                        <span [class.text-muted]="probe.state !== StatusProbeState.DONE">{{ probe.label }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
               </div>
             } @else {
               <div class="row thumbnail-heading-frame mt-3">
                 <div class="thumbnail-heading">What do you want to do?</div>
-                <div class="col-12">
+                <div class="col-12 manage-action-choices">
                   <div class="form-check">
                     <input class="form-check-input" type="radio" name="manageAction" id="actionModify"
                            [value]="ManageAction.MODIFY" [ngModel]="manageAction"
@@ -276,7 +281,7 @@ export class EnvironmentManagement implements OnInit {
   notifyTarget: AlertTarget = {};
 
   enabled = false;
-  loading = false;
+  loading = true;
   loadingStatus = false;
   existingEnvironments: ExistingEnvironment[] = [];
   selectedExistingEnv: ExistingEnvironment | null = null;

@@ -21,23 +21,14 @@ export function login(req: Request, res: Response) {
       .then((document: any) => {
         const member: Member = transforms.toObjectWithId(document);
         if (member) {
-          debugLog("findOne - succeeded:member:", member);
-          debugLog("findOne - member:password", member.password, "member.groupMember:", member.groupMember, "member.expiredPassword:", member.expiredPassword);
           const memberCookie: MemberCookie = authCommon.toMemberCookie(member);
-          const clearTextPasswordMatches = req.body.password === member.password;
-          if (clearTextPasswordMatches) {
-            debugLog("findOne - clearTextPasswordMatches:", clearTextPasswordMatches);
-            authCommon.returnResponse({res, member, memberCookie});
-          } else {
-            authConfig.compareValue(req.body.password, member.password).then(success => {
-              debugLog("bcryptComparisonSuccess:", success);
-              if (success) {
-                authCommon.returnResponse({res, memberCookie, member});
-              } else {
-                authCommon.returnAuthFailure({res, message: authenticationFailureMessage, userName});
-              }
-            });
-          }
+          return authConfig.compareMemberPassword(req.body.password, member.password).then(success => {
+            if (success) {
+              authCommon.returnResponse({res, member, memberCookie});
+            } else {
+              authCommon.returnAuthFailure({res, message: authenticationFailureMessage, userName});
+            }
+          });
         } else {
           authCommon.returnAuthFailure({
             res,

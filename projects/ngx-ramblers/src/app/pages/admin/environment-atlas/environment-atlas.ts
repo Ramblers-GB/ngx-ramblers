@@ -318,7 +318,7 @@ import { AlertTarget } from "../../../models/alert-target.model";
           [defaultSortKey]="environmentSortKey"
           [defaultSortDirection]="environmentSortDirection"
           [trackBy]="trackEnvironment"
-          emptyMessage="No environments in platform configuration."
+          [emptyMessage]="loading ? 'Waiting for environment data…' : 'No environments in platform configuration.'"
           (sortChange)="environmentSortChanged($event)">
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.ENVIRONMENT" let-row>
             {{ row.environment }}

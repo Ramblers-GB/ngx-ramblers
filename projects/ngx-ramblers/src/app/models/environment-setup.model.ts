@@ -649,6 +649,17 @@ export interface MongoDbConnectionParams {
   database: string;
 }
 
+export enum EnvironmentMongoSource {
+  LIVE_SECRETS = "live-secrets",
+  ENVIRONMENTS_CONFIG = "environments-config"
+}
+
+export interface ResolvedEnvironmentMongo {
+  uri: string;
+  database: string;
+  source: EnvironmentMongoSource;
+}
+
 export interface SecretsFile {
   path: string;
   secrets: Record<string, string>;

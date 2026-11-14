@@ -1,12 +1,19 @@
 import debug from "debug";
 import { Db, MongoClient } from "mongodb";
+import { isString } from "es-toolkit/compat";
 import { envConfig } from "../env-config/env-config";
+import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { EnvironmentConfig, EnvironmentsConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { configuredEnvironments } from "../environments/environments-config";
 import { loadSecretsForEnvironmentFromDatabase } from "../shared/secrets";
-import { buildMongoUri } from "../shared/mongodb-uri";
+import { buildMongoUri, parseMongoUri } from "../shared/mongodb-uri";
+import { pullAllSecretsFromFly } from "../fly/fly-secrets";
 import { connectToDatabase } from "./database-initialiser";
-import { SecretsFile } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
+import {
+  EnvironmentMongoSource,
+  ResolvedEnvironmentMongo,
+  SecretsFile
+} from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 
 const debugLog = debug(envConfig.logNamespace("environment-setup:context"));
 debugLog.enabled = true;
@@ -38,20 +45,57 @@ export async function loadEnvironmentContext(environmentName: string): Promise<E
   return { environmentsConfig, envConfigData, appName, secrets };
 }
 
-export async function connectToEnvironmentMongo(envConfigData: EnvironmentConfig): Promise<EnvironmentMongoConnection> {
-  const mongoConfig = envConfigData.mongo;
-  if (!mongoConfig?.cluster || !mongoConfig?.db) {
+export function resolveEnvironmentMongoTarget(
+  envConfigData: EnvironmentConfig,
+  liveSecrets: Record<string, string>
+): ResolvedEnvironmentMongo {
+  const liveUri = liveSecrets?.[Environment.MONGODB_URI];
+  if (isString(liveUri) && liveUri.trim()) {
+    const parsed = parseMongoUri(liveUri);
+    const database = parsed?.database;
+    if (!database) {
+      throw new Error(`No MongoDB database in live secrets for environment ${envConfigData.environment}`);
+    } else {
+      return {uri: liveUri.trim(), database, source: EnvironmentMongoSource.LIVE_SECRETS};
+    }
+  } else if (envConfigData.mongo?.cluster && envConfigData.mongo?.db) {
+    const database = envConfigData.mongo.db;
+    return {
+      uri: buildMongoUri({
+        cluster: envConfigData.mongo.cluster,
+        username: envConfigData.mongo.username || "",
+        password: envConfigData.mongo.password || "",
+        database
+      }),
+      database,
+      source: EnvironmentMongoSource.ENVIRONMENTS_CONFIG
+    };
+  } else {
     throw new Error(`No MongoDB configured for environment ${envConfigData.environment}`);
   }
-  const database = mongoConfig.db;
-  const mongoUri = buildMongoUri({
-    cluster: mongoConfig.cluster,
-    username: mongoConfig.username || "",
-    password: mongoConfig.password || "",
-    database
-  });
-  const { client, db } = await connectToDatabase({ uri: mongoUri, database });
-  return { client, db, database };
+}
+
+async function connectWithTarget(envConfigData: EnvironmentConfig, liveSecrets: Record<string, string>): Promise<EnvironmentMongoConnection> {
+  const target = resolveEnvironmentMongoTarget(envConfigData, liveSecrets);
+  debugLog("connecting %s via %s db=%s", envConfigData.environment, target.source, target.database);
+  const { client, db } = await connectToDatabase({ uri: target.uri, database: target.database });
+  return { client, db, database: target.database };
+}
+
+export async function connectToEnvironmentMongo(envConfigData: EnvironmentConfig): Promise<EnvironmentMongoConnection> {
+  return connectWithTarget(envConfigData, {});
+}
+
+export async function connectToLiveEnvironmentMongo(envConfigData: EnvironmentConfig): Promise<EnvironmentMongoConnection> {
+  const appName = envConfigData.flyio?.appName || `ngx-ramblers-${envConfigData.environment}`;
+  const flyToken = envConfigData.flyio?.apiKey || "";
+  const liveSecrets = flyToken ? pullAllSecretsFromFly(appName, flyToken) : {};
+  const liveUri = liveSecrets[Environment.MONGODB_URI];
+  if (!isString(liveUri) || !liveUri.trim()) {
+    throw new Error(`Could not verify the live MongoDB connection for ${envConfigData.environment}`);
+  } else {
+    return connectWithTarget(envConfigData, liveSecrets);
+  }
 }
 
 export async function withBrevoApiKey<T>(brevoKey: string, fn: () => Promise<T>): Promise<T> {
