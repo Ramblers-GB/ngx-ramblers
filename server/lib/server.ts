@@ -65,6 +65,7 @@ import { health, invalidateMigrationStatusCache, systemStatus } from "./health/h
 import { buildVersion, deploymentInfo } from "./config/build-version";
 import { flyMachineState, flyMemoryHistory, flyStats, heapSnapshot, memoryUsage, restartMachine, systemLogs } from "./health/memory";
 import { startMemoryWatchdog } from "./health/memory-watchdog";
+import { installProcessErrorHandlers, productionRequestErrorHandler } from "./health/process-error-handling";
 import { startScheduledTaskWatchdog } from "./cron/scheduled-task-registry";
 import * as authConfig from "./auth/auth-config";
 import { requireReadOnlyViewAs } from "./auth/local-view-as";
@@ -347,6 +348,7 @@ if (fs.existsSync(distFolder)) {
 if (app.get("env") === "dev") {
   app.use(errorHandler());
 }
+app.use(productionRequestErrorHandler);
 
 async function runMigrationsInBackground() {
   debugLog("⏳Checking database migrations...");
@@ -369,6 +371,7 @@ async function runMigrationsInBackground() {
 
 async function startServer() {
   try {
+    installProcessErrorHandlers();
     server.listen(port, "::", () => {
       debugLog(`🚀 Server is listening on port for ${envConfig.env} environment`, port);
     });

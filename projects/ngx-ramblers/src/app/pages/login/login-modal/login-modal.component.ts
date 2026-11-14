@@ -144,7 +144,7 @@ export class LoginModalComponent implements OnInit, OnDestroy, AfterViewInit {
         this.bsModalRef.hide();
       } else {
         this.logger.debug("loginResponse", loginResponse);
-        this.notify.showContactUs(true);
+        this.notify.showContactUs(!loginResponse.siteUnreachable);
         this.notify.error({
           continue: true,
           title: "Login failed",

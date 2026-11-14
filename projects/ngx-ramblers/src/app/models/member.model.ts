@@ -520,6 +520,7 @@ export interface LoginResponse {
   alertMessage?: string;
   showResetPassword?: boolean;
   memberLoggedIn?: boolean;
+  siteUnreachable?: boolean;
 }
 
 export interface MemberApiResponse extends ApiResponse {

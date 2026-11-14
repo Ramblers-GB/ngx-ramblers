@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpStatusCode } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { firstValueFrom, Observable, Subject } from "rxjs";
@@ -95,7 +95,24 @@ export class AuthService {
     return loginResponse;
   }
 
-  private async performAuthPost(url: string, body: object, postType: string, broadcastEvent?: NamedEventType): Promise<LoginResponse> {
+  private transientSiteStatus(status: number): boolean {
+    return status === 0
+      || status === HttpStatusCode.BadGateway
+      || status === HttpStatusCode.ServiceUnavailable
+      || status === HttpStatusCode.GatewayTimeout;
+  }
+
+  private unreachableLoginResponse(status: number): LoginResponse {
+    return {
+      memberLoggedIn: false,
+      siteUnreachable: true,
+      alertMessage: status
+        ? `Could not reach the site (${status}). It may be restarting. Wait a few seconds and try again.`
+        : "Could not reach the site. It may be restarting. Wait a few seconds and try again."
+    };
+  }
+
+  private async performAuthPost(url: string, body: object, postType: string, broadcastEvent?: NamedEventType, attempt = 0): Promise<LoginResponse> {
     try {
       const httpResponse = await firstValueFrom(this.http.post(url, body, {observe: "response", responseType: "text"}));
       return this.finishAuthPost(this.parseAuthResponse(httpResponse.body), postType, broadcastEvent);
@@ -105,20 +122,17 @@ export class AuthService {
         const authResponse = this.parseAuthResponse(error.error);
         if (authResponse?.loginResponse) {
           return this.finishAuthPost(authResponse, postType, broadcastEvent);
+        } else if (this.transientSiteStatus(error.status) && attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
+          return this.performAuthPost(url, body, postType, broadcastEvent, attempt + 1);
         } else {
-          const loginResponse: LoginResponse = {
-            memberLoggedIn: false,
-            alertMessage: error.status ? `Could not reach the site (${error.status}). Try again.` : "Could not reach the site. Try again."
-          };
+          const loginResponse = this.unreachableLoginResponse(error.status);
           this.authResponseSubject.next(loginResponse);
           return loginResponse;
         }
       } else {
         this.logger.error(postType, "- error", error);
-        const loginResponse: LoginResponse = {
-          memberLoggedIn: false,
-          alertMessage: "Could not reach the site. Try again."
-        };
+        const loginResponse = this.unreachableLoginResponse(0);
         this.authResponseSubject.next(loginResponse);
         return loginResponse;
       }

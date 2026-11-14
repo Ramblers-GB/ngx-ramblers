@@ -11,6 +11,7 @@ import errorHandler from "errorhandler";
 import { Server } from "node:http";
 import { envConfig } from "../env-config/env-config";
 import { health } from "../health/health";
+import { installProcessErrorHandlers, productionRequestErrorHandler } from "../health/process-error-handling";
 import { integrationWorkerRoutes } from "./integration-worker-routes";
 import { integrationWorkerBrowserRoutes } from "./integration-worker-browser-routes";
 import { integrationWorkerMigrationRoutes } from "./integration-worker-migration-routes";
@@ -83,9 +84,11 @@ app.use("/api/integration-worker/backups", integrationWorkerBackupsRoutes);
 if (app.get("env") === "dev") {
   app.use(errorHandler());
 }
+app.use(productionRequestErrorHandler);
 
 async function startServer(): Promise<void> {
   try {
+    installProcessErrorHandlers();
     server.listen(port, "0.0.0.0", () => {
       debugLog(`Ramblers upload worker server is listening on port ${port} for ${envConfig.env} environment`);
     });

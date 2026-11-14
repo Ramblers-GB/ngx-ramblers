@@ -270,6 +270,12 @@ export enum WatchdogExitDecision {
   RESTART_LOOP = "restart-loop"
 }
 
+export enum ProcessErrorKind {
+  UNHANDLED_REJECTION = "unhandledRejection",
+  UNCAUGHT_EXCEPTION = "uncaughtException",
+  REQUEST = "request"
+}
+
 export interface WatchdogRestartHistory {
   restarts: number[];
   lastLoopAlertAt: number | null;
