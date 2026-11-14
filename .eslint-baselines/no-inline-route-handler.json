@@ -1,6 +1,4 @@
 [
-  "server/lib/backup/environment-migration-routes.ts:5ae1fda4ab1b",
-  "server/lib/backup/mongo-backup-routes.ts:e19ef78a2122",
   "server/lib/backup/s3-backup-routes.ts:1548b184739c",
   "server/lib/brevo/account/move-brevo-routes.ts:56ef7097d798",
   "server/lib/brevo/account/move-brevo-routes.ts:6b45961981bd",
@@ -49,7 +47,6 @@
   "server/lib/inbox/oauth-routes.ts:69bd597e06b8",
   "server/lib/inbox/oauth-routes.ts:89c1ad2030c1",
   "server/lib/inbox/oauth-routes.ts:b6b0540ff4ea",
-  "server/lib/inbox/oauth-routes.ts:c53d916452e0",
   "server/lib/inbox/oauth-routes.ts:c75bebc89298",
   "server/lib/inbox/oauth-routes.ts:fad1cc8f9ca5",
   "server/lib/mailchimp/mailchimp-routes.ts:13c86b825448",

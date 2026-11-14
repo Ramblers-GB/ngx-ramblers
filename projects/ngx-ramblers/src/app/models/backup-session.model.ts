@@ -16,8 +16,28 @@ export enum BackupSessionStatus {
   PENDING = "pending",
   IN_PROGRESS = "in_progress",
   COMPLETED = "completed",
-  FAILED = "failed"
+  FAILED = "failed",
+  ABORTED = "aborted"
 }
+
+export const BACKUP_SESSION_STATUSES: BackupSessionStatus[] = [
+  BackupSessionStatus.COMPLETED,
+  BackupSessionStatus.FAILED,
+  BackupSessionStatus.ABORTED,
+  BackupSessionStatus.IN_PROGRESS,
+  BackupSessionStatus.PENDING
+];
+
+export const ACTIVE_BACKUP_SESSION_STATUSES: BackupSessionStatus[] = [
+  BackupSessionStatus.PENDING,
+  BackupSessionStatus.IN_PROGRESS
+];
+
+export const FINISHED_BACKUP_SESSION_STATUSES: BackupSessionStatus[] = [
+  BackupSessionStatus.COMPLETED,
+  BackupSessionStatus.FAILED,
+  BackupSessionStatus.ABORTED
+];
 
 export enum BackupSessionTrigger {
   CLI = "cli",
@@ -121,6 +141,16 @@ export interface BackupListItem {
 export interface SecretEntry {
   key: string;
   value: string;
+}
+
+export interface S3AccessKeyPair {
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
+export interface S3SiteAccess {
+  credentials: S3AccessKeyPair;
+  crossAccount: boolean;
 }
 
 export interface S3BackupManifestEntry {

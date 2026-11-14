@@ -7,6 +7,7 @@ import { initializeAndMergeBackupConfig } from "./config-initializer";
 import { asNumber } from "../../../projects/ngx-ramblers/src/app/functions/numbers";
 import { isArray, isString } from "es-toolkit/compat";
 import { booleanOf } from "../shared/string-utils";
+import { routeContributorFrom } from "../auth/request-member";
 import {
   integrationWorkerBackupsAvailable,
   submitEnvironmentBackupToIntegrationWorker
@@ -14,6 +15,10 @@ import {
 
 const debugLog = debug(envConfig.logNamespace("backup"));
 debugLog.enabled = false;
+
+function requestUserName(req: Request): string {
+  return routeContributorFrom(req).name || "an administrator";
+}
 
 async function service(): Promise<BackupAndRestoreService> {
   return createBackupAndRestoreService();
@@ -75,10 +80,26 @@ export async function session(req: Request, res: Response) {
   }
 }
 
+export async function abortSession(req: Request, res: Response) {
+  try {
+    const svc = await service();
+    const user = requestUserName(req);
+    const aborted = await svc.abortSession(req.params.sessionId, user);
+    if (aborted) {
+      res.status(200).json(aborted);
+    } else {
+      res.status(409).json({ error: "Only queued sessions can be aborted" });
+    }
+  } catch (error) {
+    debugLog("abortSession:error:", error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
 export async function startBackup(req: Request, res: Response) {
   try {
     const svc = await service();
-    const user = (req as any).user?.username || "unknown";
+    const user = requestUserName(req);
     const upload = booleanOf(req.body?.upload);
     const scaleDown = booleanOf(req.body?.scaleDown);
     const includeS3 = booleanOf(req.body?.includeS3, true);
@@ -123,7 +144,7 @@ export async function startBackup(req: Request, res: Response) {
 export async function startRestore(req: Request, res: Response) {
   try {
     const svc = await service();
-    const user = (req as any).user?.username || "unknown";
+    const user = requestUserName(req);
     const options = {
       ...req.body,
       user

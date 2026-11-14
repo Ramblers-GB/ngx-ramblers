@@ -1,6 +1,6 @@
 import express from "express";
 import * as authConfig from "../auth/auth-config";
-import * as controller from "./backup-controller";
+import * as controller from "./mongo-backup-controllers";
 
 const router = express.Router();
 
@@ -9,6 +9,7 @@ router.get("/environments/:environment/collections", authConfig.authenticate(), 
 router.get("/backups", authConfig.authenticate(), controller.listBackups);
 router.get("/sessions", authConfig.authenticate(), controller.listSessions);
 router.get("/sessions/:sessionId", authConfig.authenticate(), controller.session);
+router.post("/sessions/:sessionId/abort", authConfig.authenticate(), authConfig.requireAdmin, controller.abortSession);
 router.post("/backup", authConfig.authenticate(), controller.startBackup);
 router.post("/restore", authConfig.authenticate(), controller.startRestore);
 router.post("/initialize-config", authConfig.authenticate(), controller.initializeConfig);

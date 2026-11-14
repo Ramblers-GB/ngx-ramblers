@@ -71,6 +71,38 @@ describe("backup database traffic", () => {
     ]);
   });
 
+  it("does not start a queued backup that was aborted while it waited its turn", async () => {
+    sandbox.stub(backupEvents, "listenerCount").returns(0);
+    const update = sandbox.stub(backupSession, "updateOne").resolves({modifiedCount: 0} as any);
+    const runBackup = sandbox.stub(service as any, "runBackup").resolves();
+    await service["executeBackup"]("example-session", {} as any, {environment: "group-example"} as any, "example-backup");
+    expect(update.firstCall.args[0]).toEqual({_id: "example-session", status: BackupSessionStatus.PENDING});
+    expect(runBackup.called).toEqual(false);
+  });
+
+  it("starts a queued backup that is still pending", async () => {
+    sandbox.stub(backupEvents, "listenerCount").returns(0);
+    sandbox.stub(backupSession, "updateOne").resolves({modifiedCount: 1} as any);
+    const runBackup = sandbox.stub(service as any, "runBackup").resolves();
+    await service["executeBackup"]("example-session", {} as any, {environment: "group-example"} as any, "example-backup");
+    expect(runBackup.calledOnce).toEqual(true);
+  });
+
+  it("only aborts sessions that are still queued", async () => {
+    const update = sandbox.stub(backupSession, "updateOne").resolves({modifiedCount: 0} as any);
+    expect(await service.abortSession("example-session", "Alex Reed")).toBeNull();
+    expect(update.firstCall.args[0]).toEqual({_id: "example-session", status: BackupSessionStatus.PENDING});
+  });
+
+  it("leaves an aborted session aborted when the run later completes or fails", async () => {
+    sandbox.stub(backupEvents, "listenerCount").returns(0);
+    const update = sandbox.stub(backupSession, "updateOne").resolves({modifiedCount: 0} as any);
+    await service["updateSession"]("example-session", {status: BackupSessionStatus.COMPLETED});
+    await service["updateSessionError"]("example-session", "Dump failed");
+    expect(update.firstCall.args[0]).toEqual({_id: "example-session", status: {$ne: BackupSessionStatus.ABORTED}});
+    expect(update.secondCall.args[0]).toEqual({_id: "example-session", status: {$ne: BackupSessionStatus.ABORTED}});
+  });
+
   it("deletes the local dump directory after an uploaded backup", async () => {
     const outDir = await fs.mkdtemp(path.join(os.tmpdir(), "ngx-ramblers-dump-"));
     await fs.writeFile(path.join(outDir, "chunk.bson.gz"), "example");

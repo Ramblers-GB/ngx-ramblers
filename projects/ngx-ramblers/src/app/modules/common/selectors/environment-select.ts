@@ -1,4 +1,4 @@
-import { Component, EventEmitter, inject, Input, Output } from "@angular/core";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import {
   NgHeaderTemplateDirective,
@@ -7,7 +7,7 @@ import {
   NgSelectComponent
 } from "@ng-select/ng-select";
 import { EnvironmentInfo } from "../../../models/backup-session.model";
-import { HumanisePipe } from "../../../pipes/humanise.pipe";
+import { environmentLabel } from "../../../functions/backup-list-items";
 import { HasNgSelectAttributes } from "../../../models/ramblers-walks-manager.model";
 import { SelectAllHeaderComponent } from "./select-all-header";
 
@@ -62,7 +62,7 @@ export class EnvironmentSelectComponent {
     this._items = value || [];
     this.displayItems = this._items.map(item => ({
       ...item,
-      ngSelectAttributes: { label: item.displayName || this.humanise.transform(item.name) }
+      ngSelectAttributes: { label: environmentLabel(item) }
     }));
     this.syncNgModelFromInputs();
   }
@@ -90,7 +90,6 @@ export class EnvironmentSelectComponent {
   get selectedName(): string { return this._selectedName; }
   @Output() selectedNameChange = new EventEmitter<string>();
 
-  private humanise = inject(HumanisePipe);
   displayItems: (EnvironmentInfo & HasNgSelectAttributes)[] = [];
 
   ngModelValue: any;
@@ -141,7 +140,7 @@ export class EnvironmentSelectComponent {
   }
 
   selectedLabel(): string {
-    return this.displayItems.find(item => item.name === this.selectedName)?.ngSelectAttributes.label || this.humanise.transform(this.selectedName);
+    return this.displayItems.find(item => item.name === this.selectedName)?.ngSelectAttributes.label || environmentLabel({name: this.selectedName} as EnvironmentInfo);
   }
 
   labelText(): string {

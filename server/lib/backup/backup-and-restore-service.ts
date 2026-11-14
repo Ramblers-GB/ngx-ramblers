@@ -19,6 +19,7 @@ import { dateTimeNow } from "../shared/dates";
 import { backupSession, BackupSession } from "../mongo/models/backup-session";
 import { BackupNotificationService } from "./backup-notification-service";
 import {
+  ACTIVE_BACKUP_SESSION_STATUSES,
   BackupConfig,
   BackupListItem,
   BackupLocation,
@@ -153,6 +154,16 @@ export class BackupAndRestoreService {
 
     if (!config.mongo) {
       throw new Error(`Environment "${options.environment}" has no mongo config`);
+    }
+
+    const activeBackup = await backupSession.findOne({
+      type: BackupSessionType.BACKUP,
+      environment: options.environment,
+      status: { $in: ACTIVE_BACKUP_SESSION_STATUSES },
+      startTime: { $gte: SERVER_START_TIME }
+    }).select({ status: 1 }).lean() as Pick<BackupSession, "status"> | null;
+    if (activeBackup) {
+      throw new Error(`A backup for ${options.environment} is already ${activeBackup.status === BackupSessionStatus.PENDING ? "queued" : "running"}`);
     }
 
     const envBackupConfig = environmentConfigFor(this.backupConfig, options.environment);
@@ -299,12 +310,24 @@ export class BackupAndRestoreService {
     backupName: string,
     envBackupConfig?: ReturnType<typeof environmentConfigFor>
   ): Promise<void> {
+    if (await this.beginSession(sessionId)) {
+      await this.runBackup(sessionId, config, options, backupName, envBackupConfig);
+    } else {
+      debugLog(`Backup session ${sessionId} for ${options.environment} is no longer pending, so it was not started`);
+    }
+  }
+
+  private async runBackup(
+    sessionId: string,
+    config: EnvironmentConfig,
+    options: BackupOptions,
+    backupName: string,
+    envBackupConfig?: ReturnType<typeof environmentConfigFor>
+  ): Promise<void> {
     let originalScaleCount: number | undefined;
     const dbName = options.database || config.mongo!.db;
     const outDir = path.join(this.dumpBaseDir, "backups", backupName);
     try {
-      await this.updateSession(sessionId, { status: BackupSessionStatus.IN_PROGRESS });
-
       await fs.mkdir(outDir, { recursive: true });
       if (dbName === mongoose.connection.name) {
         await this.externaliseS3ManifestEntriesBeforeDump(sessionId);
@@ -515,7 +538,9 @@ export class BackupAndRestoreService {
         }
         options = { ...options, from: s3Prefix };
       }
-      await this.updateSession(sessionId, { status: BackupSessionStatus.IN_PROGRESS });
+      if (!(await this.beginSession(sessionId))) {
+        throw new Error("Restore is no longer pending, so it was not started");
+      }
 
       const fromPath = path.join(this.dumpBaseDir, options.from);
       const dbName = options.database || config.mongo!.db;
@@ -842,8 +867,31 @@ export class BackupAndRestoreService {
     if (updates.status === BackupSessionStatus.COMPLETED) {
       update.$unset = { error: "" };
     }
-    await backupSession.updateOne({ _id: sessionId }, update);
+    const filter = updates.status ? { _id: sessionId, status: { $ne: BackupSessionStatus.ABORTED } } : { _id: sessionId };
+    await backupSession.updateOne(filter, update);
     await this.emitSessionUpdated(sessionId);
+  }
+
+  private async beginSession(sessionId: string): Promise<boolean> {
+    const result = await backupSession.updateOne(
+      { _id: sessionId, status: BackupSessionStatus.PENDING },
+      { $set: { status: BackupSessionStatus.IN_PROGRESS }, $currentDate: { updatedAt: true } }
+    );
+    await this.emitSessionUpdated(sessionId);
+    return result.modifiedCount > 0;
+  }
+
+  async abortSession(sessionId: string, user: string): Promise<BackupSession | null> {
+    const result = await backupSession.updateOne(
+      { _id: sessionId, status: BackupSessionStatus.PENDING },
+      { $set: { status: BackupSessionStatus.ABORTED, error: `Aborted by ${user}`, endTime: dateTimeNow().toJSDate() }, $currentDate: { updatedAt: true } }
+    );
+    if (result.modifiedCount > 0) {
+      await this.emitSessionUpdated(sessionId);
+      return backupSession.findById(sessionId).select("-logs").lean() as unknown as BackupSession;
+    } else {
+      return null;
+    }
   }
 
   async failPendingBackup(sessionId: string, error: string): Promise<void> {
@@ -852,7 +900,7 @@ export class BackupAndRestoreService {
 
   private async updateSessionError(sessionId: string, error: string, expectedStatus?: BackupSessionStatus): Promise<void> {
     const result = await backupSession.updateOne(
-      { _id: sessionId, ...(expectedStatus ? {status: expectedStatus, type: BackupSessionType.BACKUP} : {}) },
+      { _id: sessionId, ...(expectedStatus ? {status: expectedStatus, type: BackupSessionType.BACKUP} : {status: {$ne: BackupSessionStatus.ABORTED}}) },
       { $set: { status: BackupSessionStatus.FAILED, error, endTime: dateTimeNow().toJSDate() }, $currentDate: { updatedAt: true } }
     );
     if (result.modifiedCount > 0) {
@@ -876,7 +924,7 @@ export class BackupAndRestoreService {
 
   async cleanupStuckSessions(): Promise<number> {
     const candidates = await backupSession.find({
-      status: { $in: [BackupSessionStatus.PENDING, BackupSessionStatus.IN_PROGRESS] },
+      status: { $in: ACTIVE_BACKUP_SESSION_STATUSES },
       startTime: { $lt: SERVER_START_TIME }
     });
 

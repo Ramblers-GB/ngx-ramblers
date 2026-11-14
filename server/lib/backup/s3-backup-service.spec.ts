@@ -21,6 +21,7 @@ import {
   collectCopiedKeys,
   destinationObjectMatchesSource,
   migrateLiveBucket,
+  siteAccessFromAccounts,
   siteConfigs,
   siteConfigFor
 } from "./s3-backup-service";
@@ -151,6 +152,17 @@ describe("s3-backup-service", () => {
       };
       const result = siteConfigs(config);
       expect(result[0].credentials).toEqual({ accessKeyId: "global-key", secretAccessKey: "global-secret" });
+      expect(result[0].siteCredentials).toEqual({ accessKeyId: "env-key", secretAccessKey: "env-secret" });
+    });
+
+    it("uses global credentials as the site credentials when the environment has none", () => {
+      const config: BackupConfig = {
+        aws: { accessKeyId: "global-key", secretAccessKey: "global-secret" },
+        environments: [
+          { environment: "kent", aws: { bucket: "kent-images" } }
+        ]
+      };
+      expect(siteConfigs(config)[0].siteCredentials).toEqual({ accessKeyId: "global-key", secretAccessKey: "global-secret" });
     });
 
     it("falls back to <bucket>-backups when no global bucket set", () => {
@@ -188,6 +200,32 @@ describe("s3-backup-service", () => {
       const result = siteConfigs(config);
       expect(result).toHaveLength(2);
       expect(result.map(siteConfig => siteConfig.site)).toEqual(["bolton", "kent"]);
+    });
+
+  });
+
+  describe("siteAccessFromAccounts", () => {
+
+    const config = {
+      credentials: { accessKeyId: "backup-key", secretAccessKey: "backup-secret" },
+      siteCredentials: { accessKeyId: "site-key", secretAccessKey: "site-secret" }
+    };
+
+    it("keeps the backup key and server-side copies when both keys are in the same account", () => {
+      expect(siteAccessFromAccounts(config, "111111111111", "111111111111"))
+        .toEqual({ credentials: config.credentials, crossAccount: false });
+    });
+
+    it("reads with the site key and copies across when the site bucket is in another account", () => {
+      expect(siteAccessFromAccounts(config, "111111111111", "222222222222"))
+        .toEqual({ credentials: config.siteCredentials, crossAccount: true });
+    });
+
+    it("falls back to the backup key when either account cannot be looked up", () => {
+      expect(siteAccessFromAccounts(config, "111111111111", null))
+        .toEqual({ credentials: config.credentials, crossAccount: false });
+      expect(siteAccessFromAccounts(config, null, "222222222222"))
+        .toEqual({ credentials: config.credentials, crossAccount: false });
     });
 
   });

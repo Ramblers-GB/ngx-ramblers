@@ -10,6 +10,8 @@ import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import {
+  faBan,
+  faCheck,
   faChartBar,
   faChevronDown,
   faChevronUp,
@@ -17,7 +19,8 @@ import {
   faFileLines,
   faRotateLeft,
   faSpinner,
-  faTrash
+  faTrash,
+  faXmark
 } from "@fortawesome/free-solid-svg-icons";
 import { EnvironmentSetupService } from "../../../services/environment-setup/environment-setup.service";
 import { PageComponent } from "../../../page/page.component";
@@ -25,6 +28,7 @@ import { EnvironmentSettings } from "../../../modules/common/environment-setting
 import { EnvironmentConfigService } from "../../../services/environment-config.service";
 import {
   BackupListItem,
+  BACKUP_SESSION_STATUSES,
   BackupLocation,
   BackupRequest,
   BackupRestoreTab,
@@ -61,7 +65,7 @@ import { EnvironmentSelectComponent } from "../../../modules/common/selectors/en
 import { CollectionsMultiSelectComponent } from "../../../modules/common/selectors/collections-multi-select";
 import { BackupsMultiSelectComponent } from "../../../modules/common/selectors/backups-multi-select";
 import { BackupSelectComponent } from "../../../modules/common/selectors/backup-select";
-import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } from "../../../functions/backup-list-items";
+import { backupEnvironment, backupsForSourceAndEnvironment, environmentLabel, restorableBackups } from "../../../functions/backup-list-items";
 import { SortableTableComponent } from "../../../modules/common/sortable-table/sortable-table.component";
 import {
   SortableTableCellDirective,
@@ -97,6 +101,10 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
     TooltipDirective
   ],
   styles: [`
+    .session-status-aborted
+      background-color: rgba(64, 65, 65, 0.7)
+      color: #fff
+
     .session-status
       padding: 0.25rem 0.5rem
       border-radius: 0.25rem
@@ -136,6 +144,17 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
               <span><strong>Not Available</strong> — Backup & Restore is not available on this environment. Please use the CLI or staging environment.</span>
             </div>
           } @else {
+          @if (notifyTarget.showAlert) {
+            <div class="alert {{ notifyTarget.alert.class }} d-flex align-items-start gap-2">
+              <fa-icon [icon]="notifyTarget.alert.icon" class="mt-1"></fa-icon>
+              <div>
+                @if (notifyTarget.alertTitle) {
+                  <strong class="d-block">{{ notifyTarget.alertTitle }}</strong>
+                }
+                {{ notifyTarget.alertMessage }}
+              </div>
+            </div>
+          }
           <tabset class="custom-tabset">
             <tab [active]="tabActive(BackupRestoreTab.BACKUP)"
                  (selectTab)="selectTab(BackupRestoreTab.BACKUP)"
@@ -151,7 +170,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         [multiple]="true"
                         [showSelectAllHeader]="true"
                         [(selected)]="selectedEnvironments"
-                        (selectedChange)="onBackupEnvironmentsChange($event)"></app-environment-select>
+                        (selectedChange)="onEnvironmentsChange($event)"></app-environment-select>
                       @if (environments.length === 0) {
                         <small class="form-text text-warning">
                           No environments configured. Please configure environments in the
@@ -359,13 +378,13 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         [items]="environmentsWithMongo"
                         [multiple]="true"
                         [showSelectAllHeader]="true"
-                        [(selected)]="historyFilterEnvironments"
-                        (selectedChange)="onHistoryFilterChange($event)"></app-environment-select>
+                        [(selected)]="selectedEnvironments"
+                        (selectedChange)="onEnvironmentsChange($event)"></app-environment-select>
                       <small class="form-text text-muted">
-                        @if (historyFilterEnvironments.length === 0) {
+                        @if (selectedEnvironments.length === 0) {
                           No filter applied — showing sessions for all environments.
                         } @else {
-                          Filtered to {{ historyFilterEnvironments.length }} of {{ environmentsWithMongo.length }} environments.
+                          Filtered to {{ selectedEnvironments.length }} of {{ environmentsWithMongo.length }} environments.
                         }
                       </small>
                     </div>
@@ -409,6 +428,12 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                       }
                       @if (groupStatusCount(group, BackupSessionStatus.FAILED); as failed) {
                         <span class="session-status fw-normal ms-1" [ngClass]="statusStyle(BackupSessionStatus.FAILED)">{{ failed }} failed</span>
+                      }
+                      @if (groupStatusCount(group, BackupSessionStatus.ABORTED); as aborted) {
+                        <span class="session-status fw-normal ms-1" [ngClass]="statusStyle(BackupSessionStatus.ABORTED)">{{ aborted }} aborted</span>
+                      }
+                      @if (groupStatusCount(group, BackupSessionStatus.PENDING); as pending) {
+                        <span class="session-status fw-normal ms-1" [ngClass]="statusStyle(BackupSessionStatus.PENDING)">{{ pending }} pending</span>
                       }
                       @if (groupStatusCount(group, BackupSessionStatus.IN_PROGRESS); as inProgress) {
                         <span class="session-status fw-normal ms-1" [ngClass]="statusStyle(BackupSessionStatus.IN_PROGRESS)">
@@ -462,6 +487,27 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                                 (click)="toggleSessionLogs(row)">
                           <fa-icon [icon]="isSessionExpanded(row) ? faChevronUp : faFileLines"></fa-icon>
                         </button>
+                        @if (sessionAbortable(row)) {
+                          @if (pendingAbortSessionId === row._id) {
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    container="body" tooltip="Confirm abort"
+                                    (click)="confirmAbortSession(row)">
+                              <fa-icon [icon]="faCheck"></fa-icon>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-quiet"
+                                    container="body" tooltip="Keep this session"
+                                    (click)="pendingAbortSessionId = null">
+                              <fa-icon [icon]="faXmark"></fa-icon>
+                            </button>
+                          } @else {
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    container="body"
+                                    tooltip="Abort this queued session"
+                                    (click)="pendingAbortSessionId = row._id">
+                              <fa-icon [icon]="faBan"></fa-icon>
+                            </button>
+                          }
+                        }
                         @if (manifestForSession(row); as manifest) {
                           @if (pendingDeleteManifest?._id === manifest._id) {
                             <button type="button" class="btn btn-sm btn-danger"
@@ -490,7 +536,9 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                     </ng-template>
                     <ng-template appSortableTableExpandedRow let-row>
                       @if (isSessionExpanded(row)) {
-                        @if (row.error) {
+                        @if (row.status === BackupSessionStatus.ABORTED) {
+                          <div class="alert alert-warning mb-2"><fa-icon [icon]="faBan" class="me-2"></fa-icon><strong>Aborted:</strong> {{ row.error }}</div>
+                        } @else if (row.error) {
                           <div class="alert alert-danger mb-2"><strong>Error:</strong> {{ row.error }}</div>
                         }
                         <app-session-logs
@@ -641,6 +689,33 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   protected readonly faChevronDown = faChevronDown;
   protected readonly faFileLines = faFileLines;
   protected readonly faRotateLeft = faRotateLeft;
+  protected readonly faBan = faBan;
+  protected readonly faCheck = faCheck;
+  protected readonly faXmark = faXmark;
+  pendingAbortSessionId: string | null = null;
+
+  sessionAbortable(session: BackupSession): boolean {
+    return session.status === BackupSessionStatus.PENDING;
+  }
+
+  confirmAbortSession(session: BackupSession) {
+    this.pendingAbortSessionId = null;
+    this.subscriptions.push(
+      this.backupRestoreService.abortSession(session._id).subscribe({
+        next: aborted => {
+          this.handleSessionUpdated(this.withExistingLogs(aborted));
+          this.notify.success({
+            title: "Session aborted",
+            message: `${session.type} for ${session.environment} is now marked as aborted.`
+          });
+        },
+        error: err => this.notify.error({
+          title: "Could not abort session",
+          message: this.extractErrorMessage(err)
+        })
+      })
+    );
+  }
   protected readonly DESCENDING = DESCENDING;
   protected readonly historyColumns: SortableTableColumn<BackupSessionHistoryRow>[] = [
     { key: "type", label: "Type", sortKey: "type", cellGetter: row => row.type, cellClass: "text-nowrap" },
@@ -701,10 +776,9 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   s3RestoreInProgress = false;
   pendingRestoreManifest: S3BackupManifest | undefined;
   pendingDeleteManifest: S3BackupManifest | undefined;
-  historyFilterEnvironments: EnvironmentInfo[] = [];
   historyFilterStatus: BackupSessionStatus | null = null;
   historyFilterTrigger: BackupSessionTrigger | null = null;
-  private historyEnvironmentNamesFromUrl: string[] = [];
+  private environmentNamesFromUrl: string[] = [];
   historyRows: BackupSessionHistoryRow[] = [];
   analysingManifestIds: Set<string> = new Set<string>();
   fullManifestsById: Map<string, S3BackupManifest> = new Map<string, S3BackupManifest>();
@@ -717,7 +791,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   }
 
   private filteredSessions(): BackupSession[] {
-    const selectedNames = new Set(this.historyFilterEnvironments.map(environment => environment.name));
+    const selectedNames = new Set(this.selectedEnvironments.map(environment => environment.name));
     return this.sessions
       .filter(session => selectedNames.size === 0 || selectedNames.has(session.environment))
       .filter(session => !this.historyFilterStatus || session.status === this.historyFilterStatus)
@@ -726,12 +800,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
 
   historyStatusOptions(): BackupSessionStatus[] {
     const present = new Set(this.sessions.map(session => session.status));
-    return [
-      BackupSessionStatus.COMPLETED,
-      BackupSessionStatus.FAILED,
-      BackupSessionStatus.IN_PROGRESS,
-      BackupSessionStatus.PENDING
-    ].filter(status => present.has(status));
+    return BACKUP_SESSION_STATUSES.filter(status => present.has(status));
   }
 
   historyTriggerOptions(): BackupSessionTrigger[] {
@@ -836,12 +905,30 @@ export class BackupAndRestore implements OnInit, OnDestroy {
     );
   }
 
-  onHistoryFilterChange(selected: EnvironmentInfo[]) {
-    this.historyFilterEnvironments = selected || [];
+  onEnvironmentsChange(selected: EnvironmentInfo[]) {
+    this.applyEnvironmentSelection(selected || []);
+    this.updateHistoryFilterQueryParams();
+  }
+
+  private applyEnvironmentSelection(selected: EnvironmentInfo[]) {
+    this.selectedEnvironments = selected;
+    this.onBackupEnvironmentsChange(selected);
+    this.applyRestoreEnvironmentFromSelection();
     this.loadSessions();
     this.loadS3Manifests();
     this.refreshHistoryRows();
-    this.updateHistoryFilterQueryParams();
+  }
+
+  private applyRestoreEnvironmentFromSelection() {
+    const singleName = this.selectedEnvironments.length === 1 ? this.selectedEnvironments[0].name : "";
+    if (singleName && singleName !== this.restoreRequest.environment) {
+      this.restoreRequest.environment = singleName;
+      this.refreshRestoreEnvironment(singleName);
+    }
+  }
+
+  private environmentNamesKey(environments: EnvironmentInfo[]): string {
+    return environments.map(environment => environment.name).sort().join(",");
   }
 
   onHistoryFilterControlsChange() {
@@ -851,13 +938,8 @@ export class BackupAndRestore implements OnInit, OnDestroy {
 
   private applyHistoryFiltersFrom(params: Params) {
     const environmentsParameter: string = params[StoredValue.ENVIRONMENTS] || "";
-    this.historyEnvironmentNamesFromUrl = environmentsParameter.split(",").filter(name => name.length > 0);
-    this.historyFilterStatus = [
-      BackupSessionStatus.COMPLETED,
-      BackupSessionStatus.FAILED,
-      BackupSessionStatus.IN_PROGRESS,
-      BackupSessionStatus.PENDING
-    ].find(status => status === params[StoredValue.STATUS]) || null;
+    this.environmentNamesFromUrl = environmentsParameter.split(",").filter(name => name.length > 0);
+    this.historyFilterStatus = BACKUP_SESSION_STATUSES.find(status => status === params[StoredValue.STATUS]) || null;
     this.historyFilterTrigger = [BackupSessionTrigger.SCHEDULED, BackupSessionTrigger.WEB, BackupSessionTrigger.CLI]
       .find(trigger => trigger === params[StoredValue.TRIGGERED_BY]) || null;
     const expandedParameter: string = params[StoredValue.EXPANDED_SESSIONS];
@@ -866,22 +948,25 @@ export class BackupAndRestore implements OnInit, OnDestroy {
       this.pendingScrollToExpanded = true;
       this.loadLogsForExpandedSessions();
     }
-    this.syncHistoryFilterEnvironmentsFromUrl();
+    this.syncEnvironmentsFromUrl();
     this.refreshHistoryRows();
   }
 
-  private syncHistoryFilterEnvironmentsFromUrl() {
+  private syncEnvironmentsFromUrl() {
     if (this.environmentsWithMongo.length > 0) {
-      this.historyFilterEnvironments = this.environmentsWithMongo
-        .filter(environment => this.historyEnvironmentNamesFromUrl.includes(environment.name));
+      const fromUrl = this.environmentsWithMongo
+        .filter(environment => this.environmentNamesFromUrl.includes(environment.name));
+      if (this.environmentNamesKey(fromUrl) !== this.environmentNamesKey(this.selectedEnvironments)) {
+        this.applyEnvironmentSelection(fromUrl);
+      }
     }
   }
 
   private updateHistoryFilterQueryParams() {
     this.router.navigate([], {
       queryParams: {
-        [StoredValue.ENVIRONMENTS]: this.historyFilterEnvironments.length > 0
-          ? this.historyFilterEnvironments.map(environment => environment.name).join(",")
+        [StoredValue.ENVIRONMENTS]: this.selectedEnvironments.length > 0
+          ? this.selectedEnvironments.map(environment => environment.name).join(",")
           : null,
         [StoredValue.TRIGGERED_BY]: this.historyFilterTrigger,
         [StoredValue.STATUS]: this.historyFilterStatus,
@@ -983,9 +1068,15 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   }
 
   statusStyle(status: string) {
-    if (status === BackupSessionStatus.COMPLETED) return "text-style-mintcake";
-    if (status === BackupSessionStatus.FAILED) return "text-style-sunset";
-    return "text-style-sunrise";
+    if (status === BackupSessionStatus.COMPLETED) {
+      return "text-style-mintcake";
+    } else if (status === BackupSessionStatus.FAILED) {
+      return "text-style-sunset";
+    } else if (status === BackupSessionStatus.ABORTED) {
+      return "session-status-aborted";
+    } else {
+      return "text-style-sunrise";
+    }
   }
 
   humaniseStatus(status: string): string {
@@ -1023,10 +1114,26 @@ export class BackupAndRestore implements OnInit, OnDestroy {
     this.stopAutoRefresh();
   }
 
+  private readonly backupEventConnections = {count: 0};
+
+  private subscribeToBackupEvents() {
+    this.backupEventConnections.count++;
+    this.wsConnected = true;
+    this.websocketService.sendMessage(EventType.BACKUP_EVENTS, {});
+    if (this.backupEventConnections.count > 1) {
+      this.logger.info("WebSocket reconnected; resubscribed to backup events and reloading history");
+      this.loadSessions();
+      this.loadS3Manifests();
+    }
+  }
+
   private async connectWebSocket() {
+    this.subscriptions.push(this.websocketService.connectionOpened().subscribe(() => this.subscribeToBackupEvents()));
     try {
       await this.websocketService.connect();
-      this.wsConnected = true;
+      if (this.backupEventConnections.count === 0) {
+        this.subscribeToBackupEvents();
+      }
       this.logger.info("WebSocket connected");
 
       this.subscriptions.push(
@@ -1058,8 +1165,6 @@ export class BackupAndRestore implements OnInit, OnDestroy {
           this.handleSessionUpdated(data.session);
         })
       );
-
-      this.websocketService.sendMessage(EventType.BACKUP_EVENTS, {});
     } catch (error) {
       this.logger.error("Failed to connect WebSocket:", error);
       this.wsConnected = false;
@@ -1144,6 +1249,20 @@ export class BackupAndRestore implements OnInit, OnDestroy {
     });
   }
 
+  private showStartedSessionsInHistory() {
+    this.historyFilterStatus = null;
+    this.historyFilterTrigger = null;
+    this.refreshHistoryRows();
+    this.router.navigate([], {
+      queryParams: {
+        [StoredValue.TAB]: kebabCase(BackupRestoreTab.HISTORY),
+        [StoredValue.TRIGGERED_BY]: null,
+        [StoredValue.STATUS]: null
+      },
+      queryParamsHandling: "merge"
+    });
+  }
+
   tabActive(tab: BackupRestoreTab): boolean {
     return kebabCase(this.tab) === kebabCase(tab);
   }
@@ -1177,11 +1296,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
           this.environments = envs;
           this.environmentsWithMongo = envs.filter(environment => environment.hasMongoConfig);
           this.logger.info("Loaded environments:", envs);
-          if (this.historyEnvironmentNamesFromUrl.length > 0) {
-            this.syncHistoryFilterEnvironmentsFromUrl();
-            this.loadSessions();
-            this.refreshHistoryRows();
-          }
+          this.syncEnvironmentsFromUrl();
         },
         error: err => this.notify.error({
           title: "Error loading environments",
@@ -1220,7 +1335,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   }
 
   loadSessions() {
-    const environmentNames = this.historyFilterEnvironments.map(environment => environment.name);
+    const environmentNames = this.selectedEnvironments.map(environment => environment.name);
     this.subscriptions.push(
       this.backupRestoreService.listSessions(50, environmentNames).subscribe({
         next: sessions => {
@@ -1258,10 +1373,6 @@ export class BackupAndRestore implements OnInit, OnDestroy {
 
   private async startBackupForEnvironment(env: EnvironmentInfo): Promise<void> {
     const session = await firstValueFrom(this.backupRestoreService.startBackup(this.backupRequestFor(env)));
-    this.notify.success({
-      title: "Backup Started",
-      message: `Backup for ${env.name} started: ${session.sessionId}`
-    });
     this.loadSessions();
 
     if (this.wsConnected && session._id) {
@@ -1286,27 +1397,45 @@ export class BackupAndRestore implements OnInit, OnDestroy {
       return;
     }
 
-    this.selectTab(BackupRestoreTab.HISTORY);
+    this.showStartedSessionsInHistory();
     this.backupBusy = true;
+    const started: string[] = [];
     const failures: string[] = [];
     try {
       for (const env of this.selectedEnvironments) {
         try {
           await this.startBackupForEnvironment(env);
+          started.push(environmentLabel(env));
         } catch (err: any) {
-          const errorMessage = this.extractErrorMessage(err);
-          failures.push(`${env.name}: ${errorMessage}`);
+          failures.push(`${environmentLabel(env)} (${this.extractErrorMessage(err)})`);
           this.logger.error("Backup error:", err);
         }
       }
-      if (failures.length > 0) {
-        this.notify.error({
-          title: "Error Starting Backup",
-          message: failures.join("; ")
-        });
-      }
+      this.notifyBackupsStarted(started, failures);
     } finally {
       this.backupBusy = false;
+    }
+  }
+
+  private notifyBackupsStarted(started: string[], failures: string[]) {
+    const total = started.length + failures.length;
+    const historyNote = `History below is now showing only ${this.stringUtils.pluraliseWithCount(total, "environment")} you chose, for all triggers and statuses, so you can watch each backup go from Pending to In Progress to Completed. They run one at a time.`;
+    const notStarted = failures.length > 0 ? ` Not started: ${failures.join(", ")}.` : "";
+    if (failures.length === 0) {
+      this.notify.success({
+        title: `Backup started for ${this.stringUtils.pluraliseWithCount(started.length, "environment")}`,
+        message: `Queued: ${started.join(", ")}. ${historyNote}`
+      });
+    } else if (started.length > 0) {
+      this.notify.warning({
+        title: `Backup started for ${started.length} of ${total} environments`,
+        message: `Queued: ${started.join(", ")}.${notStarted} ${historyNote}`
+      });
+    } else {
+      this.notify.error({
+        title: "No backups started",
+        message: notStarted.trim()
+      });
     }
   }
 
@@ -1343,7 +1472,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
             message: `Restore session ${session.sessionId} has been started. Switching to History tab to monitor progress.`
           });
           this.loadSessions();
-          this.selectTab(BackupRestoreTab.HISTORY);
+          this.showStartedSessionsInHistory();
 
           if (this.wsConnected && session._id) {
             this.websocketService.sendMessage(EventType.BACKUP_RESTORE, { sessionId: session._id });
@@ -1517,13 +1646,11 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   }
 
   selectAllEnvironments() {
-    this.selectedEnvironments = [...this.environmentsWithMongo];
-    this.onBackupEnvironmentsChange();
+    this.onEnvironmentsChange([...this.environmentsWithMongo]);
   }
 
   clearAllEnvironments() {
-    this.selectedEnvironments = [];
-    this.onBackupEnvironmentsChange();
+    this.onEnvironmentsChange([]);
   }
 
   selectAllCollections() {
@@ -1551,6 +1678,11 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   }
 
   onRestoreEnvironmentChange(environmentName: string) {
+    this.refreshRestoreEnvironment(environmentName);
+    this.onEnvironmentsChange(this.environmentsWithMongo.filter(environment => environment.name === environmentName));
+  }
+
+  private refreshRestoreEnvironment(environmentName: string) {
     this.restoreAvailableCollections = [];
     this.selectedRestoreCollections = [];
     const env = environmentName || this.restoreRequest.environment;

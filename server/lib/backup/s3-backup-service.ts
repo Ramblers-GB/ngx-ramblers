@@ -19,12 +19,14 @@ import { RamblersWalksManagerDateFormat as DateFormat } from "../../../projects/
 import {
   BackupConfig,
   BackupSessionStatus,
+  S3AccessKeyPair,
   S3BackupAction,
   S3BackupManifest,
   S3BackupManifestEntry,
   S3BackupRequest,
   S3BackupSummary,
-  S3RestoreRequest
+  S3RestoreRequest,
+  S3SiteAccess
 } from "../../../projects/ngx-ramblers/src/app/models/backup-session.model";
 import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import {
@@ -32,7 +34,7 @@ import {
   EnvironmentMigrationLiveCopyRequest
 } from "../../../projects/ngx-ramblers/src/app/models/environment-migration.model";
 import { s3BackupManifest } from "../mongo/models/s3-backup-manifest";
-import { bucketExists, createS3Bucket, createS3Client } from "../environment-setup/aws-setup";
+import { bucketExists, createS3Bucket, createS3Client, getAwsAccountId } from "../environment-setup/aws-setup";
 import { configuredBackup } from "./backup-config";
 import { backupEvents } from "./backup-events";
 
@@ -109,7 +111,8 @@ interface SiteConfig {
   sourceRegion: string;
   backupBucket: string;
   backupRegion: string;
-  credentials: { accessKeyId: string; secretAccessKey: string };
+  credentials: S3AccessKeyPair;
+  siteCredentials: S3AccessKeyPair;
   sharedWith?: string[];
 }
 
@@ -216,7 +219,8 @@ function rawSiteConfigs(backupConfig: BackupConfig): SiteConfig[] {
         sourceRegion: env.aws.region || AWS_DEFAULTS.REGION,
         backupBucket: globalBucket || env.aws.bucket + "-backups",
         backupRegion: backupConfig.aws?.region || env.aws.region || AWS_DEFAULTS.REGION,
-        credentials
+        credentials,
+        siteCredentials: envCredentials || credentials
       };
     })
     .filter((config): config is SiteConfig => config !== null);
@@ -271,6 +275,67 @@ export function siteConfigFor(backupConfig: BackupConfig, siteName: string): Sit
 
 const LIVE_COPY_CONCURRENCY = 8;
 const SOURCE_ETAG_METADATA_KEY = "ngx-source-etag";
+const accountIdsByAccessKey = new Map<string, Promise<string | null>>();
+
+function accountIdFor(credentials: S3AccessKeyPair, region: string): Promise<string | null> {
+  const cached = accountIdsByAccessKey.get(credentials.accessKeyId);
+  if (cached) {
+    return cached;
+  } else {
+    const lookup = getAwsAccountId({ ...credentials, region })
+      .then(accountId => accountId || null)
+      .catch((error: any) => {
+        debugLog(`AWS account lookup failed for access key ending ${credentials.accessKeyId.slice(-4)}: ${error?.message || error}`);
+        accountIdsByAccessKey.delete(credentials.accessKeyId);
+        return null;
+      });
+    accountIdsByAccessKey.set(credentials.accessKeyId, lookup);
+    return lookup;
+  }
+}
+
+export function siteAccessFromAccounts(config: Pick<SiteConfig, "credentials" | "siteCredentials">, backupAccountId: string | null, siteAccountId: string | null): S3SiteAccess {
+  const crossAccount = !!backupAccountId && !!siteAccountId && backupAccountId !== siteAccountId;
+  return crossAccount
+    ? { credentials: config.siteCredentials, crossAccount }
+    : { credentials: config.credentials, crossAccount };
+}
+
+async function siteAccessFor(config: SiteConfig): Promise<S3SiteAccess> {
+  if (config.siteCredentials.accessKeyId === config.credentials.accessKeyId) {
+    return { credentials: config.credentials, crossAccount: false };
+  } else {
+    const [backupAccountId, siteAccountId] = await Promise.all([
+      accountIdFor(config.credentials, config.backupRegion),
+      accountIdFor(config.siteCredentials, config.sourceRegion)
+    ]);
+    return siteAccessFromAccounts(config, backupAccountId, siteAccountId);
+  }
+}
+
+interface S3ObjectLocation {
+  client: S3Client;
+  bucket: string;
+  key: string;
+}
+
+async function copyObjectAcrossClients(source: S3ObjectLocation, dest: S3ObjectLocation, listedETag: string): Promise<string> {
+  const got = await source.client.send(new GetObjectCommand({ Bucket: source.bucket, Key: source.key }));
+  const body = got.Body ? await streamToBuffer(got.Body) : Buffer.alloc(0);
+  const readETag = (got.ETag || "").replace(/"/g, "") || listedETag;
+  await dest.client.send(new PutObjectCommand({
+    Bucket: dest.bucket,
+    Key: dest.key,
+    Body: body,
+    ContentLength: isNumber(got.ContentLength) ? got.ContentLength : body.length,
+    ContentType: got.ContentType,
+    CacheControl: got.CacheControl,
+    ContentDisposition: got.ContentDisposition,
+    ContentEncoding: got.ContentEncoding,
+    Metadata: { ...(got.Metadata || {}), [SOURCE_ETAG_METADATA_KEY]: readETag }
+  }));
+  return readETag;
+}
 
 async function processIndexesConcurrently(itemCount: number, concurrency: number, processIndex: (index: number) => Promise<void>): Promise<void> {
   const state = { nextIndex: 0, firstError: null as Error | null };
@@ -324,19 +389,11 @@ export async function migrateLiveBucket(input: EnvironmentMigrationLiveCopyReque
     }
   };
   const copyObject = async (objectInfo: S3ObjectInfo): Promise<void> => {
-    const got = await sourceClient.send(new GetObjectCommand({ Bucket: input.source.bucket, Key: objectInfo.key }));
-    const body = got.Body ? await streamToBuffer(got.Body) : Buffer.alloc(0);
-    await destClient.send(new PutObjectCommand({
-      Bucket: input.target.bucket,
-      Key: objectInfo.key,
-      Body: body,
-      ContentLength: isNumber(got.ContentLength) ? got.ContentLength : body.length,
-      ContentType: got.ContentType,
-      CacheControl: got.CacheControl,
-      ContentDisposition: got.ContentDisposition,
-      ContentEncoding: got.ContentEncoding,
-      Metadata: { ...(got.Metadata || {}), [SOURCE_ETAG_METADATA_KEY]: objectInfo.eTag }
-    }));
+    await copyObjectAcrossClients(
+      { client: sourceClient, bucket: input.source.bucket, key: objectInfo.key },
+      { client: destClient, bucket: input.target.bucket, key: objectInfo.key },
+      objectInfo.eTag
+    );
   };
   const processObject = async (index: number): Promise<void> => {
     const objectInfo = sourceObjects[index];
@@ -417,10 +474,18 @@ async function performIncrementalBackup(
   const startMs = dateTimeNowAsValue();
   const backupPrefix = buildBackupPrefix(config.site, timestamp);
 
-  const sourceClient = new S3Client({ region: config.sourceRegion, credentials: config.credentials });
-  const backupClient = config.sourceBucket === config.backupBucket && config.sourceRegion === config.backupRegion
+  const access = await siteAccessFor(config);
+  const sourceClient = new S3Client({ region: config.sourceRegion, credentials: access.credentials });
+  const backupClient = !access.crossAccount && config.sourceBucket === config.backupBucket && config.sourceRegion === config.backupRegion
     ? sourceClient
     : new S3Client({ region: config.backupRegion, credentials: config.credentials });
+
+  if (access.crossAccount) {
+    debugLog(`[${config.site}] Source bucket ${config.sourceBucket} is in a different AWS account from backup bucket ${config.backupBucket}; reading with the site's own key and copying each object across`);
+    if (onProgress) {
+      await onProgress(`S3 backup ${config.site}: ${config.sourceBucket} is in a different AWS account from ${config.backupBucket}, so objects are read with the site's own key and copied across`);
+    }
+  }
 
   debugLog(`[${config.site}] Listing objects in source bucket ${config.sourceBucket}`);
   if (config.sourceBucket === config.backupBucket) {
@@ -479,16 +544,24 @@ async function performIncrementalBackup(
       debugLog(`[${config.site}] [${sequence}] SKIPPED ${obj.key} (${formatBytes(obj.size)}, eTag ${obj.eTag})`);
     } else {
       debugLog(`[${config.site}] [${sequence}] COPY START ${obj.key} (${formatBytes(obj.size)}${previousETag ? `, old eTag ${previousETag} → new eTag ${obj.eTag}` : ", new"})`);
-      const recordedETag = dryRun ? obj.eTag : await copyObjectWithETagGuard(
-        backupClient,
-        config.sourceBucket,
-        obj.key,
-        config.backupBucket,
-        `${backupPrefix}/${obj.key}`,
-        obj.eTag,
-        config.site,
-        `[${sequence}]`
-      ).catch((error: any) => {
+      const backupKey = `${backupPrefix}/${obj.key}`;
+      const copyToBackup = (): Promise<string> => access.crossAccount
+        ? copyObjectAcrossClients(
+          { client: sourceClient, bucket: config.sourceBucket, key: obj.key },
+          { client: backupClient, bucket: config.backupBucket, key: backupKey },
+          obj.eTag
+        )
+        : copyObjectWithETagGuard(
+          backupClient,
+          config.sourceBucket,
+          obj.key,
+          config.backupBucket,
+          backupKey,
+          obj.eTag,
+          config.site,
+          `[${sequence}]`
+        );
+      const recordedETag = dryRun ? obj.eTag : await copyToBackup().catch((error: any) => {
         debugLog(`[${config.site}] [${sequence}] COPY FAIL  ${obj.key}: ${error?.name || ""} ${error?.message || error}`);
         throw error;
       });
@@ -574,7 +647,28 @@ async function performRestore(
 ): Promise<S3BackupManifest> {
   const startMs = dateTimeNowAsValue();
 
-  const destClient = new S3Client({ region: targetConfig.sourceRegion, credentials: targetConfig.credentials });
+  const access = await siteAccessFor(targetConfig);
+  const destClient = new S3Client({ region: targetConfig.sourceRegion, credentials: access.credentials });
+  const backupClient = new S3Client({ region: sourceConfig.backupRegion, credentials: sourceConfig.credentials });
+  const restoreObject = async (backupBucket: string, backupKey: string, entry: S3BackupManifestEntry): Promise<void> => {
+    if (access.crossAccount) {
+      await copyObjectAcrossClients(
+        { client: backupClient, bucket: backupBucket, key: backupKey },
+        { client: destClient, bucket: targetConfig.sourceBucket, key: entry.key },
+        entry.eTag
+      );
+    } else {
+      await destClient.send(new CopyObjectCommand({
+        Bucket: targetConfig.sourceBucket,
+        CopySource: encodeURIComponent(`${backupBucket}/${backupKey}`),
+        Key: entry.key
+      }));
+    }
+  };
+
+  if (access.crossAccount && onProgress) {
+    await onProgress(`S3 restore ${targetConfig.site}: ${targetConfig.sourceBucket} is in a different AWS account from the backup bucket, so objects are copied across with the site's own key`);
+  }
 
   debugLog(`[${targetConfig.site}] Listing current objects in ${targetConfig.sourceBucket}`);
   const currentObjects = await listAllObjects(destClient, targetConfig.sourceBucket);
@@ -620,11 +714,7 @@ async function performRestore(
       debugLog(`[${targetConfig.site}] [${processed}/${allEntries.length}] COPY FROM snapshot ${entry.key}`);
       if (!dryRun) {
         try {
-          await destClient.send(new CopyObjectCommand({
-            Bucket: targetConfig.sourceBucket,
-            CopySource: encodeURIComponent(`${manifest.backupBucket}/${backupKey}`),
-            Key: entry.key
-          }));
+          await restoreObject(manifest.backupBucket, backupKey, entry);
         } catch (error: any) {
           debugLog(`[${targetConfig.site}] [${processed}/${allEntries.length}] COPY FAIL ${entry.key}: ${error?.name || ""} ${error?.message || error}`);
           throw error;
@@ -639,11 +729,7 @@ async function performRestore(
         debugLog(`[${targetConfig.site}] [${processed}/${allEntries.length}] COPY FROM earlier ${priorManifest.timestamp} ${entry.key}`);
         if (!dryRun) {
           try {
-            await destClient.send(new CopyObjectCommand({
-              Bucket: targetConfig.sourceBucket,
-              CopySource: encodeURIComponent(`${priorManifest.backupBucket}/${backupKey}`),
-              Key: entry.key
-            }));
+            await restoreObject(priorManifest.backupBucket, backupKey, entry);
           } catch (error: any) {
             debugLog(`[${targetConfig.site}] [${processed}/${allEntries.length}] COPY FAIL ${entry.key}: ${error?.name || ""} ${error?.message || error}`);
             throw error;

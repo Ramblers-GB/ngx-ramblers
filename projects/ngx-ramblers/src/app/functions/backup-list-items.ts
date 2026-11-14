@@ -1,6 +1,10 @@
-import { kebabCase } from "es-toolkit/compat";
-import { BackupListItem, BackupLocation, BackupSessionStatus } from "../models/backup-session.model";
+import { kebabCase, startCase } from "es-toolkit/compat";
+import { BackupListItem, BackupLocation, BackupSessionStatus, EnvironmentInfo } from "../models/backup-session.model";
 import { sortBy } from "./arrays";
+
+export function environmentLabel(environment: EnvironmentInfo): string {
+  return environment.displayName || startCase(environment.name);
+}
 
 const TIMESTAMP_LENGTH = 19;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/;

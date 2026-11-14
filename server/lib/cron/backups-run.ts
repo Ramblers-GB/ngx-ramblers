@@ -4,7 +4,7 @@ import {
   BackupsTaskSettings,
   DEFAULT_BACKUPS_TASK_SETTINGS
 } from "../../../projects/ngx-ramblers/src/app/models/scheduled-task.model";
-import { BackupSessionStatus, BackupSessionTrigger } from "../../../projects/ngx-ramblers/src/app/models/backup-session.model";
+import { BackupSessionStatus, BackupSessionTrigger, FINISHED_BACKUP_SESSION_STATUSES } from "../../../projects/ngx-ramblers/src/app/models/backup-session.model";
 import { envConfig } from "../env-config/env-config";
 import { BackupAndRestoreService } from "../backup/backup-and-restore-service";
 import { createBackupAndRestoreService } from "../backup/backup-service-factory";
@@ -55,7 +55,7 @@ export async function scheduledBackupSettings(): Promise<BackupsTaskSettings> {
 
 async function waitForBackupCompletion(service: BackupAndRestoreService, sessionId: string, deadline: number, timeoutMinutes: number): Promise<BackupSessionStatus> {
   const session = await service.sessionStatus(sessionId);
-  if (session?.status === BackupSessionStatus.COMPLETED || session?.status === BackupSessionStatus.FAILED) {
+  if (session && FINISHED_BACKUP_SESSION_STATUSES.includes(session.status)) {
     return session.status;
   } else if (dateTimeNowAsValue() >= deadline) {
     throw new Error(`Timed out after ${timeoutMinutes} minutes waiting for backup to finish`);
@@ -82,7 +82,7 @@ async function backupEnvironment(service: BackupAndRestoreService, environmentNa
       });
       const deadline = dateTimeNowAsValue() + taskSettings.perEnvironmentTimeoutMinutes * 60 * 1000;
       const status = await waitForBackupCompletion(service, session._id!.toString(), deadline, taskSettings.perEnvironmentTimeoutMinutes);
-      if (status === BackupSessionStatus.FAILED) {
+      if (status !== BackupSessionStatus.COMPLETED) {
         const failed = await service.sessionStatus(session._id!.toString());
         return failed?.error || "unknown error";
       } else {

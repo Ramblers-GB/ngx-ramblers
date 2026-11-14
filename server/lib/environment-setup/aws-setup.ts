@@ -305,7 +305,7 @@ export async function createS3Bucket(
   await configureBucket(s3Client, bucketName);
 }
 
-async function getAwsAccountId(adminConfig: AwsAdminConfig): Promise<string> {
+export async function getAwsAccountId(adminConfig: AwsAdminConfig): Promise<string> {
   const stsClient = new STSClient({
     region: adminConfig.region,
     credentials: {

@@ -55,6 +55,11 @@ export class BackupAndRestoreService {
     return this.http.get<BackupSession>(`${this.MONGO_BASE_URL}/sessions/${sessionId}`);
   }
 
+  abortSession(sessionId: string): Observable<BackupSession> {
+    this.logger.info("abortSession", sessionId);
+    return this.http.post<BackupSession>(`${this.MONGO_BASE_URL}/sessions/${sessionId}/abort`, {});
+  }
+
   startBackup(request: BackupRequest): Observable<BackupSession> {
     this.logger.info("startBackup", request);
     return this.http.post<BackupSession>(`${this.MONGO_BASE_URL}/backup`, request);
