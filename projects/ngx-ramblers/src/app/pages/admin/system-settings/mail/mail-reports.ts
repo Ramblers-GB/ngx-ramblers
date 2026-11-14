@@ -193,7 +193,7 @@ enum MailReportType {
                       <td>{{ campaign.softBounces }}</td>
                       <td>{{ campaign.unsubscriptions }}</td>
                       <td>{{ campaign.complaints }}</td>
-                      <td>{{ formatDate(campaign.sentDate || campaign.modifiedAt) }}</td>
+                      <td>{{ formatDateTime(campaign.sentDate || campaign.modifiedAt) }}</td>
                     </tr>
                   }
                 </tbody>
@@ -1074,15 +1074,6 @@ export class MailReportsComponent implements OnInit, OnDestroy {
       this.error = this.errorMessage(error, "Unable to cancel campaign remainder");
     }
     this.busy = false;
-  }
-
-  protected formatDate(date: string): string {
-    if (date) {
-      const dt = this.dateUtils.asDateTime(date);
-      return dt.isValid ? this.dateUtils.asString(dt, undefined, UIDateFormat.DAY_MONTH_YEAR_ABBREVIATED) : date;
-    } else {
-      return "";
-    }
   }
 
   protected formatDateTime(date: string): string {
