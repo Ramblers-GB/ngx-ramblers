@@ -6,6 +6,10 @@ import { envConfig } from "../../env-config/env-config";
 import { brevoClient } from "../brevo-config";
 import { scheduleBrevo } from "../common/rate-limiting";
 import { clampDateRange } from "../common/date-range";
+import { diagnosticsForEmail } from "./bounce-diagnostics";
+import { attachDiagnosticsToCampaignStats } from "../../../../projects/ngx-ramblers/src/app/functions/brevo-bounce-diagnostics";
+import { normaliseEmail } from "../../../../projects/ngx-ramblers/src/app/functions/strings";
+import { BrevoContactCampaignStats } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 
 const messageType = "brevo:contact-campaign-stats";
 const debugLog = debug(envConfig.logNamespace(messageType));
@@ -22,8 +26,11 @@ export async function contactCampaignStats(req: Request, res: Response): Promise
     const rawEndDate = isString(req.query.endDate) ? req.query.endDate : undefined;
     const { startDate, endDate } = clampDateRange(rawStartDate, rawEndDate);
     const client = await brevoClient();
-    const response = await scheduleBrevo(() => client.contacts.getContactStats({identifier, startDate, endDate}));
-    successfulResponse({ req, res, response, messageType, debugLog });
+    const response = await scheduleBrevo(() => client.contacts.getContactStats({identifier, startDate, endDate})) as BrevoContactCampaignStats;
+    const email = identifier.includes("@") ? (normaliseEmail(identifier) || identifier) : "";
+    const diagnostics = email ? await diagnosticsForEmail(email) : [];
+    const attached = attachDiagnosticsToCampaignStats(response, diagnostics, email) || response;
+    successfulResponse({ req, res, response: attached, messageType, debugLog });
   } catch (error) {
     handleErrorAllowingNotFound(req, res, messageType, debugLog, error);
   }

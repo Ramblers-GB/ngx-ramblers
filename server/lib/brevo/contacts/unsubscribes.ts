@@ -1,3 +1,4 @@
+import { MemberCookie } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 import { BrevoClient, BrevoError } from "@getbrevo/brevo";
 import debug from "debug";
 import { Request, Response } from "express";
@@ -29,7 +30,7 @@ import {
 import { SortDirection } from "../../../../projects/ngx-ramblers/src/app/models/sort.model";
 import { AuditStatus } from "../../../../projects/ngx-ramblers/src/app/models/audit.model";
 import { writeBackConsentForEmailBlock } from "../../salesforce/member-consent-writeback";
-import { unsubscribeAllMailSubscriptions } from "./email-block-from-event";
+import { subscriptionsAfterClearingBounce, unsubscribeAllMailSubscriptions } from "./email-block-from-event";
 import {
   applyDenialHintToBlockedContact,
   denialHintFromContactStatistics,
@@ -635,6 +636,14 @@ export async function removeFromBlocklist(req: Request, res: Response): Promise<
       res.status(400).json({ error: "email path param is required" });
       return;
     }
+    const matchedMember = await member.findOne(
+      {email: email.toLowerCase()},
+      {_id: 1, emailBlock: 1, "mail.subscriptions": 1, emailMarketingConsent: 1}
+    ).lean().exec();
+    const previousSubscriptions = matchedMember?.mail?.subscriptions ?? [];
+    const subscriptions = subscriptionsAfterClearingBounce(previousSubscriptions, matchedMember?.emailBlock, matchedMember?.emailMarketingConsent);
+    const restoredListIds = subscriptions.filter((subscription, index) => subscription.subscribed && !previousSubscriptions[index].subscribed)
+      .map(subscription => subscription.id).filter(isNumber);
     const client = await brevoClient();
     try {
       await scheduleBrevo(() => client.transactionalEmails.unblockOrResubscribeATransactionalContact({email}));
@@ -646,24 +655,26 @@ export async function removeFromBlocklist(req: Request, res: Response): Promise<
       debugLog("removeFromBlocklist:not-on-brevo-blocklist", email);
     }
     try {
-      await scheduleBrevo(() => client.contacts.updateContact({identifier: email, emailBlacklisted: false}));
+      await scheduleBrevo(() => client.contacts.updateContact({identifier: email, emailBlacklisted: false, ...(restoredListIds.length ? {listIds: restoredListIds} : {})}));
     } catch (error: any) {
       const status = error instanceof BrevoError ? error.statusCode : undefined;
-      if (status !== 404) {
+      if (status !== 404 || restoredListIds.length) {
         throw error;
       }
       debugLog("removeFromBlocklist:contact-not-found-in-brevo", email);
     }
 
-    const matchedMember = await member.findOne(
-      { email: email.toLowerCase() },
-      { _id: 1, displayName: 1 }
-    ).lean().exec() as any;
-    const memberId = matchedMember?.id || matchedMember?._id?.toString();
-    const triggeredBy = (req as any).user?.userName || (req as any).user?.id || "admin-action";
+    const memberId = matchedMember?._id?.toString();
+    const triggeredBy = (req.user as MemberCookie)?.memberId || "admin-action";
     if (memberId) {
       try {
-        await member.updateOne({ _id: memberId }, { $unset: { emailBlock: 1 } });
+        const update = await member.updateOne(
+          {_id: memberId, "emailBlock.blockedAt": matchedMember.emailBlock?.blockedAt ?? null, ...(restoredListIds.length ? {"mail.subscriptions": previousSubscriptions, emailMarketingConsent: {$ne: false}} : {})},
+          {$unset: {emailBlock: 1}, ...(restoredListIds.length ? {$set: {"mail.subscriptions": subscriptions}} : {})}
+        );
+        if (!update.matchedCount) {
+          throw new Error("The email block changed while re-enabling email");
+        }
         await mailListAudit.create({
           memberId,
           listId: 0,
@@ -675,6 +686,7 @@ export async function removeFromBlocklist(req: Request, res: Response): Promise<
         });
       } catch (error: any) {
         debugLog("removeFromBlocklist:member-cleanup-failed", memberId, error?.message || error);
+        throw error;
       }
     }
     successfulResponse({ req, res, response: { email, removed: true }, messageType: removeMessageType, debugLog });

@@ -2,12 +2,14 @@ import { mergeTransactionalSendsIntoEvents } from "../../../functions/brevo-cont
 import { Component, EventEmitter, inject, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faArrowsRotate, faChevronDown, faChevronUp, faEnvelopeOpen, faExternalLinkAlt, faHandPointer, faPaperPlane, faSquareCheck, faTriangleExclamation, faUserSlash } from "@fortawesome/free-solid-svg-icons";
+import { faArrowsRotate, faChevronDown, faChevronUp, faCircleExclamation, faCopy, faEnvelopeOpen, faExternalLinkAlt, faHandPointer, faPaperPlane, faSquareCheck, faTriangleExclamation, faUserSlash } from "@fortawesome/free-solid-svg-icons";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { DateUtilsService } from "../../../services/date-utils.service";
+import { ClipboardService } from "../../../services/clipboard.service";
 import { BrevoContactService } from "../../../services/mail/brevo-contact.service";
 import { MailLinkService } from "../../../services/mail/mail-link.service";
+import { bounceCopyText } from "../../../functions/brevo-bounce-diagnostics";
 import {
   BREVO_EVENT_LABELS,
   BrevoCampaignSummary,
@@ -27,7 +29,7 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
     <div>
       <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
         @if (contactEmail) {
-          <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+          <button type="button" class="btn btn-sm btn-quiet d-inline-flex align-items-center justify-content-center"
                   [disabled]="state.loading"
                   (click)="refresh()">
             <fa-icon [icon]="faArrowsRotate" class="me-1"></fa-icon>
@@ -35,7 +37,7 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
           </button>
         }
         @if (contactId && mailLinkService.canNavigateToBrevo) {
-          <a class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center"
+          <a class="btn btn-sm btn-quiet d-inline-flex align-items-center justify-content-center"
              target="_blank"
              rel="noopener"
              [href]="brevoLink()">
@@ -47,9 +49,6 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
         }
       </div>
 
-      @if (state.error) {
-        <div class="alert alert-danger small mb-3">{{ state.error }}</div>
-      }
       @if (contactId) {
         <div class="row thumbnail-heading-frame">
           <div class="thumbnail-heading">Channels</div>
@@ -80,6 +79,7 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
               }
           </div>
         </div>
+        @if (state.loading || state.campaignStats) {
         <div class="row thumbnail-heading-frame">
           <div class="thumbnail-heading">Email campaigns</div>
           <div class="col-sm-12">
@@ -98,6 +98,7 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
               }
           </div>
         </div>
+        }
       }
 
       @if (contactEmail) {
@@ -110,6 +111,8 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
           <div>
           @if (state.loading && mergedEventCount() === 0) {
             <div class="text-muted small">Loading...</div>
+          } @else if (mergedEventCount() === 0 && state.error) {
+            <div class="text-muted small">Brevo activity is unavailable. Select Refresh to try again.</div>
           } @else if (mergedEventCount() === 0) {
             <div class="text-muted small">No transactional or campaign events in the last {{ state.eventsDays }} days.</div>
           } @else {
@@ -135,7 +138,41 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
                       </span>
                       <span class="small">@if (event.subject) {<span class="fw-semibold">{{ event.subject }}</span> &middot; }<span class="text-muted">{{ formatIso(event.date) }}@if (event.from) {<span> &middot; from {{ fromLabel(event.from) }}</span>}</span></span>
                     </div>
-                    @if (event.reason) {
+                    @if (isBounce(event)) {
+                      @if (event.bounceExplanation) {
+                        <div class="small">{{ event.bounceExplanation }}</div>
+                      } @else if (!event.reason && !event.sendingIp) {
+                        <div class="small text-muted">The delivery reason is not available in NGX. Use Open in Brevo for campaign history.</div>
+                      }
+                      @if (event.reason || event.sendingIp) {
+                        <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                          <button type="button" class="btn btn-sm btn-quiet"
+                                  (click)="toggleBounceDetails(event)">
+                            <fa-icon [icon]="expandedBounceKey === eventKey(event) ? faChevronUp : faChevronDown" class="me-1"></fa-icon>
+                            {{ expandedBounceKey === eventKey(event) ? "Hide details" : "Show details" }}
+                          </button>
+                          <button type="button" class="btn btn-sm btn-quiet"
+                                  (click)="copyBounceDetails(event)">
+                            <fa-icon [icon]="faCopy" class="me-1"></fa-icon>
+                            {{ copiedBounceKey === eventKey(event) ? "Copied" : "Copy details" }}
+                          </button>
+                        </div>
+                        @if (expandedBounceKey === eventKey(event)) {
+                          <div class="border rounded p-2 mt-1 small bg-light">
+                            <div><span class="text-muted">Classification:</span> {{ labelFor(event.event) }}</div>
+                            @if (event.sendingIp) {
+                              <div><span class="text-muted">Sending IP:</span> {{ event.sendingIp }}</div>
+                            }
+                            @if (event.campaignId) {
+                              <div><span class="text-muted">Campaign:</span> {{ event.campaignId }}</div>
+                            }
+                            @if (event.reason) {
+                              <div class="mt-1 text-break">{{ event.reason }}</div>
+                            }
+                          </div>
+                        }
+                      }
+                    } @else if (event.reason) {
                       <div class="small text-danger">{{ event.reason }}</div>
                     }
                     @if (event.link) {
@@ -153,7 +190,10 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
                         @if (previewState.loading) {
                           <div class="text-muted small mt-1">Loading preview...</div>
                         } @else if (previewState.error) {
-                          <div class="alert alert-warning small mt-1 mb-0">{{ previewState.error }}</div>
+                          <div class="alert alert-warning small mt-1 mb-0 d-flex align-items-start">
+                            <fa-icon [icon]="faCircleExclamation" class="me-2"></fa-icon>
+                            <div><strong>Email preview unavailable</strong><div>Try opening the preview again.</div></div>
+                          </div>
                         } @else if (previewState.content) {
                           <div class="border rounded p-2 mt-1 bg-light">
                             <div class="small text-muted">Sent {{ formatIso(previewState.content.date) }}</div>
@@ -171,7 +211,7 @@ import { BrevoContactViewState, BrevoEventGroup, BrevoStatTile } from "./brevo-c
               </div>
             }
             @if (state.canLoadMore) {
-              <button type="button" class="btn btn-sm btn-outline-secondary"
+              <button type="button" class="btn btn-sm btn-quiet"
                       [disabled]="state.loadingMore"
                       (click)="loadMore()">
                 {{ state.loadingMore ? "Loading..." : "Load older events" }}
@@ -191,6 +231,7 @@ export class BrevoContactViewComponent implements OnChanges {
   private brevoContactService = inject(BrevoContactService);
   private dateUtils = inject(DateUtilsService);
   private sanitizer = inject(DomSanitizer);
+  private clipboardService = inject(ClipboardService);
   protected mailLinkService = inject(MailLinkService);
 
   @Input() contactId: number | null = null;
@@ -212,6 +253,8 @@ export class BrevoContactViewComponent implements OnChanges {
   };
   protected archivedSnapshotAt: number | null = null;
   protected previewedEventKey: string | null = null;
+  protected expandedBounceKey: string | null = null;
+  protected copiedBounceKey: string | null = null;
   protected previewState: { loading: boolean; error: string | null; content: BrevoEmailPreviewContent | null } = { loading: false, error: null, content: null };
   protected safePreviewBody: SafeHtml | null = null;
   private previewKeyCache: { events: BrevoEmailEvent[]; campaignEvents: BrevoEmailEvent[]; keys: Set<string> } | null = null;
@@ -222,6 +265,8 @@ export class BrevoContactViewComponent implements OnChanges {
   protected readonly faChevronDown = faChevronDown;
   protected readonly faChevronUp = faChevronUp;
   protected readonly faExternalLinkAlt = faExternalLinkAlt;
+  protected readonly faCircleExclamation = faCircleExclamation;
+  protected readonly faCopy = faCopy;
   private readonly EVENT_ICONS: Record<string, any> = {
     [BrevoEventType.REQUESTS]: faPaperPlane,
     [BrevoEventType.DELIVERED]: faSquareCheck,
@@ -259,7 +304,7 @@ export class BrevoContactViewComponent implements OnChanges {
     }
   }
 
-  protected refresh(): void {
+  refresh(): void {
     if (this.contactEmail) {
       this.resetState();
       void this.loadAll();
@@ -330,21 +375,34 @@ export class BrevoContactViewComponent implements OnChanges {
     }
     const email = this.contactEmail || "";
     const events: BrevoEmailEvent[] = [];
-    const add = (event: BrevoEventType, eventTime: string | undefined, campaignId?: number, link?: string) => {
-      if (!eventTime) {
-        return;
+    const add = (event: BrevoEventType, item: { eventTime?: string; campaignId?: number; reason?: string; sendingIp?: string; bounceExplanation?: string; bounceDetailsAvailable?: boolean }, link?: string) => {
+      if (item.eventTime) {
+        events.push({
+          email,
+          date: item.eventTime,
+          subject: this.campaignTitle(item.campaignId),
+          messageId: "",
+          event,
+          campaignId: item.campaignId,
+          link,
+          from: this.campaignSenderEmail(item.campaignId),
+          source: BrevoEventSource.CAMPAIGN,
+          reason: item.reason,
+          sendingIp: item.sendingIp,
+          bounceExplanation: item.bounceExplanation,
+          bounceDetailsAvailable: item.bounceDetailsAvailable
+        });
       }
-      events.push({ email, date: eventTime, subject: this.campaignTitle(campaignId), messageId: "", event, campaignId, link, from: this.campaignSenderEmail(campaignId), source: BrevoEventSource.CAMPAIGN });
     };
-    (stats.messagesSent || []).forEach(item => add(BrevoEventType.REQUESTS, item.eventTime, item.campaignId));
-    (stats.delivered || []).forEach(item => add(BrevoEventType.DELIVERED, item.eventTime, item.campaignId));
-    (stats.opened || []).forEach(item => add(BrevoEventType.OPENED, item.eventTime, item.campaignId));
-    (stats.clicked || []).forEach(item => (item.links || []).forEach(link => add(BrevoEventType.CLICKS, link.eventTime, item.campaignId, link.url)));
-    (stats.hardBounces || []).forEach(item => add(BrevoEventType.HARD_BOUNCES, item.eventTime, item.campaignId));
-    (stats.softBounces || []).forEach(item => add(BrevoEventType.SOFT_BOUNCES, item.eventTime, item.campaignId));
-    (stats.complaints || []).forEach(item => add(BrevoEventType.SPAM, item.eventTime, item.campaignId));
-    (stats.unsubscriptions?.userUnsubscription || []).forEach(item => add(BrevoEventType.UNSUBSCRIBED, item.eventTime));
-    (stats.unsubscriptions?.adminUnsubscription || []).forEach(item => add(BrevoEventType.UNSUBSCRIBED, item.eventTime));
+    (stats.messagesSent || []).forEach(item => add(BrevoEventType.REQUESTS, item));
+    (stats.delivered || []).forEach(item => add(BrevoEventType.DELIVERED, item));
+    (stats.opened || []).forEach(item => add(BrevoEventType.OPENED, item));
+    (stats.clicked || []).forEach(item => (item.links || []).forEach(link => add(BrevoEventType.CLICKS, {eventTime: link.eventTime, campaignId: item.campaignId}, link.url)));
+    (stats.hardBounces || []).forEach(item => add(BrevoEventType.HARD_BOUNCES, item));
+    (stats.softBounces || []).forEach(item => add(BrevoEventType.SOFT_BOUNCES, item));
+    (stats.complaints || []).forEach(item => add(BrevoEventType.SPAM, item));
+    (stats.unsubscriptions?.userUnsubscription || []).forEach(item => add(BrevoEventType.UNSUBSCRIBED, item));
+    (stats.unsubscriptions?.adminUnsubscription || []).forEach(item => add(BrevoEventType.UNSUBSCRIBED, item));
     return events;
   }
 
@@ -386,6 +444,20 @@ export class BrevoContactViewComponent implements OnChanges {
 
   protected eventKey(event: BrevoEmailEvent): string {
     return `${event.messageId}|${event.campaignId ?? ""}|${event.event}|${event.date}`;
+  }
+
+  protected isBounce(event: BrevoEmailEvent): boolean {
+    return event.event === BrevoEventType.HARD_BOUNCES || event.event === BrevoEventType.SOFT_BOUNCES || event.event === BrevoEventType.BOUNCES;
+  }
+
+  protected toggleBounceDetails(event: BrevoEmailEvent): void {
+    const key = this.eventKey(event);
+    this.expandedBounceKey = this.expandedBounceKey === key ? null : key;
+  }
+
+  protected async copyBounceDetails(event: BrevoEmailEvent): Promise<void> {
+    await this.clipboardService.copyToClipboard(bounceCopyText(event));
+    this.copiedBounceKey = this.eventKey(event);
   }
 
   private isCampaignEvent(event: BrevoEmailEvent): boolean {
@@ -591,6 +663,8 @@ export class BrevoContactViewComponent implements OnChanges {
       ...overrides
     };
     this.clearPreview();
+    this.expandedBounceKey = null;
+    this.copiedBounceKey = null;
     this.campaignDerivedEvents = [];
   }
 }

@@ -1,5 +1,5 @@
-import { Component, EventEmitter, inject, Input, OnInit, Output } from "@angular/core";
-import { faBan, faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
+import { Component, EventEmitter, inject, Input, OnInit, Output, ViewChild } from "@angular/core";
+import { faBan, faCircleCheck, faCircleExclamation, faEnvelope, faTriangleExclamation, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
@@ -12,9 +12,12 @@ import {
   ListInfo,
   ListSetting,
   MailListAudit,
+  MailListAuditSource,
   MailMessagingConfig,
   MailSubscription
 } from "../../../models/mail.model";
+import { MailService } from "../../../services/mail/mail.service";
+import { MemberService } from "../../../services/member/member.service";
 import { MailLinkService } from "../../../services/mail/mail-link.service";
 import { cloneDeep } from "es-toolkit/compat";
 import { SystemConfig } from "../../../models/system.model";
@@ -23,7 +26,6 @@ import { MailSubscriptionSettingComponent } from "./mail-subscription-setting";
 import { BrevoButtonComponent } from "../../../modules/common/third-parties/brevo-button";
 import { BrevoContactViewComponent } from "./brevo-contact-view";
 import { DisplayDateAndTimePipe } from "../../../pipes/display-date-and-time.pipe";
-import { FullNameWithAliasPipe } from "../../../pipes/full-name-with-alias.pipe";
 import { MemberIdToFullNamePipe } from "../../../pipes/member-id-to-full-name.pipe";
 import { SectionToggle } from "../../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../../models/section-toggle.model";
@@ -38,20 +40,55 @@ import { DESCENDING } from "../../../models/table-filtering.model";
     template: `
     <div class="img-thumbnail thumbnail-admin-edit">
       @if (member?.emailBlock; as block) {
-        <div class="alert alert-warning small mb-3 d-flex align-items-center">
-          <fa-icon [icon]="faBan" class="me-2"></fa-icon>
-          <span>
-            <strong>{{ blockedTitle() }}</strong> &mdash; {{ blockReasonLabel(block) }}, {{ formatBlockDate(block.blockedAt) }}.
-            Re-enable via <a href="javascript:void(0)" (click)="goToUnsubscribes($event)">Mail Settings &rarr; Unsubscribes &rarr; Blocks</a>.
-          </span>
+        <div class="alert alert-warning small mb-3 p-3 d-flex align-items-start gap-3">
+          <div class="d-flex align-items-start flex-fill text-break" style="min-width: 0">
+            <fa-icon [icon]="faBan" class="me-2"></fa-icon>
+            <div>
+              <strong>{{ blockedTitle() }}</strong>
+              <div>{{ blockReasonLabel(block) }} &middot; {{ formatBlockDate(block.blockedAt) }}</div>
+              @if (blockExcludesFromSend()) {
+                <div>Sends that respect email blocks will exclude this member.</div>
+              }
+              @if (confirmingEmailEnable) {
+                <div class="mt-1">Clear the email block for {{ member.email }}? List subscriptions switched off by a hard bounce can be restored.</div>
+              }
+            </div>
+          </div>
+          @if (allowEdits && member.id && member.email) {
+            <div class="d-flex flex-wrap justify-content-end gap-2 ms-auto flex-shrink-0" style="max-width: 55%">
+              @if (confirmingEmailEnable) {
+                <button type="button" class="btn btn-quiet" [disabled]="enablingEmail" (click)="cancelEmailEnable()">
+                  <fa-icon [icon]="faXmark" class="me-1"></fa-icon> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" [disabled]="enablingEmail" (click)="enableEmail()">
+                  <fa-icon [icon]="faCircleCheck" class="me-1"></fa-icon>
+                  {{ enablingEmail ? "Re-enabling…" : "Confirm re-enable" }}
+                </button>
+              } @else {
+                <button type="button" class="btn btn-primary" (click)="confirmingEmailEnable = true">
+                  <fa-icon [icon]="faEnvelope" class="me-1"></fa-icon> Re-enable email
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+      @if (emailEnableError) {
+        <div class="alert alert-danger small d-flex align-items-start">
+          <fa-icon [icon]="faCircleExclamation" class="me-2"></fa-icon>
+          <div><strong>Could not re-enable email</strong><div>{{ emailEnableError }}</div></div>
+        </div>
+      }
+      @if (emailEnabled && !member?.emailBlock) {
+        <div class="alert alert-success small d-flex align-items-start">
+          <fa-icon [icon]="faCircleCheck" class="me-2"></fa-icon>
+          <div><strong>Email block cleared</strong><div>Review their list subscriptions below.</div></div>
         </div>
       }
       @if (member) {
         <div class="row thumbnail-heading-frame">
           <div class="thumbnail-heading">Subscriptions</div>
           <div class="col-sm-12">
-          <p class="mb-2">Please select how {{ member | fullNameWithAlias }} wants to be <b>emailed</b>
-            by using the subscription checkboxes below.</p>
           @if (member?.mail?.subscriptions && mailMessagingConfig) {
             <div class="row">
               @for (subscription of member.mail.subscriptions; track subscription.id) {
@@ -66,7 +103,7 @@ import { DESCENDING } from "../../../models/table-filtering.model";
                   <fa-icon [icon]="faTriangleExclamation" class="me-2"></fa-icon>
                   <strong>Subscriptions do not guarantee delivery</strong>
                 </div>
-                <span>A ticked list above shows what {{ member | fullNameWithAlias }} has opted into - it does not mean they will be emailed. {{ reason }}.</span>
+                <span>{{ reason }}.</span>
                 @if (consentMissing()) {
                   <div class="mt-1">
                     <a href="javascript:void(0)" (click)="viewConsent($event)">View consent settings on the Ramblers Membership tab</a>
@@ -86,7 +123,7 @@ import { DESCENDING } from "../../../models/table-filtering.model";
               (selectedTabChange)="onSubTabChange($event)"
               [queryParamKey]="subTabQueryParam"
               [fullWidth]="false"/>
-            @if (mailLinkService.canNavigateToBrevo) {
+            @if (activeSubTab === BrevoTabSubTab.AUDIT_LOG && mailLinkService.canNavigateToBrevo) {
               <app-brevo-button button [disabled]="!member?.mail?.id"
                 (click)="viewBrevoContact(member?.mail?.id)"
                 [title]="linkTitle()"/>
@@ -103,7 +140,7 @@ import { DESCENDING } from "../../../models/table-filtering.model";
                 [defaultSortDirection]="DESCENDING"
                 emptyMessage="No mail list audit entries">
                 <ng-template appSortableTableCell="time" let-row>{{ row.timestamp | displayDateAndTime }}</ng-template>
-                <ng-template appSortableTableCell="createdBy" let-row>{{ row.createdBy | memberIdToFullName : members }}</ng-template>
+                <ng-template appSortableTableCell="createdBy" let-row>{{ auditSourceLabels[row.createdBy] ?? (row.createdBy | memberIdToFullName : members) }}</ng-template>
                 <ng-template appSortableTableCell="audit" let-row>{{ stringUtils.stringifyObject(row.audit) }}</ng-template>
               </app-sortable-table>
             </div>
@@ -119,7 +156,7 @@ import { DESCENDING } from "../../../models/table-filtering.model";
           </div>
         </div>
       </div>`,
-    imports: [MailSubscriptionSettingComponent, BrevoButtonComponent, BrevoContactViewComponent, DisplayDateAndTimePipe, FullNameWithAliasPipe, MemberIdToFullNamePipe, FontAwesomeModule, SectionToggle, SortableTableComponent, SortableTableCellDirective]
+    imports: [MailSubscriptionSettingComponent, BrevoButtonComponent, BrevoContactViewComponent, DisplayDateAndTimePipe, MemberIdToFullNamePipe, FontAwesomeModule, SectionToggle, SortableTableComponent, SortableTableCellDirective]
 })
 export class MailSubscriptionSettingsComponent implements OnInit {
 
@@ -128,7 +165,18 @@ export class MailSubscriptionSettingsComponent implements OnInit {
   mailLinkService = inject(MailLinkService);
   protected mailMessagingService = inject(MailMessagingService);
   protected dateUtils = inject(DateUtilsService);
-  @Output() unsubscribesRequested = new EventEmitter<void>();
+  private mailService = inject(MailService);
+  private memberService = inject(MemberService);
+  @ViewChild(BrevoContactViewComponent) private brevoActivity: BrevoContactViewComponent;
+  @Input() allowEdits = false;
+  protected confirmingEmailEnable = false;
+  protected enablingEmail = false;
+  protected emailEnabled = false;
+  protected emailEnableError: string | null = null;
+  protected readonly faEnvelope = faEnvelope;
+  protected readonly faXmark = faXmark;
+  protected readonly faCircleCheck = faCircleCheck;
+  protected readonly faCircleExclamation = faCircleExclamation;
   @Output() refreshRequested = new EventEmitter<void>();
   @Output() viewConsentRequested = new EventEmitter<void>();
   public member: Member;
@@ -157,6 +205,13 @@ export class MailSubscriptionSettingsComponent implements OnInit {
     { value: BrevoTabSubTab.ACTIVITY, label: "Brevo activity" },
     { value: BrevoTabSubTab.AUDIT_LOG, label: "Subscription audit" }
   ];
+  protected readonly auditSourceLabels: Record<MailListAuditSource, string> = {
+    [MailListAuditSource.BRANDED_UNSUBSCRIBE]: "Email unsubscribe link",
+    [MailListAuditSource.BRANDED_UNSUBSCRIBE_FEEDBACK]: "Email unsubscribe feedback",
+    [MailListAuditSource.BREVO_UNSUBSCRIBES_SYNC]: "Brevo sync",
+    [MailListAuditSource.BREVO_EVENTS_WEBHOOK]: "Brevo webhook",
+    [MailListAuditSource.BREVO_EMAIL_DENIED_SYNC]: "Brevo sync"
+  };
   protected readonly auditColumns: SortableTableColumn<MailListAudit>[] = [
     { key: "time", label: "Time", sortKey: "timestamp" },
     { key: "createdBy", label: "Created By", sortKey: "createdBy" },
@@ -180,11 +235,9 @@ export class MailSubscriptionSettingsComponent implements OnInit {
   }
 
   notEmailableReason(): string | null {
-    return this.blockExcludesFromSend()
-      ? "They have unsubscribed or been blocked, so they are excluded from any send that respects blocks"
-      : this.consentMissing()
-        ? "Head office marketing consent has been withheld, so they will not be emailed. New list subscriptions cannot be turned on; existing ticks can still be cleared"
-        : null;
+    return this.consentMissing()
+      ? "Head office marketing consent has been withheld. Existing subscriptions can be cleared."
+      : null;
   }
 
   consentMissing(): boolean {
@@ -221,10 +274,55 @@ export class MailSubscriptionSettingsComponent implements OnInit {
     return this.member?.mail?.id ? "Blocked in Brevo" : "Blocked locally";
   }
 
-  goToUnsubscribes(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.unsubscribesRequested.emit();
+  protected cancelEmailEnable(): void {
+    this.confirmingEmailEnable = false;
+    this.emailEnableError = null;
+  }
+
+  protected async enableEmail(): Promise<void> {
+    const editedMember = this.member;
+    if (this.allowEdits && this.confirmingEmailEnable && !this.enablingEmail && editedMember?.id && editedMember.email && editedMember.emailBlock) {
+      this.enablingEmail = true;
+      this.emailEnableError = null;
+      try {
+        const saved = await this.memberService.getById(editedMember.id);
+        if (saved?.email?.trim().toLowerCase() !== editedMember.email.trim().toLowerCase()) {
+          this.emailEnableError = "Save the email address change before re-enabling email.";
+        } else {
+          const result = await this.mailService.removeFromBlocklist(saved.email);
+          if (result?.removed) {
+            const updated = await this.memberService.getById(editedMember.id);
+            editedMember.emailBlock = updated.emailBlock ?? null;
+            if (editedMember.mail) {
+              const savedSubscriptions = new Map((saved.mail?.subscriptions ?? []).map(subscription => [subscription.id, subscription]));
+              const updatedSubscriptions = new Map((updated.mail?.subscriptions ?? []).map(subscription => [subscription.id, subscription]));
+              editedMember.mail.subscriptions = (editedMember.mail.subscriptions ?? []).map(subscription =>
+                subscription.subscribed === savedSubscriptions.get(subscription.id)?.subscribed
+                  ? updatedSubscriptions.get(subscription.id) ?? subscription
+                  : subscription);
+            }
+            this.emailEnabled = !editedMember.emailBlock;
+            this.confirmingEmailEnable = false;
+            if (this.emailEnabled) {
+              if (this.brevoActivity) {
+                this.brevoActivity.refresh();
+              } else {
+                this.refreshRequested.emit();
+              }
+            } else {
+              this.emailEnableError = "Brevo accepted the request, but the member still has an email block. Try again.";
+            }
+          } else {
+            this.emailEnableError = "Brevo did not confirm that the block was cleared.";
+          }
+        }
+      } catch (error) {
+        this.logger.error("Could not re-enable email", error);
+        this.emailEnableError = "The email block could not be cleared. Try again.";
+      } finally {
+        this.enablingEmail = false;
+      }
+    }
   }
 
   formatBlockDate(timestamp: number | undefined): string {

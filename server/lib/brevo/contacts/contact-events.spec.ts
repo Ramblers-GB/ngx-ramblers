@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it } from "mocha";
 import { Request, Response } from "express";
 import * as brevoConfig from "../brevo-config";
 import * as rateLimiting from "../common/rate-limiting";
+import * as bounceDiagnostics from "./bounce-diagnostics";
 import { contactEvents } from "./contact-events";
 import { BrevoEventType } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 
@@ -24,6 +25,7 @@ async function report(query: Record<string, string>) {
 describe("contact activity reports", () => {
   beforeEach(() => {
     sandbox.stub(rateLimiting, "scheduleBrevo").callsFake(async task => task());
+    sandbox.stub(bounceDiagnostics, "diagnosticsForEmail").resolves([]);
   });
   afterEach(() => sandbox.restore());
 

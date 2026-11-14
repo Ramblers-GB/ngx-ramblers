@@ -1151,6 +1151,10 @@ export interface UnsubscribeFeedback {
 export interface BrevoContactStatisticsCount {
   campaignId?: number;
   eventTime?: string;
+  reason?: string;
+  sendingIp?: string;
+  bounceExplanation?: string;
+  bounceDetailsAvailable?: boolean;
 }
 
 export interface BrevoContactCampaignStats {
@@ -1197,6 +1201,19 @@ export enum BrevoEventType {
   LOADED_BY_PROXY = "loadedByProxy"
 }
 
+export interface BrevoBounceDiagnostic {
+  eventKey: string;
+  email: string;
+  memberId?: string;
+  providerEvent: string;
+  event: BrevoEventType;
+  reason?: string;
+  sendingIp?: string;
+  campaignId?: number;
+  messageId?: string;
+  eventAt: number;
+}
+
 export interface BrevoEmailEvent {
   email: string;
   date: string;
@@ -1206,11 +1223,14 @@ export interface BrevoEmailEvent {
   reason?: string;
   tag?: string;
   ip?: string;
+  sendingIp?: string;
   link?: string;
   from?: string;
   templateId?: number;
   campaignId?: number;
   source?: BrevoEventSource;
+  bounceExplanation?: string;
+  bounceDetailsAvailable?: boolean;
 }
 
 export enum BrevoEventSource {

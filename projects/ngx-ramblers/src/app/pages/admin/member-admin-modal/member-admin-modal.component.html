@@ -590,7 +590,7 @@
                [active]="tabActive(MemberAdminModalTab.BREVO)" (selectTab)="selectTab(MemberAdminModalTab.BREVO)"
                [mailMessagingConfig]="mailMessagingConfig" [systemConfig]="systemConfig"
                [mailListAudits]="mailListAudits"
-               (unsubscribesRequested)="goToUnsubscribesPage()"
+               [allowEdits]="allowEdits"
                (refreshRequested)="refreshSubscriptionAudit()"
                (viewConsentRequested)="selectTab(MemberAdminModalTab.RAMBLERS_MEMBERSHIP)"
           />

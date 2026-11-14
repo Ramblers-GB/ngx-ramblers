@@ -22,6 +22,8 @@ import {
   reasonCodeForBrevoBlockEvent,
   unsubscribeAllMailSubscriptions
 } from "./contacts/email-block-from-event";
+import { persistBounceDiagnostic } from "./contacts/bounce-diagnostics";
+import { providerEventToBrevoEventType } from "../../../projects/ngx-ramblers/src/app/functions/brevo-bounce-diagnostics";
 
 const messageType = "brevo:events-webhook";
 const debugLog = debug(envConfig.logNamespace(messageType));
@@ -73,9 +75,15 @@ async function applyBlockEvent(payload: any): Promise<{ applied: boolean; reason
     ).lean().exec() as any;
     if (!matchedMember) {
       debugLog("applyBlockEvent:no-member-match", email, event);
+      if (providerEventToBrevoEventType(event)) {
+        await persistBounceDiagnostic(payload);
+      }
       result = { applied: false, reason: "no matching member" };
     } else {
       const memberId = matchedMember.id || matchedMember._id?.toString();
+      if (providerEventToBrevoEventType(event)) {
+        await persistBounceDiagnostic(payload, memberId);
+      }
       const eventIdentifier = String(payload?.["message-id"] || payload?.messageId || payload?.id || payload?.ts_event || payload?.ts || blockedAt);
       const eventKey = `${event}:${eventIdentifier}:${email}`;
 
@@ -150,17 +158,29 @@ async function applyBlockEvent(payload: any): Promise<{ applied: boolean; reason
 
 async function resolveSoftBounce(payload: any): Promise<{ applied: boolean; reason?: string; memberId?: string; memberRef?: string; email?: string; eventKey?: string }> {
   const email = String(payload?.email || "").toLowerCase().trim();
-  if (!email) return { applied: false, reason: "missing email" };
-  const matchedMember = await member.findOne({ email }, { _id: 1, salesforceMemberRef: 1 }).lean().exec() as any;
-  if (!matchedMember) return { applied: false, reason: "no matching member" };
-  const eventIdentifier = String(payload?.["message-id"] || payload?.messageId || payload?.id || payload?.ts_event || payload?.ts || payload?.date || "unknown");
-  return {
-    applied: true,
-    memberId: matchedMember.id || matchedMember._id?.toString(),
-    memberRef: matchedMember.salesforceMemberRef,
-    email,
-    eventKey: `soft_bounce:${eventIdentifier}:${email}`,
+  let result: { applied: boolean; reason?: string; memberId?: string; memberRef?: string; email?: string; eventKey?: string } = {
+    applied: false,
+    reason: "missing email"
   };
+  if (email) {
+    const matchedMember = await member.findOne({ email }, { _id: 1, salesforceMemberRef: 1 }).lean().exec() as any;
+    if (!matchedMember) {
+      await persistBounceDiagnostic(payload);
+      result = { applied: false, reason: "no matching member" };
+    } else {
+      const memberId = matchedMember.id || matchedMember._id?.toString();
+      await persistBounceDiagnostic(payload, memberId);
+      const eventIdentifier = String(payload?.["message-id"] || payload?.messageId || payload?.id || payload?.ts_event || payload?.ts || payload?.date || "unknown");
+      result = {
+        applied: true,
+        memberId,
+        memberRef: matchedMember.salesforceMemberRef,
+        email,
+        eventKey: `soft_bounce:${eventIdentifier}:${email}`
+      };
+    }
+  }
+  return result;
 }
 
 async function applyClearEvent(payload: any): Promise<{ applied: boolean; reason?: string }> {
@@ -240,8 +260,8 @@ export async function brevoEventsWebhook(req: Request, res: Response): Promise<v
 export async function brevoEventsWebhookConfig(req: Request, res: Response): Promise<void> {
   try {
     const { ensureBrevoEventsWebhookConfigured } = await import("./brevo-events-webhook-config");
-    const result = await ensureBrevoEventsWebhookConfigured();
-    successfulResponse({ req, res, response: result, messageType: "brevo:events-webhook-config", debugLog });
+    await ensureBrevoEventsWebhookConfigured();
+    successfulResponse({ req, res, response: {configured: true}, messageType: "brevo:events-webhook-config", debugLog });
   } catch (error) {
     handleError(req, res, "brevo:events-webhook-config", debugLog, error);
   }

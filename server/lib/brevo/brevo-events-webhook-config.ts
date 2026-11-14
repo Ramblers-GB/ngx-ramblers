@@ -1,3 +1,5 @@
+import { Brevo, BrevoClient, BrevoError } from "@getbrevo/brevo";
+import { scheduleBrevo } from "./common/rate-limiting";
 import crypto from "crypto";
 import debug from "debug";
 import { ConfigKey, ConfigDocument } from "../../../projects/ngx-ramblers/src/app/models/config.model";
@@ -48,4 +50,55 @@ export async function readBrevoEventsWebhookSecret(): Promise<string | undefined
   const doc = await config.queryKey(ConfigKey.BREVO) as ConfigDocument;
   const value: MailConfig = doc.value;
   return value?.brevoEventsWebhookSecret;
+}
+
+const marketingBounceEvents = [
+  Brevo.CreateWebhookRequest.Events.Item.HardBounce,
+  Brevo.CreateWebhookRequest.Events.Item.SoftBounce
+];
+
+const marketingWebhookSetup = {pending: null as Promise<void> | null};
+
+async function configureMarketingBounceWebhook(client: BrevoClient): Promise<void> {
+  try {
+    const {webhookUrl} = await ensureBrevoEventsWebhookConfigured();
+    const webhooks = await scheduleBrevo(() => client.webhooks.getWebhooks({type: "marketing"}))
+      .then(result => result.webhooks ?? [])
+      .catch(error => {
+        if (error instanceof BrevoError && error.statusCode === 400 && (error.body as {code?: string})?.code === "document_not_found") {
+          return [];
+        } else {
+          throw error;
+        }
+      });
+    const webhook = webhooks.find(item => item.url === webhookUrl && !item.batched && item.channel !== "sms");
+    const existingEvents = new Set(webhooks
+      .filter(item => item.url === webhookUrl && !item.batched && item.channel !== "sms")
+      .flatMap(item => item.events));
+    const missingEvents = marketingBounceEvents.filter(event => !existingEvents.has(event));
+    if (missingEvents.length && webhook) {
+      await scheduleBrevo(() => client.webhooks.updateWebhook({
+        webhookId: webhook.id,
+        events: [...new Set([...webhook.events, ...missingEvents])] as Brevo.UpdateWebhookRequest.Events
+      }));
+    } else if (missingEvents.length) {
+      await scheduleBrevo(() => client.webhooks.createWebhook({
+        url: webhookUrl,
+        type: "marketing",
+        channel: "email",
+        description: "NGX Ramblers campaign bounce diagnostics",
+        events: marketingBounceEvents
+      }));
+    }
+  } catch (error) {
+    debugLog("Campaign bounce webhook setup failed", error instanceof BrevoError ? error.statusCode : (error as Error)?.name);
+    throw new Error("Could not configure Brevo campaign bounce reporting. Try again before sending.");
+  }
+}
+
+export function ensureBrevoMarketingBounceWebhook(client: BrevoClient): Promise<void> {
+  marketingWebhookSetup.pending ??= configureMarketingBounceWebhook(client).finally(() => {
+    marketingWebhookSetup.pending = null;
+  });
+  return marketingWebhookSetup.pending;
 }

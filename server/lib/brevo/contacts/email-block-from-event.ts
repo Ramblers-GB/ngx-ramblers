@@ -1,4 +1,5 @@
-import { BlockedContactReasonCode } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
+import { MemberEmailBlock } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
+import { BlockedContactReasonCode, MailSubscription } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 
 export interface MailSubscriptionSlice {
   id: number;
@@ -42,4 +43,12 @@ export function mailSubscriptionsChanged(
 
 export function isFirstTransitionToEmailBlock(existingEmailBlock: unknown): boolean {
   return !existingEmailBlock;
+}
+
+export function subscriptionsAfterClearingBounce(subscriptions: MailSubscription[], block: MemberEmailBlock, consent: boolean): MailSubscription[] {
+  return block?.reasonCode === BlockedContactReasonCode.HARD_BOUNCE && !!block.blockedAt && consent !== false
+    ? subscriptions.map(subscription => !subscription.subscribed && subscription.unsubscribedAt === block.blockedAt
+      ? {...subscription, subscribed: true, unsubscribedAt: null}
+      : subscription)
+    : subscriptions;
 }

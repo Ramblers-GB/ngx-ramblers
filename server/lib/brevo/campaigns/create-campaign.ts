@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { envConfig } from "../../env-config/env-config";
 import debug from "debug";
 import { brevoClient, configuredBrevo } from "../brevo-config";
+import { ensureBrevoMarketingBounceWebhook } from "../brevo-events-webhook-config";
 import { scheduleBrevo } from "../common/rate-limiting";
 import { logBrevoError } from "../common/error-log";
 import { Brevo, BrevoClient } from "@getbrevo/brevo";
@@ -107,7 +108,7 @@ export async function createCampaign(req: Request, res: Response): Promise<void>
       createEmailCampaign.scheduledAt = scheduledAt;
     }
     createEmailCampaign.attachmentUrl = await publicCampaignAttachmentUrl(createCampaignRequest.attachmentUrl, req);
-    createEmailCampaign.header = "If you are not able to see this mail, click {here}";
+    createEmailCampaign.header = "<!-- -->";
     createEmailCampaign.footer = "<!--[if !mso]><!--><span style=\"display:none;visibility:hidden;font-size:0;line-height:0;color:transparent;height:0;width:0;overflow:hidden\" aria-hidden=\"true\">{unsubscribe}</span><!--<![endif]-->";
     createEmailCampaign.inlineImageActivation = createCampaignRequest.inlineImageActivation;
     createEmailCampaign.mirrorActive = createCampaignRequest.mirrorActive !== false;
@@ -125,6 +126,9 @@ export async function createCampaign(req: Request, res: Response): Promise<void>
     createEmailCampaign.toField = CAMPAIGN_TO_FIELD;
     await performTemplateSubstitution(createCampaignRequest, createEmailCampaign, debugLog, true);
     debugLog("Email campaign preparation 2/2 createEmailCampaign:", JSON.stringify(omit(createEmailCampaign, "htmlContent")));
+    if (!createCampaignRequest.createAsDraft) {
+      await ensureBrevoMarketingBounceWebhook(client);
+    }
     const response = await createEmailCampaignWithTagFallback(client, createEmailCampaign);
     const responseSingleInput: StatusMappedResponseSingleInput = mapStatusMappedResponseSingleInput(createEmailCampaign.subject, response, 201);
     debugLog("API called successfully. Returned data: " + JSON.stringify(response), "responseSingleInput:", responseSingleInput);

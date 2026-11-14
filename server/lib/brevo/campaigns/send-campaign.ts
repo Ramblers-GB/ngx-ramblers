@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { envConfig } from "../../env-config/env-config";
 import debug from "debug";
 import { brevoClient } from "../brevo-config";
+import { ensureBrevoMarketingBounceWebhook } from "../brevo-events-webhook-config";
 import { scheduleBrevo } from "../common/rate-limiting";
 import { handleError, mapStatusMappedResponseSingleInput, successfulResponse } from "../common/messages";
 import { assertSendAllowed } from "../send-permission";
@@ -24,6 +25,7 @@ export async function sendCampaign(req: Request, res: Response, next: NextFuncti
     }
     await assertSendAllowed(SendPurpose.CAMPAIGN_SEND, {subject: `Campaign ${sendCampaignRequest.campaignId}`});
     const client = await brevoClient();
+    await ensureBrevoMarketingBounceWebhook(client);
     debugLog(`About to send email campaign with  supplied sendCampaignRequest: ${sendCampaignRequest}`);
     scheduleBrevo(() => client.emailCampaigns.sendEmailCampaignNow({campaignId: sendCampaignRequest.campaignId}).withRawResponse()).then((response) => {
       debugLog("API called successfully. Returned response: " + JSON.stringify(response));

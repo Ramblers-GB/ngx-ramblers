@@ -5,6 +5,7 @@ import {
   isFirstTransitionToEmailBlock,
   mailSubscriptionsChanged,
   reasonCodeForBrevoBlockEvent,
+  subscriptionsAfterClearingBounce,
   unsubscribeAllMailSubscriptions
 } from "./email-block-from-event";
 
@@ -46,6 +47,27 @@ describe("email-block-from-event", () => {
     it("returns an empty array when there are no subscriptions", () => {
       expect(unsubscribeAllMailSubscriptions(undefined, 1)).toEqual([]);
       expect(unsubscribeAllMailSubscriptions([], 1)).toEqual([]);
+    });
+  });
+
+  describe("subscriptionsAfterClearingBounce", () => {
+    const blockedAt = 99;
+    const block = {reasonCode: BlockedContactReasonCode.HARD_BOUNCE, blockedAt, syncedAt: 100};
+    const subscriptions = [
+      {id: 1, subscribed: false, unsubscribedAt: blockedAt},
+      {id: 2, subscribed: false, unsubscribedAt: 40},
+      {id: 3, subscribed: false, unsubscribedAt: 120}
+    ];
+
+    it("restores only the lists switched off by the hard bounce", () => {
+      expect(subscriptionsAfterClearingBounce(subscriptions, block, true)).toEqual([
+        {id: 1, subscribed: true, unsubscribedAt: null}, subscriptions[1], subscriptions[2]
+      ]);
+    });
+
+    it("preserves opt-outs and withheld consent", () => {
+      expect(subscriptionsAfterClearingBounce(subscriptions, block, false)).toEqual(subscriptions);
+      expect(subscriptionsAfterClearingBounce(subscriptions, {...block, reasonCode: BlockedContactReasonCode.UNSUBSCRIBED_VIA_EMAIL}, true)).toEqual(subscriptions);
     });
   });
 

@@ -11,6 +11,8 @@ import {
   BrevoTransactionalEmailSummary
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { mergeTransactionalSendsIntoEvents } from "../../../../projects/ngx-ramblers/src/app/functions/brevo-contact-activity";
+import { attachDiagnosticsToEvents } from "../../../../projects/ngx-ramblers/src/app/functions/brevo-bounce-diagnostics";
+import { diagnosticsForEmail } from "./bounce-diagnostics";
 import { scheduleBrevo } from "../common/rate-limiting";
 import { clampDateRange } from "../common/date-range";
 import { dateTimeNow } from "../../shared/dates";
@@ -92,8 +94,9 @@ export async function contactEvents(req: Request, res: Response): Promise<void> 
     const sendRows = offset === 0 && email.includes("@") && (!event || event === BrevoEventType.REQUESTS)
       ? await loadTransactionalSends(client, email, startDate, endDate, sort)
       : [];
+    const diagnostics = email.includes("@") ? await diagnosticsForEmail(email) : [];
     const body: BrevoEmailEventReport = {
-      events: mergeTransactionalSendsIntoEvents(statsEvents, sendRows, sort),
+      events: attachDiagnosticsToEvents(mergeTransactionalSendsIntoEvents(statsEvents, sendRows, sort), diagnostics),
       nextOffset: offset + statsEvents.length,
       hasMore: statsEvents.length === limit
     };

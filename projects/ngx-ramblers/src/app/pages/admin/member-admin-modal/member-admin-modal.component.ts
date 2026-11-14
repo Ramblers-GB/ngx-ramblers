@@ -1,4 +1,3 @@
-import { AdminPath } from "../../../models/admin-route-paths.model";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { faCopy, faEye, faEyeSlash, faPaste, faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
@@ -36,9 +35,7 @@ import { MailMessagingService } from "../../../services/mail/mail-messaging.serv
 import {
   MailListAudit,
   MailMessagingConfig,
-  MailSettingsTab,
-  MemberAdminModalTab,
-  UnsubscribesListMode
+  MemberAdminModalTab
 } from "../../../models/mail.model";
 import { MailListAuditService } from "../../../services/mail/mail-list-audit.service";
 import { MemberDefaultsService } from "../../../services/member/member-defaults.service";
@@ -309,17 +306,6 @@ export class MemberAdminModalComponent implements OnInit, OnDestroy {
 
   close() {
     this.bsModalRef.hide();
-  }
-
-  goToUnsubscribesPage() {
-    this.bsModalRef.hide();
-    this.router.navigate(["/" + AdminPath.MAIL_SETTINGS], {
-      queryParams: {
-        [StoredValue.TAB]: this.stringUtils.kebabCase(MailSettingsTab.UNSUBSCRIBES),
-        [StoredValue.SUB_TAB]: UnsubscribesListMode.Blocks,
-        [StoredValue.SEARCH]: this.member?.email || null
-      }
-    });
   }
 
   onMembershipDateChange(dateValue: DateValue) {
