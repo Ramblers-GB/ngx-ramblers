@@ -65,14 +65,24 @@ function committeeSecretaryEmail(committeeConfig: CommitteeConfig | null): { nam
   return {name: withEmail?.fullName || withEmail?.description, email: withEmail?.email};
 }
 
-export async function meetingCalendarFile(committeeFileId: string, req: Request): Promise<{document: string; fileName: string} | null> {
+export function meetingRoomFromAttachmentUrl(url: string): string | null {
+  try {
+    const pathname = new URL(url, "https://attachment.invalid").pathname;
+    const match = pathname.match(/^\/api\/calendar\/meeting\/([^/]+)$/i);
+    return match ? decodeURIComponent(match[1].replace(/\.ics$/i, "")) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function meetingCalendarFile(committeeFileId: string, req?: Request): Promise<{document: string; fileName: string} | null> {
   const id = (committeeFileId || "").replace(/\.ics$/i, "");
   const meetingFile = await committeeFile.findById(id).lean().exec() as unknown as CommitteeFile;
   if (!meetingFile?.meeting) {
     return null;
   } else {
     const config: SystemConfig = await systemConfig();
-    const baseUrl = stripTrailingSlash(publicImageBaseUrl(req, config));
+    const baseUrl = stripTrailingSlash(req ? publicImageBaseUrl(req, config) : config?.group?.href || "");
     const committeeConfigDoc = await queryKey(ConfigKey.COMMITTEE);
     const fallbackOrganiser = committeeSecretaryEmail(committeeConfigDoc?.value as CommitteeConfig || null);
     const host = baseUrl.replace(/^https?:\/\//, "") || "ngx-ramblers";

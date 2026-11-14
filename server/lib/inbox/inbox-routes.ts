@@ -10,7 +10,7 @@ import { readPubsubPushConfig, receivePubsubPush, readPushPublicKey, subscribeIn
 import { listInboxAliases, readJunkAccess, updateRoleNotifications, updateRoleNotificationEmail, updateAliasNotifications } from "./inbox-aliases-controllers";
 import { readInboxUnreadCounts, listInboxThreads } from "./inbox-thread-list-controllers";
 import { createInboxFolder, deleteInboxFolder, listInboxFolders, moveThreadsToUserFolder, renameInboxFolder } from "./inbox-folders-controllers";
-import { readInboxThread, readInboxThreadMessage, markThreadRead, markThreadUnread, deleteInboxThread, restoreInboxThread, moveThreadToInbox } from "./inbox-thread-actions-controllers";
+import { readInboxThread, readInboxThreadMessage, readInboxMessageViewInBrowserUrl, markThreadRead, markThreadUnread, deleteInboxThread, restoreInboxThread, moveThreadToInbox } from "./inbox-controllers";
 import { listOrphanedThreads, remapOrphanedThreads, restoreOrphanedThreads } from "./inbox-repair-controllers";
 
 const router = express.Router();
@@ -48,6 +48,7 @@ router.post("/orphaned-threads/restore-to-inbox", authConfig.authenticate(), res
 router.post("/threads/delete", authConfig.authenticate(), permanentlyDeleteSelectedThreads);
 router.get("/threads/:id", authConfig.authenticate(), readInboxThread);
 router.get("/threads/:id/messages/:messageId", authConfig.authenticate(), readInboxThreadMessage);
+router.get("/threads/:id/messages/:messageId/view-in-browser-url", authConfig.authenticate(), readInboxMessageViewInBrowserUrl);
 router.post("/threads/:id/mark-read", authConfig.authenticate(), markThreadRead);
 router.post("/threads/:id/mark-unread", authConfig.authenticate(), markThreadUnread);
 router.post("/threads/:id/calendar-reply", authConfig.authenticate(), sendCalendarReply);

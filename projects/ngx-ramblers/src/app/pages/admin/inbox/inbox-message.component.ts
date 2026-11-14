@@ -10,9 +10,12 @@ import {formatInboxAddress, inboxDisplayedAddressLine, inboxMessageRecipientLine
 import {NumberUtilsService} from "../../../services/number-utils.service";
 import {InboxMessageRenderingService} from "../../../services/inbox/inbox-message-rendering.service";
 import {InboxService} from "../../../services/inbox/inbox.service";
+import {LoggerFactory} from "../../../services/logger-factory.service";
+import {NgxLoggerLevel} from "ngx-logger";
 import {AttachmentPreviewComponent} from "../../../modules/common/attachment-preview/attachment-preview";
 import {HtmlFrameComponent} from "../../../modules/common/html-frame/html-frame.component";
 import {InboxCalendarInviteComponent} from "./inbox-calendar-invite";
+import {hasUnresolvedViewInBrowserLink} from "../../../functions/email-merge-field-urls";
 
 @Component({
   selector: "app-inbox-message",
@@ -110,7 +113,7 @@ import {InboxCalendarInviteComponent} from "./inbox-calendar-invite";
                     @if (loadingFullBody) {
                       <div class="inbox-message-preview text-muted mb-2">Loading full message…</div>
                     }
-                    <app-html-frame class="inbox-message-body" [fitToWidth]="fitToWidth" [html]="renderableBody(message)"/>
+                    <app-html-frame class="inbox-message-body" [fitToWidth]="fitToWidth" [html]="renderableBody(message)" [viewInBrowserUrl]="viewInBrowserUrl"/>
                   </div>
                 }
               </div>
@@ -124,6 +127,9 @@ export class InboxMessageComponent {
   @Input() set initiallyExpanded(value: boolean) {
     this.expanded = value;
     this.opened = value;
+    if (value) {
+      void this.resolveViewInBrowserUrl();
+    }
   }
   @Output() reply = new EventEmitter<InboxMessage>();
   @Output() replyAll = new EventEmitter<InboxMessage>();
@@ -131,8 +137,11 @@ export class InboxMessageComponent {
   private expanded = false;
   private opened = false;
   protected loadingFullBody = false;
+  protected viewInBrowserUrl: string | null = null;
+  private viewInBrowserLoading = false;
   private messageRendering = inject(InboxMessageRenderingService);
   private inboxService = inject(InboxService);
+  private logger = inject(LoggerFactory).createLogger("InboxMessageComponent", NgxLoggerLevel.ERROR);
   protected numberUtils = inject(NumberUtilsService);
   protected readonly InboxMessageDirection = InboxMessageDirection;
   protected readonly UIDateFormat = UIDateFormat;
@@ -160,6 +169,26 @@ export class InboxMessageComponent {
     this.opened = this.opened || this.expanded;
     if (this.expanded && this.message.bodyHtmlDeferred) {
       void this.loadFullBody();
+    } else if (this.expanded) {
+      void this.resolveViewInBrowserUrl();
+    }
+  }
+
+  private async resolveViewInBrowserUrl(): Promise<void> {
+    const resolvable = !!this.message
+      && this.message.direction === InboxMessageDirection.OUTBOUND
+      && !this.message.bodyHtmlDeferred
+      && hasUnresolvedViewInBrowserLink(this.message.bodyHtml ?? "");
+    if (resolvable && !this.viewInBrowserLoading && !this.viewInBrowserUrl) {
+      this.viewInBrowserLoading = true;
+      try {
+        this.viewInBrowserUrl = await this.inboxService.viewInBrowserUrl(this.message.threadId, this.message.messageId);
+      } catch (error) {
+        this.logger.error("view in browser link could not be resolved", error);
+        this.viewInBrowserUrl = null;
+      } finally {
+        this.viewInBrowserLoading = false;
+      }
     }
   }
 
@@ -173,6 +202,7 @@ export class InboxMessageComponent {
         this.message.bodyHtmlDeferred = false;
         this.message.attachments = full.attachments ?? this.message.attachments;
         this.messageRendering.prepareMessage(this.message);
+        void this.resolveViewInBrowserUrl();
       } finally {
         this.loadingFullBody = false;
       }

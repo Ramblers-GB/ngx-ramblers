@@ -67,6 +67,7 @@ import { generatePasswordResetIdForMemberId } from "./send-forgot-password-email
 import { inboxMailboxConnection as inboxMailboxConnectionModel } from "../../mongo/models/inbox-mailbox-connection";
 import { derivedAliasForRoleType, internalEmailsForConnection } from "../../inbox/inbox-aliases";
 import {
+  InboxAttachment,
   InboxMessage,
   InboxMessageDirection,
   InboxReaderProvider
@@ -74,6 +75,7 @@ import {
 import { insertSentCopy } from "../../inbox/gmail-inbox-reader";
 import { recordOutboundMessage, recordOutboundReply } from "../../inbox/inbox-message-import";
 import { compositionSenderEmail, inboxAttachmentsFromComposer } from "../../inbox/inbox-composition-sender";
+import { inboxAttachmentsStoredForSentCopy } from "../../inbox/inbox-attachment-content";
 import { normaliseEmail } from "../../../../projects/ngx-ramblers/src/app/functions/strings";
 import { unbrandedRecipientListsAllowed } from "./unbranded-recipient-lists";
 import { protectedEmailSendError } from "../../salesforce/salesforce-permissions";
@@ -437,7 +439,7 @@ async function recordedSenderEmail(request: BatchTransactionalSendRequest, sentA
   }
 }
 
-async function performInboxWriteback(request: BatchTransactionalSendRequest, emailRequest: SendSmtpEmailRequest, renderedHtmlContent: string, brevoMessageId: string | null, senderRoleType: string | null, currentMemberId: string | null): Promise<void> {
+async function performInboxWriteback(request: BatchTransactionalSendRequest, emailRequest: SendSmtpEmailRequest, renderedHtmlContent: string, brevoMessageId: string | null, senderRoleType: string | null, currentMemberId: string | null, sentCopyAttachments: InboxAttachment[]): Promise<void> {
   const context = request.inboxReplyContext;
   const mailboxRoleType = senderRoleType || context?.senderRoleType || null;
   if (!mailboxRoleType) {
@@ -483,7 +485,7 @@ async function performInboxWriteback(request: BatchTransactionalSendRequest, ema
           sentAt,
           externalSource: mailboxConnectionDoc?.provider ?? InboxReaderProvider.GMAIL_API,
           externalId: gmailInsert.id,
-          attachments: inboxAttachmentsFromComposer(emailRequest.attachments)
+          attachments: sentCopyAttachments
         };
         if (context) {
           await recordOutboundReply(alias, outboundMessage, context.threadId);
@@ -694,6 +696,7 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
 
     progress.entries = [...memberEntries, ...externalEntries];
     progress.startedAt = dateTimeNow().toMillis();
+    const sentCopyAttachments = await inboxAttachmentsStoredForSentCopy(inboxAttachmentsFromComposer(request.attachments));
     const referenceListId = request.narrowListId ?? notifConfig?.defaultListId ?? null;
     const delivery = {
       share: request.sharedToRecipients === true
@@ -781,7 +784,7 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
             entry.sentAt = sentAt;
           });
           progress.sentCount += sharedTo.length;
-          await performInboxWriteback(request, sharedEmailRequest, sharedSendResult.renderedHtmlContent, sharedSendResult?.body?.messageId ?? null, senderRoleType, currentMemberId);
+          await performInboxWriteback(request, sharedEmailRequest, sharedSendResult.renderedHtmlContent, sharedSendResult?.body?.messageId ?? null, senderRoleType, currentMemberId, sentCopyAttachments);
           if (currentMemberId) {
             await externalRecipients.reduce<Promise<void>>(async (acc, recipient) => {
               await acc;
@@ -871,7 +874,7 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
         entry.status = BatchSendEntryStatus.Sent;
         entry.sentAt = dateTimeNow().toMillis();
         progress.sentCount += 1;
-        await performInboxWriteback(request, emailRequest, sendResult.renderedHtmlContent, sendResult?.body?.messageId ?? null, senderRoleType, currentMemberId);
+        await performInboxWriteback(request, emailRequest, sendResult.renderedHtmlContent, sendResult?.body?.messageId ?? null, senderRoleType, currentMemberId, sentCopyAttachments);
         if (item.kind === "external" && currentMemberId) {
           await recordSendUsage({
             email: item.recipient.email,

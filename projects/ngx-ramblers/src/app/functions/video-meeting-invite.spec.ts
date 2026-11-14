@@ -40,6 +40,23 @@ describe("meetingInviteBodyMarkdown", () => {
     expect(body).toContain("## You are invited to the AGM on Thursday 26 November 2026 at 7:00 pm.");
   });
 
+  it("puts the join link in a smaller heading beneath the invitation heading", () => {
+    const body = meetingInviteBodyMarkdown({
+      dateLabel: "Thursday 26 November 2026",
+      timeLabel: "7:00 pm",
+      joinUrl: "https://group.example.org.uk/video-meetings/guest/room-1",
+      location: "Hillside Park",
+      note: "",
+      guestInstructions: "",
+      signoff: "",
+      meetingKind: "AGM"
+    });
+    expect(body).toEqual([
+      "## You are invited to the AGM on Thursday 26 November 2026 at 7:00 pm.",
+      "### We are meeting at Hillside Park. Please join using [this link](https://group.example.org.uk/video-meetings/guest/room-1)."
+    ].join("\n\n"));
+  });
+
   it("includes a short note in the body so the meeting title can stay short", () => {
     const body = meetingInviteBodyMarkdown({
       dateLabel: "Wednesday 2 September 2026",
@@ -84,7 +101,7 @@ describe("meetingInviteBodyMarkdown", () => {
       signoff: ""
     });
     expect(body).toContain("## You are invited to a committee meeting on Wednesday 2 September 2026 at 9:00 am.");
-    expect(body).toContain("We are meeting at Village Hall.");
+    expect(body).toContain("\n\n### We are meeting at Village Hall.\n\n");
     expect(body).not.toContain("this link");
     expect(body).toContain("We look forward to seeing you there.");
   });

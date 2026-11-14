@@ -40,3 +40,38 @@ describe("email frame keyboard shortcuts", () => {
     component.ngOnDestroy();
   });
 });
+
+describe("email frame View in browser link", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function framedDocuments(component: any): string[] {
+    const documents: string[] = [];
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(component, "objectUrlFor").mockImplementation((document: string) => {
+      documents.push(document);
+      return `blob:https://group.example.org.uk/${documents.length}`;
+    });
+    return documents;
+  }
+
+  it("leaves a leftover mirror link inert until the hosted address is known", () => {
+    const component = htmlFrame();
+    const documents = framedDocuments(component);
+    component.html = `<a href="{{ mirror }}">View this email in your browser</a><p>Hello</p>`;
+    expect(documents.length).toBe(1);
+    expect(documents[0]).toContain("<a>View this email in your browser</a><p>Hello</p>");
+    component.ngOnDestroy();
+  });
+
+  it("points the leftover mirror link at the hosted address once it is supplied", () => {
+    const component = htmlFrame();
+    const documents = framedDocuments(component);
+    component.html = `<a href="{{ mirror }}">View this email in your browser</a><p>Hello</p>`;
+    component.viewInBrowserUrl = "https://mail.example.org/tr/cl/hosted";
+    expect(documents.length).toBe(2);
+    expect(documents[1]).toContain(`<a href="https://mail.example.org/tr/cl/hosted">View this email in your browser</a>`);
+    component.viewInBrowserUrl = "https://mail.example.org/tr/cl/hosted";
+    expect(documents.length).toBe(2);
+    component.ngOnDestroy();
+  });
+});

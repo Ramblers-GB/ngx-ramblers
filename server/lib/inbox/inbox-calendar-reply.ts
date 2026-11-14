@@ -5,7 +5,7 @@ import { envConfig } from "../env-config/env-config";
 import { createErrorDebugLog } from "../shared/error-debug-log";
 import { errorResponse } from "../shared/error-response";
 import { dateTimeNow } from "../shared/dates";
-import { objectBufferForKey } from "../aws/aws-controllers";
+import { inboxAttachmentBuffer } from "./inbox-attachment-content";
 import { member as memberModel } from "../mongo/models/member";
 import { inboxThread as inboxThreadModel } from "../mongo/models/inbox-thread";
 import { inboxMessage as inboxMessageModel } from "../mongo/models/inbox-message";
@@ -201,7 +201,7 @@ export async function sendCalendarReply(req: Request, res: Response): Promise<vo
         if (!attachment?.s3Key) {
           res.status(404).json({request: {messageType}, error: "This message has no calendar file to reply to"});
         } else {
-          const source = (await objectBufferForKey(attachment.s3Key)).toString("utf8");
+          const source = (await inboxAttachmentBuffer(attachment)).toString("utf8");
           const invite = parseIcsCalendar(source);
           const event = invite.events[0] ?? null;
           if (!event || !calendarInviteCanRsvp(invite)) {

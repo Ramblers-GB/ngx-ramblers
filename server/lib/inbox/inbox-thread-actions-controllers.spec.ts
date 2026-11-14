@@ -5,7 +5,7 @@ import { InboxThreadFolder } from "../../../projects/ngx-ramblers/src/app/models
 import { inboxMessage } from "../mongo/models/inbox-message";
 import * as context from "./inbox-thread-context";
 import * as deleted from "./inbox-deleted";
-import { deleteInboxThread } from "./inbox-thread-actions-controllers";
+import { deleteInboxThread } from "./inbox-controllers";
 
 describe("deleteInboxThread", () => {
   const sandbox = sinon.createSandbox();

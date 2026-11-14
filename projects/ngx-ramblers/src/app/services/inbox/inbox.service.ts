@@ -250,6 +250,11 @@ export class InboxService {
     return response.response as InboxMessage;
   }
 
+  async viewInBrowserUrl(threadId: string, messageId: string): Promise<string | null> {
+    const response = await this.commonDataService.responseFrom(this.logger, this.http.get<ApiResponse>(`${this.BASE_URL}/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/view-in-browser-url`));
+    return (response.response as string | null) || null;
+  }
+
   async markThreadRead(threadId: string): Promise<void> {
     await this.commonDataService.responseFrom(this.logger, this.http.post<ApiResponse>(`${this.BASE_URL}/threads/${threadId}/mark-read`, {}));
   }

@@ -126,7 +126,8 @@ function meetingInviteOpening(input: {
 }): string {
   const when = `You are invited to ${meetingInviteKindPhrase(input.meetingKind)} on ${input.dateLabel} at ${input.timeLabel}.`;
   const place = (input.location || "").trim();
-  const atVenue = place && !/^online$/i.test(place) ? ` We are meeting at ${place}.` : "";
-  const join = input.joinUrl ? ` Please join using [${MEETING_JOIN_LINK_LABEL}](${input.joinUrl}).` : "";
-  return `## ${when}${atVenue}${join}`;
+  const atVenue = place && !/^online$/i.test(place) ? `We are meeting at ${place}.` : "";
+  const join = input.joinUrl ? `Please join using [${MEETING_JOIN_LINK_LABEL}](${input.joinUrl}).` : "";
+  const howToAttend = [atVenue, join].filter(Boolean).join(" ");
+  return [`## ${when}`, howToAttend ? `### ${howToAttend}` : ""].filter(Boolean).join("\n\n");
 }

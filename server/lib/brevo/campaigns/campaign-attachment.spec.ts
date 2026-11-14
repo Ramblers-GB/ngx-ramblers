@@ -1,6 +1,7 @@
 import expect from "expect";
 import { describe, it } from "mocha";
-import { attachmentExtensionFromUrl, meetingRoomFromAttachmentUrl } from "./campaign-attachment";
+import { attachmentExtensionFromUrl } from "./campaign-attachment";
+import { meetingRoomFromAttachmentUrl } from "../../calendar/calendar-controllers";
 
 describe("campaign attachment URLs", () => {
 

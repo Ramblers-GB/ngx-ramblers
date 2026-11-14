@@ -1,7 +1,7 @@
 import { booleanAttribute, Component, ElementRef, inject, Input, OnDestroy, ViewChild } from "@angular/core";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { isUndefined } from "es-toolkit/compat";
-import { neutraliseUnresolvedMergeFieldUrls } from "../../../functions/email-merge-field-urls";
+import { neutraliseUnresolvedMergeFieldUrls, pointViewInBrowserLinksAt } from "../../../functions/email-merge-field-urls";
 
 @Component({
   selector: "app-html-frame",
@@ -33,6 +33,8 @@ export class HtmlFrameComponent implements OnDestroy {
 
   url: SafeResourceUrl | null = null;
   private objectUrl: string | null = null;
+  private viewInBrowserAddress: string | null = null;
+  private lastViewInBrowserAddress: string | null = null;
   private lastHtml: string | null = null;
   private lastFitToWidth = false;
   private fitContentToWidth = false;
@@ -54,14 +56,25 @@ export class HtmlFrameComponent implements OnDestroy {
     }
   }
 
+  @Input() set viewInBrowserUrl(value: string | null) {
+    this.viewInBrowserAddress = value || null;
+    if (this.lastHtml !== null) {
+      this.renderHtml(this.lastHtml);
+    }
+  }
+
   private renderHtml(next: string): void {
-    const unchanged = next === this.lastHtml && this.fitContentToWidth === this.lastFitToWidth && !!this.url;
+    const unchanged = next === this.lastHtml
+      && this.fitContentToWidth === this.lastFitToWidth
+      && this.viewInBrowserAddress === this.lastViewInBrowserAddress
+      && !!this.url;
     if (!unchanged) {
       this.lastHtml = next;
       this.lastFitToWidth = this.fitContentToWidth;
+      this.lastViewInBrowserAddress = this.viewInBrowserAddress;
       this.focusOwner = document.activeElement;
       this.clearObjectUrl();
-      this.objectUrl = URL.createObjectURL(new Blob([this.wrap(next)], {type: "text/html"}));
+      this.objectUrl = this.objectUrlFor(this.wrap(pointViewInBrowserLinksAt(next, this.viewInBrowserAddress)));
       this.url = this.sanitizer.bypassSecurityTrustResourceUrl(this.objectUrl);
     }
   }
@@ -104,6 +117,10 @@ export class HtmlFrameComponent implements OnDestroy {
     }
     this.boundKeyDocument = null;
     this.frameKeyListener = null;
+  }
+
+  private objectUrlFor(document: string): string {
+    return URL.createObjectURL(new Blob([document], {type: "text/html"}));
   }
 
   private wrap(html: string): string {
@@ -165,8 +182,7 @@ export class HtmlFrameComponent implements OnDestroy {
     if (this.objectUrl) {
       URL.revokeObjectURL(this.objectUrl);
       this.objectUrl = null;
-    }
-  }
+    }  }
 
   private clearObservers(): void {
     this.resizeObserver?.disconnect();

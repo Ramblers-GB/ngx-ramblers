@@ -16,6 +16,8 @@ import { MessageType } from "../../../projects/ngx-ramblers/src/app/models/webso
 import { inboxAccessForMember, requestMember, requireInboxConfigurationAdministrator, requestingMemberId } from "./inbox-access";
 import { defaultTenantSlug, connectionIdentifier as connectionId, derivedAliases, messageAddressEmails, roleIdentityEmailsByType, roleMatchesMessageAddresses } from "./inbox-aliases";
 import { threadUnreadForMember, unreadConversationCountForRole } from "./inbox-unread-counts";
+import { hasUnresolvedViewInBrowserLink } from "../../../projects/ngx-ramblers/src/app/functions/email-merge-field-urls";
+import { viewInBrowserUrlForSentEmail } from "../brevo/transactional-mail/sent-email-view-in-browser-url";
 const messageType = "inbox";
 const debugLog = debug(envConfig.logNamespace(messageType));
 debugLog.enabled = true;
@@ -67,14 +69,38 @@ export async function readInboxThread(req: Request, res: Response): Promise<void
     res.status(500).json({ request: { messageType }, error: errorResponse(error) });
   }
 }
+async function storedThreadMessage(thread: InboxThread, requestedId: string): Promise<InboxMessage | null> {
+  return inboxMessageModel.findOne(isInboxThreadMongoId(requestedId)
+    ? { threadId: inboxThreadId(thread), $or: [{ messageId: requestedId }, { _id: requestedId }] }
+    : { threadId: inboxThreadId(thread), messageId: requestedId }).lean() as Promise<InboxMessage | null>;
+}
+export async function readInboxMessageViewInBrowserUrl(req: Request, res: Response): Promise<void> {
+  try {
+    const thread = await accessibleThread(req, res, req.params.id);
+    if (thread) {
+      const requestedId = req.params.messageId;
+      const stored = await storedThreadMessage(thread, requestedId);
+      if (!stored) {
+        res.status(404).json({ request: { messageType }, error: `Message ${requestedId} not found` });
+      } else {
+        const sentHtml = stored.bodyHtml ?? "";
+        const resolvable = stored.direction === InboxMessageDirection.OUTBOUND && !!stored.messageId && hasUnresolvedViewInBrowserLink(sentHtml);
+        const url = resolvable ? await viewInBrowserUrlForSentEmail(stored.messageId, sentHtml) : null;
+        res.json({ request: { messageType }, response: url });
+      }
+    }
+  }
+  catch (error) {
+    errorDebugLog("Error resolving view in browser link:", (error as Error).message);
+    res.status(500).json({ request: { messageType }, error: errorResponse(error) });
+  }
+}
 export async function readInboxThreadMessage(req: Request, res: Response): Promise<void> {
   try {
     const thread = await accessibleThread(req, res, req.params.id);
     if (thread) {
       const requestedId = req.params.messageId;
-      const stored = await inboxMessageModel.findOne(isInboxThreadMongoId(requestedId)
-        ? { threadId: inboxThreadId(thread), $or: [{ messageId: requestedId }, { _id: requestedId }] }
-        : { threadId: inboxThreadId(thread), messageId: requestedId }).lean() as InboxMessage | null;
+      const stored = await storedThreadMessage(thread, requestedId);
       if (!stored) {
         res.status(404).json({ request: { messageType }, error: `Message ${requestedId} not found` });
       } else {

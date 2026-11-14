@@ -3,7 +3,7 @@ import MailComposer from "nodemailer/lib/mail-composer";
 import { parseHeaderValue } from "nodemailer/lib/mime-funcs";
 import { isNumber, toPairs } from "es-toolkit/compat";
 import { InboxAddress, InboxMessage } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
-import { objectBufferForKey, objectSizeForKey } from "../aws/aws-controllers";
+import { inboxAttachmentBuffer, inboxAttachmentContentAvailable, inboxAttachmentSize } from "../inbox/inbox-attachment-content";
 import { dateTimeFromMillis } from "../shared/dates";
 import { rfc822ForMessage, rfc822MessageId } from "./mail-client-rfc822";
 import { MailClientMessageMetadata, MailClientMimeFetch, MailClientMimeHeader, MailClientMimeMessage, MailClientMimePart } from "./mail-client-mime.model";
@@ -22,11 +22,11 @@ export async function mailClientMimeForMessage(message: MailClientMessageMetadat
     const mime = virtualBody ? mailClientListingMime(message) : mailClientMimeFromBuffer(Buffer.from(rfc822ForMessage(message), "utf8"));
     return mime;
   } else {
-    const attachmentSizes = metadataOnly ? await Promise.all(message.attachments.map(attachment => attachment.s3Key
-      ? attachment.sizeBytes > 0 ? attachment.sizeBytes : objectSizeForKey(attachment.s3Key)
+    const attachmentSizes = metadataOnly ? await Promise.all(message.attachments.map(attachment => inboxAttachmentContentAvailable(attachment)
+      ? inboxAttachmentSize(attachment)
       : null)) : [];
     const attachments = await Promise.all(message.attachments.map(async attachment => {
-      if (!attachment.s3Key) {
+      if (!inboxAttachmentContentAvailable(attachment)) {
         return {
           filename: `${attachment.filename || "attachment"}.unavailable.txt`,
           contentType: "text/plain",
@@ -37,7 +37,7 @@ export async function mailClientMimeForMessage(message: MailClientMessageMetadat
         return {
           filename: attachment.filename || "attachment",
           contentType: attachment.contentType || "application/octet-stream",
-          content: metadataOnly ? Buffer.alloc(0) : await objectBufferForKey(attachment.s3Key),
+          content: metadataOnly ? Buffer.alloc(0) : await inboxAttachmentBuffer(attachment),
           ...(attachment.contentId ? {cid: attachment.contentId.replace(/^<|>$/g, ""), contentDisposition: "inline"} : {contentDisposition: "attachment"})
         };
       }
@@ -74,7 +74,7 @@ function withAttachmentSizes(mime: MailClientMimeMessage, message: InboxMessage,
     const filename = parseHeaderValue(headerValue(part.headers, "content-disposition") || "").params.filename || null;
     const index = remaining.indices.find(candidate => {
       const attachment = message.attachments[candidate];
-      const attachmentId = attachment.s3Key ? (attachment.contentId?.replace(/^<|>$/g, "") || null) : null;
+      const attachmentId = inboxAttachmentContentAvailable(attachment) ? (attachment.contentId?.replace(/^<|>$/g, "") || null) : null;
       const sameContent = attachmentId !== null && contentId !== null && attachmentId === contentId;
       const sameFile = (disposition === "attachment" || disposition === "inline") && filename !== null && attachment.filename === filename;
       return sameContent || sameFile;

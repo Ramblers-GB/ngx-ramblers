@@ -4,12 +4,10 @@ import { S3_BASE_URL } from "../../../../projects/ngx-ramblers/src/app/models/co
 import { RootFolder } from "../../../../projects/ngx-ramblers/src/app/models/system.model";
 import { putBufferDirect } from "../../aws/aws-controllers";
 import { generateAwsFileName, isAwsUploadErrorResponse } from "../../aws/aws-utils";
-import { meetingCalendarFile } from "../../calendar/calendar-controllers";
+import { meetingCalendarFile, meetingRoomFromAttachmentUrl } from "../../calendar/calendar-controllers";
 import { systemConfig } from "../../config/system-config";
 import { publicImageBaseUrl } from "../../social/public-base-url";
 import { stripTrailingSlash } from "../../../../projects/ngx-ramblers/src/app/functions/strings";
-
-const MEETING_CALENDAR_PATH = /\/api\/calendar\/meeting\/([^/?#]+)/i;
 
 export function attachmentExtensionFromUrl(url: string): string {
   try {
@@ -20,11 +18,6 @@ export function attachmentExtensionFromUrl(url: string): string {
   } catch {
     return "";
   }
-}
-
-export function meetingRoomFromAttachmentUrl(url: string): string | null {
-  const match = (url || "").match(MEETING_CALENDAR_PATH);
-  return match ? decodeURIComponent(match[1].replace(/\.ics$/i, "")) : null;
 }
 
 function localAttachmentHost(url: string): boolean {

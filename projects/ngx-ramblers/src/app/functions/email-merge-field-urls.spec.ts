@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { neutraliseUnresolvedMergeFieldUrls } from "./email-merge-field-urls";
+import { hasUnresolvedViewInBrowserLink, neutraliseUnresolvedMergeFieldUrls, pointViewInBrowserLinksAt, viewInBrowserUrlFromDeliveredHtml } from "./email-merge-field-urls";
 
 describe("neutraliseUnresolvedMergeFieldUrls", () => {
   it("removes a Brevo mirror href so a site base tag cannot resolve it", () => {
@@ -27,5 +27,41 @@ describe("neutraliseUnresolvedMergeFieldUrls", () => {
   it("leaves ordinary site and https links alone", () => {
     const html = `<a href="https://group.example.org.uk/walks">Walks</a><img src="/api/aws/s3/banner.jpg">`;
     expect(neutraliseUnresolvedMergeFieldUrls(html)).toEqual(html);
+  });
+});
+
+describe("pointViewInBrowserLinksAt", () => {
+  it("points a leftover mirror link at the given address and keeps its styling", () => {
+    const html = `<a href="{{ mirror }}" style="color: #757575;">View this email in your browser</a>`;
+    expect(pointViewInBrowserLinksAt(html, "https://mail.example.org/tr/cl/abc"))
+      .toEqual(`<a href="https://mail.example.org/tr/cl/abc" style="color: #757575;">View this email in your browser</a>`);
+  });
+
+  it("leaves other merge-field links and ordinary links untouched", () => {
+    const html = `<a href="{{ unsubscribe }}">Unsubscribe</a><a href="https://group.example.org.uk/walks">Walks</a>`;
+    expect(pointViewInBrowserLinksAt(html, "https://mail.example.org/tr/cl/abc")).toEqual(html);
+  });
+
+  it("recognises a leftover mirror link and ignores one already resolved by the mail service", () => {
+    expect(hasUnresolvedViewInBrowserLink(`<a href="{{mirror}}">View</a>`)).toBe(true);
+    expect(hasUnresolvedViewInBrowserLink(`<a href='#view-in-browser'>View</a>`)).toBe(true);
+    expect(hasUnresolvedViewInBrowserLink(`<a href="https://mail.example.org/tr/cl/abc">View</a>`)).toBe(false);
+  });
+});
+
+describe("viewInBrowserUrlFromDeliveredHtml", () => {
+  const sent = `<a href="{{ mirror }}" style="color: #757575;">View this email in your browser</a><a href="https://group.example.org.uk/walks">Walks</a>`;
+
+  it("reads the hosted address the mail service put on the same link", () => {
+    const delivered = `<a href="https://mail.example.org/tr/cl/walks">Walks</a><a href="https://mail.example.org/tr/cl/hosted" style="color: #757575;">View this email in your browser</a>`;
+    expect(viewInBrowserUrlFromDeliveredHtml(sent, delivered)).toEqual("https://mail.example.org/tr/cl/hosted");
+  });
+
+  it("returns nothing when the delivered copy has no matching link", () => {
+    expect(viewInBrowserUrlFromDeliveredHtml(sent, `<a href="https://mail.example.org/tr/cl/walks">Walks</a>`)).toBeNull();
+  });
+
+  it("returns nothing when the sent copy has no leftover link to resolve", () => {
+    expect(viewInBrowserUrlFromDeliveredHtml(`<p>Hello</p>`, `<a href="https://mail.example.org/tr/cl/hosted">View this email in your browser</a>`)).toBeNull();
   });
 });
