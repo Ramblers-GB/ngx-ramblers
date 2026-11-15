@@ -163,27 +163,61 @@ export function stripRepeatedPageFurniture(text: string, pageCount: number): str
 }
 
 function startsNewBlock(line: string): boolean {
-  return /^([-*•]\s|\d+[.)]\s|#{1,6}\s|>\s|\||!\[)/.test(line);
+  return /^\s*([-*•]\s|\d+[.)]\s|#{1,6}\s|>\s|\||!\[)/.test(line);
+}
+
+const LIST_MARKER = /^(?:\*\*)?([•▪◦‣·●○■□-])(?:\*\*)?\s*(.*)$/;
+const NESTED_LIST_MARKER = /[◦▪‣○□]/;
+
+function normaliseBulletLine(line: string): string {
+  const marker = line.match(LIST_MARKER);
+  if (marker) {
+    const prefix = NESTED_LIST_MARKER.test(marker[1]) ? "  - " : "- ";
+    return `${prefix}${marker[2]}`;
+  } else {
+    return line;
+  }
+}
+
+function isEmphasisOnlyLine(line: string): boolean {
+  return /^\*\*[^*]+\*\*$/.test(line.trim());
+}
+
+function isHyphenWrap(previous: string, line: string): boolean {
+  return /[A-Za-z0-9]-$/.test(previous) && /^[A-Za-z]/.test(line);
 }
 
 const WRAPPED_LINE_MIN_LENGTH = 60;
 
 function shouldJoinToPrevious(previous: string, line: string): boolean {
-  const previousComplete = /[.!?:;)]$/.test(previous) || /^#/.test(previous);
-  const previousIsListItem = startsNewBlock(previous);
+  const previousComplete = /[.!?:;)]$/.test(previous) || /^#{1,6}\s/.test(previous) || isEmphasisOnlyLine(previous);
   const lowercaseContinuation = /^[a-z0-9£$(]/.test(line);
-  const wrappedContinuation = lowercaseContinuation || previous.length >= WRAPPED_LINE_MIN_LENGTH;
-  return !previousComplete && !startsNewBlock(line) && (previousIsListItem ? lowercaseContinuation : wrappedContinuation);
+  const listContinuation = lowercaseContinuation || isHyphenWrap(previous, line);
+  const wrappedContinuation = listContinuation || previous.length >= WRAPPED_LINE_MIN_LENGTH;
+  return !previousComplete && !startsNewBlock(line) && (startsNewBlock(previous) ? listContinuation : wrappedContinuation);
+}
+
+function preparedLine(rawLine: string): string {
+  const withoutTabs = rawLine.replace(/\t/g, " ");
+  const nestedMarkdown = /^ {2,}- /.test(withoutTabs);
+  const collapsed = withoutTabs.replace(/(\S) {2,}/g, "$1 ").trim();
+  const withBullets = normaliseBulletLine(collapsed);
+  if (nestedMarkdown && withBullets.startsWith("- ")) {
+    return `  ${withBullets}`;
+  } else {
+    return withBullets;
+  }
 }
 
 export function joinWrappedLines(text: string): string {
   const paragraphs = text.split("\n").reduce((accumulated: string[], rawLine) => {
-    const line = rawLine.replace(/\t/g, " ").replace(/ {2,}/g, " ").trim().replace(/^[•▪◦‣·-]\s*/, "- ");
+    const line = preparedLine(rawLine);
     const previous = accumulated.length > 0 ? accumulated[accumulated.length - 1] : "";
     if (line.length === 0) {
       return accumulated;
     } else if (previous !== "" && shouldJoinToPrevious(previous, line)) {
-      return [...accumulated.slice(0, -1), `${previous} ${line}`];
+      const joined = isHyphenWrap(previous, line) ? `${previous}${line}` : `${previous} ${line}`;
+      return [...accumulated.slice(0, -1), joined];
     } else {
       return [...accumulated, line];
     }
@@ -244,6 +278,22 @@ export function promoteMinutesHeadings(markdown: string): string {
     .join("\n");
 }
 
+const OWNER_HEADING = /^[^:\n#]{2,50}:?\s*\/\s*[A-Z][A-Za-z' -]{0,30}$/;
+
+export function promoteOwnerHeadings(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map(line => {
+      const trimmed = line.trim();
+      const headingCandidate = trimmed.length > 0
+        && trimmed.length <= SECTION_HEADING_MAX_LENGTH
+        && OWNER_HEADING.test(trimmed)
+        && !startsNewBlock(trimmed);
+      return headingCandidate ? `## ${trimmed}` : line;
+    })
+    .join("\n");
+}
+
 export function boldLabelLines(markdown: string): string {
   return markdown
     .split("\n")
@@ -274,8 +324,9 @@ export function pdfTextToMarkdown(text: string, pageCount: number): string {
   return joinWrappedLines(
     boldLabelLines(
       promotePdfSectionHeadings(
-        promoteMinutesHeadings(
-          stripRepeatedPageFurniture(text || "", pageCount)))));
+        promoteOwnerHeadings(
+          promoteMinutesHeadings(
+            stripRepeatedPageFurniture(text || "", pageCount))))));
 }
 
 export function postProcessConvertedMarkdown(markdown: string): DocumentConversionResponse {

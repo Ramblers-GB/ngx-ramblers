@@ -68,6 +68,9 @@ const TITLE_SIZE_RATIO = 1.6;
 const HEADING_SIZE_RATIO = 1.2;
 const EMPHASIS_SIZE_RATIO_MIN = 0.9;
 const EMPHASIS_SIZE_RATIO_MAX = 1.15;
+const BULLET_OR_PUNCTUATION = /^[•▪◦‣·●○■□(),.;:|\-\s]*$/;
+const LIST_MARKER = /^(?:\*\*)?([•▪◦‣·●○■□])(?:\*\*)?\s*(.*)$/;
+const NESTED_LIST_MARKER = /[◦▪‣○□]/;
 
 function linesFromTextContent(items: any[]): StyledLine[] {
   const lines = items
@@ -132,12 +135,22 @@ function lineText(line: StyledLine, isEmphasis: (run: StyledRun) => boolean, bod
       const trimmed = segment.text.trim();
       const leading = segment.text.startsWith(" ") ? " " : "";
       const trailing = segment.text.endsWith(" ") ? " " : "";
-      const punctuationOnly = /^[(),.;:|\-\s]*$/.test(trimmed);
+      const punctuationOnly = BULLET_OR_PUNCTUATION.test(trimmed);
       return segment.emphasis && trimmed.length > 0 && !punctuationOnly ? `${leading}**${trimmed}**${trailing}` : segment.text;
     })
     .join("")
     .replace(/ {2,}/g, " ")
     .trim();
+}
+
+function asListLine(text: string): string {
+  const marker = text.match(LIST_MARKER);
+  if (marker) {
+    const prefix = NESTED_LIST_MARKER.test(marker[1]) ? "  - " : "- ";
+    return `${prefix}${marker[2]}`;
+  } else {
+    return text;
+  }
 }
 
 function cellCount(line: StyledLine): number {
@@ -190,6 +203,7 @@ export async function extractStyledPdfMarkdown(buffer: Buffer, includeImages = t
     const body = dominantBodyStyle(pageLines);
     debugLog("dominant body style:", body);
     const isEmphasis = (run: StyledRun) => run.fontName !== body.fontName
+      && !BULLET_OR_PUNCTUATION.test(run.text.trim())
       && run.size >= body.size * EMPHASIS_SIZE_RATIO_MIN
       && run.size <= body.size * EMPHASIS_SIZE_RATIO_MAX;
     const headingSizes = pageLines.flat()
@@ -209,7 +223,7 @@ export async function extractStyledPdfMarkdown(buffer: Buffer, includeImages = t
             } else if (body.size > 0 && line.maxSize >= body.size * HEADING_SIZE_RATIO) {
               return `## ${plain}`;
             } else {
-              return lineText(line, isEmphasis, body.size);
+              return asListLine(lineText(line, isEmphasis, body.size));
             }
           })
           .join("\n");

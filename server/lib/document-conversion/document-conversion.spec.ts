@@ -47,6 +47,33 @@ describe("website table conversion", () => {
 });
 
 describe("PDF conversion without an image destination", () => {
+  it("converts bullet glyphs and a bold title without joining the following paragraph", async () => {
+    const sandbox = sinon.createSandbox();
+    const items = [
+      {str: "Minutes of the Hillside Park AGM", fontName: "TitleBold", height: 20, width: 220, transform: [20, 0, 0, 20, 70, 760]},
+      {str: "A questionnaire given out to attendees.", fontName: "Body", height: 12, width: 240, transform: [12, 0, 0, 12, 70, 730]},
+      {str: "•", fontName: "Symbol", height: 12, width: 8, transform: [12, 0, 0, 12, 90, 700]},
+      {str: "Festival and Social were fundraisers", fontName: "Body", height: 12, width: 200, transform: [12, 0, 0, 12, 110, 700]},
+      {str: "•", fontName: "Symbol", height: 12, width: 8, transform: [12, 0, 0, 12, 90, 680]},
+      {str: "Local projects still have funds available", fontName: "Body", height: 12, width: 220, transform: [12, 0, 0, 12, 110, 680]}
+    ];
+    sandbox.stub(PDFParse.prototype, "getInfo").callsFake(async function () {
+      (this as any).doc = {numPages: 1, getPage: async () => ({getTextContent: async () => ({items})})};
+      return {} as any;
+    });
+    sandbox.stub(PDFParse.prototype, "destroy").resolves();
+    try {
+      const result = await convertBufferToMarkdown(Buffer.from("example"), "agm-minutes.pdf");
+      expect(result.markdown).toContain("# Minutes of the Hillside Park AGM");
+      expect(result.markdown).toContain("A questionnaire given out to attendees.");
+      expect(result.markdown).toContain("- Festival and Social were fundraisers");
+      expect(result.markdown).toContain("- Local projects still have funds available");
+      expect(result.markdown).not.toContain("**•**");
+    } finally {
+      sandbox.restore();
+    }
+  });
+
   it("keeps table text without waiting for image extraction or rendering", async () => {
     const sandbox = sinon.createSandbox();
     const items = ["Route", "Distance", "Grade"].flatMap((label, row) =>

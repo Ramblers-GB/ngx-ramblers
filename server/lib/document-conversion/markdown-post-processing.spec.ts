@@ -10,6 +10,7 @@ import {
   isolateImportedImages,
   postProcessConvertedMarkdown,
   promoteMinutesHeadings,
+  promoteOwnerHeadings,
   promotePdfLeadingTitle,
   promoteLeadingBoldLineToHeading,
   promotePdfSectionHeadings,
@@ -226,6 +227,26 @@ describe("joinWrappedLines", () => {
     expect(joinWrappedLines(input)).toEqual("Upcoming events\n\n- Mar 5 - Fire Walk at Aylesford\n\n- Apr 2 - Quiz Night");
   });
 
+  it("converts bold-wrapped PDF bullets to list items and does not join them together", () => {
+    const input = "Concerns over\n**•** threats to Solar Panel Farms around the area including local fields\n**•** Broadoak reservoir, 6 rights of way and 2 useful tracks, in consultation";
+    expect(joinWrappedLines(input)).toEqual("Concerns over\n\n- threats to Solar Panel Farms around the area including local fields\n\n- Broadoak reservoir, 6 rights of way and 2 useful tracks, in consultation");
+  });
+
+  it("treats nested hollow bullets as indented list items", () => {
+    const input = "**•** election of Committee\n**◦** Alex Reed and Sam Green re-elected\n**◦** Jordan Hale elected as Walk Co-ordinator";
+    expect(joinWrappedLines(input)).toEqual("- election of Committee\n\n  - Alex Reed and Sam Green re-elected\n\n  - Jordan Hale elected as Walk Co-ordinator");
+  });
+
+  it("does not join a following paragraph onto a fully bold title line", () => {
+    const input = "**Minutes of the Hillside Park AGM ~ Sunday 16th November 2025**\nA questionnaire given out to all attendees to fill in with their comments.";
+    expect(joinWrappedLines(input)).toEqual("**Minutes of the Hillside Park AGM ~ Sunday 16th November 2025**\n\nA questionnaire given out to all attendees to fill in with their comments.");
+  });
+
+  it("rejoins a hyphenated wrap without inserting a space", () => {
+    const input = "- Future of the Facebook page not certain, 499 members / followers but majority are non-\nRamblers so is it missing its purpose.";
+    expect(joinWrappedLines(input)).toEqual("- Future of the Facebook page not certain, 499 members / followers but majority are non-Ramblers so is it missing its purpose.");
+  });
+
   it("rejoins a wrapped continuation onto a list item", () => {
     const input = "- Images can be imported from Walks Manager if they are on Ramblers but not local site (Peter Dixon\nwalk for example)";
     expect(joinWrappedLines(input)).toEqual("- Images can be imported from Walks Manager if they are on Ramblers but not local site (Peter Dixon walk for example)");
@@ -268,6 +289,18 @@ describe("boldLabelLines", () => {
 
   it("leaves sentences containing colons later in the line alone", () => {
     expect(boldLabelLines("The agreed outcome of the meeting was that everyone: agreed")).toEqual("The agreed outcome of the meeting was that everyone: agreed");
+  });
+});
+
+describe("promoteOwnerHeadings", () => {
+  it("promotes short role-and-name lines that use a slash", () => {
+    expect(promoteOwnerHeadings("Chairs Report: / Alex")).toEqual("## Chairs Report: / Alex");
+    expect(promoteOwnerHeadings("Treasurers Report / Sam")).toEqual("## Treasurers Report / Sam");
+    expect(promoteOwnerHeadings("Website and Facebook / Jordan")).toEqual("## Website and Facebook / Jordan");
+  });
+
+  it("leaves label lines that mention two people after a colon alone", () => {
+    expect(promoteOwnerHeadings("Approval last minutes: Graham ? / Elizabeth Treweeks")).toEqual("Approval last minutes: Graham ? / Elizabeth Treweeks");
   });
 });
 
@@ -332,5 +365,36 @@ describe("pdfTextToMarkdown", () => {
   it("strips page furniture then joins wrapped lines", () => {
     const input = "Anytown Walking Group\nFebruary 2026 Committee\nDraft Minutes\nBody line one that wraps onto\nanother line.\nAnytown Walking Group\nMore content here.\nAnytown Walking Group\nFinal words.";
     expect(pdfTextToMarkdown(input, 3)).toEqual("February 2026 Committee\n\n## Draft Minutes\n\nBody line one that wraps onto another line.\n\nMore content here.\n\nFinal words.");
+  });
+
+  it("turns AGM-style bullets, wraps and owner lines into headings and lists", () => {
+    const input = [
+      "**Minutes of the Hillside Park AGM ~ Sunday 16th November 2025**",
+      "A questionnaire given out to all attendees to fill in with their",
+      "comments and suggestions about their involvement in the future of the group.",
+      "Chairs Report: / Alex",
+      "Concerns over",
+      "**•** threats to Solar Panel Farms around the area including local fields",
+      "**•** reservoir plans, 6 rights of way and 2 useful tracks, in consultation",
+      "Treasurers Report / Sam",
+      "Circulated year accounts",
+      "**•** Festival and Social were fundraisers",
+      "AOB",
+      "**•** election of Committee",
+      "**◦** Alex Reed and Sam Green re-elected",
+      "The meeting was then closed and a talk given as “The Friends of Old",
+      "Park and Chequers Wood”"
+    ].join("\n");
+    const markdown = pdfTextToMarkdown(input, 1);
+    expect(markdown).toContain("**Minutes of the Hillside Park AGM ~ Sunday 16th November 2025**");
+    expect(markdown).toContain("A questionnaire given out to all attendees to fill in with their comments and suggestions about their involvement in the future of the group.");
+    expect(markdown).toContain("## Chairs Report: / Alex");
+    expect(markdown).toContain("- threats to Solar Panel Farms around the area including local fields");
+    expect(markdown).toContain("- reservoir plans, 6 rights of way and 2 useful tracks, in consultation");
+    expect(markdown).toContain("## Treasurers Report / Sam");
+    expect(markdown).toContain("## AOB");
+    expect(markdown).toContain("  - Alex Reed and Sam Green re-elected");
+    expect(markdown).toContain("The meeting was then closed and a talk given as “The Friends of Old Park and Chequers Wood”");
+    expect(markdown).not.toContain("**•**");
   });
 });
