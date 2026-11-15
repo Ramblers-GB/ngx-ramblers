@@ -74,6 +74,8 @@ iframe
   padding: 13px 10px 20px 15px
   min-width: 0
   max-width: 100%
+  container-type: inline-size
+  container-name: column-edit
 
   > .thumbnail-heading.thumbnail-heading-column
     display: inline-flex
@@ -82,6 +84,7 @@ iframe
     gap: 8px
     width: auto
     max-width: 100%
+    min-width: 0
     line-height: 1
 
     > .column-heading-label
@@ -96,6 +99,8 @@ iframe
       align-items: center
       gap: 6px
       flex: 0 0 auto
+      min-width: 0
+      max-width: 100%
       margin: 0
       padding: 0
       line-height: 1
@@ -117,6 +122,51 @@ iframe
         margin-bottom: 0
         margin-right: 0
         vertical-align: middle
+
+@container column-edit (max-width: 480px)
+  .thumbnail-heading.thumbnail-heading-column-expanded
+    display: flex
+    flex-direction: column
+    align-items: stretch
+    background-color: transparent
+    width: 100%
+    max-width: 100%
+    padding: 0
+
+    > .column-heading-label
+      align-self: flex-start
+      background-color: white
+      padding: 0 6px
+      width: auto
+      max-width: max-content
+
+    > .column-heading-actions
+      flex-direction: column
+      align-items: stretch
+      flex: 1 1 100%
+      width: 100%
+
+      > *
+        width: 100%
+        display: block
+
+      > .drag-handle
+        width: auto
+        align-self: flex-start
+
+      app-badge-button,
+      app-image-actions-dropdown,
+      app-actions-dropdown
+        display: block
+        width: 100%
+
+      .badge-button,
+      .badge-button-active,
+      .btn-group,
+      .dropdown-toggle
+        width: 100%
+        max-width: 100%
+        box-sizing: border-box
 
 .thumbnail-site-edit-top-bottom-margins
   @extend .thumbnail-site-edit

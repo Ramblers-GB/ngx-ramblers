@@ -46,6 +46,7 @@ import { MarginSelectComponent } from "./dynamic-content-margin-select";
 import { FALLBACK_MEDIA } from "../../../models/walk.model";
 import { AspectRatioSelectorComponent } from "../../../carousel/edit/aspect-ratio-selector/aspect-ratio-selector";
 import { ImageActionsDropdownComponent } from "./image-actions-dropdown";
+import { CmsImagePickerImage } from "../../../models/cms-image-picker.model";
 import { FileUtilsService } from "../../../file-utils.service";
 import { RowTypeSelectorComponent } from "./row-type-selector";
 import { FragmentService } from "../../../services/fragment.service";
@@ -201,7 +202,9 @@ import { ClipboardService } from "../../../services/clipboard.service";
                        [class.thumbnail-site-edit-content-active]="controlsShown(column)"
                        (dragover)="onColumnDragOver($event, rowIndex, columnIndex)"
                        (drop)="onColumnDrop($event, columnIndex)">
-                    <div class="thumbnail-heading thumbnail-heading-column" [attr.draggable]="true"
+                    <div class="thumbnail-heading thumbnail-heading-column"
+                         [class.thumbnail-heading-column-expanded]="controlsShown(column)"
+                         [attr.draggable]="true"
                          (dragstart)="onColumnDragStart($event, rowIndex, columnIndex)"
                          [tooltip]="actions.columnDragTooltip(rowIndex, columnIndex, isNestedLevel(), parentColumnIndex)"
                          [isOpen]="!!actions.columnDragTooltip(rowIndex, columnIndex, isNestedLevel(), parentColumnIndex)"
@@ -236,12 +239,16 @@ import { ClipboardService } from "../../../services/clipboard.service";
                                             [tooltip]="'Join with row below'"/>
                         }
                         @if (controlsShown(column) && !isNarrow(column)) {
-                          <app-image-actions-dropdown [fullWidth]="false" [hasImage]="!!column.imageSource"
+                          <app-image-actions-dropdown [fullWidth]="false"
+                                                      [instanceId]="imageActionsId(rowIndex, columnIndex)"
+                                                      [hasImage]="!!column.imageSource"
                                                       [hasFixedHeight]="!!column.imageHeight"
+                                                      [currentImageSrc]="column.imageSource"
                                                       (edit)="editImage(rowIndex, columnIndex)"
                                                       (replace)="replaceImage(column, rowIndex, columnIndex)"
                                                       (remove)="removeImage(column)"
-                                                      (clearHeight)="column.imageHeight = null"/>
+                                                      (clearHeight)="column.imageHeight = null"
+                                                      (websiteImage)="applyWebsiteImage(column, $event)"/>
                           <app-actions-dropdown [columnIndex]="columnIndex" [rowIndex]="rowIndex"
                                                 [pageContent]="pageContent" [column]="column" [row]="row"
                                                 [fullWidth]="false" [showRowActions]="false"/>
@@ -264,7 +271,7 @@ import { ClipboardService } from "../../../services/clipboard.service";
                             [preloadImage]="imageSource(rowIndex, columnIndex, column.imageSource)"
                             [cropperPosition]="column.imageCropperPosition"
                             (cropperPositionChange)="cropperPositionChanged(column, $event)"
-                            nonDestructive
+                            [nonDestructive]="false"
                             wrapButtons>
                           </app-image-cropper-and-resizer>
                         </div>
@@ -328,7 +335,9 @@ import { ClipboardService } from "../../../services/clipboard.service";
                         </select>
                       </ng-template>
                       <ng-template #cardImageBlock>
-                        <div class="column-image-frame">
+                        <div class="column-image-frame"
+                             (click)="onColumnImageClick($event, column, rowIndex, columnIndex)"
+                             (dblclick)="onColumnImageDblClick($event, rowIndex, columnIndex)">
                           <app-card-image class="w-100"
                                           [borderRadius]="column.imageBorderRadius"
                                           [padding]="column.imagePadding"
@@ -349,6 +358,8 @@ import { ClipboardService } from "../../../services/clipboard.service";
                               resizeHint="Drag to change the image height"
                               (sizeChange)="onImageHeightChange(column, $event)"
                               (sizeClear)="column.imageHeight = null"
+                              (click)="$event.stopPropagation()"
+                              (dblclick)="$event.stopPropagation()"
                               compact/>
                           }
                         </div>
@@ -484,12 +495,16 @@ import { ClipboardService } from "../../../services/clipboard.service";
                         @if (isNarrow(column)) {
                           <div class="d-flex gap-2 mt-2" [ngClass]="'flex-column'">
                             <div class="w-100">
-                              <app-image-actions-dropdown [fullWidth]="true" [hasImage]="!!column.imageSource"
+                              <app-image-actions-dropdown [fullWidth]="true"
+                                                          [instanceId]="imageActionsId(rowIndex, columnIndex)"
+                                                          [hasImage]="!!column.imageSource"
                                                           [hasFixedHeight]="!!column.imageHeight"
+                                                          [currentImageSrc]="column.imageSource"
                                                           (edit)="editImage(rowIndex, columnIndex)"
                                                           (replace)="replaceImage(column, rowIndex, columnIndex)"
                                                           (remove)="removeImage(column)"
-                                                          (clearHeight)="column.imageHeight = null"/>
+                                                          (clearHeight)="column.imageHeight = null"
+                                                          (websiteImage)="applyWebsiteImage(column, $event)"/>
                             </div>
                             <div class="w-100">
                               <app-actions-dropdown [columnIndex]="columnIndex" [rowIndex]="rowIndex"
@@ -888,6 +903,7 @@ export class DynamicContentSiteEditTextRowComponent implements OnInit {
   faLayerGroup = faLayerGroup;
   public pageContentEditEvents: PageContentEditEvent[] = [];
   private uniqueCheckboxId: string;
+  private imageClickTimer = {id: null as ReturnType<typeof setTimeout>};
   private controlsVisible = new WeakMap<PageContentColumn, boolean>();
   private textEditorRevealed = new WeakMap<PageContentColumn, boolean>();
   private textEditorAwaitingFocus: PageContentColumn = null;
@@ -975,6 +991,34 @@ export class DynamicContentSiteEditTextRowComponent implements OnInit {
     })?.image || imageSource;
   }
 
+  imageActionsId(rowIndex: number, columnIndex: number): string {
+    return `${rowIndex}-${columnIndex}`;
+  }
+
+  onColumnImageClick(event: MouseEvent, column: PageContentColumn, rowIndex: number, columnIndex: number) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.editActive(rowIndex, columnIndex)) {
+      if (this.imageClickTimer.id) {
+        clearTimeout(this.imageClickTimer.id);
+      }
+      this.imageClickTimer.id = setTimeout(() => {
+        this.imageClickTimer.id = null;
+        this.toggleControls(column);
+      }, 250);
+    }
+  }
+
+  onColumnImageDblClick(event: MouseEvent, rowIndex: number, columnIndex: number) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.imageClickTimer.id) {
+      clearTimeout(this.imageClickTimer.id);
+      this.imageClickTimer.id = null;
+    }
+    this.editImage(rowIndex, columnIndex);
+  }
+
   editImage(rowIndex: number, columnIndex: number) {
     this.pageContentEditEvents = this.pageContentEditService.handleEvent({
       path: this.pageContent.path,
@@ -1003,6 +1047,10 @@ export class DynamicContentSiteEditTextRowComponent implements OnInit {
   replaceImage(column: PageContentColumn, rowIndex: number, columnIndex: number) {
     column.imageSource = null;
     this.editImage(rowIndex, columnIndex);
+  }
+
+  applyWebsiteImage(column: PageContentColumn, image: CmsImagePickerImage) {
+    column.imageSource = image.src;
   }
 
   imageChanged(rowIndex: number, columnIndex: number, awsFileData: AwsFileData) {

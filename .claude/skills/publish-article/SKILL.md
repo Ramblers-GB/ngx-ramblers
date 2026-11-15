@@ -87,6 +87,10 @@ To add a hero image above article text, set both `imageSource` and `contentText`
 ### Action Buttons Pattern
 **WARNING:** ACTION_BUTTONS `href` does NOT support query parameters (e.g., `?contact-us&role=...`). For contact links or any query-param-based navigation, use nested TEXT rows with `styles: { class: "as-button" }` instead. See the `update-cms-page` skill for the nested row card pattern.
 
+Every card needs a graphic: set `icon` to a Font Awesome key already used on the site (`faBars`, `faMap`, `faUsers`, `faFileImport`, `faLock`) **or** set `imageSource`. A card with neither leaves a blank slot on how-to index pages. Do not add a new card without one of those two.
+
+CMS page paths, navbar Web Url values, and `href` fields never start with `/`. Write `committee` and `committee/2026`. Keep a leading slash only on full site URLs and on Markdown destinations that are actual browser routes (`/admin/...`).
+
 ```typescript
 {
   type: PageContentType.ACTION_BUTTONS,
@@ -94,8 +98,8 @@ To add a hero image above article text, set both `imageSource` and `contentText`
   maxColumns: 3,
   columns: [{
     title: "Card Title",
-    href: "path/to/page",  // path only, no query params
-    imageSource: "site-content/uuid.jpg",
+    href: "path/to/page",
+    icon: "faBars",
     imageBorderRadius: 6,
     contentText: "Card description",
     accessLevel: "public",

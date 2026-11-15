@@ -24,14 +24,18 @@ export class CmsPageImageService {
       ? await this.pageContentService.all({criteria: {path: {$regex: pathPrefix}}, sort: {path: -1}, limit: 0})
       : [];
     const startingPageOrder = new Map(normalisedPaths.map((path, index) => [path, index]));
-    return uniqBy([...startingPages, ...nearbyPages].filter(Boolean), page => page.path)
-      .map(page => this.pageWithImages(page))
-      .filter(page => page.images.length > 0)
-      .sort((left, right) => {
-        const leftRank = startingPageOrder.get(left.path) ?? Number.MAX_SAFE_INTEGER;
-        const rightRank = startingPageOrder.get(right.path) ?? Number.MAX_SAFE_INTEGER;
-        return leftRank === rightRank ? right.path.localeCompare(left.path) : leftRank - rightRank;
-      });
+    return this.pagesWithImages([...startingPages, ...nearbyPages]).sort((left, right) => {
+      const leftRank = startingPageOrder.get(left.path) ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = startingPageOrder.get(right.path) ?? Number.MAX_SAFE_INTEGER;
+      return leftRank === rightRank ? right.path.localeCompare(left.path) : leftRank - rightRank;
+    });
+  }
+
+  async pagesForPicker(startingPagePaths: string[]): Promise<CmsImagePickerPage[]> {
+    const nearby = await this.pagesNear(startingPagePaths);
+    const rest = this.pagesWithImages(await this.pageContentService.all({sort: {path: 1}, limit: 0}));
+    const nearbyPaths = new Set(nearby.map(page => page.path));
+    return [...nearby, ...rest.filter(page => !nearbyPaths.has(page.path))];
   }
 
   imagesFromPage(page: PageContent): CmsImagePickerImage[] {
@@ -42,6 +46,12 @@ export class CmsPageImageService {
       alt: pageLabel,
       pagePath: page.path
     }));
+  }
+
+  private pagesWithImages(pages: PageContent[]): CmsImagePickerPage[] {
+    return uniqBy((pages ?? []).filter(Boolean), page => page.path)
+      .map(page => this.pageWithImages(page))
+      .filter(page => page.images.length > 0);
   }
 
   private pageWithImages(page: PageContent): CmsImagePickerPage {

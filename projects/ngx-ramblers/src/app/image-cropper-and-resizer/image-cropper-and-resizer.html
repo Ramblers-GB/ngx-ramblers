@@ -25,13 +25,19 @@
     }
     <input #fileElement class="d-none" type="file" ng2FileSelect multiple (onFileSelected)="onFileSelect($event)"
            [uploader]="uploader">
-    <div class="col-6">
+    <div class="col-sm-4">
       <app-badge-button fullWidth [disabled]="notifyTarget.busy"
                         [icon]="faFile"
                         caption="Choose File"
                         (click)="browseToFile(fileElement)"/>
     </div>
-    <div class="col-sm-6 align-self-center">
+    <div class="col-sm-4">
+      <app-badge-button fullWidth [disabled]="notifyTarget.busy"
+                        [icon]="faImages"
+                        caption="Choose from website"
+                        (click)="openWebsiteImagePicker()"/>
+    </div>
+    <div class="col-sm-4 align-self-center">
       <div ng2FileDrop [ngClass]="{'file-over': hasFileOver}"
            (fileOver)="fileOver($event)"
            (onFileDrop)="onFileDropped($event)"
@@ -40,6 +46,13 @@
       </div>
     </div>
   </div>
+  <app-cms-image-picker [open]="imagePickerOpen"
+                        includeWholeSite
+                        [showUploadAction]="false"
+                        [startingPagePaths]="websiteImageStartingPaths()"
+                        [currentImageSrc]="imageSource || preloadImage || null"
+                        (selected)="onWebsiteImageSelected($event)"
+                        (closed)="imagePickerOpen = false"/>
   <div class="row mt-2">
     <div class="col-sm-8 mb-2">
       <label for="image-source">Image Source</label>
@@ -76,7 +89,7 @@
         [allowMoveImage]="true"
         [imageFile]="originalFile"
         [maintainAspectRatio]="maintainAspectRatio"
-        [containWithinAspectRatio]="containWithinAspectRatio"
+        [containWithinAspectRatio]="containWithinAspectRatio && maintainAspectRatio"
         [aspectRatio]="aspectRatio"
         [canvasRotation]="canvasRotation"
         [transform]="transform"
@@ -144,122 +157,72 @@
     </div>
   </div>
 }
-<ng-template #buttonSet1>
-  <div class="col">
-    <app-badge-button fullWidth [disabled]="actionDisabled" (click)="rotateLeft()"
-                      delay=500 tooltip="Rotate left"
-                      [icon]="faRotateLeft" caption="left"/>
-  </div>
-  <div class="col">
-    <app-badge-button fullWidth [disabled]="actionDisabled" (click)="rotateRight()"
-                      delay=500 tooltip="Rotate right"
-                      [icon]="faRotateRight" caption="right"/>
-  </div>
-  <div class="col">
-    <app-badge-button fullWidth [disabled]="actionDisabled" (click)="flipHorizontal()"
-                      delay=500 tooltip="Flip horizontal"
-                      [icon]="faArrowRightArrowLeft" caption="flip"/>
-  </div>
-  <div class="col">
-    <app-badge-button fullWidth [disabled]="actionDisabled" (click)="flipVertical()"
-                      delay=500 tooltip="Flip vertical"
-                      [icon]="faUpDown" caption="flip"/>
-  </div>
-  <div class="col">
-    <app-badge-button fullWidth [disabled]="actionDisabled" (click)="zoomIn()"
-                      delay=500 tooltip="Zoom in"
-                      [icon]="faMagnifyingGlassPlus"
-                      caption="zoom"/>
-  </div>
-  @if (nonDestructive && allowPermanentSave) {
-    <div class="col">
-      <app-badge-button fullWidth (click)="saveImagePermanently()"
-                        delay=500 tooltip="save image" [disabled]="!fileTypeAttributes"
-                        [icon]="faSave"
-                        caption="save image"/>
-    </div>
-  }
-</ng-template>
-<ng-template #buttonSet2>
-  <div class="col">
-    <app-badge-button fullWidth [disabled]="actionDisabled" (click)="zoomOut()"
-                      delay=500 tooltip="Zoom out"
-                      [icon]="faMagnifyingGlassMinus"
-                      caption="zoom"/>
-  </div>
-  <div class="col">
-    <app-badge-button fullWidth [disabled]="actionDisabled" (click)="resetImage()"
-                      delay=500 tooltip="Reset image"
-                      [icon]="faRedoAlt"
-                      caption="reset"/>
-  </div>
-  <div class="col">
-    <app-badge-button fullWidth (click)="toggleContainWithinAspectRatio()"
-                      delay=500
-                      [tooltip]="containWithinAspectRatio? 'fill aspect ratio' : 'contain within aspect ratio'"
-                      [disabled]="actionDisabled"
-                      [icon]="containWithinAspectRatio? faCompress: faExpand"
-                      [caption]="containWithinAspectRatio ? 'fill' : 'contain'"/>
-  </div>
-  <div class="col">
-    <app-badge-button fullWidth (click)="quit.next()"
-                      delay=500 tooltip="quit without saving"
-                      [icon]="faClose"
-                      caption="quit"/>
-  </div>
-  @if (nonDestructive) {
-    <div class="col">
-      <app-badge-button fullWidth (click)="applyCrop()"
+@if (!hideActionButtons) {
+  <div class="cropper-actions">
+    @if (cropOnlyMode) {
+      <app-badge-button (click)="quit.next()"
+                        delay=500 tooltip="quit without saving"
+                        [icon]="faClose"
+                        caption="quit"/>
+      <app-badge-button (click)="applyCrop()"
                         delay=500 tooltip="apply crop" [disabled]="!fileTypeAttributes"
                         [icon]="faSave"
                         caption="apply"/>
-    </div>
-  }
-  @if (!nonDestructive) {
-    <div class="col">
-      <app-badge-button fullWidth (click)="saveImage()"
-                        delay=500 tooltip="save changes" [disabled]="!fileTypeAttributes"
-                        [icon]="faSave"
-                        caption="save"/>
-    </div>
-  }
-</ng-template>
-@if (!hideActionButtons) {
-  @if (cropOnlyMode) {
-    <div class="row g-1">
-      <div class="col">
-        <app-badge-button fullWidth (click)="quit.next()"
-                          delay=500 tooltip="quit without saving"
-                          [icon]="faClose"
-                          caption="quit"/>
-      </div>
-      <div class="col">
-        <app-badge-button fullWidth (click)="applyCrop()"
+    } @else {
+      <app-badge-button [disabled]="actionDisabled" (click)="rotateLeft()"
+                        delay=500 tooltip="Rotate left"
+                        [icon]="faRotateLeft" caption="left"/>
+      <app-badge-button [disabled]="actionDisabled" (click)="rotateRight()"
+                        delay=500 tooltip="Rotate right"
+                        [icon]="faRotateRight" caption="right"/>
+      <app-badge-button [disabled]="actionDisabled" (click)="flipHorizontal()"
+                        delay=500 tooltip="Flip horizontal"
+                        [icon]="faArrowRightArrowLeft" caption="flip"/>
+      <app-badge-button [disabled]="actionDisabled" (click)="flipVertical()"
+                        delay=500 tooltip="Flip vertical"
+                        [icon]="faUpDown" caption="flip"/>
+      <app-badge-button [disabled]="actionDisabled" (click)="zoomIn()"
+                        delay=500 tooltip="Zoom in"
+                        [icon]="faMagnifyingGlassPlus"
+                        caption="zoom"/>
+      <app-badge-button [disabled]="actionDisabled" (click)="zoomOut()"
+                        delay=500 tooltip="Zoom out"
+                        [icon]="faMagnifyingGlassMinus"
+                        caption="zoom"/>
+      <app-badge-button [disabled]="actionDisabled" (click)="resetImage()"
+                        delay=500 tooltip="Put the crop back to how it was when you opened the editor"
+                        [icon]="faRedoAlt"
+                        caption="reset"/>
+      @if (maintainAspectRatio) {
+        <app-badge-button (click)="toggleContainWithinAspectRatio()"
+                          delay=500
+                          [tooltip]="containWithinAspectRatio? 'fill aspect ratio' : 'contain within aspect ratio'"
+                          [disabled]="actionDisabled"
+                          [icon]="containWithinAspectRatio? faCompress: faExpand"
+                          [caption]="containWithinAspectRatio ? 'fill' : 'contain'"/>
+      }
+      <app-badge-button (click)="quit.next()"
+                        delay=500 tooltip="quit without saving"
+                        [icon]="faClose"
+                        caption="quit"/>
+      @if (nonDestructive) {
+        <app-badge-button (click)="applyCrop()"
                           delay=500 tooltip="apply crop" [disabled]="!fileTypeAttributes"
                           [icon]="faSave"
                           caption="apply"/>
-      </div>
-    </div>
-  }
-  @if (!cropOnlyMode && !wrapButtons) {
-    <div class="row row-cols-2 row-cols-md-6 g-1">
-      <ng-container *ngTemplateOutlet="buttonSet1"/>
-    </div>
-    <div class="row row-cols-2 row-cols-md-6 g-1">
-      <ng-container *ngTemplateOutlet="buttonSet2"/>
-      <div class="col invisible d-none d-md-block" aria-hidden="true"></div>
-    </div>
-  }
-  @if (!cropOnlyMode && wrapButtons) {
-    <div class="row row-cols-2 row-cols-md-6 g-1">
-      <ng-container *ngTemplateOutlet="buttonSet1"/>
-      @if (!nonDestructive || !allowPermanentSave) {
-        <div class="col invisible d-none d-md-block" aria-hidden="true"></div>
+        @if (allowPermanentSave) {
+          <app-badge-button (click)="saveImagePermanently()"
+                            delay=500 tooltip="Save image" [disabled]="!fileTypeAttributes"
+                            [icon]="faSave"
+                            caption="save image"/>
+        }
       }
-    </div>
-    <div class="row row-cols-2 row-cols-md-6 g-1">
-      <ng-container *ngTemplateOutlet="buttonSet2"/>
-      <div class="col invisible d-none d-md-block" aria-hidden="true"></div>
-    </div>
-  }
+      @if (!nonDestructive) {
+        <app-badge-button (click)="saveImage()"
+                          delay=500 tooltip="save changes" [disabled]="!fileTypeAttributes"
+                          [icon]="faSave"
+                          caption="save"/>
+      }
+    }
+  </div>
 }

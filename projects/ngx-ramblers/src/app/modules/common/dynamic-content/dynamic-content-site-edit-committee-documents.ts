@@ -12,6 +12,7 @@ import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
 import { CommitteeDocumentsRow } from "../committee-documents/committee-documents-row";
 import { CommitteeFileMultiSelectComponent } from "../committee-file-multi-select/committee-file-multi-select";
 import { ImageActionsDropdownComponent } from "./image-actions-dropdown";
+import { CmsImagePickerImage } from "../../../models/cms-image-picker.model";
 import { ImageCropperAndResizerComponent } from "../../../image-cropper-and-resizer/image-cropper-and-resizer";
 import { AwsFileData } from "../../../models/aws-object.model";
 import { UrlService } from "../../../services/url.service";
@@ -64,9 +65,11 @@ import { UrlService } from "../../../services/url.service";
         <div class="row align-items-end mb-3 d-flex">
           <div class="col-auto">
             <app-image-actions-dropdown [fullWidth]="false" [hasImage]="!!row.committeeDocuments.imageSource"
+                                        [currentImageSrc]="row.committeeDocuments.imageSource"
                                         (edit)="editImageActive = true"
                                         (replace)="replaceImage()"
-                                        (remove)="removeImage()"/>
+                                        (remove)="removeImage()"
+                                        (websiteImage)="applyWebsiteImage($event)"/>
           </div>
           <div class="col">
             <div class="form-group mb-0">
@@ -164,6 +167,11 @@ export class DynamicContentSiteEditCommitteeDocuments implements OnInit {
   replaceImage(): void {
     this.row.committeeDocuments.imageSource = null;
     this.editImageActive = true;
+  }
+
+  applyWebsiteImage(image: CmsImagePickerImage): void {
+    this.row.committeeDocuments.imageSource = image.src;
+    this.broadcastChange();
   }
 
   imageChanged(awsFileData: AwsFileData): void {

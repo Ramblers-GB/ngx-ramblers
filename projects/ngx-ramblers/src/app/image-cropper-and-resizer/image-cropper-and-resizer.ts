@@ -17,6 +17,7 @@ import {
     faCompress,
     faExpand,
     faFile,
+    faImages,
     faMagnifyingGlassMinus,
     faMagnifyingGlassPlus,
     faRedoAlt,
@@ -64,17 +65,21 @@ import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { FormsModule } from "@angular/forms";
 import { BadgeButtonComponent } from "../modules/common/badge-button/badge-button";
-import { NgClass, NgStyle, NgTemplateOutlet } from "@angular/common";
+import { NgClass, NgStyle } from "@angular/common";
 import { AspectRatioSelectorComponent } from "../carousel/edit/aspect-ratio-selector/aspect-ratio-selector";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { ImageCropperPosition } from "../models/image-cropper.model";
+import { isUsefulCropperPosition } from "../functions/image-cropper-styles";
 import { ClipboardService } from "../services/clipboard.service";
+import { CmsImagePickerImage } from "../models/cms-image-picker.model";
+import { CmsImagePickerComponent } from "../modules/common/cms-image-picker/cms-image-picker";
+import { PageService } from "../services/page.service";
 
 @Component({
     selector: "app-image-cropper-and-resizer",
     templateUrl: "./image-cropper-and-resizer.html",
     styleUrls: ["./image-cropper-and-resizer.sass"],
-    imports: [FontAwesomeModule, FormsModule, FileUploadModule, BadgeButtonComponent, NgClass, ImageCropperModule, AspectRatioSelectorComponent, NgStyle, TooltipDirective, NgTemplateOutlet]
+    imports: [FontAwesomeModule, FormsModule, FileUploadModule, BadgeButtonComponent, NgClass, ImageCropperModule, AspectRatioSelectorComponent, NgStyle, TooltipDirective, CmsImagePickerComponent]
 })
 
 export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -86,6 +91,7 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     private notifierService = inject(NotifierService);
     private fileUtils = inject(FileUtilsService);
     private clipboardService = inject(ClipboardService);
+    private pageService = inject(PageService);
     public wrapButtons: boolean;
     public hideFileSelection: boolean;
     public hideActionButtons: boolean;
@@ -120,6 +126,8 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     faCompress = faCompress;
     faExpand = faExpand;
     faFile = faFile;
+    faImages = faImages;
+    imagePickerOpen = false;
     action: string;
     maintainAspectRatio: boolean;
     imageQuality = 80;
@@ -131,12 +139,24 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     public cropperPosition: ImageCropperPosition = null;
     public resolvedCropperPosition: CropperPosition = null;
     public imageSource = "";
+    private sessionCaptured = false;
+    private pendingReset = false;
+    private editSessionStart = {
+        cropper: null as CropperPosition,
+        scale: 1,
+        rotation: 0,
+        canvasRotation: 0,
+        transform: {} as ImageTransform,
+        imageQuality: 80,
+        containWithinAspectRatio: false
+    };
     private forceSavePermanently = false;
     private cropSubmitTimeout: ReturnType<typeof setTimeout> = null;
     protected readonly faRemove = faRemove;
     @ViewChild(ImageCropperComponent) imageCropperComponent: ImageCropperComponent;
     @Input() selectAspectRatio: string;
     @Input() preloadImage: string;
+    @Input() startingPagePaths: string[] = [];
     @Input() rootFolder: RootFolder;
     @Output() quit: EventEmitter<void> = new EventEmitter();
     @Output() cropError: EventEmitter<ErrorEvent> = new EventEmitter();
@@ -264,9 +284,11 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
         this.logger.info("imageCropped - raw positions:", {
             cropperPosition: event?.cropperPosition,
             imagePosition: event?.imagePosition,
+            offsetImagePosition: event?.offsetImagePosition,
             imageSize: this.originalImageData?.size
         });
-        const normalizedCropperPosition = this.normalizedCropperPosition(event?.cropperPosition);
+        const sourcePosition = event?.offsetImagePosition || event?.imagePosition;
+        const normalizedCropperPosition = this.normalizedCropperPosition(sourcePosition);
         if (normalizedCropperPosition) {
             this.logger.info("imageCropped - emitting cropperPositionChange:", normalizedCropperPosition);
             this.cropperPositionChange.emit(normalizedCropperPosition);
@@ -299,16 +321,27 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     }
 
     cropperReady(sourceImageDimensions: Dimensions) {
-        this.logger.info("Cropper ready", sourceImageDimensions, "resolvedCropperPosition:", this.resolvedCropperPosition);
+        this.logger.info("Cropper ready", sourceImageDimensions, "cropperPosition:", this.cropperPosition);
         this.notify.hide();
-        if (this.isValidCropperPosition(this.resolvedCropperPosition) && this.imageCropperComponent) {
-            this.logger.info("Applying saved cropper position:", this.resolvedCropperPosition);
-            setTimeout(() => {
-                this.imageCropperComponent.cropper = this.resolvedCropperPosition;
-                this.manuallySubmitCrop();
-            }, 0);
-        } else {
-            this.logger.info("Invalid or missing cropper position, using default");
+        if (this.pendingReset) {
+            this.pendingReset = false;
+            setTimeout(() => this.imageCropperComponent?.resetCropperPosition(), 0);
+        } else if (!this.sessionCaptured) {
+            const displayedPosition = this.cropperPositionFromPercent(this.cropperPosition, sourceImageDimensions);
+            const applySavedPosition = isUsefulCropperPosition(this.cropperPosition)
+                && this.isValidCropperPosition(displayedPosition)
+                && !!this.imageCropperComponent;
+            if (applySavedPosition) {
+                this.logger.info("Applying saved cropper position:", displayedPosition);
+                setTimeout(() => {
+                    this.imageCropperComponent.cropper = displayedPosition;
+                    this.manuallySubmitCrop();
+                    this.captureEditSessionStart();
+                }, 0);
+            } else {
+                this.logger.info("Invalid or missing cropper position, using default");
+                this.captureEditSessionStart();
+            }
         }
     }
 
@@ -364,12 +397,17 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     }
 
     resetImage() {
-        this.scale = 1;
-        this.rotation = 0;
-        this.canvasRotation = 0;
-        this.transform = {};
-        this.imageQuality = 90;
-        this.manuallySubmitCrop();
+        const rotationChanged = this.canvasRotation !== this.editSessionStart.canvasRotation;
+        this.pendingReset = rotationChanged;
+        this.scale = this.editSessionStart.scale;
+        this.rotation = this.editSessionStart.rotation;
+        this.canvasRotation = this.editSessionStart.canvasRotation;
+        this.transform = {...this.editSessionStart.transform};
+        this.imageQuality = this.editSessionStart.imageQuality;
+        this.containWithinAspectRatio = this.editSessionStart.containWithinAspectRatio;
+        if (!rotationChanged) {
+            this.imageCropperComponent?.resetCropperPosition();
+        }
     }
 
     zoomOut() {
@@ -389,8 +427,27 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     }
 
     toggleContainWithinAspectRatio() {
-        this.logger.info("toggleContainWithinAspectRatio from:", this.containWithinAspectRatio, "to", !this.containWithinAspectRatio);
-        this.containWithinAspectRatio = !this.containWithinAspectRatio;
+        if (this.maintainAspectRatio) {
+            this.logger.info("toggleContainWithinAspectRatio from:", this.containWithinAspectRatio, "to", !this.containWithinAspectRatio);
+            this.containWithinAspectRatio = !this.containWithinAspectRatio;
+            this.resolvedCropperPosition = null;
+        }
+    }
+
+    private captureEditSessionStart() {
+        if (!this.sessionCaptured) {
+            const cropper = this.imageCropperComponent?.cropper;
+            this.editSessionStart = {
+                cropper: cropper ? {x1: cropper.x1, y1: cropper.y1, x2: cropper.x2, y2: cropper.y2} : null,
+                scale: this.scale,
+                rotation: this.rotation,
+                canvasRotation: this.canvasRotation,
+                transform: {...this.transform},
+                imageQuality: this.imageQuality,
+                containWithinAspectRatio: this.containWithinAspectRatio
+            };
+            this.sessionCaptured = true;
+        }
     }
 
     updateRotation() {
@@ -430,6 +487,24 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     onFileSelect(fileList: any) {
         this.logger.info("onFileSelect:files:", fileList);
         this.onFileDropped(fileList);
+    }
+
+    websiteImageStartingPaths(): string[] {
+      return this.startingPagePaths?.length
+        ? this.startingPagePaths
+        : [this.pageService.pathSegments().join("/")].filter(Boolean);
+    }
+
+    openWebsiteImagePicker(): void {
+      this.imagePickerOpen = true;
+    }
+
+    async onWebsiteImageSelected(image: CmsImagePickerImage): Promise<void> {
+      this.imagePickerOpen = false;
+      this.imageSource = image.src;
+      this.notify.setBusy();
+      await this.loadImageSource(image.resolvedSrc || image.src);
+      this.imageSource = image.src;
     }
 
     async loadPastedImageSource() {
@@ -501,6 +576,7 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
             this.logger.info("processSingleFile:no existing loaded filename to retain - file being processed:", file.name, " will be used as original");
             this.originalFile = file;
         }
+        this.sessionCaptured = false;
         this.imageSource = this.originalFile?.name || file.name;
         this.notify.progress({title: "File upload", message: `loading preview for ${file.name}...`});
         await this.calculateImageTypeAttributes();
@@ -568,6 +644,9 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
         this.dimension = dimension;
         this.aspectRatio = this.isFreeSelection(dimension) ? 1 : this.dimension.width / this.dimension.height;
         this.maintainAspectRatio = !this.isFreeSelection(this.dimension);
+        if (!this.maintainAspectRatio) {
+            this.containWithinAspectRatio = false;
+        }
     }
 
     manuallySubmitCrop() {

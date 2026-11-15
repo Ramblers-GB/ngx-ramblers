@@ -2,6 +2,11 @@
 @import "../assets/styles/buttons"
 @import "../assets/styles/text"
 
+:host
+  display: block
+  container-type: inline-size
+  container-name: image-cropper
+
 button, input[type=submit]
   @extend .text-black
   padding: 9px
@@ -19,3 +24,46 @@ button, input[type=submit]
 .cropper-controls
   position: relative
   z-index: 1
+
+.cropper-actions
+  display: grid
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr))
+  gap: var(--space-1)
+  margin-bottom: var(--space-3)
+  app-badge-button
+    min-width: 0
+    display: flex
+    ::ng-deep .badge-button
+      margin: 0
+      width: 100%
+      flex: 1
+      white-space: nowrap
+
+@container image-cropper (max-width: 64rem)
+  .cropper-actions
+    grid-template-columns: repeat(5, 1fr)
+
+@container image-cropper (max-width: 480px)
+  .cropper-actions
+    grid-template-columns: 1fr
+    app-badge-button
+      display: flex
+      width: 100%
+      ::ng-deep .badge-button
+        width: 100%
+  .row
+    --bs-gutter-x: 0
+    margin-left: 0
+    margin-right: 0
+  .row > *
+    flex: 0 0 100%
+    max-width: 100%
+    width: 100%
+    padding-left: 0
+    padding-right: 0
+  .d-flex.align-items-end
+    display: block
+    width: 100%
+  app-badge-button
+    display: block
+    width: 100%

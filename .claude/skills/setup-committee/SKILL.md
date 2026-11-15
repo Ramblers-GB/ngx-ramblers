@@ -11,7 +11,7 @@ You are setting up committee members and their roles on an NGX-Ramblers website.
 
 Also use this skill for committee year pages, year cover images, and attaching letters or minutes.
 
-The committee **home** is `/committee`, not a year page. Parent package:
+The committee **home** is `committee`, not a year page. CMS paths never have a leading slash. Parent package:
 
 1. text intro
 2. committee-documents with `autoFromFirstActionButton: true`
@@ -214,7 +214,7 @@ function authHeaders(authToken: string): Record<string, string> {
 
 ## Committee year pages and cover images
 
-### Parent `/committee` shape (THE standard)
+### Parent `committee` shape (THE standard)
 
 ```
 row 0: text — "# Committee" + short blurb

@@ -13,6 +13,7 @@ import { SectionDividerStyle } from "../../../models/email-composer.model";
 import { AwsFileData } from "../../../models/aws-object.model";
 import { RootFolder } from "../../../models/system.model";
 import { UrlService } from "../../../services/url.service";
+import { CmsImagePickerImage } from "../../../models/cms-image-picker.model";
 
 @Component({
   selector: "app-article-blocks-editor",
@@ -81,9 +82,11 @@ import { UrlService } from "../../../services/url.service";
                                         [hasImage]="!!block.image?.src"
                                         [fullWidth]="false"
                                         buttonClass="btn btn-sm btn-primary"
+                                        [currentImageSrc]="block.image?.src ?? null"
                                         (edit)="enterImageEdit(block)"
                                         (replace)="replaceImage(block)"
-                                        (remove)="removeImage(block)"/>
+                                        (remove)="removeImage(block)"
+                                        (websiteImage)="applyWebsiteImage(block, $event)"/>
             <button type="button" class="btn btn-sm btn-primary" (click)="togglePosition(block)" title="Move to other side of events">
               Move {{ block.position === ArticleBlockPosition.ABOVE_EVENTS ? "below" : "above" }} events
             </button>
@@ -301,6 +304,17 @@ export class ArticleBlocksEditor {
   replaceImage(block: ArticleBlock): void {
     block.image = null;
     this.imageEditingBlockId = block.id;
+    this.emitChange();
+  }
+
+  applyWebsiteImage(block: ArticleBlock, image: CmsImagePickerImage): void {
+    block.image = {
+      src: image.src,
+      alt: block.image?.alt ?? "",
+      width: block.image?.width,
+      alignment: block.image?.alignment ?? ArticleBlockImageAlignment.FULL
+    };
+    this.imageEditingBlockId = null;
     this.emitChange();
   }
 

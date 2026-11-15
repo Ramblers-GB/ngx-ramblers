@@ -647,7 +647,7 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
   @Output() eventImageHeightChange = new EventEmitter<number>();
   @Input({transform: booleanAttribute}) showPageBreak = false;
   @Input() constrainToEmailWidth: boolean = false;
-  @Input({transform: booleanAttribute}) stickyToolbar = true;
+  @Input({transform: booleanAttribute}) stickyToolbar = false;
   private _editable = true;
   @Input() set editable(value: boolean) {
     this._editable = value !== false;

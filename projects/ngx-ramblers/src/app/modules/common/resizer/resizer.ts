@@ -386,6 +386,13 @@ export class ResizerComponent implements OnDestroy {
     }
   }
 
+  private measuredStartSize(): number {
+    const previous = this.elementRef.nativeElement.previousElementSibling as HTMLElement | null;
+    const box = previous?.getBoundingClientRect();
+    const measured = this.orientation === ResizerOrientation.HORIZONTAL ? box?.width : box?.height;
+    return measured && measured > 0 ? measured : this.size;
+  }
+
   private begin(clientX: number, clientY: number): void {
     this.isResizing = true;
     this.startX = clientX;
@@ -397,7 +404,7 @@ export class ResizerComponent implements OnDestroy {
       const rowElement = this.elementRef.nativeElement.closest(".row");
       this.gridUnitPx = rowElement ? rowElement.getBoundingClientRect().width / 12 : 80;
     } else {
-      this.startSize = this.size;
+      this.startSize = this.measuredStartSize();
       this.startSecondarySize = this.secondarySize;
     }
     this.showOverlay();

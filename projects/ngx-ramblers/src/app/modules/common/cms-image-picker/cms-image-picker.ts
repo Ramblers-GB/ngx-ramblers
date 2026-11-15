@@ -1,3 +1,4 @@
+import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { Component, EventEmitter, inject, Input, Output } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -43,7 +44,7 @@ import { DraggableModalComponent } from "../draggable-modal/draggable-modal";
         @if (loading) {
           <div class="d-flex align-items-center gap-2 py-4 justify-content-center">
             <span class="spinner-border" role="status"><span class="visually-hidden">Loading images</span></span>
-            <strong>Finding images on nearby pages…</strong>
+            <strong>{{ includeWholeSite ? "Finding images on the website…" : "Finding images on nearby pages…" }}</strong>
           </div>
         } @else if (loadFailed) {
           <div class="alert alert-danger d-flex align-items-start gap-2 mb-0">
@@ -51,7 +52,7 @@ import { DraggableModalComponent } from "../draggable-modal/draggable-modal";
           </div>
         } @else if (pages.length === 0) {
           <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
-            <fa-icon [icon]="faCircleExclamation"/><div><strong class="d-block">No website images found</strong>The supporting page and its nearby pages do not contain any selectable images.</div>
+            <fa-icon [icon]="faCircleExclamation"/><div><strong class="d-block">No website images found</strong>{{ includeWholeSite ? "No pages on this site contain a selectable image." : "The supporting page and its nearby pages do not contain any selectable images." }}</div>
           </div>
         } @else {
           <label for="cms-image-page" class="form-label">Page containing the image</label>
@@ -70,7 +71,9 @@ import { DraggableModalComponent } from "../draggable-modal/draggable-modal";
           </div>
         }
       </div>
-      <button modalFooter type="button" class="btn btn-quiet" (click)="uploadRequested.emit()"><fa-icon [icon]="faUpload" class="me-1"/>Upload another image</button>
+      @if (showUploadAction) {
+        <button modalFooter type="button" class="btn btn-quiet" (click)="uploadRequested.emit()"><fa-icon [icon]="faUpload" class="me-1"/>Upload another image</button>
+      }
       <button modalFooter type="button" class="btn btn-quiet" (click)="close()">Cancel</button>
     </app-draggable-modal>
   `
@@ -81,6 +84,12 @@ export class CmsImagePickerComponent {
   private startingPaths: string[] = [];
 
   @Input() currentImageSrc: string | null = null;
+  @Input("includeWholeSite") set includeWholeSiteValue(value: boolean) {
+    this.includeWholeSite = coerceBooleanProperty(value);
+  }
+  @Input("showUploadAction") set showUploadActionValue(value: boolean) {
+    this.showUploadAction = coerceBooleanProperty(value);
+  }
   @Input() set startingPagePaths(value: string[]) {
     this.startingPaths = value ?? [];
   }
@@ -100,6 +109,8 @@ export class CmsImagePickerComponent {
   @Output() uploadRequested = new EventEmitter<void>();
   @Output() closed = new EventEmitter<void>();
 
+  protected includeWholeSite = false;
+  protected showUploadAction = true;
   protected isOpen = false;
   protected loading = false;
   protected loadFailed = false;
@@ -128,7 +139,9 @@ export class CmsImagePickerComponent {
     this.loadFailed = false;
     this.errorMessage = "";
     try {
-      this.pages = await this.cmsPageImageService.pagesNear(this.startingPaths);
+      this.pages = this.includeWholeSite
+        ? await this.cmsPageImageService.pagesForPicker(this.startingPaths)
+        : await this.cmsPageImageService.pagesNear(this.startingPaths);
       this.selectedPagePath = this.pages[0]?.path ?? null;
     } catch (error) {
       this.logger.error("loadPages failed", error);

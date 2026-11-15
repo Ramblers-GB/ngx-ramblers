@@ -11,12 +11,11 @@ import { AwsFileData } from "../../../models/aws-object.model";
 import { RootFolder } from "../../../models/system.model";
 import { UrlService } from "../../../services/url.service";
 import { SiteLinkInputComponent } from "../site-link-input/site-link-input";
-import { CmsImagePickerComponent } from "../cms-image-picker/cms-image-picker";
 import { CmsImagePickerImage } from "../../../models/cms-image-picker.model";
 
 @Component({
   selector: "app-article-block-single-editor",
-  imports: [FormsModule, FontAwesomeModule, TiptapMarkdownEditor, ImageCropperAndResizerComponent, ImageActionsDropdownComponent, SectionDividerSelectComponent, SiteLinkInputComponent, CmsImagePickerComponent],
+  imports: [FormsModule, FontAwesomeModule, TiptapMarkdownEditor, ImageCropperAndResizerComponent, ImageActionsDropdownComponent, SectionDividerSelectComponent, SiteLinkInputComponent],
   styles: [`
     .article-block-single
       display: flex
@@ -49,9 +48,12 @@ import { CmsImagePickerImage } from "../../../models/cms-image-picker.model";
             [hasImage]="!!block.image?.src"
             [fullWidth]="false"
             buttonClass="btn btn-sm btn-primary"
+            [currentImageSrc]="block.image?.src ?? null"
+            [startingPagePaths]="block.sourcePagePaths ?? []"
             (edit)="enterImageEdit()"
             (replace)="replaceImage()"
-            (remove)="removeImage()"/>
+            (remove)="removeImage()"
+            (websiteImage)="onCmsImageSelected($event)"/>
           @if (showRemove) {
             @if (pendingRemoval) {
               <button type="button" class="btn btn-sm btn-danger" (click)="performRemove()" title="Confirm remove">Confirm remove</button>
@@ -128,12 +130,6 @@ import { CmsImagePickerImage } from "../../../models/cms-image-picker.model";
                                       [value]="block.dividerAfter ?? defaultDivider"
                                       (valueChange)="onBlockDividerChange($event)"/>
         }
-        <app-cms-image-picker [open]="imagePickerOpen"
-                              [startingPagePaths]="block.sourcePagePaths ?? []"
-                              [currentImageSrc]="block.image?.src ?? null"
-                              (selected)="onCmsImageSelected($event)"
-                              (uploadRequested)="uploadDifferentImage()"
-                              (closed)="imagePickerOpen = false"/>
       </div>
     }`
 })
@@ -204,11 +200,7 @@ export class ArticleBlockSingleEditor {
   }
 
   replaceImage(): void {
-    if (this.block?.sourcePagePaths?.length) {
-      this.imagePickerOpen = true;
-    } else if (this.block) {
-      this.uploadDifferentImage();
-    }
+    this.uploadDifferentImage();
   }
 
   protected uploadDifferentImage(): void {

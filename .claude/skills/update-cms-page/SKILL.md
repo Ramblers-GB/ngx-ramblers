@@ -63,6 +63,10 @@ CMS_URL="${CMS_URL:-http://localhost:5001}" ../.claude/skills/connect-env-db/scr
 
 Default `CMS_URL` is the local API. Set it only when the user names another site.
 
+CMS page paths, navbar Web Url values, and ACTION_BUTTONS `href` fields never start with `/`. Write `committee` and `committee/2026`. Keep a leading slash only on full site URLs and on Markdown destinations that are actual browser routes (`/admin/...`).
+
+Every ACTION_BUTTONS card needs an `icon` (Font Awesome key) or an `imageSource`. How-to index pages such as `how-to/committee/editing-content` look broken if a card has neither.
+
 ## Page-Specific Patterns (beyond publish-article)
 
 ### Vertical Spacing
@@ -237,7 +241,7 @@ To make a parent page show cards linking to its child pages, add an `album-index
 **Key settings:**
 - `maxPathSegments`: set to parent path depth + 1. For `events` (depth 1) use `2`. For `walks/routes` (depth 2) use `3`.
 - `contentTypes`: `["index-pages", "pages"]` shows all child pages. Use `["index-pages"]` to only show pages that themselves have children.
-- `renderModes`: `["action-buttons"]` renders as clickable cards with images.
+- `renderModes`: `["action-buttons"]` renders as clickable cards with images or icons.
 - `maxColumns`: controls the grid layout (2 = two cards per row).
 
 **Child pages need images:** The album-index cards pull `imageSource` from each child page's first row. Always set `imageSource` on row 0 of child pages, and **verify the image loads** (HEAD request returning 200) before assigning it. Images using `site-content/` prefix must exist in that specific site's S3 bucket — UUIDs from other sites will 404.

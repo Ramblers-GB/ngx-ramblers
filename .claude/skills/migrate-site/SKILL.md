@@ -182,7 +182,7 @@ ngx-cli migrate apply --old <url> --new <url> --username <user> --password <pass
  }}
 ```
 
-**Committee package (parent home `/committee`, not a year page):**
+**Committee package (parent home `committee`, not a year page). CMS paths never have a leading slash:**
 
 1. Parent `committee` — intro text → docs with `autoFromFirstActionButton: true` → **shared-fragment** → `fragments/committee-years` → optional migrated-from.
 2. `fragments/committee-years` — album-index of `committee/*` (`maxPathSegments: 2`, `contentTypes: ["pages"]`, `renderModes: ["action-buttons"]`).

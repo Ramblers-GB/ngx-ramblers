@@ -1,7 +1,10 @@
-import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { Component, EventEmitter, inject, Input, Output, ViewChild } from "@angular/core";
 import { BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective } from "ngx-bootstrap/dropdown";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faImage } from "@fortawesome/free-solid-svg-icons";
+import { CmsImagePickerImage } from "../../../models/cms-image-picker.model";
+import { CmsImagePickerComponent } from "../cms-image-picker/cms-image-picker";
+import { PageService } from "../../../services/page.service";
 
 @Component({
   selector: "app-image-actions-dropdown",
@@ -33,19 +36,61 @@ import { faImage } from "@fortawesome/free-solid-svg-icons";
             <a (click)="remove.emit()" class="dropdown-item text-danger">Remove image</a>
           </li>
         }
+        <li role="menuitem">
+          <a (click)="openWebsitePicker()" class="dropdown-item">Choose from website</a>
+        </li>
       </ul>
     </div>
+    <app-cms-image-picker [open]="websitePickerOpen"
+                          includeWholeSite
+                          [showUploadAction]="false"
+                          [startingPagePaths]="resolvedStartingPaths()"
+                          [currentImageSrc]="currentImageSrc"
+                          (selected)="onWebsiteImageSelected($event)"
+                          (closed)="websitePickerOpen = false"/>
   `,
-    imports: [BsDropdownDirective, BsDropdownToggleDirective, BsDropdownMenuDirective, FontAwesomeModule]
+    imports: [BsDropdownDirective, BsDropdownToggleDirective, BsDropdownMenuDirective, FontAwesomeModule, CmsImagePickerComponent]
 })
 export class ImageActionsDropdownComponent {
+  private pageService = inject(PageService);
+  @ViewChild(BsDropdownDirective) dropdown: BsDropdownDirective;
+  @Input() instanceId: string;
   @Input() fullWidth = false;
   @Input() hasImage = false;
   @Input() hasFixedHeight = false;
   @Input() buttonClass = "badge-button border-0";
+  @Input() currentImageSrc: string | null = null;
+  @Input() startingPagePaths: string[] = [];
   @Output() edit = new EventEmitter<void>();
   @Output() replace = new EventEmitter<void>();
   @Output() remove = new EventEmitter<void>();
   @Output() clearHeight = new EventEmitter<void>();
+  @Output() websiteImage = new EventEmitter<CmsImagePickerImage>();
   faImage = faImage;
+  websitePickerOpen = false;
+
+  openWebsitePicker(): void {
+    this.websitePickerOpen = true;
+  }
+
+  onWebsiteImageSelected(image: CmsImagePickerImage): void {
+    this.websitePickerOpen = false;
+    this.websiteImage.emit(image);
+  }
+
+  resolvedStartingPaths(): string[] {
+    return this.startingPagePaths?.length
+      ? this.startingPagePaths
+      : [this.pageService.pathSegments().join("/")].filter(Boolean);
+  }
+
+  toggleMenu() {
+    if (this.dropdown) {
+      if (this.dropdown.isOpen) {
+        this.dropdown.hide();
+      } else {
+        this.dropdown.show();
+      }
+    }
+  }
 }
