@@ -8,11 +8,20 @@ import { brevoClient } from "../brevo-config";
 import { scheduleBrevo } from "../common/rate-limiting";
 import { clampDateRange } from "../common/date-range";
 import {
+  BrevoEventType,
   BrevoTransactionalEmailListResponse,
   BrevoTransactionalEmailSummary
 } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { enrichTransactionalEmailOrigins } from "./enrich-transactional-origins";
 import { normaliseEmail } from "../../../../projects/ngx-ramblers/src/app/functions/strings";
+import {
+  attachDiagnosticsToTransactionalSummaries,
+  mergeDiagnosticOnlyTransactionalBounces,
+  providerEventToBrevoEventType
+} from "../../../../projects/ngx-ramblers/src/app/functions/brevo-bounce-diagnostics";
+import { diagnosticsBetween, diagnosticsForEmails } from "../contacts/bounce-diagnostics";
+import { dateTimeFromIso, dateTimeNowAsValue } from "../../shared/dates";
+import { applyTransactionalDeliveryStatus } from "../../../../projects/ngx-ramblers/src/app/functions/transactional-delivery-status";
 
 const messageType = "brevo:transactional-emails-list";
 const debugLog = debug(envConfig.logNamespace(messageType));
@@ -40,8 +49,89 @@ function mapEventToSummary(event: Brevo.GetEmailEventReportResponse.Events.Item)
     messageId: event.messageId ?? "",
     uuid: "",
     date: event.date ?? "",
-    from: event.from
+    from: event.from,
+    event: event.event,
+    reason: event.reason
   };
+}
+
+function bounceEventType(event: string | undefined): BrevoEventType | null {
+  return providerEventToBrevoEventType(event);
+}
+
+const DELIVERY_FOLLOW_UP_EVENTS: Brevo.GetEmailEventReportRequest["event"][] = [
+  "delivered",
+  "softBounces",
+  "hardBounces",
+  "blocked"
+];
+
+async function laterDeliveryEvents(
+  client: Awaited<ReturnType<typeof brevoClient>>,
+  startDate: string | undefined,
+  endDate: string | undefined,
+  days: number | undefined,
+  sort: Brevo.GetEmailEventReportRequest["sort"],
+  limit: number
+): Promise<BrevoTransactionalEmailSummary[]> {
+  const reports = await Promise.all(DELIVERY_FOLLOW_UP_EVENTS.map(event =>
+    scheduleBrevo(() => client.transactionalEmails.getEmailEventReport({
+      limit,
+      offset: 0,
+      startDate,
+      endDate,
+      days,
+      event,
+      sort
+    }))
+  ));
+  return reports.flatMap(report => (report.events ?? []).map(mapEventToSummary));
+}
+
+async function withDeliveryStatus(
+  emails: BrevoTransactionalEmailSummary[],
+  event: string | undefined,
+  client: Awaited<ReturnType<typeof brevoClient>>,
+  startDate: string | undefined,
+  endDate: string | undefined,
+  days: number | undefined,
+  sort: Brevo.GetEmailEventReportRequest["sort"],
+  limit: number
+): Promise<BrevoTransactionalEmailSummary[]> {
+  if (event && event !== BrevoEventType.REQUESTS) {
+    return emails;
+  } else {
+    try {
+      const later = await laterDeliveryEvents(client, startDate, endDate, days, sort, limit);
+      return applyTransactionalDeliveryStatus(emails, later);
+    } catch (error: any) {
+      debugLog("laterDeliveryEvents:failed", error?.message || error);
+      return applyTransactionalDeliveryStatus(emails, []);
+    }
+  }
+}
+
+async function withBounceDiagnostics(
+  emails: BrevoTransactionalEmailSummary[],
+  event: string | undefined,
+  startDate?: string,
+  endDate?: string
+): Promise<BrevoTransactionalEmailSummary[]> {
+  const bounceType = bounceEventType(event);
+  if (!bounceType) {
+    return emails;
+  } else {
+    const fromMs = startDate ? dateTimeFromIso(startDate).startOf("day").toMillis() : 0;
+    const toMs = endDate ? dateTimeFromIso(endDate).endOf("day").toMillis() : dateTimeNowAsValue();
+    const listed = await diagnosticsForEmails(emails.map(item => item.email));
+    const ranged = await diagnosticsBetween(fromMs, toMs, bounceType);
+    const combined = [...listed, ...ranged];
+    return mergeDiagnosticOnlyTransactionalBounces(
+      attachDiagnosticsToTransactionalSummaries(emails, combined),
+      ranged,
+      bounceType
+    );
+  }
 }
 
 export async function transactionalEmailsList(req: Request, res: Response): Promise<void> {
@@ -67,8 +157,13 @@ export async function transactionalEmailsList(req: Request, res: Response): Prom
         limit,
         offset
       }));
-      const transactionalEmails = await enrichTransactionalEmailOrigins(
-        (response.transactionalEmails ?? []) as BrevoTransactionalEmailSummary[]
+      const transactionalEmails = await withBounceDiagnostics(
+        await enrichTransactionalEmailOrigins(
+          (response.transactionalEmails ?? []) as BrevoTransactionalEmailSummary[]
+        ),
+        isString(req.query.event) ? req.query.event : undefined,
+        startDate,
+        endDate
       );
       const body: BrevoTransactionalEmailListResponse = {
         count: response.count ?? transactionalEmails.length,
@@ -89,8 +184,22 @@ export async function transactionalEmailsList(req: Request, res: Response): Prom
         event,
         sort
       }));
-      const transactionalEmails = await enrichTransactionalEmailOrigins(
-        (response.events ?? []).map(mapEventToSummary)
+      const transactionalEmails = await withDeliveryStatus(
+        await withBounceDiagnostics(
+          await enrichTransactionalEmailOrigins(
+            (response.events ?? []).map(mapEventToSummary)
+          ),
+          event,
+          startDate,
+          endDate
+        ),
+        event,
+        client,
+        startDate,
+        endDate,
+        days,
+        sort,
+        limit
       );
       const body: BrevoTransactionalEmailListResponse = {
         count: transactionalEmails.length,

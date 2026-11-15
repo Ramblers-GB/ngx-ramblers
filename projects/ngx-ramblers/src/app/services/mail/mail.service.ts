@@ -91,9 +91,9 @@ export class MailService {
     }))).response;
   }
 
-  async transactionalEmails(startDate: string, endDate: string): Promise<BrevoTransactionalEmailListResponse> {
+  async transactionalEmails(startDate: string, endDate: string, event?: string): Promise<BrevoTransactionalEmailListResponse> {
     return (await this.commonDataService.responseFrom(this.logger, this.http.get<ApiResponse>(`${this.BASE_URL}/transactional/emails`, {
-      params: this.commonDataService.toHttpParams({startDate, endDate, limit: 100})
+      params: this.commonDataService.toHttpParams(pickBy({startDate, endDate, limit: 100, event}))
     }))).response;
   }
 

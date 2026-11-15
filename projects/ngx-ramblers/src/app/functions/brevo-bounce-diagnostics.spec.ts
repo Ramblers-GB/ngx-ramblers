@@ -1,9 +1,11 @@
 import {
   attachDiagnosticsToCampaignStats,
   attachDiagnosticsToEvents,
+  attachDiagnosticsToTransactionalSummaries,
   bounceCopyText,
   bounceExplanationFor,
   diagnosticFromWebhookPayload,
+  mergeDiagnosticOnlyTransactionalBounces,
   providerEventToBrevoEventType
 } from "./brevo-bounce-diagnostics";
 import { BrevoBounceDiagnostic, BrevoEventSource, BrevoEventType } from "../models/mail.model";
@@ -44,6 +46,10 @@ describe("bounceExplanationFor", () => {
     expect(bounceExplanationFor("550 5.7.1 Service unavailable; Client host blocked using Spamhaus")).toBe(
       "The receiving mail server blocked the sending mail server."
     );
+  });
+
+  it("explains a missing mailbox", () => {
+    expect(bounceExplanationFor("550 Mail Box does not exist")).toBe("The mailbox does not exist.");
   });
 
   it("does not invent a cause for Access denied", () => {
@@ -176,3 +182,28 @@ describe("bounceCopyText", () => {
     expect(text).toContain("550 5.4.1");
   });
 });
+
+describe("attachDiagnosticsToTransactionalSummaries", () => {
+  it("copies the diagnostic onto a matching transactional bounce", () => {
+    const rows = attachDiagnosticsToTransactionalSummaries([{
+      email,
+      subject: "Friday email",
+      messageId: "msg",
+      uuid: "",
+      date: "2026-11-06T10:43:45.000Z",
+      event: BrevoEventType.HARD_BOUNCES
+    }], [diagnostic()]);
+    expect(rows[0].reason).toContain("550 5.4.1");
+    expect(rows[0].bounceExplanation).toBe("The receiving mail server rejected this address.");
+  });
+});
+
+describe("mergeDiagnosticOnlyTransactionalBounces", () => {
+  it("adds stored bounces that Brevo did not return in the event list", () => {
+    const rows = mergeDiagnosticOnlyTransactionalBounces([], [diagnostic()], BrevoEventType.HARD_BOUNCES);
+    expect(rows.length).toBe(1);
+    expect(rows[0].email).toBe(email);
+    expect(rows[0].reason).toContain("550 5.4.1");
+  });
+});
+

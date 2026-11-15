@@ -17,6 +17,7 @@ const schema = new mongoose.Schema({
 }, {collection: "brevoBounceDiagnostics"});
 
 schema.index({email: 1, eventAt: -1});
+schema.index({eventAt: -1, event: 1});
 
 export const brevoBounceDiagnostic: mongoose.Model<BrevoBounceDiagnostic & {receivedAt: number}> =
   ensureModel<BrevoBounceDiagnostic & {receivedAt: number}>("brevo-bounce-diagnostic", schema);

@@ -40,6 +40,7 @@ import {
   preferredDenialHint,
   relatedDenialDetail
 } from "./email-denied-blocks";
+import { attachBounceDiagnosticsToBlockedContacts } from "./bounce-diagnostics";
 
 const messageType = "brevo:unsubscribes";
 const debugLog = debug(envConfig.logNamespace(messageType));
@@ -824,7 +825,8 @@ export async function runUnsubscribesSync(opts: RunUnsubscribesSyncOptions = {})
   const localEnriched = await enrichWithContactInfo(client, localOnly);
   const combined = [...brevoEnriched, ...localEnriched];
   const withFeedback = await attachUnsubscribeFeedback(combined);
-  const merged = withFeedback.sort((a, b) => compareBlockedAt(a, b, sort));
+  const withDiagnostics = await attachBounceDiagnosticsToBlockedContacts(withFeedback);
+  const merged = withDiagnostics.sort((a, b) => compareBlockedAt(a, b, sort));
 
   return {
     response: {

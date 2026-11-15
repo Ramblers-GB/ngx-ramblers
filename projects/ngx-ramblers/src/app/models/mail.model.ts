@@ -1277,11 +1277,39 @@ export interface CampaignRecipientsReport {
   pending?: boolean;
 }
 
+export enum MailReportEventFilter {
+  SENT = "sent",
+  DELIVERED = "delivered",
+  OPENS = "opens",
+  CLICKS = "clicks",
+  HARD_BOUNCES = "hard-bounces",
+  SOFT_BOUNCES = "soft-bounces",
+  UNSUBS = "unsubs",
+  COMPLAINTS = "complaints",
+  BLOCKED = "blocked"
+}
+
+export enum MailTransactionalDeliveryStatus {
+  SENT = "sent",
+  DELIVERED = "delivered",
+  SOFT_BOUNCE = "soft-bounce",
+  HARD_BOUNCE = "hard-bounce",
+  BLOCKED = "blocked"
+}
+
+export const MAIL_TRANSACTIONAL_DELIVERY_STATUS_LABELS: Record<MailTransactionalDeliveryStatus, string> = {
+  [MailTransactionalDeliveryStatus.SENT]: "Delivery unverified",
+  [MailTransactionalDeliveryStatus.DELIVERED]: "Delivered",
+  [MailTransactionalDeliveryStatus.SOFT_BOUNCE]: "Soft bounce",
+  [MailTransactionalDeliveryStatus.HARD_BOUNCE]: "Hard bounce",
+  [MailTransactionalDeliveryStatus.BLOCKED]: "Blocked"
+};
+
 export interface MailReportStatTile {
-  key: string;
+  key: MailReportEventFilter | string;
   label: string;
   value: number | string;
-  eventType?: string;
+  eventType?: MailReportEventFilter;
 }
 
 export interface MailPerformanceCard {
@@ -1344,6 +1372,11 @@ export interface BrevoTransactionalEmailSummary {
   origin?: TransactionalEmailOrigin;
   originLabel?: string;
   threadId?: string | null;
+  event?: BrevoEventType | string;
+  reason?: string;
+  bounceExplanation?: string;
+  bounceDetailsAvailable?: boolean;
+  deliveryStatus?: MailTransactionalDeliveryStatus;
 }
 
 export interface TransactionalSendActionGroup {

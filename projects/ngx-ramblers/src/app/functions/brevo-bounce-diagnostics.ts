@@ -1,4 +1,5 @@
 import { isNumber, isString } from "es-toolkit/compat";
+import { DateTime } from "luxon";
 import {
   BREVO_EVENT_LABELS,
   BrevoBounceDiagnostic,
@@ -6,7 +7,8 @@ import {
   BrevoContactStatisticsCount,
   BrevoEmailEvent,
   BrevoEventSource,
-  BrevoEventType
+  BrevoEventType,
+  BrevoTransactionalEmailSummary
 } from "../models/mail.model";
 import { normaliseEmail } from "./strings";
 
@@ -32,6 +34,8 @@ export function bounceExplanationFor(reason: string | undefined): string | null 
     const code = smtp ? smtp[2] : "";
     if (code.indexOf("5.4.1") === 0 || /recipient address rejected/i.test(text)) {
       return "The receiving mail server rejected this address.";
+    } else if (/mail ?box does not exist|user unknown|unknown user/i.test(text)) {
+      return "The mailbox does not exist.";
     } else if (code.indexOf("5.7.1") === 0 && /spamhaus|client host blocked|blocked using/i.test(text)) {
       return "The receiving mail server blocked the sending mail server.";
     } else {
@@ -236,4 +240,59 @@ export function bounceCopyText(event: BrevoEmailEvent): string {
     event.reason ? `Server response: ${event.reason}` : "Server response: not available in NGX"
   ];
   return lines.filter(line => !!line).join("\n");
+}
+
+export function attachDiagnosticsToTransactionalSummaries(
+  emails: BrevoTransactionalEmailSummary[],
+  diagnostics: BrevoBounceDiagnostic[]
+): BrevoTransactionalEmailSummary[] {
+  const asEvents: BrevoEmailEvent[] = emails.map(email => ({
+    email: email.email,
+    date: email.date,
+    subject: email.subject,
+    messageId: email.messageId,
+    event: email.event || "",
+    reason: email.reason,
+    from: email.from,
+    templateId: email.templateId,
+    source: BrevoEventSource.TRANSACTIONAL
+  }));
+  const attached = attachDiagnosticsToEvents(asEvents, diagnostics);
+  return emails.map((email, index) => {
+    const event = attached[index];
+    return {
+      ...email,
+      event: event.event || email.event,
+      reason: event.reason,
+      bounceExplanation: event.bounceExplanation,
+      bounceDetailsAvailable: event.bounceDetailsAvailable
+    };
+  });
+}
+
+export function diagnosticAsTransactionalSummary(diagnostic: BrevoBounceDiagnostic): BrevoTransactionalEmailSummary {
+  const date = DateTime.fromMillis(diagnostic.eventAt, {zone: "utc"}).toISO() || "";
+  return {
+    email: diagnostic.email,
+    subject: "",
+    messageId: diagnostic.messageId || "",
+    uuid: "",
+    date,
+    event: diagnostic.event,
+    reason: diagnostic.reason,
+    bounceExplanation: bounceExplanationFor(diagnostic.reason),
+    bounceDetailsAvailable: !!(diagnostic.reason || diagnostic.sendingIp)
+  };
+}
+
+export function mergeDiagnosticOnlyTransactionalBounces(
+  emails: BrevoTransactionalEmailSummary[],
+  diagnostics: BrevoBounceDiagnostic[],
+  eventType: BrevoEventType
+): BrevoTransactionalEmailSummary[] {
+  const keys = new Set(emails.map(email => `${normaliseEmail(email.email)}|${email.messageId || ""}`));
+  const extras = diagnostics
+    .filter(diagnostic => diagnostic.event === eventType && !keys.has(`${diagnostic.email}|${diagnostic.messageId || ""}`))
+    .map(diagnosticAsTransactionalSummary);
+  return [...emails, ...extras];
 }

@@ -4,6 +4,8 @@ import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import {
   faBan,
+  faCircleCheck,
+  faCircleExclamation,
   faEnvelopeOpenText,
   faInbox,
   faPlay,
@@ -26,7 +28,10 @@ import {
   BrevoEmailPreviewContent,
   BrevoTransactionalAggregatedReport,
   BrevoTransactionalEmailSummary,
+  MAIL_TRANSACTIONAL_DELIVERY_STATUS_LABELS,
+  MailReportEventFilter,
   MailReportStatTile,
+  MailTransactionalDeliveryStatus,
   TransactionalEmailOrigin,
   TransactionalSendActionGroup
 } from "../../../../models/mail.model";
@@ -40,12 +45,19 @@ import { StringUtilsService } from "../../../../services/string-utils.service";
 import { SystemConfigService } from "../../../../services/system/system-config.service";
 import { Logger, LoggerFactory } from "../../../../services/logger-factory.service";
 import { NgxLoggerLevel } from "ngx-logger";
+import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { SectionToggle } from "../../../../shared/components/section-toggle";
 import { DraggableModalComponent } from "../../../../modules/common/draggable-modal/draggable-modal";
 import { EmailPreviewComponent } from "../../../../modules/common/email-preview/email-preview.component";
 import { groupTransactionalEmailsBySendAction } from "../../../../functions/transactional-send-grouping";
 import { isInboxDigestSubject } from "../../../../functions/transactional-email-origin";
 import { clampBrevoDayRange } from "../../../../functions/brevo-date-range";
+import { brevoEventForMailReport, isBounceMailReportEvent, mailReportEventFromQuery } from "../../../../functions/mail-report-event";
+import { mailReportEventForDeliveryStatus } from "../../../../functions/transactional-delivery-status";
+import { SortableTableComponent } from "../../../../modules/common/sortable-table/sortable-table.component";
+import { SortableTableCellDirective } from "../../../../modules/common/sortable-table/sortable-table-cell.directive";
+import { SortableTableAlignment, SortableTableColumn } from "../../../../modules/common/sortable-table/sortable-table.model";
+import { DESCENDING } from "../../../../models/table-filtering.model";
 enum CampaignSortField {
   SUBJECT = "subject",
   SENT = "sent",
@@ -67,7 +79,7 @@ enum MailReportType {
 
 @Component({
   selector: "app-mail-reports",
-  imports: [DateRangeSlider, DraggableModalComponent, EmailPreviewComponent, FontAwesomeModule, FormsModule, PageComponent, RouterLink, SectionToggle],
+  imports: [DateRangeSlider, DraggableModalComponent, EmailPreviewComponent, FontAwesomeModule, FormsModule, PageComponent, RouterLink, SectionToggle, SortableTableComponent, SortableTableCellDirective, TooltipDirective],
   template: `
     <app-page autoTitle>
       <p>Brevo campaign and transactional email statistics.</p>
@@ -100,7 +112,13 @@ enum MailReportType {
         </div>
       </div>
       @if (error) {
-        <div class="alert alert-danger">{{ error }}</div>
+        <div class="alert alert-danger d-flex align-items-start">
+          <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1"/>
+          <div>
+            <strong>Mail reports could not be loaded</strong>
+            <div>{{ error }}</div>
+          </div>
+        </div>
       }
 
       @if (reportType === MailReportType.CAMPAIGNS) {
@@ -206,27 +224,19 @@ enum MailReportType {
       @if (reportType === MailReportType.TRANSACTIONAL) {
         @if (transactionalStatTiles.length > 0) {
           <h5 class="mt-3">Transactional Email Activity</h5>
-          <p class="text-muted small mb-2">Includes list-subset sends, login mail, and inbox replies. Grouped by send action. Click <strong>Sent</strong> to show or hide the list.</p>
+          <p class="text-muted small mb-2">Includes list-subset sends, login mail, and inbox replies. Click a count to see who it applies to.</p>
           <div class="row mb-3 g-2">
             @for (tile of transactionalStatTiles; track tile.key) {
-              @if (tile.key === "sent") {
-                <div class="col clickable" (click)="toggleTransactionalRecipients()" role="button" title="Show or hide recipients">
-                  <div class="stat-tile" [class.selected]="showTransactionalRecipients">
-                    <div class="stat-value">{{ tile.value }}</div>
-                    <div class="stat-label">{{ tile.label }}</div>
-                  </div>
+              <div class="col clickable" (click)="selectTransactionalEvent(tile.eventType || MailReportEventFilter.SENT)" role="button"
+                   [title]="'Show ' + tile.label">
+                <div class="stat-tile" [class.selected]="selectedTransactionalEvent === (tile.eventType || MailReportEventFilter.SENT)">
+                  <div class="stat-value">{{ tile.value }}</div>
+                  <div class="stat-label">{{ tile.label }}</div>
                 </div>
-              } @else {
-                <div class="col">
-                  <div class="stat-tile">
-                    <div class="stat-value">{{ tile.value }}</div>
-                    <div class="stat-label">{{ tile.label }}</div>
-                  </div>
-                </div>
-              }
+              </div>
             }
           </div>
-          @if (showTransactionalRecipients) {
+          @if (selectedTransactionalEvent === MailReportEventFilter.SENT) {
             <section class="mb-4">
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                 <h5 class="mb-0">Who was sent mail
@@ -268,48 +278,55 @@ enum MailReportType {
                       <span class="small text-muted">{{ expandedSendActionIds.has(group.id) ? "Hide" : "Show" }}</span>
                     </div>
                     @if (expandedSendActionIds.has(group.id)) {
-                      <div class="ngx-data-table-card send-action-recipients">
-                        <table class="ngx-data-table send-action-recipients-table">
-                          <colgroup>
-                            <col class="col-recipient"/>
-                            <col class="col-subject"/>
-                            <col class="col-sent"/>
-                          </colgroup>
-                          <thead>
-                            <tr><th>Recipient</th><th>Personalised subject</th><th>Sent</th></tr>
-                          </thead>
-                          <tbody>
-                            @for (email of group.recipients; track previewKey(email)) {
-                              <tr>
-                                <td [title]="email.email">{{ email.email }}</td>
-                                <td [title]="email.subject">{{ email.subject }}</td>
-                                <td class="sent-cell">
-                                  <span class="sent-when">{{ formatDateTime(email.date) }}</span>
-                                  <span class="action-buttons">
-                                    <button type="button" class="btn btn-sm btn-quiet action-icon-btn"
-                                            (click)="openEmailPreview(email); $event.stopPropagation()"
-                                            [disabled]="previewLoadingKey === previewKey(email)"
-                                            title="View email"
-                                            aria-label="View email">
-                                      <fa-icon [icon]="previewLoadingKey === previewKey(email) ? faSpinner : faEnvelopeOpenText"
-                                               [animation]="previewLoadingKey === previewKey(email) ? 'spin' : null"/>
-                                    </button>
-                                    @if (email.threadId) {
-                                      <a class="btn btn-sm btn-quiet action-icon-btn"
-                                         [routerLink]="['/' + AdminPath.INBOX]"
-                                         [queryParams]="inboxThreadQueryParams(email.threadId)"
-                                         (click)="$event.stopPropagation()"
-                                         title="Open in inbox"
-                                         aria-label="Open in inbox">
-                                        <fa-icon [icon]="faInbox"/>
-                                      </a>
-                                    }
-                                  </span>
-                                </td>
-                              </tr>
-                            }
-                          </tbody>
-                        </table>
+                      <div class="send-action-recipients">
+                        <app-sortable-table
+                          [flat]="true"
+                          [fixedLayout]="true"
+                          [columns]="sendRecipientColumns"
+                          [rows]="group.recipients"
+                          [defaultSortKey]="'when'"
+                          [defaultSortDirection]="DESCENDING"
+                          [trackBy]="trackSendRecipient"
+                          emptyMessage="No recipients in this send.">
+                          <ng-template appSortableTableCell="recipient" let-row>
+                            <span [title]="row.email">{{ row.email }}</span>
+                          </ng-template>
+                          <ng-template appSortableTableCell="subject" let-row>
+                            <span [title]="row.subject">{{ row.subject }}</span>
+                          </ng-template>
+                          <ng-template appSortableTableCell="when" let-row>
+                            <span class="text-nowrap">{{ formatDateTime(row.date) }}</span>
+                          </ng-template>
+                          <ng-template appSortableTableCell="status" let-row>
+                            <div class="d-flex align-items-center justify-content-end gap-2">
+                              <button type="button" class="btn btn-icon btn-quiet"
+                                      (click)="openEmailPreview(row); $event.stopPropagation()"
+                                      [disabled]="previewLoadingKey === previewKey(row)"
+                                      tooltip="View email"
+                                      aria-label="View email">
+                                <fa-icon [icon]="previewLoadingKey === previewKey(row) ? faSpinner : faEnvelopeOpenText"
+                                         [animation]="previewLoadingKey === previewKey(row) ? 'spin' : null"/>
+                              </button>
+                              @if (row.threadId) {
+                                <a class="btn btn-icon btn-quiet"
+                                   [routerLink]="['/' + AdminPath.INBOX]"
+                                   [queryParams]="inboxThreadQueryParams(row.threadId)"
+                                   (click)="$event.stopPropagation()"
+                                   tooltip="Open in inbox"
+                                   aria-label="Open in inbox">
+                                  <fa-icon [icon]="faInbox"/>
+                                </a>
+                              }
+                              <button type="button" class="btn btn-icon btn-quiet"
+                                      (click)="openTransactionalStatus(row); $event.stopPropagation()"
+                                      [tooltip]="deliveryStatusTooltip(row)"
+                                      [attr.aria-label]="deliveryStatusTooltip(row)">
+                                <fa-icon [icon]="deliveryStatusIcon(row)"
+                                         [class]="'delivery-status-' + deliveryStatusFor(row)"/>
+                              </button>
+                            </div>
+                          </ng-template>
+                        </app-sortable-table>
                       </div>
                     }
                   </div>
@@ -322,6 +339,52 @@ enum MailReportType {
                     No transactional recipient records were found in this period.
                   }
                 </p>
+              }
+            </section>
+          }
+          @if (selectedTransactionalEvent && selectedTransactionalEvent !== MailReportEventFilter.SENT) {
+            <section class="mb-4">
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <h5 class="mb-0">{{ transactionalEventHeading }}
+                  <span class="text-muted fw-normal small">({{ transactionalEventSummaryLabel }})</span>
+                </h5>
+                @if (loadingTransactionalEmails) {
+                  <span class="text-muted small"><fa-icon [icon]="faSpinner" [animation]="'spin'"/> Loading</span>
+                }
+              </div>
+              @if (!loadingTransactionalEmails) {
+                <app-sortable-table
+                  [columns]="transactionalEventColumns"
+                  [rows]="transactionalEventRows"
+                  [defaultSortKey]="transactionalEventSortKey"
+                  [defaultSortDirection]="transactionalEventSortDirection"
+                  [trackBy]="trackTransactionalEvent"
+                  (sortChange)="onTransactionalEventSort($event)"
+                  [emptyMessage]="transactionalEventEmptyMessage">
+                  <ng-template appSortableTableCell="recipient" let-row>
+                    <span [title]="row.email">{{ row.email }}</span>
+                  </ng-template>
+                  <ng-template appSortableTableCell="subject" let-row>
+                    <span [title]="row.subject">{{ row.subject }}</span>
+                  </ng-template>
+                  <ng-template appSortableTableCell="diagnostic" let-row>
+                    @if (row.bounceExplanation || row.reason) {
+                      <div>
+                        @if (row.bounceExplanation) {
+                          <div>{{ row.bounceExplanation }}</div>
+                        }
+                        @if (row.reason) {
+                          <div class="text-muted small" [title]="row.reason">{{ row.reason }}</div>
+                        }
+                      </div>
+                    } @else {
+                      <span class="text-muted">No diagnostic in NGX</span>
+                    }
+                  </ng-template>
+                  <ng-template appSortableTableCell="when" let-row>
+                    <span class="text-nowrap">{{ formatDateTime(row.date) }}</span>
+                  </ng-template>
+                </app-sortable-table>
               }
             </section>
           }
@@ -483,28 +546,36 @@ enum MailReportType {
       border-right: none
       border-bottom: none
 
-    .send-action-recipients-table
+    .send-action-recipients table.sortable-table
       table-layout: fixed
       width: 100%
 
-    .send-action-recipients-table .col-recipient
-      width: 28%
-
-    .send-action-recipients-table .col-subject
-      width: 44%
-
-    .send-action-recipients-table .col-sent
-      width: 28%
-
-    .send-action-recipients-table th,
-    .send-action-recipients-table td
+    .send-action-recipients table.sortable-table th,
+    .send-action-recipients table.sortable-table td
       overflow: hidden
       text-overflow: ellipsis
       white-space: nowrap
 
-    .send-action-recipients-table td.sent-cell
+    .send-action-recipients table.sortable-table td.send-row-actions
       overflow: visible
       white-space: nowrap
+
+    .delivery-status
+      font-weight: 600
+      white-space: nowrap
+
+    .delivery-status-delivered
+      color: #2d6a4f
+
+    .delivery-status-sent
+      color: #495057
+
+    .delivery-status-soft-bounce
+      color: #9a6700
+
+    .delivery-status-hard-bounce,
+    .delivery-status-blocked
+      color: #9b2226
 
     .sent-cell
       display: flex
@@ -549,12 +620,18 @@ export class MailReportsComponent implements OnInit, OnDestroy {
   private subscriptions: Subscription[] = [];
   private destroy$ = new Subject<void>();
   private rangeChangeSubject = new Subject<{startDate: string; endDate: string}>();
+  private transactionalEmailLoad = {id: 0};
   protected summary: BrevoCampaignQueueSummary | null = null;
   protected transactionalStats: BrevoTransactionalAggregatedReport | null = null;
   protected transactionalEmails: BrevoTransactionalEmailSummary[] = [];
   protected transactionalSendGroups: TransactionalSendActionGroup[] = [];
+  protected transactionalEventRows: BrevoTransactionalEmailSummary[] = [];
   protected expandedSendActionIds = new Set<string>();
-  protected showTransactionalRecipients = false;
+  protected selectedTransactionalEvent: MailReportEventFilter | null = MailReportEventFilter.SENT;
+  protected readonly MailReportEventFilter = MailReportEventFilter;
+  protected readonly MailTransactionalDeliveryStatus = MailTransactionalDeliveryStatus;
+  protected transactionalEventSortKey = "when";
+  protected transactionalEventSortDirection = DESCENDING;
   protected showInboxDigests = false;
   protected loadingTransactionalEmails = false;
   protected previewLoadingKey: string | null = null;
@@ -610,6 +687,23 @@ export class MailReportsComponent implements OnInit, OnDestroy {
   protected readonly faSortDown = faSortDown;
   protected readonly faEnvelopeOpenText = faEnvelopeOpenText;
   protected readonly faInbox = faInbox;
+  protected readonly faCircleExclamation = faCircleExclamation;
+  protected readonly faCircleCheck = faCircleCheck;
+  protected readonly DESCENDING = DESCENDING;
+  protected readonly sendRecipientColumns: SortableTableColumn<BrevoTransactionalEmailSummary>[] = [
+    {key: "recipient", label: "Recipient", sortKey: "recipient", cellGetter: row => row.email, width: "26%"},
+    {key: "subject", label: "Personalised subject", sortKey: "subject", cellGetter: row => row.subject || "", width: "40%"},
+    {key: "when", label: "Sent", sortKey: "when", cellGetter: row => row.date || "", width: "18%"},
+    {
+      key: "status",
+      label: "Status",
+      sortKey: "status",
+      cellGetter: row => this.deliveryStatusLabel(row),
+      width: "12rem",
+      align: SortableTableAlignment.RIGHT,
+      cellClass: "send-row-actions"
+    }
+  ];
 
   constructor() {
     const todayUtc = this.dateUtils.dateTimeNow().toUTC().toISODate()
@@ -663,6 +757,12 @@ export class MailReportsComponent implements OnInit, OnDestroy {
         this.sortField = CampaignSortField.SENT_DATE;
         this.sortDirection = SortDirection.DESC;
         this.applyDefaultSortToUrl();
+      }
+      const eventFilter = mailReportEventFromQuery(params[StoredValue.EVENT_TYPE]);
+      if (eventFilter) {
+        this.selectedTransactionalEvent = eventFilter;
+      } else if (this.reportType === MailReportType.TRANSACTIONAL) {
+        this.selectedTransactionalEvent = MailReportEventFilter.SENT;
       }
     });
     this.rangeChangeSubject.pipe(
@@ -744,7 +844,8 @@ export class MailReportsComponent implements OnInit, OnDestroy {
         [StoredValue.MAIL_REPORT_TYPE]: this.reportType,
         [StoredValue.FILTER]: this.searchTerm || null,
         [StoredValue.SORT]: this.sortField || null,
-        [StoredValue.SORT_ORDER]: this.sortDirection === SortDirection.DESC ? SortDirection.DESC : SortDirection.ASC
+        [StoredValue.SORT_ORDER]: this.sortDirection === SortDirection.DESC ? SortDirection.DESC : SortDirection.ASC,
+        [StoredValue.EVENT_TYPE]: this.selectedTransactionalEvent
       },
       queryParamsHandling: "merge"
     });
@@ -756,7 +857,8 @@ export class MailReportsComponent implements OnInit, OnDestroy {
       queryParams: {
         [StoredValue.MAIL_REPORT_TYPE]: this.reportType,
         [StoredValue.SORT]: CampaignSortField.SENT_DATE,
-        [StoredValue.SORT_ORDER]: SortDirection.DESC
+        [StoredValue.SORT_ORDER]: SortDirection.DESC,
+        [StoredValue.EVENT_TYPE]: this.selectedTransactionalEvent
       },
       queryParamsHandling: "merge",
       replaceUrl: true
@@ -777,15 +879,10 @@ export class MailReportsComponent implements OnInit, OnDestroy {
     });
   }
 
-  protected toggleTransactionalRecipients(): void {
-    this.showTransactionalRecipients = !this.showTransactionalRecipients;
-    if (this.showTransactionalRecipients) {
-      void this.loadTransactionalEmails(this.formattedRangeStart(), this.formattedRangeEnd());
-    } else {
-      this.transactionalEmails = [];
-      this.transactionalSendGroups = [];
-      this.expandedSendActionIds = new Set<string>();
-    }
+  protected selectTransactionalEvent(eventType: MailReportEventFilter): void {
+    this.selectedTransactionalEvent = eventType;
+    this.updateQueryParams();
+    void this.loadTransactionalEmails(this.formattedRangeStart(), this.formattedRangeEnd());
   }
 
   protected toggleSendActionGroup(groupId: string): void {
@@ -801,6 +898,11 @@ export class MailReportsComponent implements OnInit, OnDestroy {
   protected previewKey(email: BrevoTransactionalEmailSummary): string {
     return `${email.messageId || ""}|${email.email || ""}|${email.date || ""}`;
   }
+
+  protected trackSendRecipient = (_index: number, email: BrevoTransactionalEmailSummary): string => this.previewKey(email);
+
+  protected trackTransactionalEvent = (index: number, row: BrevoTransactionalEmailSummary): string =>
+    `${row.messageId || ""}|${row.email || ""}|${row.date || ""}|${index}`;
 
   protected inboxThreadQueryParams(threadId: string): Record<string, string> {
     return {[StoredValue.THREAD]: threadId};
@@ -894,6 +996,83 @@ export class MailReportsComponent implements OnInit, OnDestroy {
     }
   }
 
+  get transactionalEventHeading(): string {
+    const tile = this.transactionalStatTiles.find(item => item.eventType === this.selectedTransactionalEvent);
+    return tile?.label || "Activity";
+  }
+
+  get transactionalEventSummaryLabel(): string {
+    return this.stringUtils.pluraliseWithCount(this.transactionalEventRows.length, "recipient");
+  }
+
+  get transactionalEventEmptyMessage(): string {
+    return `No ${this.transactionalEventHeading.toLowerCase()} were found in this period.`;
+  }
+
+  get transactionalEventColumns(): SortableTableColumn<BrevoTransactionalEmailSummary>[] {
+    const bounce = this.selectedTransactionalEvent
+      ? isBounceMailReportEvent(this.selectedTransactionalEvent)
+      : false;
+    const columns: SortableTableColumn<BrevoTransactionalEmailSummary>[] = [
+      {key: "recipient", label: "Recipient", sortKey: "recipient", cellGetter: row => row.email},
+      {key: "subject", label: "Subject", sortKey: "subject", cellGetter: row => row.subject || ""}
+    ];
+    if (bounce) {
+      columns.push({
+        key: "diagnostic",
+        label: "Diagnostic",
+        sortKey: "diagnostic",
+        cellGetter: row => row.bounceExplanation || row.reason || ""
+      });
+    }
+    columns.push({key: "when", label: "When", sortKey: "when", cellGetter: row => row.date || ""});
+    return columns;
+  }
+
+  protected onTransactionalEventSort(state: {key: string | null; direction: string}): void {
+    this.transactionalEventSortKey = state.key || "when";
+    this.transactionalEventSortDirection = state.direction || DESCENDING;
+  }
+
+  protected deliveryStatusFor(row: BrevoTransactionalEmailSummary): MailTransactionalDeliveryStatus {
+    return row.deliveryStatus || MailTransactionalDeliveryStatus.SENT;
+  }
+
+  protected isSentDeliveryStatus(row: BrevoTransactionalEmailSummary): boolean {
+    return this.deliveryStatusFor(row) === MailTransactionalDeliveryStatus.SENT;
+  }
+
+  protected deliveryStatusIcon(row: BrevoTransactionalEmailSummary) {
+    const status = this.deliveryStatusFor(row);
+    if (status === MailTransactionalDeliveryStatus.DELIVERED) {
+      return this.faCircleCheck;
+    } else if (status === MailTransactionalDeliveryStatus.SOFT_BOUNCE) {
+      return this.faCircleExclamation;
+    } else if (status === MailTransactionalDeliveryStatus.SENT) {
+      return this.faEnvelopeOpenText;
+    } else {
+      return this.faBan;
+    }
+  }
+
+  protected deliveryStatusLabel(row: BrevoTransactionalEmailSummary): string {
+    return MAIL_TRANSACTIONAL_DELIVERY_STATUS_LABELS[this.deliveryStatusFor(row)];
+  }
+
+  protected deliveryStatusTooltip(row: BrevoTransactionalEmailSummary): string {
+    const label = this.deliveryStatusLabel(row);
+    const detail = row.bounceExplanation || row.reason;
+    if (detail) {
+      return `${label}: ${detail}`;
+    } else {
+      return label;
+    }
+  }
+
+  protected openTransactionalStatus(row: BrevoTransactionalEmailSummary): void {
+    this.selectTransactionalEvent(mailReportEventForDeliveryStatus(this.deliveryStatusFor(row)));
+  }
+
   protected onShowInboxDigestsChange(show: boolean): void {
     this.showInboxDigests = show;
     if (show) {
@@ -930,15 +1109,15 @@ export class MailReportsComponent implements OnInit, OnDestroy {
       return [];
     } else {
       return this.tilesWithValues([
-        {key: "sent", label: "Sent", value: stats.sentCount},
-        {key: "delivered", label: "Delivered", value: stats.deliveredCount},
-        {key: "opens", label: "Opens", value: stats.openedCount},
-        {key: "clicks", label: "Clicks", value: stats.clickedCount},
-        {key: "hard-bounces", label: "Hard Bounces", value: stats.hardBouncesCount},
-        {key: "soft-bounces", label: "Soft Bounces", value: stats.softBouncesCount},
-        {key: "unsubs", label: "Unsubs", value: stats.unsubscribedCount},
-        {key: "complaints", label: "Complaints", value: stats.complaintsCount},
-        {key: "blocked", label: "Blocked", value: stats.blockedCount}
+        {key: MailReportEventFilter.SENT, label: "Sent", value: stats.sentCount, eventType: MailReportEventFilter.SENT},
+        {key: MailReportEventFilter.DELIVERED, label: "Delivered", value: stats.deliveredCount, eventType: MailReportEventFilter.DELIVERED},
+        {key: MailReportEventFilter.OPENS, label: "Opens", value: stats.openedCount, eventType: MailReportEventFilter.OPENS},
+        {key: MailReportEventFilter.CLICKS, label: "Clicks", value: stats.clickedCount, eventType: MailReportEventFilter.CLICKS},
+        {key: MailReportEventFilter.HARD_BOUNCES, label: "Hard Bounces", value: stats.hardBouncesCount, eventType: MailReportEventFilter.HARD_BOUNCES},
+        {key: MailReportEventFilter.SOFT_BOUNCES, label: "Soft Bounces", value: stats.softBouncesCount, eventType: MailReportEventFilter.SOFT_BOUNCES},
+        {key: MailReportEventFilter.UNSUBS, label: "Unsubs", value: stats.unsubscribedCount, eventType: MailReportEventFilter.UNSUBS},
+        {key: MailReportEventFilter.COMPLAINTS, label: "Complaints", value: stats.complaintsCount, eventType: MailReportEventFilter.COMPLAINTS},
+        {key: MailReportEventFilter.BLOCKED, label: "Blocked", value: stats.blockedCount, eventType: MailReportEventFilter.BLOCKED}
       ]);
     }
   }
@@ -988,9 +1167,10 @@ export class MailReportsComponent implements OnInit, OnDestroy {
   }
 
   private emitRange(): void {
-    if (!this.showTransactionalRecipients) {
+    if (!this.selectedTransactionalEvent) {
       this.transactionalEmails = [];
       this.transactionalSendGroups = [];
+      this.transactionalEventRows = [];
       this.expandedSendActionIds = new Set<string>();
     }
     this.rangeChangeSubject.next({
@@ -1001,10 +1181,17 @@ export class MailReportsComponent implements OnInit, OnDestroy {
 
   private applyTransactionalEmailList(emails: BrevoTransactionalEmailSummary[]): void {
     this.transactionalEmails = emails;
-    this.transactionalSendGroups = groupTransactionalEmailsBySendAction(emails);
-    this.expandedSendActionIds = new Set(
-      this.visibleTransactionalSendGroups.map(group => group.id)
-    );
+    if (this.selectedTransactionalEvent === MailReportEventFilter.SENT) {
+      this.transactionalSendGroups = groupTransactionalEmailsBySendAction(emails);
+      this.transactionalEventRows = [];
+      this.expandedSendActionIds = new Set(
+        this.visibleTransactionalSendGroups.map(group => group.id)
+      );
+    } else {
+      this.transactionalSendGroups = [];
+      this.transactionalEventRows = emails;
+      this.expandedSendActionIds = new Set<string>();
+    }
   }
 
   private async loadSummary(startDate: string, endDate: string): Promise<void> {
@@ -1024,16 +1211,16 @@ export class MailReportsComponent implements OnInit, OnDestroy {
     try {
       this.transactionalStats = await this.mailService.transactionalAggregatedReport(startDate, endDate);
       if (this.transactionalStats?.sentCount > 0) {
-        this.showTransactionalRecipients = true;
+        if (!this.selectedTransactionalEvent) {
+          this.selectedTransactionalEvent = MailReportEventFilter.SENT;
+        }
         await this.loadTransactionalEmails(startDate, endDate);
       } else {
-        this.showTransactionalRecipients = false;
         this.applyTransactionalEmailList([]);
       }
     } catch (error: any) {
       this.logger.warn("Failed to load transactional stats", error);
       this.transactionalStats = null;
-      this.showTransactionalRecipients = false;
       this.applyTransactionalEmailList([]);
       this.error = this.errorMessage(error, "Unable to load transactional email statistics");
     }
@@ -1041,17 +1228,27 @@ export class MailReportsComponent implements OnInit, OnDestroy {
   }
 
   private async loadTransactionalEmails(startDate: string, endDate: string): Promise<void> {
+    this.transactionalEmailLoad.id += 1;
+    const loadId = this.transactionalEmailLoad.id;
     this.loadingTransactionalEmails = true;
     try {
-      const response = await this.mailService.transactionalEmails(startDate, endDate);
-      this.applyTransactionalEmailList(response?.transactionalEmails ?? []);
-      this.error = null;
+      const event = this.selectedTransactionalEvent
+        ? brevoEventForMailReport(this.selectedTransactionalEvent)
+        : undefined;
+      const response = await this.mailService.transactionalEmails(startDate, endDate, event);
+      if (loadId === this.transactionalEmailLoad.id) {
+        this.applyTransactionalEmailList(response?.transactionalEmails ?? []);
+        this.error = null;
+        this.loadingTransactionalEmails = false;
+      }
     } catch (error: any) {
       this.logger.warn("Failed to load transactional emails", error);
-      this.applyTransactionalEmailList([]);
-      this.error = this.errorMessage(error, "Unable to load transactional recipients");
+      if (loadId === this.transactionalEmailLoad.id) {
+        this.applyTransactionalEmailList([]);
+        this.error = this.errorMessage(error, "Unable to load transactional recipients");
+        this.loadingTransactionalEmails = false;
+      }
     }
-    this.loadingTransactionalEmails = false;
   }
 
   protected async release(campaign: BrevoCampaignProgress): Promise<void> {
