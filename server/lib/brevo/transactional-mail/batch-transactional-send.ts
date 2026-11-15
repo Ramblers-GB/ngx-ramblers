@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import debug from "debug";
-import { isArray, isString, uniq } from "es-toolkit/compat";
+import { isArray, isString, uniq, uniqBy } from "es-toolkit/compat";
 import { envConfig } from "../../env-config/env-config";
 import { dateTimeFromMillis, dateTimeNow } from "../../shared/dates";
 import { UIDateFormat } from "../../../../projects/ngx-ramblers/src/app/models/date-format.model";
@@ -36,7 +36,7 @@ import { Member, MemberEmailBlock } from "../../../../projects/ngx-ramblers/src/
 import { applyPostSendActionsToMembers } from "../../mongo/controllers/member-bulk-delete";
 import { CommitteeConfig, CommitteeMember, committeeRoleMatchingEmail, roleEmailAddresses, roleRecipientMemberIds } from "../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { outboundEmailForMember } from "../../../../projects/ngx-ramblers/src/app/functions/committee-members";
-import { batchSendRecipientSplit, composerAddressIsCommitteeRoleMailbox, composerContentHasPersonalisation, composerRecipientKeepsRoleMailbox, composerRecipientIsExpandableSet, composerSharesRecipientHeaders } from "../../../../projects/ngx-ramblers/src/app/functions/email-composer";
+import { batchSendRecipientSplit, composerContentHasPersonalisation, composerRecipientKeepsRoleMailbox, composerRecipientIsExpandableSet } from "../../../../projects/ngx-ramblers/src/app/functions/email-composer";
 import { joinNotificationSubject } from "../../../../projects/ngx-ramblers/src/app/functions/notification-subject";
 import { resolveAccentColor } from "../../../../projects/ngx-ramblers/src/app/models/email-accent-palette.model";
 import { BannerConfig } from "../../../../projects/ngx-ramblers/src/app/models/banner-configuration.model";
@@ -79,7 +79,7 @@ import { inboxAttachmentsStoredForSentCopy } from "../../inbox/inbox-attachment-
 import { normaliseEmail } from "../../../../projects/ngx-ramblers/src/app/functions/strings";
 import { unbrandedRecipientListsAllowed } from "./unbranded-recipient-lists";
 import { protectedEmailSendError } from "../../salesforce/salesforce-permissions";
-import { sharedRecipientHeaders } from "./shared-recipient-headers";
+import { batchSharesRecipientHeaders, sharedRecipientHeaders } from "./shared-recipient-headers";
 import { createErrorDebugLog } from "../../shared/error-debug-log";
 
 interface AuthenticatedRequest extends Request {
@@ -620,7 +620,7 @@ async function resolveMembersForBatchSend(request: BatchTransactionalSendRequest
   };
 }
 
-async function processBatch(jobId: string, request: BatchTransactionalSendRequest, baseUrl: string, currentMemberId: string | null): Promise<void> {
+async function processBatch(jobId: string, request: BatchTransactionalSendRequest, shareTo: boolean, baseUrl: string, currentMemberId: string | null): Promise<void> {
   const progress = jobs.get(jobId);
   if (!progress) return;
   try {
@@ -670,7 +670,11 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
     const externalRecipients = resolvedRecipients.externalRecipients.filter(item => !!item?.email?.trim());
     const ccAddresses: EmailAddress[] = (request.ccRecipients ?? []).filter(item => !!item?.email?.trim())
       .map(item => ({email: item.email, name: externalRecipientName(item).full}));
-    const combinedBcc: EmailAddress[] = [...bcc, ...(request.bccRecipients ?? []).filter(item => !!item?.email?.trim())
+    const privateUnbranded = isUnbranded && !shareTo;
+    const explicitBcc = (request.bccRecipients ?? []).filter(item => !!item?.email?.trim());
+    const privateBccEmails = new Set(privateUnbranded ? explicitBcc.map(recipient => normaliseEmail(recipient.email)) : []);
+    const privateBccMemberIds = new Set(privateUnbranded ? batchSendRecipientSplit(explicitBcc).memberIds : []);
+    const combinedBcc: EmailAddress[] = privateUnbranded ? [] : [...bcc, ...explicitBcc
       .map(item => ({email: item.email, name: externalRecipientName(item).full}))];
     const memberEntries: BatchSendProgressEntry[] = resolvedRecipients.memberIds.map(id => {
       const memberRecord = membersById.get(id);
@@ -688,7 +692,6 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
       status: BatchSendEntryStatus.Pending
     } satisfies BatchSendProgressEntry));
 
-    const personalised = contentHasMemberMergeFields(request);
     const workItems: WorkItem[] = [
       ...memberEntries.map(entry => ({ kind: "member" as const, memberRecord: membersById.get(entry.memberId)!, entry })),
       ...externalEntries.map((entry, idx) => ({ kind: "external" as const, recipient: externalRecipients[idx], entry }))
@@ -698,12 +701,7 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
     progress.startedAt = dateTimeNow().toMillis();
     const sentCopyAttachments = await inboxAttachmentsStoredForSentCopy(inboxAttachmentsFromComposer(request.attachments));
     const referenceListId = request.narrowListId ?? notifConfig?.defaultListId ?? null;
-    const delivery = {
-      share: request.sharedToRecipients === true
-        && composerSharesRecipientHeaders(request, personalised || contentHasVolunteerMergeFields(request))
-    };
-
-    if (delivery.share) {
+    if (shareTo) {
       const eligibleMemberAddresses: EmailAddress[] = [];
       memberEntries.forEach(entry => {
         const memberRecord = membersById.get(entry.memberId);
@@ -732,12 +730,10 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
         memberRecipientsAsBcc: request.sharedMemberRecipientsAsBcc === true
       });
       const sharedTo = sharedHeaders.to;
-      const visibleAddresses = [...sharedTo, ...ccAddresses];
-      delivery.share = visibleAddresses.every(address => composerAddressIsCommitteeRoleMailbox(address.email, committeeRoles));
       if (sharedTo.length === 0) {
         progress.completedAt = dateTimeNow().toMillis();
         progress.status = progress.failedCount === 0 ? BatchSendStatus.COMPLETED : BatchSendStatus.COMPLETED_WITH_ERRORS;
-      } else if (delivery.share) {
+      } else {
         try {
           const sharedParams: SendSmtpEmailParams = {
             messageMergeFields: {
@@ -807,8 +803,7 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
           debugLog("shared To send failed:", failureMessage, "raw:", error);
         }
       }
-    }
-    if (!delivery.share) {
+    } else {
     for (const item of workItems) {
       if (cancelled.has(jobId)) {
         progress.status = BatchSendStatus.CANCELLED;
@@ -874,7 +869,9 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
         entry.status = BatchSendEntryStatus.Sent;
         entry.sentAt = dateTimeNow().toMillis();
         progress.sentCount += 1;
-        await performInboxWriteback(request, emailRequest, sendResult.renderedHtmlContent, sendResult?.body?.messageId ?? null, senderRoleType, currentMemberId, sentCopyAttachments);
+        if (!privateBccEmails.has(normaliseEmail(recipientEmail)) && !privateBccMemberIds.has(entry.memberId)) {
+          await performInboxWriteback(request, emailRequest, sendResult.renderedHtmlContent, sendResult?.body?.messageId ?? null, senderRoleType, currentMemberId, sentCopyAttachments);
+        }
         if (item.kind === "external" && currentMemberId) {
           await recordSendUsage({
             email: item.recipient.email,
@@ -946,24 +943,15 @@ async function startValidatedBatchTransactionalSend(req: Request, res: Response)
     }
     const isUnbranded = request.brandingMode === BrandingMode.UNBRANDED;
     const currentMemberIdForValidation = (req as AuthenticatedRequest).user?.memberId ?? null;
-    try {
-      await assertSendAllowed(SendPurpose.BATCH, {subject: request.subject, recipientCount: memberCount + externalCount, requestedBy: currentMemberIdForValidation});
-    } catch (error) {
-      if (error instanceof SendRefusedError) {
-        res.status(409).json({ request: { messageType }, error: { message: error.message } });
-        return;
-      } else {
-        throw error;
-      }
-    }
     const recipientListError = await unbrandedRecipientListsAllowed(request)
       ? null
       : UNBRANDED_RECIPIENT_LIST_ERROR;
-    const permissionError = recipientListError ?? await protectedEmailSendError(currentMemberIdForValidation, request.memberIds);
+    const permissionError = recipientListError ?? await protectedEmailSendError(currentMemberIdForValidation, request.memberIds ?? []);
     if (permissionError) {
       res.status(403).json({ request: { messageType }, error: { message: permissionError } });
       return;
     }
+    const routing = {request, shareTo: false};
     if (isUnbranded) {
       const committeeConfigDoc = await config.queryKey(ConfigKey.COMMITTEE);
       const committeeRoles: CommitteeMember[] = committeeConfigDoc?.value?.roles ?? [];
@@ -975,6 +963,24 @@ async function startValidatedBatchTransactionalSend(req: Request, res: Response)
           : "Cannot send unbranded email - you are not linked to a committee role with a valid email on this site. Unbranded sends must come from a verified committee role address.";
         res.status(400).json({ request: { messageType }, error: { message: errorMessage } });
         return;
+      }
+      routing.shareTo = await batchSharesRecipientHeaders(request, contentHasMemberMergeFields(request) || contentHasVolunteerMergeFields(request), committeeRoles);
+      if (!routing.shareTo && (request.ccRecipients?.length || request.bccRecipients?.length)) {
+        const visibleRecipients = uniqBy(
+          [...(request.externalRecipients ?? []), ...(request.ccRecipients ?? [])].filter(recipient => !!recipient?.email?.trim()),
+          recipient => normaliseEmail(recipient.email)
+        );
+        const visibleEmails = new Set(visibleRecipients.map(recipient => normaliseEmail(recipient.email)));
+        const visibleMemberIds = new Set([...(request.memberIds ?? []), ...batchSendRecipientSplit(visibleRecipients).memberIds]);
+        const privateBccRecipients = uniqBy((request.bccRecipients ?? []).filter(recipient => !!recipient?.email?.trim()
+          && !visibleEmails.has(normaliseEmail(recipient.email)) && !visibleMemberIds.has(recipient.memberId)),
+          recipient => normaliseEmail(recipient.email));
+        routing.request = {
+          ...request,
+          externalRecipients: [...visibleRecipients, ...privateBccRecipients],
+          ccRecipients: [],
+          bccRecipients: privateBccRecipients
+        };
       }
     } else {
       const notifConfig: NotificationConfig | null = request.notificationConfigId
@@ -996,25 +1002,43 @@ async function startValidatedBatchTransactionalSend(req: Request, res: Response)
         return;
       }
     }
-    const totalRecipients = memberCount + externalCount;
-    const jobId = randomUUID();
-    const progress: BatchSendProgress = {
-      jobId,
-      status: BatchSendStatus.RUNNING,
-      totalRecipients,
-      sentCount: 0,
-      failedCount: 0,
-      skippedCount: 0,
-      startedAt: dateTimeNow().toMillis(),
-      entries: []
-    };
-    pruneCompletedJobs();
-    jobs.set(jobId, progress);
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const currentMemberId = (req as AuthenticatedRequest).user?.memberId ?? null;
-    void processBatch(jobId, request, baseUrl, currentMemberId);
-    const response: BatchSendStartResponse = { jobId, totalRecipients };
-    successfulResponse({ req, res, response, messageType, debugLog });
+    const privateCopyMemberIds = routing.request === request ? [] : batchSendRecipientSplit([...(request.ccRecipients ?? []), ...(routing.request.bccRecipients ?? [])]).memberIds;
+    const privateCopyPermissionError = privateCopyMemberIds.length > 0
+      ? await protectedEmailSendError(currentMemberIdForValidation, privateCopyMemberIds)
+      : null;
+    if (privateCopyPermissionError) {
+      res.status(403).json({ request: { messageType }, error: { message: privateCopyPermissionError } });
+    } else {
+      const totalRecipients = memberCount + (routing.request.externalRecipients?.filter(item => !!item?.email?.trim()).length ?? 0);
+      try {
+        await assertSendAllowed(SendPurpose.BATCH, {subject: request.subject, recipientCount: totalRecipients, requestedBy: currentMemberIdForValidation});
+      } catch (error) {
+        if (error instanceof SendRefusedError) {
+          res.status(409).json({ request: { messageType }, error: { message: error.message } });
+          return;
+        } else {
+          throw error;
+        }
+      }
+      const jobId = randomUUID();
+      const progress: BatchSendProgress = {
+        jobId,
+        status: BatchSendStatus.RUNNING,
+        totalRecipients,
+        sentCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+        startedAt: dateTimeNow().toMillis(),
+        entries: []
+      };
+      pruneCompletedJobs();
+      jobs.set(jobId, progress);
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const currentMemberId = (req as AuthenticatedRequest).user?.memberId ?? null;
+      void processBatch(jobId, routing.request, routing.shareTo, baseUrl, currentMemberId);
+      const response: BatchSendStartResponse = { jobId, totalRecipients };
+      successfulResponse({ req, res, response, messageType, debugLog });
+    }
   } catch (error) {
     handleError(req, res, messageType, debugLog, error);
   }

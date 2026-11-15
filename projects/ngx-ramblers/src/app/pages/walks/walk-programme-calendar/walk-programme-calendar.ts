@@ -16,6 +16,7 @@ import { Location, NgTemplateOutlet } from "@angular/common";
 import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from "@angular/cdk/drag-drop";
 import { FormsModule } from "@angular/forms";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
+import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import {
   faArrowLeft,
   faChevronLeft,
@@ -84,7 +85,7 @@ const LEADER_GRADE_PALETTE: string[] = [
 @Component({
   selector: "app-walk-programme-calendar",
   changeDetection: ChangeDetectionStrategy.Default,
-  imports: [NgTemplateOutlet, WalkProgrammePageComponent, FormsModule, FontAwesomeModule, CdkDropListGroup, CdkDropList, CdkDrag, SectionToggle],
+  imports: [NgTemplateOutlet, WalkProgrammePageComponent, FormsModule, FontAwesomeModule, CdkDropListGroup, CdkDropList, CdkDrag, SectionToggle, TooltipDirective],
   styleUrls: ["./walk-programme-calendar.sass"],
   template: `
     @if (embedded) {
@@ -177,7 +178,7 @@ const LEADER_GRADE_PALETTE: string[] = [
                         <span class="entry-time">{{ entry.time }}</span>
                         <span class="entry-title">{{ entry.title }}</span>
                         @if (entry.isCommitteeEvent && selectMode) {
-                          <button type="button" class="entry-delete" title="Delete this meeting"
+                          <button type="button" class="entry-delete" tooltip="Delete this meeting" container="body" aria-label="Delete this meeting"
                                   (click)="deleteCommitteeEntry(entry, $event)">
                             <fa-icon [icon]="faTrash"/>
                           </button>

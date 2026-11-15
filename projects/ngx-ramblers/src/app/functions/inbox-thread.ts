@@ -279,10 +279,6 @@ export function inboxSeparateCopiesHeading(count: number): string {
   return `Sent as ${count} separate emails`;
 }
 
-export function inboxSeparateCopiesDetail(count: number): string {
-  return `Each of the ${count} people received their own copy with only their address on To. Nobody else was on that copy.`;
-}
-
 export function inboxMessageRecipientLine(message: InboxMessage | null | undefined): string | null {
   const copies = inboxSeparateCopyCount(message);
   if (copies > 1) {

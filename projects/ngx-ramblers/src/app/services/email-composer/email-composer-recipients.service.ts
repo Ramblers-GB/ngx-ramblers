@@ -226,7 +226,7 @@ export class EmailComposerRecipientsService {
                 : (list && (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST
                     || people.length >= COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT)
                     ? [composerListToken(list.id, list.name, people.length)]
-                    : people);
+                    : people.map(person => ({...person, fromBulkAudience: true})));
             const existingRecipients = (recipients: ComposerExternalRecipient[]) => replaceExisting
                 ? []
                 : recipients.filter(item => !item.listId && !item.filterKey);
@@ -271,7 +271,8 @@ export class EmailComposerRecipientsService {
             else {
                 this.expandedEveryoneSet = true;
             }
-            const people = this.resolver.memberRecipientsForIds(this.session.state.selectedMemberIds);
+            const people = this.resolver.memberRecipientsForIds(this.session.state.selectedMemberIds)
+                .map(person => ({...person, fromBulkAudience: true}));
             const replace = (list: ComposerExternalRecipient[]) => this.mergeRecipients(list.filter(item => item.email.toLowerCase() !== token.email.toLowerCase()), people);
             if (field === RecipientField.TO) {
                 this.onUnbrandedToChange(replace(this.session.state.externalRecipients ?? []));
@@ -288,7 +289,8 @@ export class EmailComposerRecipientsService {
             const people = this.pool.members
                 .filter(member => this.mailListUpdaterService.memberSubscribed(member, token.listId!) && !!(member.email || "").trim())
                 .map(member => composerRecipientFromMember(member))
-                .filter((recipient): recipient is ComposerExternalRecipient => !!recipient);
+                .filter((recipient): recipient is ComposerExternalRecipient => !!recipient)
+                .map(person => ({...person, fromBulkAudience: true}));
             const replace = (list: ComposerExternalRecipient[]) => this.mergeRecipients(list.filter(item => item.email.toLowerCase() !== token.email.toLowerCase()), people);
             if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST) {
                 this.promoteEntireListToSpecificMembers(token.listId);
@@ -409,7 +411,8 @@ export class EmailComposerRecipientsService {
             const fromLists = listChips.flatMap(token => this.pool.members
                 .filter(member => this.mailListUpdaterService.memberSubscribed(member, token.listId!) && !!(member.email || "").trim())
                 .map(member => composerRecipientFromMember(member))
-                .filter((item): item is ComposerExternalRecipient => !!item));
+                .filter((item): item is ComposerExternalRecipient => !!item)
+                .map(person => ({...person, fromBulkAudience: true})));
             return this.mergeRecipients(fromLists, others);
         }
     }

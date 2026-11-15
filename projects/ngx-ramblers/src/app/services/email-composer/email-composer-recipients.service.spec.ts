@@ -1,7 +1,7 @@
 import {DateTime} from "luxon";
 import {TestBed} from "@angular/core/testing";
 import {afterEach, describe, expect, it, vi} from "vitest";
-import {composerCommitteeRoleSendOffered, composerListToken, composerRecipientFromMember, defaultEmailComposerState} from "../../functions/email-composer";
+import {composerCommitteeRoleSendOffered, composerListToken, composerRecipientFromMember, composerSharesRecipientHeaders, defaultEmailComposerState} from "../../functions/email-composer";
 import {BrandingMode, ComposerExternalRecipient, RecipientAddressMode, RecipientField, RecipientMode, SendingChannel} from "../../models/email-composer.model";
 import {StoredValue} from "../../models/ui-actions.model";
 import {CommitteeMember} from "../../models/committee.model";
@@ -55,6 +55,14 @@ describe("composer list expansion", () => {
     expect(state.externalRecipients[0].listId).toBe(list.id);
     expect(state.ccRecipients).toEqual([]);
     expect(state.bccRecipients).toEqual([{email: "guest@example.com"}]);
+
+    state.bccRecipients = [];
+    service.onUnbrandedToChange([...state.externalRecipients, {email: "guest@example.com"}]);
+
+    expect(state.recipientMode).toBe(RecipientMode.SELECTED_MEMBERS);
+    expect(state.externalRecipients.filter(recipient => recipient.fromBulkAudience).map(recipient => recipient.email))
+      .toEqual(members.map(member => member.email));
+    expect(composerSharesRecipientHeaders(state, false, resolver.committeeOnlyAudience())).toBe(false);
   });
 
   it("clears list, filter, header and member selections together for an unbranded audience reset", () => {

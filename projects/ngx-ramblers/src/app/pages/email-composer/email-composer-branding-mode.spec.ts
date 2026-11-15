@@ -181,15 +181,16 @@ describe("composer branding mode", () => {
   });
 
   it.each([
-    {brandingMode: BrandingMode.UNBRANDED, personalised: false, committeeOnly: false, recipientMode: RecipientMode.SELECTED_MEMBERS, kind: EmailCompositionKind.STANDARD, privateAddresses: true, sharedTo: false},
+    {brandingMode: BrandingMode.UNBRANDED, personalised: false, committeeOnly: false, recipientMode: RecipientMode.SELECTED_MEMBERS, kind: EmailCompositionKind.STANDARD, privateAddresses: false, sharedTo: true},
     {brandingMode: BrandingMode.UNBRANDED, personalised: true, committeeOnly: false, recipientMode: RecipientMode.SELECTED_MEMBERS, kind: EmailCompositionKind.STANDARD, privateAddresses: true, sharedTo: false},
     {brandingMode: BrandingMode.BRANDED, personalised: false, committeeOnly: false, recipientMode: RecipientMode.SELECTED_MEMBERS, kind: EmailCompositionKind.STANDARD, privateAddresses: true, sharedTo: false},
     {brandingMode: BrandingMode.BRANDED, personalised: false, committeeOnly: true, recipientMode: RecipientMode.SELECTED_MEMBERS, kind: EmailCompositionKind.STANDARD, privateAddresses: true, sharedTo: false},
     {brandingMode: BrandingMode.UNBRANDED, personalised: false, committeeOnly: false, recipientMode: RecipientMode.ENTIRE_LIST, kind: EmailCompositionKind.STANDARD, privateAddresses: true, sharedTo: false},
-    {brandingMode: BrandingMode.UNBRANDED, personalised: false, committeeOnly: false, recipientMode: RecipientMode.SELECTED_MEMBERS, kind: EmailCompositionKind.NEWSLETTER, privateAddresses: true, sharedTo: false}
+    {brandingMode: BrandingMode.UNBRANDED, personalised: false, committeeOnly: true, recipientMode: RecipientMode.ENTIRE_LIST, kind: EmailCompositionKind.STANDARD, privateAddresses: false, sharedTo: true},
+    {brandingMode: BrandingMode.UNBRANDED, personalised: false, committeeOnly: false, recipientMode: RecipientMode.SELECTED_MEMBERS, kind: EmailCompositionKind.NEWSLETTER, privateAddresses: false, sharedTo: true}
   ])("uses the matching privacy notice and To routing for $brandingMode, personalisation $personalised, committee $committeeOnly, $recipientMode and $kind", ({brandingMode, personalised, committeeOnly, recipientMode, kind, privateAddresses, sharedTo}) => {
     const instance = composer({
-      recipientResolution: {totalRecipientCount: () => 3, committeeOnlyAudience: () => committeeOnly, useCommitteeRoleAddresses: () => false},
+      recipientResolution: {totalRecipientCount: () => 3, committeeOnlyAudience: () => committeeOnly},
       contentIsPersonalised: () => personalised,
       visibleToRecipientCount: () => 2
     });
@@ -200,7 +201,7 @@ describe("composer branding mode", () => {
     expect(instance.canShareRecipientAddressesOnTo()).toBe(sharedTo);
   });
 
-  it.each([RecipientMode.SELECTED_MEMBERS, RecipientMode.ENTIRE_LIST])("keeps guest and personal addresses off a shared To in %s mode", async recipientMode => {
+  it.each([RecipientMode.SELECTED_MEMBERS, RecipientMode.ENTIRE_LIST])("submits one shared unbranded message with the chosen To, Cc and Bcc recipients in %s mode", async recipientMode => {
     const startBatch = vi.fn().mockResolvedValue({jobId: "job-1", totalRecipients: 4});
     const instance = composer({
       documents: {resolveCommitteeFileLinksForSend: vi.fn().mockResolvedValue(null)},
@@ -215,7 +216,7 @@ describe("composer branding mode", () => {
       recipientResolution: {
         recipientListIds: () => [],
         totalRecipientCount: () => 4,
-        committeeOnlyAudience: () => false,
+        committeeOnlyAudience: () => recipientMode === RecipientMode.ENTIRE_LIST,
         sendingAsCampaign: () => false,
         uniqueSendEntries: () => [{name: "chair@group.example.org.uk"}, {name: "guest@example.com"}],
         expandedHeaderRecipients: recipients => recipients,
@@ -235,14 +236,16 @@ describe("composer branding mode", () => {
     });
     await instance.startBatchTransactionalSend([]);
     expect(startBatch).toHaveBeenCalledWith(expect.objectContaining({
-      sharedToRecipients: false,
+      sharedToRecipients: true,
       useCommitteeRoleAddresses: true,
       externalRecipients: instance.session.state.externalRecipients,
       ccRecipients: instance.session.state.ccRecipients,
       bccRecipients: instance.session.state.bccRecipients
     }));
-    expect(instance.recipientAddressesArePrivate()).toBe(true);
-    expect(instance.sendingChannelLabel()).toBe("to each member individually");
+    expect(startBatch.mock.calls[0][0].sharedMemberRecipientsAsBcc).not.toBe(true);
+    expect(instance.recipientAddressesArePrivate()).toBe(false);
+    expect(instance.sendingChannelLabel()).toBe("one email using To, Cc and Bcc");
+    expect(instance.sharedToAddressPreview()).toBe("(chair@group.example.org.uk, guest@example.com)");
   });
 
   it("sends one message when the only To recipient has committee members on Bcc", () => {
@@ -251,8 +254,7 @@ describe("composer branding mode", () => {
         sendingAsCampaign: () => false,
         uniqueSendEntries: () => [{name: "Alex Reed", member: {id: "alex"}}],
         totalRecipientCount: () => 1,
-        committeeOnlyAudience: () => false,
-        useCommitteeRoleAddresses: () => false
+        committeeOnlyAudience: () => false
       },
       contentIsPersonalised: () => true
     });

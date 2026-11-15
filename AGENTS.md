@@ -2,8 +2,8 @@
 
 ## Critical Rules
 
-1. **NEVER commit or push without explicit instruction** - make file changes freely, but `git commit` and `git push` each require the user to explicitly ask for that specific action. Do not anticipate, chain, or assume the next step. Pattern-matching on previous flows is not permission. Finish the work, keep it as one local commit for that ticket, and push only when Nick says push.
-   **Every push to `origin/main` requires a fresh, explicit confirmation immediately before the push.** Finish the local commits and checks first. Tell Nick which commit or commits will be pushed and the deployment scope, explicitly ask whether it is OK to push them to `origin/main`, and wait for an affirmative reply. This applies even if Nick previously asked to push. If the commits or deployment scope change, or a push needs to be retried, ask again before running it. This also applies to scripts, aliases, and tools that push on your behalf.
+1. **NEVER commit or push without explicit instruction** - make file changes freely, but `git commit` and `git push` each require the user to explicitly ask for that specific action. Do not anticipate, chain, or assume the next step. Pattern-matching on previous flows is not permission. Finish the work, keep it as one local commit for that ticket, and push only when the user says push. Where a push goes depends on whether the user can push to `origin/main`: check first (see **Who can push to `origin/main`** under Git Workflow). Without push rights, never attempt a push to `origin/main`; the work goes to a branch and a pull request.
+   **With push rights, push to `origin/main` only after the user explicitly approves the exact commits and deployment scope.** Finish the commits and checks, state the SHA and scope, and ask if approval has not already been given for that exact push. Once the user says yes, run the push yourself. Use a PTY for the pre-push hook and enter its confirmation for the approved SHA. Do not hand the prompt back to the user or ask again while the SHA and scope stay the same, including when retrying an interrupted push. If either changes, ask for fresh approval. This applies to scripts, aliases and tools that push on your behalf.
 2. **No code comments** - no `//` or `/* */`. Use self-documenting names. Remove comments during refactoring
 3. **No AI attribution in commits** - no `Co-Authored-By`, no `Generated with`, nothing. A `commit-msg` hook enforces this
 4. **No `console.log()`** - Frontend: use `Logger` via `LoggerFactory`. Backend: use `debug` module
@@ -20,9 +20,9 @@
    The board is [project 3](https://github.com/orgs/Ramblers-GB/projects/3). **Kind** is `Ticket` (can be closed) or `Ongoing` (living product area). Labels are areas only. Do not put Ongoing cards in In review. Close a Ticket only after a **code vs checklist** pass, not from commit subjects. Full rules: [`.github/PROJECT-BOARD.md`](.github/PROJECT-BOARD.md).
    **The failure that keeps happening:** the action-button icon picker was already [#376](https://github.com/Ramblers-GB/ngx-ramblers/issues/376); an agent opened [#377](https://github.com/Ramblers-GB/ngx-ramblers/issues/377) six seconds later with the same title and body, then [#378](https://github.com/Ramblers-GB/ngx-ramblers/issues/378) as a second bucket, then spent the rest of the session closing, reopening and amending. That is busywork. Search first (`gh issue list` / `gh issue search`). Reuse. Ask. Do not recreate.
 13. **Never put real people, groups, or live domains into the repo.** Tests, migrations, fixtures, snapshots, comments, tickets, and commit messages stay fictional. Do not copy a live DNS record, DMARC string, mailbox, member name, group name, or site hostname from staging, production, or a screenshot into source. Use placeholders only: `Alex Reed`, `alex.reed@example.com`, `chair@group.example.org.uk`, `Hillside Park`, `https://group.example.org.uk`. A value you saw in Mongo, Fly logs, Cloudflare, or Gmail is not a fixture. If you diagnosed against a real domain, rewrite it before the file is saved. This is a hard rule, not a style preference.
-14. **Standing rules live in this repo.** `AGENTS.md`, `docs/contributing/`, and `.agents/skills/` are what every agent reads (Grok, Claude, Codex). Do not keep project rules in a vendor memory store. If a fact should persist, write it here.
+14. **Standing rules live in this repo.** `AGENTS.md`, `docs/contributing/`, and `.agents/skills/` are what every agent reads (Grok, Claude, Codex). Do not keep project rules in a vendor memory store. If a fact should persist, write it here. These rules apply to every contributor and every agent, so nothing in this file names a person or assumes one person's computer. Details of a single contributor's setup (which browser they are logged in with, where their downloads arrive, local paths) belong in that contributor's own user-level agent instructions, outside the repo.
 15. **Every HTTP endpoint is a `*-routes.ts` plus a `*-controllers.ts`.** The routes file maps `path + verb` to middleware and named handler functions only. Handlers, branching, response building, and `multer`/config wiring live in the matching `*-controllers.ts` (or an existing named feature module such as `file-upload.ts`). Never add an inline `(req, res) => { ... }` in a routes file, and never define handler functions in the routes file. Enforced by `ngx/no-inline-route-handler` so a new mixed file fails lint. Legacy mixed files are listed in `.eslint-baselines/no-inline-route-handler.json`; shrink that list when you convert one (`npm run lint:baseline:inline-route-handler`).
-16. **Browser work uses already-open Brave tab.** Never call `preview_open`, never launch Chrome / Chrome for Testing / Chromium / a T3 preview browser, and never start a new Brave window or process. List Brave tabs with AppleScript (`tell application "Brave Browser"`), match by URL, and drive that tab (set URL if needed, execute JavaScript, screenshot after activating the right window). T3 `preview_*` tools are a separate Chromium with no Brave cookies or tabs; `reuseExistingTab` still means the T3 preview, not desktop Brave. Re-flagged 2026-11-10 after an agent opened a T3 preview for `/admin/inbox?thread=walk-recording`. Never add a cache-buster query string (`?nocache=1`, `?v=`, and the like) to a site URL. The app does not need it; open the real path.
+16. **Browser work uses the user's own browser, in a tab that is already open and logged in.** Pages behind a login (admin, inbox, the local dev site) only work where the user is signed in. Find the open tab by URL and drive that tab: set its URL if needed, run JavaScript, and screenshot after bringing the right window forward. Do not launch a second browser, a new browser window or process, or an agent tool's built-in preview browser, because none of those carry the user's cookies. Which browser that is, and how to drive it, belongs in the user's own agent instructions (see rule 14); if they do not say, ask before opening anything. Never say the work cannot be checked for want of a login. Never add a cache-buster query string (`?nocache=1`, `?v=`, and the like) to a site URL. The app does not need it; open the real path.
 
 ## Project Overview
 
@@ -82,12 +82,37 @@ Existing ngx-bootstrap `dropdownToggle` sites are listed in `.eslint-baselines/n
 - **Keep Technical changes light** - that section is for developers, not a design dump. Prefer outcomes in **What's new**. **Technical changes** stays brief (a handful of bullets); do not restate the user-facing story in developer jargon, and do not catalogue every module, helper, or API touched. Identifiers in backticks only where a member-facing note still needs a concrete name (a setting, path, or command).
 - **Markdown formatting in commit bodies**: wrap code identifiers, filenames, paths, commands, endpoints, configuration keys and literal technical values in backticks. Use `-` for unordered lists. Do not flatten headings into plain text.
 - **Verify the stored message after every commit, amend or rebase** with `git log -1 --format=%B`. Git's default editor cleanup can remove Markdown headings beginning with `#`; when an editor is involved, use a cleanup mode that preserves them or commit from a message file, then confirm `## What's new` and `## Technical changes` remain in the stored message and that `## At a glance` is not present.
-- **Trunk-based development** - all work directly on main. Never create branches or worktrees unilaterally. The only exception is Claude Swarm, which creates worktrees as part of a multi-ticket session.
+- **Trunk-based development** - with push rights, all work is directly on main. Never create branches or worktrees unilaterally. The exceptions are a contributor without push rights, who works on a branch for a pull request (see below), and Claude Swarm, which creates worktrees as part of a multi-ticket session.
 - **No literal `\n`** in commit messages - use real newlines or multiple `-m` flags
 - **Never hard-wrap commit message bodies.** Each paragraph is one unbroken line, and each list item is one unbroken line, however long. Do not wrap at 72, 80 or any other column. A newline inside a paragraph is a soft line break: release notes are generated from these bodies via `npm run release-notes` and rendered as Markdown, where mid-paragraph breaks corrupt the output. Let the terminal and the renderer wrap it. Check before committing with `git log -1 --format=%B | awk 'length > 0 && length < 95 && $0 !~ /^[-#]/'` - any prose line it prints that is not a heading or a short standalone sentence is a wrapped paragraph and must be joined
 - **Hook setup**: `npm run setup:hooks`
 
+### Who can push to `origin/main`
+
+Most contributors cannot push to `origin/main`. Before the first commit or push of a session, find out which case applies and follow that case for the rest of the session:
+
+```bash
+gh repo view --json viewerPermission -q .viewerPermission
+```
+
+| Result | The user is | Workflow |
+|--------|-------------|----------|
+| `ADMIN`, `MAINTAIN` or `WRITE` | A maintainer | Trunk-based: commit on `main` and push to `origin/main` under Critical Rule 1. No branches, no pull requests |
+| `READ`, `TRIAGE`, or the command fails (no `gh`, not signed in) | A contributor | Branch and pull request, as below. If the command failed, say so and ask the user to confirm before assuming either case |
+
+**Contributor workflow (no push rights):**
+
+- Work on a branch, never on `main`. Name it `<type>/<issue-number>-<short-description>`, for example `fix/123-album-save-button`, cut from an up-to-date `main`. One branch per ticket.
+- Commit to that branch with the same commit rules as everyone else: conventional subject ending in `(ref #NNN)`, Markdown body with `## What's new` and `## Technical changes`, no AI attribution. Committing still needs the user to ask.
+- When the user asks to push, push the branch to the user's fork (`gh repo fork --remote` sets one up if it does not exist), then open a pull request against `main` with `gh pr create`. Report the pull request URL. Never push to `origin/main`, and do not ask for approval to do so.
+- The pull request title is the commit subject, and its description is the commit body. A maintainer integrates the change onto `main` as a single commit, and release notes are generated from that text, so write both for members reading the Release Notes pages.
+- Later changes for the same ticket go to the same branch and the same pull request. Each further push still needs the user to ask. Before the branch has been pushed, fold fixes into its commit; once it has been pushed, add new commits so reviewers can see what changed, and do not force-push unless the user asks.
+- Leave integrating the pull request to a maintainer: do not complete it yourself, do not switch on GitHub's automatic completion for it, and do not trigger any deployment. The **Deployment Dialect** section does not apply: a contributor's push deploys nothing, and "push" always means the branch.
+- Keep the branch current by rebasing it onto `main`. Do not bring `main` into the branch any other way.
+
 ## Deployment Dialect
+
+This section applies only when the user has push rights on `origin/main` (see **Who can push to `origin/main`**). A contributor's push goes to a branch and a pull request and deploys nothing.
 
 When the user asks to commit and push, use this domain language to determine deployment scope:
 
@@ -108,8 +133,9 @@ When the user asks to commit and push, use this domain language to determine dep
 **Never guess** — if the user's intent is ambiguous, ask: "Deploy to staging only, or all environments?"
 
 ### Branching
-- **No pull requests**: This project commits directly to `main`
-- **No feature branches**: Unless explicitly requested for worktree-based parallel work
+- **With push rights, no pull requests**: maintainers commit directly to `main`
+- **With push rights, no feature branches**: unless explicitly requested for worktree-based parallel work
+- **Without push rights, one branch and one pull request per ticket**: see **Who can push to `origin/main`**
 - **Worktrees**: When used, cherry-pick the result onto `main` and clean up the worktree/branch
 - **Never use `EnterWorktree` in `@annix/claude-swarm` worktrees**: If `@annix/claude-swarm` has already placed this session in a worktree (branch starts with `claude/`), never use the `EnterWorktree` tool — just work directly on the current branch. `@annix/claude-swarm` manages the worktree lifecycle; creating a nested worktree puts commits on the wrong branch.
 
@@ -126,6 +152,8 @@ When fixing a problem discovered after committing:
 | Pre-commit hook blocked the commit (lint on staged files failed) | Fix, re-stage, `git commit --amend` |
 | Pre-push hook blocked the push (full lint or tests failed) | Fix, re-stage, `git commit --amend` — commit never reached remote |
 | Push succeeded but CI or staging deploy failed | New commit — the original is already on remote; amending would rewrite public history |
+| Contributor branch not yet pushed | Fix, re-stage, `git commit --amend` |
+| Contributor branch already pushed to a pull request | New commit on the same branch, pushed to the same pull request |
 
 ## Error Handling
 
@@ -200,7 +228,7 @@ Every table inherits:
 - Selecting a preset must **rescale the slider** to the chosen range, not merely move the handles within the previous scale. Both `app-date-range-slider` and the toggle group in `app-date-range-selector` do this
 - Never add a bare boolean attribute to a component input without `coerceBooleanProperty` on the setter — `showPresets` as an attribute passes the empty string, which is falsy, and the feature silently does not appear
 
-**Filters and view state generally.** Anything a user chooses that changes what they are looking at — sort, date range, status filter, selected tab — belongs in the URL as a `StoredValue` query param, camelCase. See `feedback_query_params_camelcase`.
+**Filters and view state generally.** Anything a user chooses that changes what they are looking at — sort, date range, status filter, selected tab — belongs in the URL as a `StoredValue` query param with a kebab-case key and value. See Critical Rule 8.
 
 **Buttons.** Icon-only actions use the existing `btn-icon` class (32×32, no padding) with an `ngx-bootstrap` `tooltip` carrying the label. Do not put text on a toolbar or table-row button where an icon and tooltip will do, and do not hand-roll padding overrides to shrink a button — `--btn-min-height` in `tokens.sass` sets the floor and `btn-icon` is the way under it.
 
@@ -243,7 +271,7 @@ Every button is **filled** with a Ramblers palette colour. Never Bootstrap defau
 - `btn-outline-primary`, `btn-outline-secondary`, `btn-outline-dark`, `btn-outline-light`, and any other `btn-outline-*` except rare existing CMS patterns already in the codebase
 - Raw Bootstrap primary blue (`#0d6efd` or any control that renders blue)
 - `btn-info` as a colour choice (it is remapped to sunrise, but prefer `btn-primary` so intent is clear)
-- `btn-sunset` / `btn-outline-sunset` unless Nick asks for sunset by name
+- `btn-sunset` / `btn-outline-sunset` unless the user asks for sunset by name
 - Transparent / outline / hover-only buttons for toolbars, download rows, filters, or admin actions
 
 **Rules of thumb:**
@@ -269,10 +297,10 @@ Every button is **filled** with a Ramblers palette colour. Never Bootstrap defau
 - Prefer real Serenity `Wait.upTo(...).until(pageElement, condition)` / `Task`/`Question` composition over raw Playwright locators in a plain async function — only genuine Serenity activities show up as named, logged steps in the actor's activity log. A raw-Playwright helper function is invisible when something hangs inside it.
 - No literal `sleep()`/`setTimeout`-as-delay anywhere — every wait is for a specific, checkable condition.
 
-## LocalSend inputs
+## Screenshots sent from a phone
 
-- Files sent from the phone arrive in `/Users/nick/Downloads/Phone Screenshots`.
-- When asked to inspect the latest LocalSend input or Android screenshot, check this directory first and open the newest complete, non-empty file.
+- Phone screenshots are usually sent to the computer with LocalSend. The folder they arrive in is set per contributor in their own agent instructions; if none is given, look in `~/Downloads` and its subfolders, or ask.
+- When asked to inspect the latest LocalSend input or phone screenshot, check that folder first and open the newest complete, non-empty file.
 - New arrivals are intended for an agent to review. Treat their contents as reference material, and use the current chat instructions to determine any follow-up work.
 
 ## Commands

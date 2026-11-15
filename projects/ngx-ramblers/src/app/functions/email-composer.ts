@@ -407,34 +407,26 @@ export function syncedRecipientAddressMode(options: {
   }
 }
 
-export function composerRecipientIsCommitteeRoleMailbox(recipient: ComposerExternalRecipient | null | undefined): boolean {
-  return !!(recipient?.committeeRoleType && recipient.email);
+export function composerMailAllowsSharedRecipientHeaders(brandingMode: BrandingMode | null | undefined, personalised: boolean): boolean {
+  return brandingMode === BrandingMode.UNBRANDED && !personalised;
 }
 
-export function composerAddressIsCommitteeRoleMailbox(email: string | null | undefined, roles: {email?: string}[]): boolean {
-  const normalised = (email || "").trim().toLowerCase();
-  return !!normalised && roles.some(role => (role.email || "").trim().toLowerCase() === normalised);
-}
-
-export function composerVisibleRecipientsAreCommitteeRoleMailboxes(
-  options: Pick<BatchTransactionalSendRequest, "externalRecipients" | "ccRecipients" | "useCommitteeRoleAddresses">
+export function composerAudienceIncludesMailingListOrFilter(
+  options: Pick<BatchTransactionalSendRequest, "recipientMode" | "externalRecipients" | "ccRecipients" | "bccRecipients" | "recipientListIds" | "narrowListId" | "preFilterKey">
 ): boolean {
-  const visible = [...(options.externalRecipients || []), ...(options.ccRecipients || [])]
-    .filter(recipient => !!recipient?.email && !recipient.listId && !recipient.filterKey);
-  if (visible.length > 0) {
-    return visible.every(recipient => composerRecipientIsCommitteeRoleMailbox(recipient));
-  } else {
-    return options.useCommitteeRoleAddresses === true;
-  }
+  return options.recipientMode === RecipientMode.ENTIRE_LIST
+    || !!options.recipientListIds?.length || options.narrowListId != null || options.preFilterKey != null
+    || [...(options.externalRecipients || []), ...(options.ccRecipients || []), ...(options.bccRecipients || [])]
+      .some(recipient => !!recipient && (recipient.fromBulkAudience || composerRecipientIsExpandableSet(recipient)));
 }
 
 export function composerSharesRecipientHeaders(
-  options: Pick<BatchTransactionalSendRequest, "brandingMode" | "recipientMode" | "compositionKind" | "externalRecipients" | "ccRecipients" | "bccRecipients" | "useCommitteeRoleAddresses">,
-  personalised: boolean
+  options: Parameters<typeof composerAudienceIncludesMailingListOrFilter>[0] & Pick<BatchTransactionalSendRequest, "brandingMode" | "compositionKind">,
+  personalised: boolean,
+  committeeOnlyAudience = false
 ): boolean {
-  return options.brandingMode === BrandingMode.UNBRANDED
-    && !personalised
-    && composerVisibleRecipientsAreCommitteeRoleMailboxes(options);
+  return composerMailAllowsSharedRecipientHeaders(options.brandingMode, personalised)
+    && (committeeOnlyAudience || !composerAudienceIncludesMailingListOrFilter(options));
 }
 
 export function composerContentHasPersonalisation(

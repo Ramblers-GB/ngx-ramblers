@@ -340,13 +340,13 @@ export class EmailComposerRecipientResolutionService {
       if (recipient.filterKey || recipient.email === COMPOSER_EVERYONE_FILTER_EMAIL) {
         const ids = (this.session.state.selectedMemberIds ?? []).filter(Boolean);
         if (ids.length > 0) {
-          return this.memberRecipientsForIds(ids);
+          return this.memberRecipientsForIds(ids).map(person => ({...person, fromBulkAudience: true}));
         } else {
           return this.memberRecipientsForIds(
             this.pool.members
               .filter(member => member.id && !!(member.email || "").trim())
               .map(member => member.id as string)
-          );
+          ).map(person => ({...person, fromBulkAudience: true}));
         }
       } else if (!recipient.listId) {
         return [recipient];
@@ -354,7 +354,8 @@ export class EmailComposerRecipientResolutionService {
         return this.pool.members
           .filter(member => this.mailListUpdaterService.memberSubscribed(member, recipient.listId!) && !!(member.email || "").trim())
           .map(member => composerRecipientFromMember(member))
-          .filter((item): item is ComposerExternalRecipient => !!item);
+          .filter((item): item is ComposerExternalRecipient => !!item)
+          .map(person => ({...person, fromBulkAudience: true}));
       }
     });
     return composerRecipientsForAddressMode(expanded, this.pool.allMembers,

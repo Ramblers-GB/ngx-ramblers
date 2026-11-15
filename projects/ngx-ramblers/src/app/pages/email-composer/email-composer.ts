@@ -3180,9 +3180,11 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   sendingChannelLabel(): string {
     if (this.recipientResolution.sendingAsCampaign()) {
       return "to the whole list";
+    } else if (this.recipientAddressesArePrivate()) {
+      return "to each member individually";
     } else if (this.recipientResolution.uniqueSendEntries().length === 1) {
       return "one email using To, Cc and Bcc";
-    } else if (this.contentIsPersonalised() || this.recipientAddressesArePrivate()) {
+    } else if (this.contentIsPersonalised()) {
       return "to each member individually";
     } else if (this.session.state.brandingMode === BrandingMode.UNBRANDED) {
       return "one email using To, Cc and Bcc";
@@ -4716,17 +4718,18 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
 
   protected recipientAddressesArePrivate(): boolean {
+    const toCount = this.recipientResolution.totalRecipientCount();
+    const state = this.session.state;
+    const hasUnbrandedCopyRecipients = state.brandingMode === BrandingMode.UNBRANDED
+      && (state.ccRecipients?.length > 0 || state.bccRecipients?.length > 0);
     return !this.session.inboxReplyContext && composerRecipientAddressesArePrivate(
-      this.recipientResolution.totalRecipientCount(),
+      toCount + (hasUnbrandedCopyRecipients ? 1 : 0),
       this.canShareRecipientAddressesOnTo()
     );
   }
 
   protected canShareRecipientAddressesOnTo(): boolean {
-    return composerSharesRecipientHeaders({
-      ...this.session.state,
-      useCommitteeRoleAddresses: this.recipientResolution.useCommitteeRoleAddresses()
-    }, this.contentIsPersonalised())
+    return composerSharesRecipientHeaders(this.session.state, this.contentIsPersonalised(), this.recipientResolution.committeeOnlyAudience())
       && this.recipientResolution.totalRecipientCount() > 0;
   }
 
@@ -5040,6 +5043,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     const brandedExternal = splitTo.externalRecipients;
     const request: BatchTransactionalSendRequest = {
       recipientListIds: this.recipientResolution.recipientListIds(),
+      preFilterKey: this.session.state.preFilterKey,
       notificationConfigId: isUnbranded ? undefined : this.session.state.notificationConfig!.id!,
       bannerId: isUnbranded ? null : this.session.state.bannerId,
       subject: this.session.state.subject,

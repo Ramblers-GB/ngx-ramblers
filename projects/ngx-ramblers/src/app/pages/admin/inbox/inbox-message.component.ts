@@ -1,12 +1,12 @@
 import {booleanAttribute, Component, EventEmitter, inject, Input, Output} from "@angular/core";
 import {CommonModule} from "@angular/common";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
-import {faChevronDown, faChevronRight, faCircleCheck, faPaperclip, faReply, faReplyAll, faShare, faEye, faDownload, faSpinner} from "@fortawesome/free-solid-svg-icons";
+import {faChevronDown, faChevronRight, faPaperclip, faReply, faReplyAll, faShare, faEye, faDownload, faSpinner} from "@fortawesome/free-solid-svg-icons";
 import {TooltipDirective} from "ngx-bootstrap/tooltip";
 import {BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective} from "ngx-bootstrap/dropdown";
 import {InboxMessage, InboxMessageDirection, InboxAddress, InboxAttachment} from "../../../models/inbox.model";
 import {UIDateFormat} from "../../../models/date-format.model";
-import {formatInboxAddress, inboxDisplayedAddressLine, inboxMessageRecipientLine, inboxMessageToAddresses, inboxSeparateCopiesDetail, inboxSeparateCopyCount, inboxSendWasSeparateCopies} from "../../../functions/inbox-thread";
+import {formatInboxAddress, inboxDisplayedAddressLine, inboxMessageRecipientLine, inboxMessageToAddresses, inboxSendWasSeparateCopies} from "../../../functions/inbox-thread";
 import {NumberUtilsService} from "../../../services/number-utils.service";
 import {InboxMessageRenderingService} from "../../../services/inbox/inbox-message-rendering.service";
 import {InboxService} from "../../../services/inbox/inbox.service";
@@ -73,15 +73,6 @@ import {hasUnresolvedViewInBrowserLink} from "../../../functions/email-merge-fie
                 </div>
                 @if (hasOpenedMessage()) {
                   <div class="inbox-message-content" [class.d-none]="!isMessageExpanded()">
-                    @if (sentAsSeparateCopies(message)) {
-                      <div class="alert alert-success d-flex align-items-start">
-                        <fa-icon [icon]="faCircleCheck" class="me-2 mt-1"/>
-                        <div>
-                          <strong>{{ messageToLabel(message) }}</strong>
-                          <div>{{ separateCopiesDetail(message) }}</div>
-                        </div>
-                      </div>
-                    }
                     <app-inbox-calendar-invite [message]="message"/>
                     @if (visibleAttachments(message).length) {
                       <div class="inbox-attachments d-flex flex-wrap gap-2 mb-3">
@@ -154,7 +145,6 @@ export class InboxMessageComponent {
   protected readonly faEye = faEye;
   protected readonly faDownload = faDownload;
   protected readonly faSpinner = faSpinner;
-  protected readonly faCircleCheck = faCircleCheck;
 
   protected isMessageExpanded(): boolean {
     return this.expanded;
@@ -216,10 +206,6 @@ export class InboxMessageComponent {
 
   protected sentAsSeparateCopies(message: InboxMessage): boolean {
     return inboxSendWasSeparateCopies(message);
-  }
-
-  protected separateCopiesDetail(message: InboxMessage): string {
-    return inboxSeparateCopiesDetail(inboxSeparateCopyCount(message));
   }
 
   private formatAddress(address: InboxAddress): string {

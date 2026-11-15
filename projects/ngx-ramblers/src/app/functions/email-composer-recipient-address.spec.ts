@@ -322,48 +322,47 @@ describe("composerRecipientLacksMarketingConsent", () => {
 });
 describe("composerSharesRecipientHeaders", () => {
   const options = {brandingMode: BrandingMode.UNBRANDED, recipientMode: RecipientMode.SELECTED_MEMBERS};
-  const roleRecipients = [{email: "chair@group.example.org.uk", committeeRoleType: "chair"}];
 
-  it("keeps personal and guest addresses off a shared To", () => {
-    expect(composerSharesRecipientHeaders({
-      ...options,
-      externalRecipients: [{email: "alex.reed@example.com"}]
-    }, false)).toBe(false);
-  });
-
-  it("shares unbranded committee role mailboxes without personalisation", () => {
-    expect(composerSharesRecipientHeaders({...options, externalRecipients: roleRecipients}, false)).toBe(true);
+  it("shares mixed unbranded recipients without personalisation", () => {
+    expect(composerSharesRecipientHeaders(options, false)).toBe(true);
   });
 
   it("keeps branded mail private even for a committee audience", () => {
-    expect(composerSharesRecipientHeaders({...options, brandingMode: BrandingMode.BRANDED, externalRecipients: roleRecipients}, false)).toBe(false);
+    expect(composerSharesRecipientHeaders({...options, brandingMode: BrandingMode.BRANDED}, false)).toBe(false);
   });
 
   it("keeps personalised mail private", () => {
-    expect(composerSharesRecipientHeaders({...options, externalRecipients: roleRecipients}, true)).toBe(false);
+    expect(composerSharesRecipientHeaders(options, true)).toBe(false);
   });
 
-  it("shares unbranded committee-list sends only when role mailboxes are in use", () => {
-    expect(composerSharesRecipientHeaders({...options, recipientMode: RecipientMode.ENTIRE_LIST}, false)).toBe(false);
-    expect(composerSharesRecipientHeaders({
+  it("shares an unbranded mailing-list send only when everyone on it is on the committee", () => {
+    expect(composerSharesRecipientHeaders({...options, recipientMode: RecipientMode.ENTIRE_LIST}, false, true)).toBe(true);
+    expect(composerSharesRecipientHeaders({...options, recipientMode: RecipientMode.ENTIRE_LIST}, false, false)).toBe(false);
+  });
+
+  it("shares hand-picked committee role mailboxes on To and Cc whether or not the audience is committee only", () => {
+    const chosen = {
       ...options,
-      recipientMode: RecipientMode.ENTIRE_LIST,
-      useCommitteeRoleAddresses: true
-    }, false)).toBe(true);
+      externalRecipients: [{email: "chair@group.example.org.uk", committeeRoleType: "chair"}, {email: "secretary@group.example.org.uk"}],
+      ccRecipients: [{email: "walks@group.example.org.uk"}]
+    };
+    expect(composerSharesRecipientHeaders(chosen, false, true)).toBe(true);
+    expect(composerSharesRecipientHeaders(chosen, false, false)).toBe(true);
   });
 
-  it("shares unbranded role-mailbox sends even when a newsletter type is still selected", () => {
-    expect(composerSharesRecipientHeaders({
-      ...options,
-      compositionKind: EmailCompositionKind.NEWSLETTER,
-      externalRecipients: roleRecipients
-    }, false)).toBe(true);
+  it("shares unbranded sends even when a newsletter type is still selected", () => {
+    expect(composerSharesRecipientHeaders({...options, compositionKind: EmailCompositionKind.NEWSLETTER}, false)).toBe(true);
   });
 
-  it("does not treat an unexpanded list chip as a role mailbox", () => {
-    const recipients = [{email: "list@group.example.org.uk", listId: 7}];
-    expect(composerSharesRecipientHeaders({...options, externalRecipients: recipients}, false)).toBe(false);
-    expect(composerSharesRecipientHeaders({...options, ccRecipients: recipients}, false)).toBe(false);
+  it("keeps addresses private when a mailing list or filter that is not committee only is on To, Cc or Bcc", () => {
+    const list = [{email: "list@group.example.org.uk", listId: 7}];
+    const filter = [{email: "filter@group.example.org.uk", filterKey: MemberSelection.RECENTLY_ADDED}];
+    [list, filter].forEach(recipients => {
+      expect(composerSharesRecipientHeaders({...options, externalRecipients: recipients}, false)).toBe(false);
+      expect(composerSharesRecipientHeaders({...options, ccRecipients: recipients}, false)).toBe(false);
+      expect(composerSharesRecipientHeaders({...options, bccRecipients: recipients}, false)).toBe(false);
+      expect(composerSharesRecipientHeaders({...options, externalRecipients: recipients}, false, true)).toBe(true);
+    });
   });
 });
 

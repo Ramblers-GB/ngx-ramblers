@@ -593,6 +593,7 @@ export interface ComposerExternalRecipient {
   listId?: number;
   listCount?: number;
   filterKey?: MemberSelection;
+  fromBulkAudience?: boolean;
   searchText?: string;
 }
 
@@ -635,6 +636,7 @@ export interface ResolvedSenderAddresses {
 
 export interface BatchTransactionalSendRequest {
   recipientListIds?: number[];
+  preFilterKey?: MemberSelection | null;
   notificationConfigId?: string;
   bannerId: string | null;
   subject: string;

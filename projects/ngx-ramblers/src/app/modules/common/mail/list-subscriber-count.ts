@@ -21,10 +21,6 @@ import { ListSubscriberService } from "../../../services/mail/list-subscriber.se
       text-decoration: underline dotted
       text-underline-offset: 2px
       cursor: default
-    :host ::ng-deep .list-subscriber-count-tooltip .tooltip-inner
-      max-width: 360px
-      text-align: left
-      white-space: normal
   `]
 })
 export class ListSubscriberCountComponent {
