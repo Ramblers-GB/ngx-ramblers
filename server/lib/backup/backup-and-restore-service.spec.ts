@@ -4,6 +4,7 @@ import { afterEach, describe, it } from "mocha";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
+import { DeleteObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { BackupAndRestoreService } from "./backup-and-restore-service";
 import { backupEvents } from "./backup-events";
 import { backupSession } from "../mongo/models/backup-session";
@@ -14,6 +15,30 @@ describe("backup database traffic", () => {
   const service = new BackupAndRestoreService([], {});
 
   afterEach(() => sandbox.restore());
+
+  it("uses the selected archive for restore and deletion", async () => {
+    const service = new BackupAndRestoreService([], {
+      environments: [{environment: "group-example"}],
+      aws: {
+        bucket: "archive-current", region: "eu-west-2", accessKeyId: "current-key", secretAccessKey: "current-secret",
+        previous: {bucket: "archive-previous", region: "eu-west-1", accessKeyId: "previous-key", secretAccessKey: "previous-secret"}
+      }
+    });
+    const prefix = "group-example/2026-11-15-20-00-00";
+    const location = `s3://archive-previous/${prefix}`;
+    const {client} = service["archiveBackupAt"](location);
+    expect(await client.config.region()).toEqual("eu-west-1");
+    expect((await client.config.credentials()).accessKeyId).toEqual("previous-key");
+    const send = sandbox.stub(S3Client.prototype, "send");
+    send.onFirstCall().resolves({Contents: [{Key: `${prefix}/dump.bson`}]});
+    send.onSecondCall().resolves({});
+    const result = await service.deleteS3Backups([location, prefix, `s3://archive-unknown/${prefix}`]);
+    expect(result.deleted).toEqual([location]);
+    expect(result.errors).toHaveLength(2);
+    expect(send.callCount).toBe(2);
+    expect((send.firstCall.args[0] as ListObjectsV2Command).input).toMatchObject({Bucket: "archive-previous", Prefix: `${prefix}/`});
+    expect((send.secondCall.args[0] as DeleteObjectCommand).input).toEqual({Bucket: "archive-previous", Key: `${prefix}/dump.bson`});
+  });
 
   it("requests network compression alongside the existing connection timeouts", () => {
     const uri = service["buildMongoUriForConfig"]("cluster.example", "backup-user", "example-password", "group-example");
@@ -88,10 +113,32 @@ describe("backup database traffic", () => {
     expect(runBackup.calledOnce).toEqual(true);
   });
 
-  it("only aborts sessions that are still queued", async () => {
+  it("aborts a queued session", async () => {
+    const update = sandbox.stub(backupSession, "updateOne").resolves({modifiedCount: 1} as any);
+    sandbox.stub(backupSession, "findById").returns({select: () => ({lean: () => Promise.resolve({_id: "example-session", status: BackupSessionStatus.ABORTED})})} as any);
+    sandbox.stub(backupEvents, "listenerCount").returns(0);
+    expect(await service.abortSession("example-session", "Alex Reed")).toEqual({_id: "example-session", status: BackupSessionStatus.ABORTED});
+    expect(update.firstCall.args[0]).toEqual({_id: "example-session", status: BackupSessionStatus.PENDING});
+  });
+
+  it("aborts a running session when it is no longer queued", async () => {
+    const update = sandbox.stub(backupSession, "updateOne")
+      .onFirstCall().resolves({modifiedCount: 0} as any)
+      .onSecondCall().resolves({modifiedCount: 1} as any);
+    sandbox.stub(backupSession, "findById").returns({
+      select: () => ({lean: () => Promise.resolve({_id: "example-session", status: BackupSessionStatus.ABORTED})}),
+      lean: () => Promise.resolve({_id: "example-session", status: BackupSessionStatus.ABORTED, s3Location: null})
+    } as any);
+    sandbox.stub(backupEvents, "listenerCount").returns(0);
+    expect(await service.abortSession("example-session", "Alex Reed")).toEqual({_id: "example-session", status: BackupSessionStatus.ABORTED});
+    expect(update.secondCall.args[0]).toEqual({_id: "example-session", status: BackupSessionStatus.IN_PROGRESS});
+  });
+
+  it("does not abort a finished session", async () => {
     const update = sandbox.stub(backupSession, "updateOne").resolves({modifiedCount: 0} as any);
     expect(await service.abortSession("example-session", "Alex Reed")).toBeNull();
     expect(update.firstCall.args[0]).toEqual({_id: "example-session", status: BackupSessionStatus.PENDING});
+    expect(update.secondCall.args[0]).toEqual({_id: "example-session", status: BackupSessionStatus.IN_PROGRESS});
   });
 
   it("leaves an aborted session aborted when the run later completes or fails", async () => {

@@ -41,7 +41,13 @@ export async function configuredBackup(): Promise<BackupConfig> {
       bucket: envsConfig.aws.bucket,
       region: envsConfig.aws.region,
       accessKeyId: envsConfig.aws.accessKeyId,
-      secretAccessKey: envsConfig.aws.secretAccessKey
+      secretAccessKey: envsConfig.aws.secretAccessKey,
+      previous: envsConfig.aws.previous ? {
+        bucket: envsConfig.aws.previous.bucket,
+        region: envsConfig.aws.previous.region,
+        accessKeyId: envsConfig.aws.previous.accessKeyId,
+        secretAccessKey: envsConfig.aws.previous.secretAccessKey
+      } : undefined
     } : undefined
   };
 }

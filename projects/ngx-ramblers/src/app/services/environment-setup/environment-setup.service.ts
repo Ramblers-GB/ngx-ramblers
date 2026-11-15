@@ -34,7 +34,8 @@ import {
   SetDnsOnlyResponse,
   SetupStatusResponse,
   ValidateRequestResponse,
-  ValidationResult
+  ValidationResult,
+  BackupArchiveProvisionResult
 } from "../../models/environment-setup.model";
 import { AtlasConfig, SiteUrlPreference } from "../../models/environment-config.model";
 import { EmptyCollectionCandidate, EmptyCollectionCleanupPreview, EmptyCollectionCleanupResult } from "../../models/environment-collection-cleanup.model";
@@ -285,6 +286,15 @@ export class EnvironmentSetupService {
       this.notifications
     );
     return response as unknown as {message: string};
+  }
+
+  async provisionBackupArchive(): Promise<BackupArchiveProvisionResult> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.post<ApiResponse>(`${this.BASE_URL}/backup-archive`, {}, this.opts),
+      this.notifications
+    );
+    return response as unknown as BackupArchiveProvisionResult;
   }
 
   async saveAtlasProvisioning(patch: Partial<AtlasConfig>): Promise<{atlas: AtlasConfig}> {

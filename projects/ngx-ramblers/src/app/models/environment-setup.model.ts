@@ -1277,7 +1277,31 @@ export function prefixedEnvironmentResourceName(environmentName: string, maxLeng
   return prefixed.length <= maxLength ? prefixed : safe.substring(0, maxLength);
 }
 
+export const BACKUP_ARCHIVE_RESOURCE_NAME = "database-backups";
+
 export function generateDestinationBucketName(environmentName: string, region: string = AWS_DEFAULTS.REGION): string {
   const suffix = `-${region}`;
   return `${prefixedEnvironmentResourceName(environmentName, 63 - suffix.length)}${suffix}`;
+}
+
+export function backupArchiveBucketName(region: string = AWS_DEFAULTS.REGION): string {
+  return generateDestinationBucketName(BACKUP_ARCHIVE_RESOURCE_NAME, region);
+}
+
+export interface BackupArchiveProvisionResult {
+  aws: {
+    bucket?: string;
+    region?: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
+    previous?: {
+      bucket?: string;
+      region?: string;
+      accessKeyId?: string;
+      secretAccessKey?: string;
+    };
+  };
+  created: boolean;
+  bucket: string;
+  region: string;
 }

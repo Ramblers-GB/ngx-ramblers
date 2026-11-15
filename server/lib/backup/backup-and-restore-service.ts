@@ -34,7 +34,8 @@ import {
 import { environmentConfigFor } from "./backup-config";
 import type { EnvironmentConfig } from "../../deploy/deploy.model";
 import { NamedError } from "../../../projects/ngx-ramblers/src/app/models/api-response.model";
-import { AWS_DEFAULTS, FLYIO_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { AWS_DEFAULTS, AwsConfig, FLYIO_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { backupListAwsTargets } from "../environment-setup/backup-archive";
 import { buildMongoUri } from "../shared/mongodb-uri";
 import { isUndefined } from "es-toolkit/compat";
 import {
@@ -45,7 +46,7 @@ import {
   parseS3BackupPrefix,
   parseTimestampToDate
 } from "./backup-paths";
-import { availableSites, completedManifestStatusByTimestamp, externaliseEmbeddedManifestEntries, manifestByTimestamp, startS3Backup, startS3Restore } from "./s3-backup-service";
+import { availableSites, completedManifestStatusByTimestamp, externaliseEmbeddedManifestEntries, isBackupAbortedError, manifestByTimestamp, startS3Backup, startS3Restore } from "./s3-backup-service";
 import { backupEvents } from "./backup-events";
 import { withBackupSlot } from "./backup-concurrency";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
@@ -378,7 +379,8 @@ export class BackupAndRestoreService {
 
         const client = new S3Client({
           region,
-          credentials
+          credentials,
+          followRegionRedirects: true
         });
 
         await this.ensureBucket(client, bucket, region);
@@ -402,7 +404,11 @@ export class BackupAndRestoreService {
           try {
             const s3Results = await startS3Backup(
               { site: options.environment, mongoTimestamp, concurrency: options.s3ObjectBackupConcurrency },
-              (msg) => this.addLog(sessionId, msg)
+              (msg) => this.addLog(sessionId, msg),
+              async () => {
+                const current = await this.session(sessionId);
+                return current?.status === BackupSessionStatus.ABORTED;
+              }
             );
             await this.updateSession(sessionId, { s3Backups: s3Results });
             const summary = s3Results.map(result => {
@@ -411,19 +417,27 @@ export class BackupAndRestoreService {
             }).join("; ");
             await this.addLog(sessionId, `S3 object backup completed: ${summary}`);
           } catch (error: any) {
-            await this.addLog(sessionId, `S3 object backup failed: ${error.message} (Mongo backup is still valid)`);
+            if (isBackupAbortedError(error)) {
+              await this.addLog(sessionId, `S3 object backup stopped: ${error.message}. Objects already copied stay in the archive and the next backup will skip them.`);
+            } else {
+              await this.addLog(sessionId, `S3 object backup failed: ${error.message} (Mongo backup is still valid)`);
+            }
           }
         } else {
           await this.addLog(sessionId, `No S3 source bucket configured for site ${options.environment}, skipping S3 object backup`);
         }
       }
 
-      await this.updateSession(sessionId, { status: BackupSessionStatus.COMPLETED, endTime: dateTimeNow().toJSDate() });
-
-      if (this.notificationService) {
-        const completedSession = await this.session(sessionId);
-        if (completedSession) {
-          await this.notificationService.notifyBackupCompleted(completedSession);
+      const latest = await this.session(sessionId);
+      if (latest?.status === BackupSessionStatus.ABORTED) {
+        await this.addLog(sessionId, "Backup stopped. The Mongo dump and any objects already copied remain usable.");
+      } else {
+        await this.updateSession(sessionId, { status: BackupSessionStatus.COMPLETED, endTime: dateTimeNow().toJSDate() });
+        if (this.notificationService) {
+          const completedSession = await this.session(sessionId);
+          if (completedSession) {
+            await this.notificationService.notifyBackupCompleted(completedSession);
+          }
         }
       }
     } catch (error: any) {
@@ -510,33 +524,17 @@ export class BackupAndRestoreService {
     options: RestoreOptions
   ): Promise<void> {
     try {
-      if (options.from.startsWith("s3://")) {
-        const envBackupConfig = environmentConfigFor(this.backupConfig, options.environment);
-        const s3BucketFromPath = options.from.replace("s3://", "").split("/")[0];
-        const s3Prefix = options.from.replace(`s3://${s3BucketFromPath}/`, "");
-        const configuredBucket = this.preferredBucket(envBackupConfig);
-        const region = this.preferredRegion(envBackupConfig);
-        const credentials = this.preferredCredentials(envBackupConfig);
-
-        const s3 = new S3Client({
-          region,
-          credentials
-        });
-
-        const destDir = path.join(this.dumpBaseDir, s3Prefix);
-        let usedBucket = configuredBucket || s3BucketFromPath;
-        await this.addLog(sessionId, `Downloading backup from s3://${usedBucket}/${s3Prefix} to ${destDir}`);
-        let downloaded = await this.downloadS3Prefix(s3, usedBucket, s3Prefix, destDir, sessionId);
-
-        if (downloaded === 0 && configuredBucket && configuredBucket !== s3BucketFromPath) {
-          usedBucket = s3BucketFromPath;
-          await this.addLog(sessionId, `No files downloaded; retrying with bucket from path: s3://${usedBucket}/${s3Prefix}`);
-          downloaded = await this.downloadS3Prefix(s3, usedBucket, s3Prefix, destDir, sessionId);
-        }
+      const selectedArchive = options.from.startsWith("s3://") ? this.archiveBackupAt(options.from) : null;
+      if (selectedArchive) {
+        const {bucket, prefix: s3Prefix, client} = selectedArchive;
+        const archivePath = path.join("database-backups", bucket, s3Prefix);
+        const destDir = path.join(this.dumpBaseDir, archivePath);
+        await this.addLog(sessionId, `Downloading backup from s3://${bucket}/${s3Prefix} to ${destDir}`);
+        const downloaded = await this.downloadS3Prefix(client, bucket, s3Prefix, destDir, sessionId);
         if (downloaded === 0) {
-          throw new Error(`No objects found at s3://${usedBucket}/${s3Prefix}`);
+          throw new Error(`No objects found at s3://${bucket}/${s3Prefix}`);
         }
-        options = { ...options, from: s3Prefix };
+        options = { ...options, from: archivePath };
       }
       if (!(await this.beginSession(sessionId))) {
         throw new Error("Restore is no longer pending, so it was not started");
@@ -631,10 +629,10 @@ export class BackupAndRestoreService {
       if (options.includeS3 !== false) {
         const baseName = path.basename(options.from);
         const timestamp = extractTimestampFromBackupName(baseName);
-        const sourceSite = extractSourceEnvironmentFromBackupName(baseName, dbName) || options.environment;
+        const sourceSite = selectedArchive?.environment || extractSourceEnvironmentFromBackupName(baseName, dbName) || options.environment;
         const targetSite = options.environment;
         const crossEnvironment = sourceSite !== targetSite;
-        const matchingManifest = await manifestByTimestamp(sourceSite, timestamp).catch(() => null);
+        const matchingManifest = await manifestByTimestamp(sourceSite, timestamp, selectedArchive?.bucket).catch(() => null);
         if (matchingManifest) {
           const crossEnvNote = crossEnvironment ? ` (cross-environment: ${sourceSite} -> ${targetSite})` : "";
           await this.addLog(sessionId, `Starting S3 object restore for site ${targetSite} at timestamp ${timestamp}${crossEnvNote}`);
@@ -643,6 +641,7 @@ export class BackupAndRestoreService {
               {
                 site: sourceSite,
                 targetSite: crossEnvironment ? targetSite : undefined,
+                backupBucket: selectedArchive?.bucket,
                 timestamp
               },
               (msg) => this.addLog(sessionId, msg)
@@ -882,15 +881,28 @@ export class BackupAndRestoreService {
   }
 
   async abortSession(sessionId: string, user: string): Promise<BackupSession | null> {
-    const result = await backupSession.updateOne(
+    const abortedSet = {
+      $set: { status: BackupSessionStatus.ABORTED, error: `Aborted by ${user}`, endTime: dateTimeNow().toJSDate() },
+      $currentDate: { updatedAt: true }
+    };
+    const queued = await backupSession.updateOne(
       { _id: sessionId, status: BackupSessionStatus.PENDING },
-      { $set: { status: BackupSessionStatus.ABORTED, error: `Aborted by ${user}`, endTime: dateTimeNow().toJSDate() }, $currentDate: { updatedAt: true } }
+      abortedSet
     );
-    if (result.modifiedCount > 0) {
+    if (queued.modifiedCount > 0) {
       await this.emitSessionUpdated(sessionId);
       return backupSession.findById(sessionId).select("-logs").lean() as unknown as BackupSession;
     } else {
-      return null;
+      const running = await backupSession.updateOne(
+        { _id: sessionId, status: BackupSessionStatus.IN_PROGRESS },
+        abortedSet
+      );
+      if (running.modifiedCount > 0) {
+        await this.emitSessionUpdated(sessionId);
+        return backupSession.findById(sessionId).select("-logs").lean() as unknown as BackupSession;
+      } else {
+        return null;
+      }
     }
   }
 
@@ -1045,7 +1057,7 @@ export class BackupAndRestoreService {
 
     const errors: string[] = [];
     const globalRegion = this.backupConfig.aws?.region || AWS_DEFAULTS.REGION;
-    const targets = this.s3ListTargets(this.backupConfig.aws?.bucket, globalRegion, errors);
+    const targets = this.s3ListTargets(this.backupConfig.aws, globalRegion, errors);
     const collected = await Promise.all(targets.map(target =>
       this.collectBackupsForEnvironment(errors, target.s3, target.bucket, target.environment)));
     const results = collected.flat();
@@ -1056,31 +1068,35 @@ export class BackupAndRestoreService {
     return results;
   }
 
-  private s3ListTargets(globalBucket: string | undefined, globalRegion: string, errors: string[]): Array<{ environment: string; s3: S3Client; bucket: string }> {
+  private s3ListTargets(aws: AwsConfig | undefined, globalRegion: string, errors: string[]): Array<{ environment: string; s3: S3Client; bucket: string }> {
     const environments = this.backupConfig.environments || [];
-    if (globalBucket) {
-      const credentials = this.preferredCredentials();
-      if (!credentials) {
-        errors.push("No AWS credentials configured for global bucket");
-        return [];
+    const archives = backupListAwsTargets(aws);
+    if (archives.length > 0) {
+      return archives.flatMap(archive => {
+        const s3 = new S3Client({
+          region: archive.region || globalRegion,
+          credentials: { accessKeyId: archive.accessKeyId, secretAccessKey: archive.secretAccessKey },
+          followRegionRedirects: true
+        });
+        return environments.map(env => ({ environment: env.environment, bucket: archive.bucket, s3 }));
+      });
+    } else {
+      const targets = environments
+        .filter(env => env.aws?.bucket && env.aws?.accessKeyId && env.aws?.secretAccessKey)
+        .map(env => ({
+          environment: env.environment,
+          bucket: env.aws.bucket,
+          s3: new S3Client({
+            region: env.aws.region || AWS_DEFAULTS.REGION,
+            credentials: { accessKeyId: env.aws.accessKeyId, secretAccessKey: env.aws.secretAccessKey },
+            followRegionRedirects: true
+          })
+        }));
+      if (targets.length === 0) {
+        errors.push("No S3 bucket configured — set a global bucket or per-environment AWS settings");
       }
-      const s3 = new S3Client({ region: globalRegion, credentials });
-      return environments.map(env => ({ environment: env.environment, bucket: globalBucket, s3 }));
+      return targets;
     }
-    const targets = environments
-      .filter(env => env.aws?.bucket && env.aws?.accessKeyId && env.aws?.secretAccessKey)
-      .map(env => ({
-        environment: env.environment,
-        bucket: env.aws.bucket,
-        s3: new S3Client({
-          region: env.aws.region || AWS_DEFAULTS.REGION,
-          credentials: { accessKeyId: env.aws.accessKeyId, secretAccessKey: env.aws.secretAccessKey }
-        })
-      }));
-    if (targets.length === 0) {
-      errors.push("No S3 bucket configured — set a global bucket or per-environment AWS settings");
-    }
-    return targets;
   }
 
   private async collectBackupsForEnvironment(errors: string[], s3: S3Client, bucket: string, environment: string): Promise<BackupListItem[]> {
@@ -1131,30 +1147,42 @@ export class BackupAndRestoreService {
     }
   }
 
+  private archiveBackupAt(location: string): {bucket: string; prefix: string; environment: string; client: S3Client} {
+    const [, bucket, pathPrefix] = /^s3:\/\/([^/]+)\/(.+)$/.exec(location) ?? [];
+    const prefix = pathPrefix ? stripTrailingSlash(pathPrefix) : "";
+    const backup = parseS3BackupPrefix(prefix);
+    const environment = backup && environmentConfigFor(this.backupConfig, backup.environment);
+    if (!environment || !backup || !parseTimestampToDate(backup.timestamp)) {
+      throw new Error("Select a valid S3 backup location");
+    } else {
+      const archives = backupListAwsTargets(this.backupConfig.aws);
+      const targets = archives.length > 0 ? archives : backupListAwsTargets(environment.aws);
+      const archive = targets.find(target => target.bucket === bucket);
+      if (!archive) {
+        throw new Error("The selected backup bucket is not configured for this environment");
+      } else {
+        return {
+          bucket,
+          prefix,
+          environment: backup.environment,
+          client: new S3Client({
+            region: archive.region,
+            credentials: {accessKeyId: archive.accessKeyId, secretAccessKey: archive.secretAccessKey},
+            followRegionRedirects: true
+          })
+        };
+      }
+    }
+  }
+
   async deleteS3Backups(names: string[]): Promise<{ deleted: string[]; errors: NamedError[] }> {
     const deleted: string[] = [];
     const errors: NamedError[] = [];
-    const globalBucket = this.backupConfig.aws?.bucket;
-    const globalRegion = this.backupConfig.aws?.region || AWS_DEFAULTS.REGION;
-    const credentials = this.preferredCredentials();
-
-    if (!credentials) {
-      return { deleted: [], errors: names.map(name => ({ name, error: "No AWS credentials configured" })) };
-    }
-
     for (const name of names) {
       try {
-        const [envName] = name.split("/");
-        const env = this.backupConfig.environments?.find(e => e.environment === envName);
-        const bucket = globalBucket || env?.aws?.bucket;
-        if (!bucket) {
-          throw new Error(`No S3 bucket configured for environment ${envName}`);
-        }
-        const region = globalBucket ? globalRegion : (env?.aws?.region || AWS_DEFAULTS.REGION);
-        const s3 = new S3Client({ region, credentials });
-        const prefix = name.endsWith("/") ? name : `${name}/`;
+        const {bucket, prefix, client: s3} = this.archiveBackupAt(name);
         const deletePage = async (token: string | undefined): Promise<void> => {
-          const resp = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: token }));
+          const resp = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `${prefix}/`, ContinuationToken: token }));
           for (const obj of (resp.Contents || [])) {
             await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key! }));
           }

@@ -462,6 +462,13 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         -
                       }
                     </ng-template>
+                    <ng-template appSortableTableCell="location" let-row>
+                      @if (row.s3Location) {
+                        <span class="small text-break">{{ row.s3Location }}</span>
+                      } @else {
+                        <span class="text-muted">-</span>
+                      }
+                    </ng-template>
                     <ng-template appSortableTableCell="s3Objects" let-row>
                       @if (sessionS3Summaries(row).length > 0) {
                         @for (summary of sessionS3Summaries(row); track summary.site) {
@@ -502,7 +509,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                           } @else {
                             <button type="button" class="btn btn-sm btn-danger"
                                     container="body"
-                                    tooltip="Abort this queued session"
+                                    tooltip="Abort this session"
                                     (click)="pendingAbortSessionId = row._id">
                               <fa-icon [icon]="faBan"></fa-icon>
                             </button>
@@ -695,7 +702,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   pendingAbortSessionId: string | null = null;
 
   sessionAbortable(session: BackupSession): boolean {
-    return session.status === BackupSessionStatus.PENDING;
+    return session.status === BackupSessionStatus.PENDING || session.status === BackupSessionStatus.IN_PROGRESS;
   }
 
   confirmAbortSession(session: BackupSession) {
@@ -706,7 +713,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
           this.handleSessionUpdated(this.withExistingLogs(aborted));
           this.notify.success({
             title: "Session aborted",
-            message: `${session.type} for ${session.environment} is now marked as aborted.`
+            message: `${session.type} for ${session.environment} is now marked as aborted. Objects already copied stay in the archive for the next backup.`
           });
         },
         error: err => this.notify.error({
@@ -723,6 +730,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
     { key: "status", label: "Status", sortKey: "status", cellClass: "text-nowrap" },
     { key: "started", label: "Started", sortKey: "startedMs" },
     { key: "duration", label: "Duration", sortKey: "durationMs", cellClass: "text-nowrap" },
+    { key: "location", label: "Location", sortKey: "s3Location" },
     { key: "s3Objects", label: "S3 Objects" },
     { key: "actions", label: "Actions" }
   ];
@@ -1424,17 +1432,16 @@ export class BackupAndRestore implements OnInit, OnDestroy {
 
   private notifyBackupsStarted(started: string[], failures: string[]) {
     const total = started.length + failures.length;
-    const historyNote = `History below is now showing only ${this.stringUtils.pluraliseWithCount(total, "environment")} you chose, for all triggers and statuses, so you can watch each backup go from Pending to In Progress to Completed. They run one at a time.`;
     const notStarted = failures.length > 0 ? ` Not started: ${failures.join(", ")}.` : "";
     if (failures.length === 0) {
       this.notify.success({
         title: `Backup started for ${this.stringUtils.pluraliseWithCount(started.length, "environment")}`,
-        message: `Queued: ${started.join(", ")}. ${historyNote}`
+        message: `${started.join(", ")}. They run one at a time.`
       });
     } else if (started.length > 0) {
       this.notify.warning({
         title: `Backup started for ${started.length} of ${total} environments`,
-        message: `Queued: ${started.join(", ")}.${notStarted} ${historyNote}`
+        message: `${started.join(", ")}. They run one at a time.${notStarted}`
       });
     } else {
       this.notify.error({
@@ -1606,10 +1613,9 @@ export class BackupAndRestore implements OnInit, OnDestroy {
 
   confirmDeleteSelectedBackups() {
     this.backupDeleteConfirm.clear();
-    const names = this.selectedBackups.map(b => b.name);
     const obs = this.backupSource === BackupLocation.S3
-      ? this.backupRestoreService.deleteS3Backups(names)
-      : this.backupRestoreService.deleteBackups(names);
+      ? this.backupRestoreService.deleteS3Backups(this.selectedBackups.map(backup => backup.path))
+      : this.backupRestoreService.deleteBackups(this.selectedBackups.map(backup => backup.name));
     this.subscriptions.push(
       obs.subscribe({
         next: result => {

@@ -5,12 +5,14 @@ import { envConfig } from "../env-config/env-config";
 import { login, CMSAuth } from "../release-notes/cms-client";
 import { ConfigUpdateArguments, DEFAULT_CMS_BASE_URL } from "../release-notes/release-notes.model";
 import { isObject } from "es-toolkit/compat";
+import { AWS_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { backupArchiveBucketName } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 
 const debugLog = debug(envConfig.logNamespace("scripts:update-config"));
 debugLog.enabled = true;
 
-const BACKUP_BUCKET = "ngx-ramblers-database-backups";
-const BACKUP_REGION = "eu-west-1";
+const BACKUP_BUCKET = backupArchiveBucketName(AWS_DEFAULTS.REGION);
+const BACKUP_REGION = AWS_DEFAULTS.REGION;
 
 function createAuthHeaders(auth: CMSAuth): Record<string, string> {
   return {

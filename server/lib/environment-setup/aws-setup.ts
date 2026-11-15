@@ -58,6 +58,7 @@ export { generateDestinationBucketName };
 
 export interface SetupAwsForBucketOptions {
   replaceAccessKeys?: boolean;
+  publicRead?: boolean;
 }
 
 const PUBLIC_GET_OBJECT_PREFIXES: RootFolder[] = [
@@ -229,6 +230,19 @@ async function userExists(iamClient: IAMClient, userName: string): Promise<boole
   }
 }
 
+export async function configurePrivateBucket(s3Client: S3Client, bucketName: string): Promise<void> {
+  await s3Client.send(new PutPublicAccessBlockCommand({
+    Bucket: bucketName,
+    PublicAccessBlockConfiguration: {
+      BlockPublicAcls: true,
+      IgnorePublicAcls: true,
+      BlockPublicPolicy: true,
+      RestrictPublicBuckets: true
+    }
+  }));
+  debugLog("Configured private access block for bucket:", bucketName);
+}
+
 export async function configureBucket(s3Client: S3Client, bucketName: string): Promise<void> {
   await s3Client.send(new PutPublicAccessBlockCommand({
     Bucket: bucketName,
@@ -278,31 +292,30 @@ export async function configureBucket(s3Client: S3Client, bucketName: string): P
 export async function createS3Bucket(
   s3Client: S3Client,
   bucketName: string,
-  region: string
+  region: string,
+  options?: { publicRead?: boolean }
 ): Promise<void> {
   debugLog("Creating S3 bucket:", bucketName, "in region:", region);
-
   const exists = await bucketExists(s3Client, bucketName);
   if (exists) {
     debugLog("Bucket already exists:", bucketName, "- ensuring configuration is correct");
-    await configureBucket(s3Client, bucketName);
-    return;
-  }
-
-  const createBucketParams: CreateBucketCommandInput = {
-    Bucket: bucketName
-  };
-
-  if (region !== "us-east-1") {
-    createBucketParams.CreateBucketConfiguration = {
-      LocationConstraint: region as BucketLocationConstraint
+  } else {
+    const createBucketParams: CreateBucketCommandInput = {
+      Bucket: bucketName
     };
+    if (region !== "us-east-1") {
+      createBucketParams.CreateBucketConfiguration = {
+        LocationConstraint: region as BucketLocationConstraint
+      };
+    }
+    await s3Client.send(new CreateBucketCommand(createBucketParams));
+    debugLog("Created bucket:", bucketName);
   }
-
-  await s3Client.send(new CreateBucketCommand(createBucketParams));
-  debugLog("Created bucket:", bucketName);
-
-  await configureBucket(s3Client, bucketName);
+  if (options?.publicRead === false) {
+    await configurePrivateBucket(s3Client, bucketName);
+  } else {
+    await configureBucket(s3Client, bucketName);
+  }
 }
 
 export async function getAwsAccountId(adminConfig: AwsAdminConfig): Promise<string> {
@@ -512,7 +525,7 @@ export async function setupAwsForBucket(
   const s3Client = createS3Client(adminConfig, effectiveRegion);
   const iamClient = createIamClient(adminConfig);
 
-  await createS3Bucket(s3Client, bucketName, effectiveRegion);
+  await createS3Bucket(s3Client, bucketName, effectiveRegion, { publicRead: options?.publicRead !== false });
 
   const { accessKeyId, secretAccessKey, policyArn } = await createIamUserWithBucketPolicy(
     iamClient,

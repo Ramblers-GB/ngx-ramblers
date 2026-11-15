@@ -23,9 +23,16 @@ import {
   migrateLiveBucket,
   siteAccessFromAccounts,
   siteConfigs,
-  siteConfigFor
+  siteConfigFor,
+  startS3Restore,
+  previousSnapshotAppliesToBackup,
+  isBackupAbortedError,
+  BackupAbortedError
 } from "./s3-backup-service";
 import { dateTimeFromIso } from "../shared/dates";
+import * as backupConfigService from "./backup-config";
+import { backupSession } from "../mongo/models/backup-session";
+import { s3BackupManifest } from "../mongo/models/s3-backup-manifest";
 import { S3LiveCopyCheckpoint } from "../../../projects/ngx-ramblers/src/app/models/backup-session.model";
 import {
   BackupConfig,
@@ -35,6 +42,34 @@ import {
 } from "../../../projects/ngx-ramblers/src/app/models/backup-session.model";
 
 describe("s3-backup-service", () => {
+
+  it("accepts only complete snapshots for full restore and rejects legacy aborted snapshots", async () => {
+    const sandbox = sinon.createSandbox();
+    const site = "group-example";
+    const timestamp = "2026-11-15-20-00-00";
+    const bucket = "example-archive";
+    try {
+      sandbox.stub(backupConfigService, "configuredBackup").resolves({
+        environments: [{environment: site, aws: {bucket: "example-content"}}],
+        aws: {bucket, accessKeyId: "example-key", secretAccessKey: "example-secret"}
+      });
+      const find = sandbox.stub(s3BackupManifest, "findOne");
+      find.onFirstCall().returns({lean: async () => null} as any);
+      find.onSecondCall().returns({lean: async () => ({mongoTimestamp: timestamp, backupBucket: bucket})} as any);
+      sandbox.stub(backupSession, "exists").resolves({_id: "example-aborted-session"} as any);
+      const send = sandbox.stub(S3Client.prototype, "send");
+      const request = {site, timestamp, backupBucket: bucket};
+
+      const [partial] = await startS3Restore(request);
+      expect(find.firstCall.args[0]).toEqual({site, timestamp, backupBucket: bucket, status: BackupSessionStatus.COMPLETED});
+      expect(partial.status).toEqual(BackupSessionStatus.FAILED);
+      const [legacy] = await startS3Restore(request);
+      expect(legacy.error).toContain("aborted backup");
+      expect(send.called).toBe(false);
+    } finally {
+      sandbox.restore();
+    }
+  });
 
   describe("buildBackupPrefix", () => {
 
@@ -246,6 +281,34 @@ describe("s3-backup-service", () => {
 
     it("returns null when site not present", () => {
       expect(siteConfigFor(config, "winchester")).toBeNull();
+    });
+
+  });
+
+  describe("previousSnapshotAppliesToBackup", () => {
+
+    it("uses a snapshot only when it already lives in the current archive bucket", () => {
+      expect(previousSnapshotAppliesToBackup("ngx-ramblers-database-backups-eu-west-2", "ngx-ramblers-database-backups-eu-west-2")).toEqual(true);
+    });
+
+    it("starts a full copy when the last snapshot is still in the previous archive", () => {
+      expect(previousSnapshotAppliesToBackup("ngx-ramblers-database-backups", "ngx-ramblers-database-backups-eu-west-2")).toEqual(false);
+    });
+
+    it("starts a full copy when there is no recorded archive bucket", () => {
+      expect(previousSnapshotAppliesToBackup(undefined, "ngx-ramblers-database-backups-eu-west-2")).toEqual(false);
+    });
+
+  });
+
+  describe("isBackupAbortedError", () => {
+
+    it("recognises a stopped backup", () => {
+      expect(isBackupAbortedError(new BackupAbortedError("S3 backup ekwg stopped after 12 objects"))).toEqual(true);
+    });
+
+    it("ignores other errors", () => {
+      expect(isBackupAbortedError(new Error("Access Denied"))).toEqual(false);
     });
 
   });

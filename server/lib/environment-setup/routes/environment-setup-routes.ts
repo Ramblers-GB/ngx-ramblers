@@ -2,6 +2,7 @@ import { optionalAuthenticate } from "../../auth/auth-config";
 import express from "express";
 import * as controllers from "./environment-setup-controllers";
 import * as atlasClusters from "../atlas-clusters-controllers";
+import * as backupArchive from "../backup-archive-controllers";
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.get("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.list
 router.post("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.createAtlasClusterRequest);
 router.post("/atlas-network-access", controllers.requireSetupAccess, atlasClusters.allowAtlasNetworkAccessRequest);
 router.put("/atlas-provisioning", controllers.requireSetupAccess, atlasClusters.saveAtlasProvisioningRequest);
+router.post("/backup-archive", controllers.requireSetupAccess, backupArchive.provisionBackupArchiveRequest);
 router.get("/collection-cleanup/preview", controllers.requireSetupAccess, atlasClusters.collectionCleanupPreview);
 router.post("/collection-cleanup", controllers.requireSetupAccess, atlasClusters.collectionCleanupRequest);
 router.post("/resume", controllers.resumeEnvironmentRequest);

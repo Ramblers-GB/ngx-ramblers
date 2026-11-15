@@ -88,7 +88,7 @@ export async function abortSession(req: Request, res: Response) {
     if (aborted) {
       res.status(200).json(aborted);
     } else {
-      res.status(409).json({ error: "Only queued sessions can be aborted" });
+      res.status(409).json({ error: "Only queued or running sessions can be aborted" });
     }
   } catch (error) {
     debugLog("abortSession:error:", error);

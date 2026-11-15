@@ -200,6 +200,7 @@ export interface S3BackupRequest {
 
 export interface S3RestoreRequest {
   site?: string;
+  backupBucket?: string;
   all?: boolean;
   timestamp: string;
   targetSite?: string;

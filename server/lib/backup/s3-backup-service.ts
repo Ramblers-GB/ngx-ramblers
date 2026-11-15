@@ -19,6 +19,7 @@ import { RamblersWalksManagerDateFormat as DateFormat } from "../../../projects/
 import {
   BackupConfig,
   BackupSessionStatus,
+  BackupSessionType,
   S3AccessKeyPair,
   S3BackupAction,
   S3BackupManifest,
@@ -33,8 +34,11 @@ import {
   EnvironmentMigrationAwsTarget,
   EnvironmentMigrationLiveCopyRequest
 } from "../../../projects/ngx-ramblers/src/app/models/environment-migration.model";
+import { backupSession } from "../mongo/models/backup-session";
 import { s3BackupManifest } from "../mongo/models/s3-backup-manifest";
 import { bucketExists, createS3Bucket, createS3Client, getAwsAccountId } from "../environment-setup/aws-setup";
+import { backupListAwsTargets } from "../environment-setup/backup-archive";
+import { buildS3LocationUrl } from "./backup-paths";
 import { configuredBackup } from "./backup-config";
 import { backupEvents } from "./backup-events";
 
@@ -59,6 +63,18 @@ function boundedConcurrency(value: unknown): number {
 }
 
 export type ProgressCallback = (message: string) => void | Promise<void>;
+export type BackupAbortCheck = () => Promise<boolean>;
+
+export class BackupAbortedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BackupAbortedError";
+  }
+}
+
+export function isBackupAbortedError(error: unknown): boolean {
+  return !!error && (error as Error).name === "BackupAbortedError";
+}
 
 async function copyObjectWithETagGuard(
   client: S3Client,
@@ -156,8 +172,22 @@ async function readManifestEntries(client: S3Client, manifest: S3BackupManifest)
   return parsed.entries || parsed;
 }
 
+function archiveSiteConfig(config: SiteConfig, backupConfig: BackupConfig, bucket: string): SiteConfig {
+  if (bucket === config.backupBucket) {
+    return config;
+  } else {
+    const archive = backupListAwsTargets(backupConfig.aws).find(target => target.bucket === bucket);
+    if (!archive) {
+      throw new Error("The snapshot archive is no longer configured");
+    } else {
+      return {...config, backupBucket: bucket, backupRegion: archive.region,
+        credentials: {accessKeyId: archive.accessKeyId, secretAccessKey: archive.secretAccessKey}};
+    }
+  }
+}
+
 async function manifestWithEntries(config: SiteConfig, manifest: S3BackupManifest): Promise<S3BackupManifest> {
-  const client = new S3Client({ region: config.backupRegion, credentials: config.credentials });
+  const client = new S3Client({ region: config.backupRegion, credentials: config.credentials, followRegionRedirects: true });
   const entries = await readManifestEntries(client, manifest);
   return { ...manifest, entries };
 }
@@ -302,7 +332,9 @@ export function siteAccessFromAccounts(config: Pick<SiteConfig, "credentials" | 
 }
 
 async function siteAccessFor(config: SiteConfig): Promise<S3SiteAccess> {
-  if (config.siteCredentials.accessKeyId === config.credentials.accessKeyId) {
+  if (config.sourceBucket !== config.backupBucket) {
+    return { credentials: config.siteCredentials, crossAccount: true };
+  } else if (config.siteCredentials.accessKeyId === config.credentials.accessKeyId) {
     return { credentials: config.credentials, crossAccount: false };
   } else {
     const [backupAccountId, siteAccountId] = await Promise.all([
@@ -458,9 +490,72 @@ async function prepareDestinationBucket(destClient: S3Client, target: Environmen
   }
 }
 
+export function previousSnapshotAppliesToBackup(manifestBucket: string | undefined, backupBucket: string): boolean {
+  return !!manifestBucket && manifestBucket === backupBucket;
+}
+
 async function previousManifest(config: SiteConfig): Promise<S3BackupManifest | null> {
-  const manifest = await s3BackupManifest.findOne({ site: config.site, status: BackupSessionStatus.COMPLETED }).sort({ timestamp: -1 }).lean() as S3BackupManifest | null;
-  return manifest ? manifestWithEntries(config, manifest) : null;
+  const manifest = await s3BackupManifest.findOne({ site: config.site, status: { $in: [BackupSessionStatus.COMPLETED, BackupSessionStatus.ABORTED] } }).sort({ timestamp: -1 }).lean() as S3BackupManifest | null;
+  if (!manifest) {
+    return null;
+  } else if (!previousSnapshotAppliesToBackup(manifest.backupBucket, config.backupBucket)) {
+    debugLog(`[${config.site}] Previous completed snapshot is in ${manifest.backupBucket}; starting a full copy into ${config.backupBucket}`);
+    return null;
+  } else {
+    try {
+      return await manifestWithEntries(config, manifest);
+    } catch (error: any) {
+      debugLog(`[${config.site}] Could not load previous snapshot entries from ${manifest.backupBucket}: ${error?.message || error}; starting a full copy into ${config.backupBucket}`);
+      return null;
+    }
+  }
+}
+
+async function saveSnapshot(
+  backupClient: S3Client,
+  config: SiteConfig,
+  timestamp: string,
+  mongoTimestamp: string | undefined,
+  backupPrefix: string,
+  entries: S3BackupManifestEntry[],
+  totals: { processed: number; copiedCount: number; skippedCount: number; totalBytes: number; copiedBytes: number; durationMs: number },
+  status: BackupSessionStatus = BackupSessionStatus.COMPLETED
+): Promise<S3BackupManifest> {
+  const existing = await s3BackupManifest.findOne({ site: config.site, timestamp }).lean() as S3BackupManifest | null;
+  if (existing && existing.status === BackupSessionStatus.COMPLETED && (status === BackupSessionStatus.ABORTED || (existing.entriesCount || 0) >= entries.length)) {
+    return existing;
+  } else {
+    const manifest: Omit<S3BackupManifest, "_id" | "createdAt"> = {
+      timestamp,
+      site: config.site,
+      sourceBucket: config.sourceBucket,
+      backupBucket: config.backupBucket,
+      backupPrefix,
+      ...(mongoTimestamp ? { mongoTimestamp } : {}),
+      entriesObjectKey: buildManifestEntriesObjectKey(backupPrefix),
+      entriesCount: entries.length,
+      entries: [],
+      totalObjects: totals.processed,
+      copiedObjects: totals.copiedCount,
+      skippedObjects: totals.skippedCount,
+      totalSizeBytes: totals.totalBytes,
+      copiedSizeBytes: totals.copiedBytes,
+      durationMs: totals.durationMs,
+      status
+    };
+    const entriesObjectKey = await writeManifestEntries(backupClient, manifest, entries);
+    if (existing?._id) {
+      await s3BackupManifest.updateOne({ _id: existing._id }, { $set: { ...manifest, entriesObjectKey, entries: [] } });
+      const updated = await s3BackupManifest.findById(existing._id).lean() as S3BackupManifest;
+      backupEvents.emit("manifest-created", { manifest: { ...updated, entries: [] } });
+      return updated;
+    } else {
+      const saved = await s3BackupManifest.create({ ...manifest, entriesObjectKey, entries: [] });
+      const savedObject = saved.toObject() as S3BackupManifest;
+      backupEvents.emit("manifest-created", { manifest: { ...savedObject, entries: [] } });
+      return savedObject;
+    }
+  }
 }
 
 async function performIncrementalBackup(
@@ -469,16 +564,17 @@ async function performIncrementalBackup(
   mongoTimestamp?: string,
   dryRun?: boolean,
   concurrency?: number,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  shouldAbort?: BackupAbortCheck
 ): Promise<S3BackupManifest> {
   const startMs = dateTimeNowAsValue();
   const backupPrefix = buildBackupPrefix(config.site, timestamp);
 
   const access = await siteAccessFor(config);
-  const sourceClient = new S3Client({ region: config.sourceRegion, credentials: access.credentials });
+  const sourceClient = new S3Client({ region: config.sourceRegion, credentials: access.credentials, followRegionRedirects: true });
   const backupClient = !access.crossAccount && config.sourceBucket === config.backupBucket && config.sourceRegion === config.backupRegion
     ? sourceClient
-    : new S3Client({ region: config.backupRegion, credentials: config.credentials });
+    : new S3Client({ region: config.backupRegion, credentials: config.credentials, followRegionRedirects: true });
 
   if (access.crossAccount) {
     debugLog(`[${config.site}] Source bucket ${config.sourceBucket} is in a different AWS account from backup bucket ${config.backupBucket}; reading with the site's own key and copying each object across`);
@@ -526,6 +622,9 @@ async function performIncrementalBackup(
   };
 
   const processObject = async (obj: S3ObjectInfo): Promise<void> => {
+    if (shouldAbort && await shouldAbort()) {
+      throw new BackupAbortedError(`S3 backup ${config.site} stopped after ${state.processed} objects`);
+    }
     state.totalBytes += obj.size;
     state.processed++;
     const sequence = state.processed;
@@ -594,7 +693,28 @@ async function performIncrementalBackup(
       await consumePages(page.nextToken);
     }
   };
-  await consumePages(undefined);
+  const snapshotTotals = (durationMs: number) => ({
+    processed: state.processed,
+    copiedCount: state.copiedCount,
+    skippedCount: state.skippedCount,
+    totalBytes: state.totalBytes,
+    copiedBytes: state.copiedBytes,
+    durationMs
+  });
+  try {
+    await consumePages(undefined);
+  } catch (error) {
+    if (isBackupAbortedError(error) && !dryRun && manifestEntries.length > 0) {
+      const durationMs = dateTimeNowAsValue() - startMs;
+      await saveSnapshot(backupClient, config, timestamp, mongoTimestamp, backupPrefix, manifestEntries, snapshotTotals(durationMs), BackupSessionStatus.ABORTED);
+      if (onProgress) {
+        await onProgress(`S3 backup ${config.site}: stopped after ${state.copiedCount} copied, ${state.skippedCount} skipped. Snapshot is usable for the next backup.`);
+      }
+      throw error;
+    } else {
+      throw error;
+    }
+  }
   if (onProgress && state.excluded > 0) {
     await onProgress(`S3 backup ${config.site}: excluded ${state.excluded} historical backup files (s3-backups/, database-backups/, <env>/<timestamp>/) from source`);
   }
@@ -606,36 +726,31 @@ async function performIncrementalBackup(
 
   const durationMs = dateTimeNowAsValue() - startMs;
 
-  const manifest: Omit<S3BackupManifest, "_id" | "createdAt"> = {
-    timestamp,
-    site: config.site,
-    sourceBucket: config.sourceBucket,
-    backupBucket: config.backupBucket,
-    backupPrefix,
-    ...(mongoTimestamp ? { mongoTimestamp } : {}),
-    entriesObjectKey: buildManifestEntriesObjectKey(backupPrefix),
-    entriesCount: manifestEntries.length,
-    entries: dryRun ? manifestEntries : [],
-    totalObjects: state.processed,
-    copiedObjects: state.copiedCount,
-    skippedObjects: state.skippedCount,
-    totalSizeBytes: state.totalBytes,
-    copiedSizeBytes: state.copiedBytes,
-    durationMs,
-    status: BackupSessionStatus.COMPLETED
-  };
-
   if (dryRun) {
     debugLog(`Dry run for ${config.site} at ${timestamp}: ${state.copiedCount} would be copied, ${state.skippedCount} skipped (manifest not persisted)`);
-    return manifest as S3BackupManifest;
+    return {
+      timestamp,
+      site: config.site,
+      sourceBucket: config.sourceBucket,
+      backupBucket: config.backupBucket,
+      backupPrefix,
+      ...(mongoTimestamp ? { mongoTimestamp } : {}),
+      entriesObjectKey: buildManifestEntriesObjectKey(backupPrefix),
+      entriesCount: manifestEntries.length,
+      entries: manifestEntries,
+      totalObjects: state.processed,
+      copiedObjects: state.copiedCount,
+      skippedObjects: state.skippedCount,
+      totalSizeBytes: state.totalBytes,
+      copiedSizeBytes: state.copiedBytes,
+      durationMs,
+      status: BackupSessionStatus.COMPLETED
+    } as S3BackupManifest;
+  } else {
+    const savedObject = await saveSnapshot(backupClient, config, timestamp, mongoTimestamp, backupPrefix, manifestEntries, snapshotTotals(durationMs));
+    debugLog(`Saved manifest for ${config.site} at ${timestamp}: ${state.copiedCount} copied, ${state.skippedCount} skipped`);
+    return savedObject;
   }
-
-  const entriesObjectKey = await writeManifestEntries(backupClient, manifest, manifestEntries);
-  const saved = await s3BackupManifest.create({ ...manifest, entriesObjectKey, entries: [] });
-  const savedObject = saved.toObject() as S3BackupManifest;
-  debugLog(`Saved manifest for ${config.site} at ${timestamp}: ${state.copiedCount} copied, ${state.skippedCount} skipped`);
-  backupEvents.emit("manifest-created", { manifest: {...savedObject, entries: []} });
-  return savedObject;
 }
 
 async function performRestore(
@@ -648,10 +763,10 @@ async function performRestore(
   const startMs = dateTimeNowAsValue();
 
   const access = await siteAccessFor(targetConfig);
-  const destClient = new S3Client({ region: targetConfig.sourceRegion, credentials: access.credentials });
-  const backupClient = new S3Client({ region: sourceConfig.backupRegion, credentials: sourceConfig.credentials });
+  const destClient = new S3Client({ region: targetConfig.sourceRegion, credentials: access.credentials, followRegionRedirects: true });
+  const backupClient = new S3Client({ region: sourceConfig.backupRegion, credentials: sourceConfig.credentials, followRegionRedirects: true });
   const restoreObject = async (backupBucket: string, backupKey: string, entry: S3BackupManifestEntry): Promise<void> => {
-    if (access.crossAccount) {
+    if (access.crossAccount || sourceConfig.backupBucket !== targetConfig.backupBucket) {
       await copyObjectAcrossClients(
         { client: backupClient, bucket: backupBucket, key: backupKey },
         { client: destClient, bucket: targetConfig.sourceBucket, key: entry.key },
@@ -780,7 +895,8 @@ async function performRestore(
 async function priorCopiedManifestForEntry(sourceConfig: SiteConfig, timestamp: string, entry: S3BackupManifestEntry): Promise<S3BackupManifest | null> {
   const candidates = await s3BackupManifest.find({
     site: sourceConfig.site,
-    status: BackupSessionStatus.COMPLETED,
+    backupBucket: sourceConfig.backupBucket,
+    status: { $in: [BackupSessionStatus.COMPLETED, BackupSessionStatus.ABORTED] },
     timestamp: { $lte: timestamp }
   })
     .sort({ timestamp: -1 })
@@ -798,7 +914,7 @@ async function priorCopiedManifestForEntry(sourceConfig: SiteConfig, timestamp: 
   return null;
 }
 
-export async function startS3Backup(request: S3BackupRequest, onProgress?: ProgressCallback): Promise<S3BackupSummary[]> {
+export async function startS3Backup(request: S3BackupRequest, onProgress?: ProgressCallback, shouldAbort?: BackupAbortCheck): Promise<S3BackupSummary[]> {
   const backupConfig = await configuredBackup();
   const timestamp = request.mongoTimestamp || dateTimeNow().toFormat(DateFormat.FILE_TIMESTAMP);
   const configs = request.all
@@ -820,7 +936,7 @@ export async function startS3Backup(request: S3BackupRequest, onProgress?: Progr
         await onProgress(`S3 backup ${config.site}: bucket ${config.sourceBucket} is shared with ${config.sharedWith.join(", ")} — backing up once under primary site "${config.site}"`);
       }
       debugLog(`[${config.site}] Starting incremental backup; sharedWith=${(config.sharedWith || []).join(",") || "none"}`);
-      const manifest = await performIncrementalBackup(config, timestamp, request.mongoTimestamp, request.dryRun, request.concurrency, onProgress);
+      const manifest = await performIncrementalBackup(config, timestamp, request.mongoTimestamp, request.dryRun, request.concurrency, onProgress, shouldAbort);
       results.push({
         site: manifest.site,
         timestamp: manifest.timestamp,
@@ -833,6 +949,21 @@ export async function startS3Backup(request: S3BackupRequest, onProgress?: Progr
         status: manifest.status as BackupSessionStatus
       });
     } catch (error: any) {
+      if (isBackupAbortedError(error)) {
+        const saved = await s3BackupManifest.findOne({ site: config.site, timestamp, status: BackupSessionStatus.ABORTED }).lean() as S3BackupManifest | null;
+        results.push({
+          site: config.site,
+          timestamp,
+          totalObjects: saved?.totalObjects || 0,
+          copiedObjects: saved?.copiedObjects || 0,
+          skippedObjects: saved?.skippedObjects || 0,
+          totalSizeBytes: saved?.totalSizeBytes || 0,
+          copiedSizeBytes: saved?.copiedSizeBytes || 0,
+          durationMs: saved?.durationMs || 0,
+          status: BackupSessionStatus.ABORTED,
+          error: error.message
+        });
+      } else {
       const failedManifest: Omit<S3BackupManifest, "_id" | "createdAt"> = {
         timestamp,
         site: config.site,
@@ -865,6 +996,7 @@ export async function startS3Backup(request: S3BackupRequest, onProgress?: Progr
         status: BackupSessionStatus.FAILED,
         error: error.message
       });
+      }
     }
   }
 
@@ -901,6 +1033,7 @@ export async function startS3Restore(request: S3RestoreRequest, onProgress?: Pro
     const manifestDoc = await s3BackupManifest.findOne({
       site: sourceConfig.site,
       timestamp: request.timestamp,
+      ...(request.backupBucket ? {backupBucket: request.backupBucket} : {}),
       status: BackupSessionStatus.COMPLETED
     }).lean() as S3BackupManifest | null;
 
@@ -921,12 +1054,21 @@ export async function startS3Restore(request: S3RestoreRequest, onProgress?: Pro
     }
 
     try {
+      if (manifestDoc.mongoTimestamp && await backupSession.exists({
+        type: BackupSessionType.BACKUP,
+        status: BackupSessionStatus.ABORTED,
+        s3Location: {$in: [sourceConfig.site, ...(sourceConfig.sharedWith ?? [])]
+          .map(site => buildS3LocationUrl(manifestDoc.backupBucket, `${site}/${manifestDoc.mongoTimestamp}`))}
+      })) {
+        throw new Error("This snapshot belongs to an aborted backup and cannot be used for a full restore");
+      }
       const targetConfig = resolveTargetConfig(sourceConfig);
       if (targetConfig.sharedWith && targetConfig.sharedWith.length > 0 && onProgress) {
         await onProgress(`S3 restore ${targetConfig.site}: target bucket ${targetConfig.sourceBucket} is shared with ${targetConfig.sharedWith.join(", ")} — single snapshot applied once under primary site`);
       }
-      const manifest = await manifestWithEntries(sourceConfig, manifestDoc);
-      const result = await performRestore(sourceConfig, manifest, targetConfig, request.dryRun, onProgress);
+      const archiveSource = archiveSiteConfig(sourceConfig, backupConfig, manifestDoc.backupBucket);
+      const manifest = await manifestWithEntries(archiveSource, manifestDoc);
+      const result = await performRestore(archiveSource, manifest, targetConfig, request.dryRun, onProgress);
       results.push({
         site: result.site,
         timestamp: result.timestamp,
@@ -948,7 +1090,8 @@ export async function startS3Restore(request: S3RestoreRequest, onProgress?: Pro
         totalSizeBytes: 0,
         copiedSizeBytes: 0,
         durationMs: 0,
-        status: BackupSessionStatus.FAILED
+        status: BackupSessionStatus.FAILED,
+        error: error?.message || String(error)
       });
     }
   }
@@ -968,7 +1111,8 @@ async function countBlockingLaterManifests(config: SiteConfig, timestamp: string
   }
   const candidates = await s3BackupManifest.find({
     site: config.site,
-    status: BackupSessionStatus.COMPLETED,
+    backupBucket: config.backupBucket,
+    status: { $in: [BackupSessionStatus.COMPLETED, BackupSessionStatus.ABORTED] },
     timestamp: { $gt: timestamp }
   }).lean() as S3BackupManifest[];
   const copiedKeySet = new Set(copiedKeys);
@@ -1036,12 +1180,12 @@ export async function manifest(id: string): Promise<S3BackupManifest | null> {
   return doc ? enrichDeletability(doc) : null;
 }
 
-export async function manifestByTimestamp(site: string, timestamp: string): Promise<S3BackupManifest | null> {
+export async function manifestByTimestamp(site: string, timestamp: string, backupBucket?: string): Promise<S3BackupManifest | null> {
   const backupConfig = await configuredBackup();
   const resolved = siteConfigFor(backupConfig, site);
   const effectiveSite = resolved?.site || site;
-  const doc = await s3BackupManifest.findOne({ site: effectiveSite, timestamp, status: BackupSessionStatus.COMPLETED }).lean() as S3BackupManifest | null;
-  return doc && resolved ? manifestWithEntries(resolved, doc) : doc;
+  const doc = await s3BackupManifest.findOne({ site: effectiveSite, timestamp, ...(backupBucket ? {backupBucket} : {}), status: BackupSessionStatus.COMPLETED }).lean() as S3BackupManifest | null;
+  return doc && resolved ? manifestWithEntries(archiveSiteConfig(resolved, backupConfig, doc.backupBucket), doc) : doc;
 }
 
 export async function completedManifestStatusByTimestamp(site: string, backupConfig?: BackupConfig): Promise<Map<string, BackupSessionStatus>> {
@@ -1145,7 +1289,7 @@ export async function externaliseEmbeddedManifestEntries(site?: string, limit?: 
         debugLog(`[${candidate.site}] Cannot externalise manifest ${candidate.timestamp}: no S3 configuration`);
         continue;
       }
-      const client = new S3Client({ region: config.backupRegion, credentials: config.credentials });
+      const client = new S3Client({ region: config.backupRegion, credentials: config.credentials, followRegionRedirects: true });
       const entriesObjectKey = await writeManifestEntries(client, candidate, entries);
       const updateResult = await s3BackupManifest.updateOne(
         { _id: candidate._id, "entries.0": { $exists: true } },

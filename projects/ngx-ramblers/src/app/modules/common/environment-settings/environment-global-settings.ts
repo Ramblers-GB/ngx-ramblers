@@ -1,7 +1,8 @@
+import { NgClass } from "@angular/common";
 import { Component, inject, Input, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faExternalLinkAlt } from "@fortawesome/free-solid-svg-icons";
+import { faBoxArchive, faExternalLinkAlt, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { SecretInputComponent } from "../secret-input/secret-input.component";
 import { SecretsEditor } from "../secrets-editor/secrets-editor";
 import { CloudflareUrlInputComponent, CloudflareUrlParseResult } from "../cloudflare-url-input/cloudflare-url-input";
@@ -12,11 +13,17 @@ import { RouterLink } from "@angular/router";
 import { AiProviderType } from "../../../models/system.model";
 import { InputSize } from "../../../models/ui-size.model";
 import { CloudflareUrlService } from "../../../services/cloudflare/cloudflare-url.service";
+import { EnvironmentSetupService } from "../../../services/environment-setup/environment-setup.service";
+import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
+import { AlertInstance, NotifierService } from "../../../services/notifier.service";
+import { AlertTarget } from "../../../models/alert-target.model";
+import { NgxLoggerLevel } from "ngx-logger";
 import { flyAppMetricsUrl, flyAppUrl } from "../../../functions/fly-app-url";
 
 @Component({
   selector: "app-environment-global-settings",
   imports: [
+    NgClass,
     FormsModule,
     FontAwesomeModule,
     RouterLink,
@@ -90,8 +97,28 @@ import { flyAppMetricsUrl, flyAppUrl } from "../../../functions/fly-app-url";
           </app-secret-input>
         </div>
       </div>
-      <small class="form-text text-muted">If set, all uploads/listing/deletes will use this bucket and credentials,
-        with per-environment settings used only as a fallback.</small>
+      <div class="row">
+        <div class="col-12 mb-2">
+          <button type="button" class="btn btn-primary" (click)="createLondonArchive()" [disabled]="archiveBusy">
+            @if (archiveBusy) {
+              <fa-icon [icon]="faSpinner" animation="spin" class="me-1"/>
+            } @else {
+              <fa-icon [icon]="faBoxArchive" class="me-1"/>
+            }
+            Create London archive bucket
+          </button>
+        </div>
+      </div>
+      @if (notifyTarget.showAlert) {
+        <div class="alert d-flex align-items-start" [ngClass]="notifyTarget.alertClass" role="status">
+          <fa-icon [icon]="notifyTarget.alert.icon" class="me-2 mt-1"/>
+          <div>
+            <strong>{{ notifyTarget.alertTitle }}</strong>
+            <div>{{ notifyTarget.alertMessage }}</div>
+          </div>
+        </div>
+      }
+      <small class="form-text text-muted">Nightly Mongo dumps and copies of each site's content bucket go here. Site uploads still use each environment's own bucket. Create the London archive in the Ramblers NGX account, then save.</small>
     </div>
     <div class="row thumbnail-heading-frame mb-5">
       <div class="thumbnail-heading with-vendor-logo d-flex align-items-center gap-2">
@@ -464,10 +491,19 @@ export class EnvironmentGlobalSettings implements OnInit {
 
   @Input({required: true}) config: EnvironmentsConfig;
 
+  private logger: Logger = inject(LoggerFactory).createLogger("EnvironmentGlobalSettings", NgxLoggerLevel.ERROR);
+  private environmentSetupService = inject(EnvironmentSetupService);
+  private notifierService = inject(NotifierService);
+  notifyTarget: AlertTarget = {};
+  notify: AlertInstance = this.notifierService.createAlertInstance(this.notifyTarget);
+  archiveBusy = false;
+
   protected readonly InputSize = InputSize;
   protected readonly AiProviderType = AiProviderType;
   protected readonly AdminPlatformPath = AdminPlatformPath;
   protected readonly faExternalLinkAlt = faExternalLinkAlt;
+  protected readonly faBoxArchive = faBoxArchive;
+  protected readonly faSpinner = faSpinner;
   protected readonly flyAppUrl = flyAppUrl;
   protected readonly flyAppMetricsUrl = flyAppMetricsUrl;
   protected readonly cloudflareDashboardUrl = inject(CloudflareUrlService).dashboard();
@@ -487,5 +523,25 @@ export class EnvironmentGlobalSettings implements OnInit {
 
   onCloudflareUrlParsed(result: CloudflareUrlParseResult) {
     this.config.cloudflare.accountId = result.accountId;
+  }
+
+  async createLondonArchive() {
+    this.archiveBusy = true;
+    try {
+      const result = await this.environmentSetupService.provisionBackupArchive();
+      this.config.aws = {...this.config.aws, ...result.aws};
+      this.notify.success({
+        title: result.created ? "London archive created" : "London archive already configured",
+        message: `${result.bucket} in ${result.region}. Save this form if you edited anything else.`
+      });
+    } catch (error) {
+      this.logger.error("createLondonArchive failed", error);
+      this.notify.error({
+        title: "Could not create the London archive",
+        message: error?.message || String(error)
+      });
+    } finally {
+      this.archiveBusy = false;
+    }
   }
 }

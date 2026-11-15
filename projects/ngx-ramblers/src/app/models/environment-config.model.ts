@@ -5,6 +5,7 @@ export interface AwsConfig {
   region?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
+  previous?: AwsConfig;
 }
 
 export interface MongoConfig {

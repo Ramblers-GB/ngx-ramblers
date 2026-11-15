@@ -143,7 +143,7 @@ export class BackupSelectComponent {
 
   backupSourceDescription(item: BackupListItem): string {
     if (this.sourceOf(item) === BackupLocation.S3) {
-      return "S3 database backup";
+      return item.path || "S3 database backup";
     } else if (item.database) {
       return `Local database backup for ${item.database}`;
     } else {
