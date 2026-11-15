@@ -219,6 +219,7 @@ export enum RouteFollowEditTool {
 }
 
 export enum RouteFollowSheetState {
+  CLOSED = "closed",
   EXPANDED = "expanded",
   MINIMISED = "minimised"
 }
@@ -288,6 +289,7 @@ export interface RouteFollowSession {
   mode: RouteFollowMode;
   headingUp: boolean;
   sheetState: RouteFollowSheetState;
+  followExtraSettings?: boolean;
   previewSpeed: number;
   previewMetres: number;
   visitedWaypointIds: string[];
@@ -835,9 +837,9 @@ interface FollowMapScaleBarChoice {
 
 export function sheetStateAfterDrag(current: RouteFollowSheetState, deltaY: number, threshold = ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD): RouteFollowSheetState {
   if (deltaY <= -threshold) {
-    return RouteFollowSheetState.EXPANDED;
+    return current === RouteFollowSheetState.CLOSED ? RouteFollowSheetState.MINIMISED : RouteFollowSheetState.EXPANDED;
   } else if (deltaY >= threshold) {
-    return RouteFollowSheetState.MINIMISED;
+    return current === RouteFollowSheetState.EXPANDED ? RouteFollowSheetState.MINIMISED : RouteFollowSheetState.CLOSED;
   } else {
     return current;
   }

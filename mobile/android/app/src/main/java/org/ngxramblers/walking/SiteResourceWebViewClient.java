@@ -77,6 +77,8 @@ public class SiteResourceWebViewClient extends BridgeWebViewClient {
                 refreshShellScript();
             }
             return false;
+        } else if (!request.isForMainFrame() && embeddedDocumentFrom(target.toString(), selected, origin(Uri.parse(bridge.getLocalUrl())))) {
+            return false;
         } else {
             if (request.isForMainFrame()) {
                 try {
@@ -87,6 +89,11 @@ public class SiteResourceWebViewClient extends BridgeWebViewClient {
             }
             return true;
         }
+    }
+
+    static boolean embeddedDocumentFrom(String url, String selectedOrigin, String localOrigin) {
+        return java.util.stream.Stream.of(selectedOrigin, localOrigin)
+            .anyMatch(origin -> origin != null && !origin.isEmpty() && url != null && url.startsWith("blob:" + origin + "/"));
     }
 
     static String nativeBootJavaScript(String origin) {

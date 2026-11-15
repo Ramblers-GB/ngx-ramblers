@@ -84,6 +84,12 @@ describe("sheetStateAfterDrag", () => {
     expect(sheetStateAfterDrag(RouteFollowSheetState.EXPANDED, 40)).toEqual(RouteFollowSheetState.MINIMISED);
   });
 
+  it("moves one position at a time between the closed drawer and the summary", () => {
+    expect(sheetStateAfterDrag(RouteFollowSheetState.MINIMISED, 200)).toBe(RouteFollowSheetState.CLOSED);
+    expect(sheetStateAfterDrag(RouteFollowSheetState.CLOSED, -200)).toBe(RouteFollowSheetState.MINIMISED);
+    expect(sheetStateAfterDrag(RouteFollowSheetState.CLOSED, 200)).toBe(RouteFollowSheetState.CLOSED);
+  });
+
   it("keeps the current state for a short drag", () => {
     expect(sheetStateAfterDrag(RouteFollowSheetState.MINIMISED, -10)).toEqual(RouteFollowSheetState.MINIMISED);
     expect(sheetStateAfterDrag(RouteFollowSheetState.EXPANDED, 10)).toEqual(RouteFollowSheetState.EXPANDED);

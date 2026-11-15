@@ -124,6 +124,7 @@ import {
   ROUTE_FOLLOW_HEADING_UP_MIN_DELTA,
   ROUTE_FOLLOW_LINE_WEIGHT_DEFAULT,
   ROUTE_FOLLOW_NETWORK_TIMEOUT_MS,
+  ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD,
   RouteFollowOfflineStatus,
   RouteWaypointKind,
   sheetStateAfterDrag,
@@ -580,6 +581,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
           </div>
           </div>
           <section #followSheet class="follow-sheet" [class.is-minimised]="sheetMinimised && !pendingNetworkSave"
+                   [class.is-closed]="sheetClosed && !pendingNetworkSave"
                    [class.is-editing]="progress?.mode === RouteFollowMode.EDITING">
           @if (pendingNetworkSave) {
             <div class="alert alert-success d-flex align-items-start gap-2 mt-3" role="status">
@@ -599,8 +601,10 @@ import { SystemConfigService } from "../../services/system/system-config.service
                   (pointerup)="onSheetPointerUp($event)"
                   (pointercancel)="onSheetPointerUp($event)"
                   (click)="onSheetHandleClick()"
+                  (keydown.arrowup)="onSheetHandleKey($event)"
+                  (keydown.arrowdown)="onSheetHandleKey($event)"
                   [attr.aria-expanded]="!sheetMinimised"
-                  [attr.aria-label]="sheetMinimised ? 'Show route details' : 'Hide route details'">
+                  [attr.aria-label]="sheetClosed ? 'Show route summary' : sheetMinimised ? 'Show route details' : 'Hide route details'">
             <span class="follow-sheet-grab" aria-hidden="true"></span>
           </button>
           <h2 class="follow-sheet-heading">{{ sheetHeading() }}</h2>
@@ -622,7 +626,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
               <span>{{ remainingDistance }}</span>
             </button>
           }
-          @if (!creatingLine && sheetMinimised && (hasLine || recordingSession || progress?.mode === RouteFollowMode.EDITING)) {
+          @if (!creatingLine && sheetMinimised && !sheetClosed && (hasLine || recordingSession || progress?.mode === RouteFollowMode.EDITING)) {
           <div class="follow-sheet-peek"
                (pointerdown)="onSheetHandlePointerDown($event)"
                (pointermove)="onSheetPointerMove($event)"
@@ -635,20 +639,41 @@ import { SystemConfigService } from "../../services/system/system-config.service
                   <span>Edit route</span>
                   <strong>Drag a point to move it</strong>
                 </div>
-              } @else {
+              } @else if (recordingSession) {
                 <div class="follow-peek-stat">
-                  <span>{{ recordingSession ? "Elevation" : "Remaining" }}</span>
-                  <strong>{{ recordingSession ? currentElevation : remainingDistance }}</strong>
+                  <span>Elevation</span>
+                  <strong>{{ currentElevation }}</strong>
                 </div>
                 <div class="follow-peek-stat">
-                  <span>{{ recordingSession ? "Duration" : "Time left" }}</span>
+                  <span>Duration</span>
                   <strong aria-live="polite">{{ remainingTime }}</strong>
+                </div>
+              } @else {
+                <div class="follow-peek-pair">
+                  <div class="follow-peek-stat">
+                    <span>Walked</span>
+                    <strong>{{ walkedDistance }}</strong>
+                  </div>
+                  <div class="follow-peek-stat">
+                    <span>Remaining</span>
+                    <strong>{{ remainingDistance }}</strong>
+                  </div>
+                </div>
+                <div class="follow-peek-pair follow-peek-pair-time">
+                  <div class="follow-peek-stat">
+                    <span>Time left</span>
+                    <strong aria-live="polite">{{ remainingTime }}</strong>
+                  </div>
+                  <div class="follow-peek-stat">
+                    <span>Elevation</span>
+                    <strong>{{ currentElevation }}</strong>
+                  </div>
                 </div>
               }
             </div>
           </div>
           }
-          @if (sheetMinimised && !followPanelWide && hasLine && payload?.source !== RouteFollowSource.RECORDING && !recordingSession) {
+          @if (sheetMinimised && !sheetClosed && closedSheetAvailable()) {
             <div class="follow-recording-tray follow-peek-actions">
               @if (progress?.mode === RouteFollowMode.EDITING) {
                 <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="onPeekCancelEdit($event)" [disabled]="savingRoute">
@@ -1196,7 +1221,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private changeDetector = inject(ChangeDetectorRef);
   @ViewChild("followSheet") private followSheet: ElementRef<HTMLElement> | null = null;
   private sheetAnimation: Animation | null = null;
-  private sheetDragLayout = {state: RouteFollowSheetState.MINIMISED, startHeight: 0, collapsedHeight: 0, expandedHeight: 0};
+  private sheetDragLayout = {state: RouteFollowSheetState.MINIMISED, extras: false, startHeight: 0, lowerHeight: 0, upperHeight: 0};
   private sheetDrag = {active: false, pointerId: -1, startY: 0, lastY: 0, moved: false, target: null as HTMLElement | null};
   protected editTool = RouteFollowEditTool.PENCIL;
   protected readonly faCircle = faCircle;
@@ -1453,6 +1478,10 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   distanceUnitChanged(unit: string): void {
     this.distanceUnit = unit === DistanceUnit.KILOMETRES ? DistanceUnit.KILOMETRES : DistanceUnit.MILES;
     this.uiActions.saveValueFor(StoredValue.DISTANCE_UNIT, this.distanceUnit);
+  }
+
+  get walkedDistance(): string {
+    return this.followService.formatDistance(this.progress?.completedMetres ?? 0);
   }
 
   get remainingDistance(): string {
@@ -1979,7 +2008,16 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   get sheetMinimised(): boolean {
-    return this.sheetState === RouteFollowSheetState.MINIMISED;
+    return this.sheetState !== RouteFollowSheetState.EXPANDED;
+  }
+
+  protected get sheetClosed(): boolean {
+    return this.sheetState === RouteFollowSheetState.CLOSED && this.closedSheetAvailable();
+  }
+
+  protected closedSheetAvailable(): boolean {
+    return !this.followPanelWide && !!this.payload && this.payload.source !== RouteFollowSource.RECORDING
+      && !this.recordingSession && this.hasLine;
   }
 
   sheetHeading(): string {
@@ -2139,7 +2177,6 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
 
   onSheetHandlePointerDown(event: PointerEvent): void {
     const target = this.followSheet?.nativeElement || (event.currentTarget instanceof HTMLElement ? event.currentTarget : null);
-    this.sheetDragLayout = {state: this.sheetState, startHeight: 0, collapsedHeight: 0, expandedHeight: 0};
     this.prepareSheetDrag();
     if (event.cancelable) {
       event.preventDefault();
@@ -2163,7 +2200,6 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
 
   onSheetBodyDragging(active: boolean): void {
     if (active) {
-      this.sheetDragLayout = {state: this.sheetState, startHeight: 0, collapsedHeight: 0, expandedHeight: 0};
       this.prepareSheetDrag();
       this.sheetDrag.active = true;
       this.sheetDrag.pointerId = -1;
@@ -2173,7 +2209,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       this.sheetDrag.target = null;
     } else if (this.sheetDrag.active && this.sheetDrag.pointerId === -1) {
       this.sheetDrag.active = false;
-      this.setSheetState(sheetStateAfterDrag(this.sheetDragLayout.state, this.sheetDrag.lastY));
+      this.setDraggedSheetState(this.sheetGestureState(this.sheetDragLayout.state, this.sheetDrag.lastY));
       this.sheetDrag.moved = true;
     }
   }
@@ -2189,13 +2225,15 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     if (Math.abs(deltaY) > 4) {
       this.sheetDrag.moved = true;
       const sheet = this.followSheet?.nativeElement;
-      const pullingDown = deltaY > 0 && this.sheetDragLayout.state === RouteFollowSheetState.MINIMISED;
-      if (sheet && pullingDown) {
-        sheet.style.height = `${this.sheetDragLayout.collapsedHeight}px`;
-      } else if (sheet) {
-        this.sheetState = RouteFollowSheetState.EXPANDED;
-        this.changeDetector.detectChanges();
-        const height = Math.max(this.sheetDragLayout.collapsedHeight, Math.min(this.sheetDragLayout.expandedHeight, this.sheetDragLayout.startHeight - deltaY));
+      if (sheet) {
+        const layout = this.sheetDragLayout;
+        const preview = deltaY < 0 ? this.sheetGestureState(layout.state, -ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD) : layout.state;
+        if (this.sheetState !== preview) {
+          this.sheetState = preview;
+          this.followExtraSettings = this.draggedSheetExtras(preview);
+          this.changeDetector.detectChanges();
+        }
+        const height = Math.max(layout.lowerHeight, Math.min(layout.upperHeight, layout.startHeight - deltaY));
         sheet.style.overflow = "hidden";
         sheet.style.height = `${height}px`;
       }
@@ -2210,15 +2248,15 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       const nextState = event.type === "pointercancel"
         ? initialState
         : this.sheetDrag.moved
-          ? sheetStateAfterDrag(initialState, event.clientY - this.sheetDrag.startY)
-          : initialState === RouteFollowSheetState.MINIMISED ? RouteFollowSheetState.EXPANDED : RouteFollowSheetState.MINIMISED;
+          ? this.sheetGestureState(initialState, event.clientY - this.sheetDrag.startY)
+          : this.sheetTapState(initialState);
       const target = this.sheetDrag.target;
       if (target?.hasPointerCapture(event.pointerId)) {
         target.releasePointerCapture(event.pointerId);
       }
       this.sheetDrag.active = false;
       this.sheetDrag.target = null;
-      this.setSheetState(nextState);
+      this.setDraggedSheetState(nextState);
       this.sheetDrag.moved = true;
     }
   }
@@ -2230,50 +2268,86 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.sheetDrag.moved = false;
   }
 
+  onSheetHandleKey(event: KeyboardEvent): void {
+    event.preventDefault();
+    const delta = event.key === "ArrowUp" ? -ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD : ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD;
+    const state = this.sheetGestureState(this.sheetState, delta);
+    this.setSheetState(state, this.sheetGestureExtras(state));
+  }
+
   toggleSheet(): void {
-    if (this.sheetMinimised) {
-      this.expandSheet();
-    } else {
-      this.minimiseSheet();
-    }
+    const state = this.sheetTapState(this.sheetState);
+    this.setSheetState(state, this.sheetGestureExtras(state));
+  }
+
+  private sheetTapState(state: RouteFollowSheetState): RouteFollowSheetState {
+    return state === RouteFollowSheetState.EXPANDED
+      ? RouteFollowSheetState.MINIMISED
+      : this.sheetGestureState(state, -ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD);
+  }
+
+  private sheetGestureState(current: RouteFollowSheetState, delta: number): RouteFollowSheetState {
+    const next = sheetStateAfterDrag(current, delta);
+    return next === RouteFollowSheetState.CLOSED && !this.closedSheetAvailable() ? RouteFollowSheetState.MINIMISED : next;
+  }
+
+  private draggedSheetExtras(state: RouteFollowSheetState): boolean {
+    return this.sheetGestureExtras(state, this.sheetDragLayout.state, this.sheetDragLayout.extras);
+  }
+
+  private sheetGestureExtras(state: RouteFollowSheetState, initial = this.sheetState, extras = this.followExtraSettings): boolean {
+    return state === RouteFollowSheetState.EXPANDED
+      && (state === initial ? extras : this.closedSheetAvailable());
+  }
+
+  private setDraggedSheetState(state: RouteFollowSheetState): void {
+    this.setSheetState(state, this.draggedSheetExtras(state));
   }
 
   minimiseSheet(): void {
-    this.setSheetState(RouteFollowSheetState.MINIMISED);
+    this.setSheetState(this.sheetClosed ? RouteFollowSheetState.CLOSED : RouteFollowSheetState.MINIMISED);
   }
 
   expandSheet(): void {
-    this.setSheetState(RouteFollowSheetState.EXPANDED);
+    this.setSheetState(RouteFollowSheetState.EXPANDED, this.followExtraSettings);
   }
 
   private prepareSheetDrag(): void {
+    const initial = this.sheetState;
+    const extras = this.followExtraSettings;
+    this.sheetDragLayout = {state: initial, extras, startHeight: 0, lowerHeight: 0, upperHeight: 0};
     const sheet = this.followSheet?.nativeElement;
     if (sheet && !this.followPanelWide) {
-      const initial = this.sheetDragLayout.state;
       this.sheetAnimation?.cancel();
       sheet.style.height = "";
       const startHeight = sheet.getBoundingClientRect().height;
-      this.sheetState = RouteFollowSheetState.MINIMISED;
-      this.changeDetector.detectChanges();
-      const collapsedHeight = sheet.getBoundingClientRect().height;
-      sheet.style.overflow = "hidden";
-      sheet.style.height = `${collapsedHeight}px`;
-      this.sheetState = RouteFollowSheetState.EXPANDED;
-      this.changeDetector.detectChanges();
-      const expandedHeight = Math.max(collapsedHeight, sheet.scrollHeight);
+      const measure = (state: RouteFollowSheetState): number => {
+        if (state === initial) {
+          return startHeight;
+        } else {
+          this.sheetState = state;
+          this.followExtraSettings = state === RouteFollowSheetState.EXPANDED ? this.draggedSheetExtras(state) : extras;
+          this.changeDetector.detectChanges();
+          return sheet.getBoundingClientRect().height;
+        }
+      };
+      const lowerHeight = Math.min(startHeight, measure(this.sheetGestureState(initial, ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD)));
+      const upperHeight = Math.max(startHeight, measure(this.sheetGestureState(initial, -ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD)));
       this.sheetState = initial;
+      this.followExtraSettings = extras;
       this.changeDetector.detectChanges();
-      this.sheetDragLayout = {...this.sheetDragLayout, startHeight, collapsedHeight, expandedHeight};
+      this.sheetDragLayout = {state: initial, extras, startHeight, lowerHeight, upperHeight};
       sheet.style.height = `${startHeight}px`;
     }
   }
 
-  private setSheetState(state: RouteFollowSheetState): void {
+  private setSheetState(state: RouteFollowSheetState, extras = false): void {
     const sheet = this.followSheet?.nativeElement;
     const startHeight = sheet?.getBoundingClientRect().height;
     this.sheetAnimation?.cancel();
     this.sheetAnimation = null;
     this.sheetState = state;
+    this.followExtraSettings = extras;
     if (sheet && !this.followPanelWide) {
       sheet.style.height = "";
       sheet.style.overflow = "";
@@ -2756,10 +2830,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   toggleFollowExtraSettings(): void {
-    this.followExtraSettings = !this.followExtraSettings;
-    if (this.followExtraSettings) {
-      this.expandSheet();
-    }
+    this.setSheetState(RouteFollowSheetState.EXPANDED, !this.followExtraSettings);
   }
 
   routeVisibilityLabel(): string {
@@ -3426,7 +3497,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       osMapsRouteId: this.payload?.osMapsRouteId || null,
       mode: this.progress?.mode || RouteFollowMode.FOLLOWING,
       headingUp: this.headingUp,
-      sheetState: this.sheetState,
+      sheetState: this.sheetDrag.active ? this.sheetDragLayout.state : this.sheetState,
+      followExtraSettings: this.sheetDrag.active ? this.sheetDragLayout.extras : this.followExtraSettings,
       previewSpeed: this.previewSpeed,
       previewMetres: this.followService.previewProgressMetres(),
       visitedWaypointIds: this.followService.visitedIds(),
@@ -3477,6 +3549,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
         ? {center: L.latLng(session.mapCenter.latitude, session.mapCenter.longitude), zoom: session.mapZoom}
         : null;
       this.sheetState = session.sheetState || RouteFollowSheetState.MINIMISED;
+      this.followExtraSettings = this.sheetState === RouteFollowSheetState.EXPANDED && !!session.followExtraSettings;
       this.previewSpeed = session.previewSpeed || ROUTE_FOLLOW_PREVIEW_SPEED_DEFAULT;
       this.followService.setPreviewSpeed(this.previewSpeed);
       const visited = session.visitedWaypointIds || [];

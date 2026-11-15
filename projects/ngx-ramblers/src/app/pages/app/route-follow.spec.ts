@@ -814,6 +814,29 @@ describe("follow sheet handle drag", () => {
     expect(view["sheetState"]).toBe(RouteFollowSheetState.EXPANDED);
   });
 
+  it("moves between the closed drawer, summary and More on a phone", () => {
+    const view = handleView();
+    vi.spyOn(view as any, "closedSheetAvailable").mockReturnValue(true);
+    const swipe = (delta: number) => {
+      handleEvent(view, "pointerdown", 400);
+      handleEvent(view, "pointermove", 400 + delta);
+      handleEvent(view, "pointerup", 400 + delta);
+    };
+    swipe(80);
+    expect(view["sheetClosed"]).toBe(true);
+    view.minimiseSheet();
+    expect(view["sheetClosed"]).toBe(true);
+    swipe(-80);
+    expect(view["sheetState"]).toBe(RouteFollowSheetState.MINIMISED);
+    expect(view.showFollowExtras()).toBe(false);
+    swipe(-80);
+    expect(view["sheetState"]).toBe(RouteFollowSheetState.EXPANDED);
+    expect(view.showFollowExtras()).toBe(true);
+    swipe(80);
+    expect(view["sheetState"]).toBe(RouteFollowSheetState.MINIMISED);
+    expect(view.showFollowExtras()).toBe(false);
+  });
+
   it("moves with the finger and animates to the expanded height on release", () => {
     const view = handleView();
     const sheet = document.createElement("section");

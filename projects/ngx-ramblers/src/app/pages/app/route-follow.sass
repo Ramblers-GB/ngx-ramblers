@@ -663,20 +663,40 @@
     align-items: center
     gap: 0
 
-  .follow-sheet.is-minimised .follow-peek-stat:first-child
+  .follow-sheet.is-minimised:has(.follow-peek-pair),
+  .follow-sheet.is-minimised .follow-peek-stats:has(.follow-peek-pair)
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr)
+
+  .follow-sheet.is-minimised:has(.follow-peek-pair) .follow-sheet-handle
+    width: 44px
+    padding-inline: 0
+    .follow-sheet-grab
+      width: 28px
+
+  .follow-sheet.is-minimised .follow-peek-stats > :first-child:not(:only-child)
     grid-column: 1
 
-  .follow-sheet.is-minimised .follow-peek-stat:last-child
+  .follow-sheet.is-minimised .follow-peek-stats > :last-child:not(:only-child)
     grid-column: 3
 
   .follow-sheet.is-minimised .follow-peek-stat strong
     font-size: 1.1rem
 
+  .follow-sheet.is-minimised .follow-peek-pair .follow-peek-stat strong,
+  .follow-sheet.is-minimised .follow-peek-pair .follow-peek-stat span
+    font-size: clamp(0.65rem, 3.2vw, 0.85rem)
+
   .follow-sheet.is-minimised .follow-peek-stat-wide
     grid-column: 1 / -1
 
-  .follow-sheet.is-minimised.is-editing
+  .follow-sheet.is-minimised.is-editing:not(.is-closed)
     min-height: 7.25rem
+
+  .follow-sheet.is-closed .follow-sheet-handle
+    grid-column: 1 / -1
+    width: 100%
+    min-height: 40px
+    padding: 0
 
 .follow-sheet-heading
   display: none
@@ -721,19 +741,18 @@
 
 .follow-peek-actions
   display: grid
-  grid-template-columns: repeat(2, minmax(0, 1fr))
-  gap: 8px
-  padding: 0 12px
+  grid-auto-flow: column
+  grid-auto-columns: minmax(0, 1fr)
+  gap: var(--space-2)
   width: 100%
   box-sizing: border-box
-
-.follow-peek-actions > .btn:last-child:nth-child(odd)
-  grid-column: 1 / -1
 
 .follow-peek-actions .follow-main-btn,
 .follow-peek-actions .follow-secondary-btn
   min-height: 48px
   font-size: 1rem
+  gap: var(--space-1)
+  padding-inline: var(--space-1)
 
 .follow-sheet.is-minimised .follow-recording-tray[aria-expanded]
   touch-action: none
@@ -806,6 +825,14 @@
   align-items: center
   text-align: center
   min-width: 0
+
+.follow-peek-pair
+  display: grid
+  grid-template-columns: repeat(2, minmax(0, 1fr))
+  gap: var(--space-1)
+
+.follow-peek-pair-time
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr)
 
 .follow-peek-stat span
   color: var(--follow-muted)
