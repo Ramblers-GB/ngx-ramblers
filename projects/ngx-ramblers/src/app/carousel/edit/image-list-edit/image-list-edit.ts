@@ -52,6 +52,7 @@ import {
 import {
   ALL_PHOTOS,
   AlbumEditorView,
+  AlbumImageAction,
   AlbumPhotoSort,
   albumMaxImageSize,
   Base64File,
@@ -103,7 +104,6 @@ import { FormsModule } from "@angular/forms";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { AspectRatioSelectorComponent } from "../aspect-ratio-selector/aspect-ratio-selector";
 import { ImageEditComponent } from "../image-edit/image-edit";
-import { BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective } from "ngx-bootstrap/dropdown";
 import { FileSizeSelectorComponent } from "../file-size-selector/file-size-selector";
 
 import { SystemConfigService } from "../../../services/system/system-config.service";
@@ -252,6 +252,9 @@ import { uploadGroupEventType } from "../../../models/committee.model";
 
     .album-sticky-bar .btn + .btn
       margin-left: 0
+
+    .album-sticky-bar .album-sticky-bar-wide
+      grid-column: 1 / -1
 
     :host.workflow-mode
       display: block
@@ -594,55 +597,9 @@ import { uploadGroupEventType } from "../../../models/committee.model";
             <button type="button" class="btn btn-quiet" [disabled]="disabled()" (click)="undoChanges()">
               <fa-icon [icon]="faUndo" class="me-2"/>Undo changes
             </button>
-        <div class="btn-group" dropdown>
-          <button [disabled]="imageActionsDisabled()" aria-controls="dropdown-animated"
-                  class="btn btn-primary dropdown-toggle"
-                  [ngClass]="{'disabled': imageActionsDisabled()}"
-                  dropdownToggle
-                  type="button">
-            <fa-icon [icon]="faTableCells"/>
-            <span class="ms-2">Image Actions</span><span class="caret"></span>
-          </button>
-          <ul *dropdownMenu class="dropdown-menu" role="menu">
-            @if (imagesExist()) {
-              @if (contentMetadata?.maxImageSize > 0) {
-                <li role="menuitem">
-                  <a (click)="resizeSavedImages()" class="dropdown-item" [ngClass]="{'disabled': resizeInProgress}">
-                    <fa-icon [icon]="faCompress"/>
-                    {{ resizeInProgress ? resizeActionCaption() : "Resize Existing Images To " + numberUtils.humanFileSize(contentMetadata.maxImageSize) }}
-                  </a>
-                </li>
-              }
-              <li role="menuitem">
-                <a (click)="reverseSortOrder()" class="dropdown-item">
-                  <fa-icon [icon]="faSortNumericUp"/>
-                  Reverse sort order
-                </a>
-              </li>
-              <li role="menuitem">
-                <a (click)="clearImages()" class="dropdown-item">
-                  <fa-icon [icon]="faEraser"/>
-                  Clear images
-                </a>
-              </li>
-            } @else {
-              <li role="menuitem">
-                <a (click)="insertToEmptyList()" class="dropdown-item">
-                  <fa-icon [icon]="faAdd"/>
-                  Create First Image
-                </a>
-              </li>
-            }
-            @if (contentMetadata?.imageTags?.length > 0) {
-              <li role="menuitem">
-                <a (click)="toggleManageTags()" class="dropdown-item">
-                  <fa-icon [icon]="faTags"/>
-                  {{ manageTags ? "Close Tags" : "Manage Tags" }}
-                </a>
-              </li>
-            }
-          </ul>
-        </div>
+            <app-button-dropdown label="Image Actions" [icon]="faTableCells" buttonClass="btn btn-primary"
+                                 [items]="imageActionItems()" [disabled]="imageActionsDisabled()"
+                                 (itemSelect)="runImageAction($event)"/>
           </div>
         </details>
       }
@@ -980,12 +937,19 @@ import { uploadGroupEventType } from "../../../models/committee.model";
                 (click)="browseToFile(cameraInput)">
           <fa-icon [icon]="faCamera" class="me-2"/>Take photo
         </button>
+        @if (!workflowMode) {
+          <button type="button" class="btn btn-quiet" [disabled]="photosWorking() || disabled()"
+                  tooltip="Save the album and carry on editing it" (click)="requestSaveChanges()">
+            <fa-icon [icon]="photosWorking() ? faSpinner : faSave" [animation]="photosWorking() ? 'spin' : null" class="me-2"/>Save album
+          </button>
+        }
         <button type="button" class="btn btn-primary" [disabled]="photosWorking() || disabled()"
-                (click)="workflowMode ? requestSaveChangesAndExit() : requestSaveChanges()">
+                (click)="requestSaveChangesAndExit()">
           <fa-icon [icon]="photosWorking() ? faSpinner : faSave" [animation]="photosWorking() ? 'spin' : null" class="me-2"/>
-          {{ workflowMode ? saveAndExitCaption() : "Save album" }}
+          {{ saveAndExitCaption() }}
         </button>
-        <button type="button" class="btn btn-quiet" [disabled]="photosWorking() || disabled()"
+        <button type="button" class="btn btn-quiet" [class.album-sticky-bar-wide]="!workflowMode"
+                [disabled]="photosWorking() || disabled()"
                 [tooltip]="exitWithoutSavingCaption()" (click)="exitBackWithoutSaving()">
           <fa-icon [icon]="faUndo" class="me-2"/>Discard changes
         </button>
@@ -996,7 +960,7 @@ import { uploadGroupEventType } from "../../../models/committee.model";
     }`,
   imports: [NgTemplateOutlet, ButtonDropdownComponent, FileUploadModule, NgClass, NgStyle, FontAwesomeModule, TagManagerComponent,
     FormsModule, TooltipDirective, AspectRatioSelectorComponent, ImageEditComponent,
-    BsDropdownDirective, BsDropdownToggleDirective, BsDropdownMenuDirective, FileSizeSelectorComponent,
+    FileSizeSelectorComponent,
     CdkDropListGroup, CdkDropList, CdkDrag, CdkDragHandle]
 })
 export class ImageListEditComponent implements OnInit, OnDestroy {
@@ -1091,19 +1055,15 @@ export class ImageListEditComponent implements OnInit, OnDestroy {
   protected readonly faSliders = faSliders;
   protected readonly faSave = faSave;
   protected readonly faRemove = faRemove;
-  protected readonly faEraser = faEraser;
   protected readonly faUndo = faUndo;
   protected readonly faSortNumericDown = faSortNumericDown;
-  protected readonly faSortNumericUp = faSortNumericUp;
   protected readonly faAdd = faAdd;
   protected readonly faBookOpen = faBookOpen;
-  protected readonly faTags = faTags;
   protected readonly faFile = faFile;
   protected readonly faTableCells = faTableCells;
   protected readonly faCircleCheck = faCircleCheck;
   protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faCircleInfo = faCircleInfo;
-  protected readonly faCompress = faCompress;
   protected readonly faImages = faImages;
   protected readonly faCamera = faCamera;
   protected readonly faCloudArrowUp = faCloudArrowUp;
@@ -1520,6 +1480,31 @@ export class ImageListEditComponent implements OnInit, OnDestroy {
       {id: AlbumPhotoSort.FILENAME, label: "Filename"},
       {id: AlbumPhotoSort.CUSTOM, label: "Custom order"}
     ].map(item => ({...item, selected: item.id === this.albumPhotoSort}));
+  }
+
+  protected imageActionItems(): ButtonDropdownItem[] {
+    const resizeLabel = this.resizeInProgress ? this.resizeActionCaption() : `Resize Existing Images To ${this.numberUtils.humanFileSize(this.contentMetadata?.maxImageSize)}`;
+    return [
+      {id: AlbumImageAction.RESIZE_SAVED_IMAGES, label: resizeLabel, icon: faCompress, disabled: this.resizeInProgress, hidden: !this.imagesExist() || !(this.contentMetadata?.maxImageSize > 0)},
+      {id: AlbumImageAction.REVERSE_SORT_ORDER, label: "Reverse sort order", icon: faSortNumericUp, hidden: !this.imagesExist()},
+      {id: AlbumImageAction.CLEAR_IMAGES, label: "Clear images", icon: faEraser, hidden: !this.imagesExist()},
+      {id: AlbumImageAction.CREATE_FIRST_IMAGE, label: "Create First Image", icon: faAdd, hidden: this.imagesExist()},
+      {id: AlbumImageAction.MANAGE_TAGS, label: this.manageTags ? "Close Tags" : "Manage Tags", icon: faTags, hidden: !(this.contentMetadata?.imageTags?.length > 0)}
+    ];
+  }
+
+  protected runImageAction(action: string): void {
+    if (action === AlbumImageAction.RESIZE_SAVED_IMAGES) {
+      this.resizeSavedImages();
+    } else if (action === AlbumImageAction.REVERSE_SORT_ORDER) {
+      this.reverseSortOrder();
+    } else if (action === AlbumImageAction.CLEAR_IMAGES) {
+      this.clearImages();
+    } else if (action === AlbumImageAction.CREATE_FIRST_IMAGE) {
+      this.insertToEmptyList();
+    } else if (action === AlbumImageAction.MANAGE_TAGS) {
+      this.toggleManageTags();
+    }
   }
 
   protected photoSortLabel(): string {

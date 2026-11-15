@@ -302,6 +302,14 @@ export enum AlbumPhotoSort {
   CUSTOM = "custom"
 }
 
+export enum AlbumImageAction {
+  CLEAR_IMAGES = "clear-images",
+  CREATE_FIRST_IMAGE = "create-first-image",
+  MANAGE_TAGS = "manage-tags",
+  RESIZE_SAVED_IMAGES = "resize-saved-images",
+  REVERSE_SORT_ORDER = "reverse-sort-order"
+}
+
 export enum AlbumEditorView {
   PHOTOS = "photos",
   DETAILS = "details"

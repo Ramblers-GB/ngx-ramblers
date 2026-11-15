@@ -148,15 +148,15 @@ describe("photo workspace", () => {
     expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain("Photo preparation stopped");
   });
   it.each([
-    {workflowMode: true, saveLabel: "Save and return to walk"},
-    {workflowMode: false, saveLabel: "Save album"}
-  ])("shows the album action bar with '$saveLabel'", ({workflowMode, saveLabel}) => {
+    {workflowMode: true, saveLabels: ["Save and return to walk"]},
+    {workflowMode: false, saveLabels: ["Save album", "Save changes and exit"]}
+  ])("shows the album action bar with '$saveLabels'", ({workflowMode, saveLabels}) => {
     const fixture = workspace(3);
     fixture.componentInstance.workflowMode = workflowMode;
     fixture.changeDetectorRef.detectChanges();
     const toolbar = fixture.nativeElement.querySelector(".album-sticky-bar");
     const labels = [...toolbar.querySelectorAll("button")].map(button => button.textContent.replace(/\s+/g, " ").trim());
-    expect(labels).toEqual([...(workflowMode ? ["Photo order"] : []), "Add photos", "Take photo", saveLabel, "Discard changes"]);
+    expect(labels).toEqual([...(workflowMode ? ["Photo order"] : []), "Add photos", "Take photo", ...saveLabels, "Discard changes"]);
     expect([...toolbar.querySelectorAll("button")].every(button => button.classList.contains("btn-icon"))).toBe(false);
   });
 
