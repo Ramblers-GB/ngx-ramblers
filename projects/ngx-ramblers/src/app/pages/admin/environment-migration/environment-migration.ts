@@ -53,6 +53,8 @@ import { InputSize } from "../../../models/ui-size.model";
 import { DESCENDING } from "../../../models/table-filtering.model";
 import { AWS_DEFAULTS, EnvironmentsConfig } from "../../../models/environment-config.model";
 import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } from "../../../functions/backup-list-items";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
 
 @Component({
   selector: "app-environment-migration",
@@ -71,7 +73,8 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
     TabDirective,
     TabsetComponent,
     TooltipModule,
-    VendorBrandMarkComponent
+    VendorBrandMarkComponent,
+    AlertPanelComponent
   ],
   styles: [`
     .status-pill
@@ -506,7 +509,12 @@ import { backupEnvironment, backupsForSourceAndEnvironment, restorableBackups } 
                   @if (selectedMigration.verification.stagingEnvironments) {
                     <li>Staging environments: {{ selectedMigration.verification.stagingEnvironments.count }}</li>
                     @if (selectedMigration.verification.stagingEnvironments.missing.length > 0) {
-                      <li class="text-danger">Missing: {{ selectedMigration.verification.stagingEnvironments.missing.join(", ") }}</li>
+                      <li>
+                        <app-alert-panel class="mt-2 mb-0" compact title="Missing staging environments"
+                                         [icon]="faCircleExclamation" [variant]="AlertPanelVariant.DANGER">
+                          {{ selectedMigration.verification.stagingEnvironments.missing.join(", ") }}
+                        </app-alert-panel>
+                      </li>
                     }
                   }
                 </ul>
@@ -595,6 +603,7 @@ export class EnvironmentMigrationComponent implements OnInit {
   protected readonly AWS_DEFAULTS = AWS_DEFAULTS;
   protected readonly DESCENDING = DESCENDING;
   protected readonly faCircleExclamation = faCircleExclamation;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
   protected readonly faCircleCheck = faCircleCheck;
   protected readonly faClipboardCheck = faClipboardCheck;
   protected readonly faCloud = faCloud;

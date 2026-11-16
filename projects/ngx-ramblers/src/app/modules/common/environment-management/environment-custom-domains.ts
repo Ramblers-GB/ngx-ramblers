@@ -2,6 +2,7 @@ import { Component, EventEmitter, inject, Input, OnChanges, Output, SimpleChange
 import { FormsModule } from "@angular/forms";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import {
+  faCircleExclamation,
   faExclamationTriangle,
   faGlobe,
   faPlus,
@@ -35,6 +36,8 @@ import { EnvironmentSetupService } from "../../../services/environment-setup/env
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { AlertTarget } from "../../../models/alert-target.model";
 import { SessionLogsComponent } from "../../../shared/components/session-logs";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../alert-panel/alert-panel";
 import { domainBadgeClass, domainStatusLabel } from "./environment-hostname-display";
 import { environmentOperationErrorDetail } from "./environment-operation-error";
 
@@ -43,7 +46,8 @@ import { environmentOperationErrorDetail } from "./environment-operation-error";
   imports: [
     FormsModule,
     FontAwesomeModule,
-    SessionLogsComponent
+    SessionLogsComponent,
+    AlertPanelComponent
   ],
   template: `
     <div class="hostname-part mt-4 pt-3 border-top">
@@ -142,7 +146,10 @@ import { environmentOperationErrorDetail } from "./environment-operation-error";
         </div>
       }
       @if (customDomainError) {
-        <p class="small text-danger mt-2 mb-0">{{ customDomainError }}</p>
+        <app-alert-panel class="mt-3 mb-0" [title]="customDomainErrorTitle"
+                         [icon]="faCircleExclamation" [variant]="AlertPanelVariant.DANGER">
+          {{ customDomainError }}
+        </app-alert-panel>
       }
       @if (customDomainMessages.length > 0) {
         <div class="mt-3">
@@ -235,7 +242,10 @@ import { environmentOperationErrorDetail } from "./environment-operation-error";
       </div>
       }
       @if (apexRedirectError) {
-        <p class="small text-danger mt-2 mb-0">{{ apexRedirectError }}</p>
+        <app-alert-panel class="mt-3 mb-0" [title]="apexRedirectErrorTitle"
+                         [icon]="faCircleExclamation" [variant]="AlertPanelVariant.DANGER">
+          {{ apexRedirectError }}
+        </app-alert-panel>
       }
       @if (apexRedirectMessages.length > 0) {
         <div class="mt-3">
@@ -263,6 +273,7 @@ export class EnvironmentCustomDomains implements OnChanges {
   customDomainBusy = false;
   probingCustomDomain = false;
   customDomainError: string | null = null;
+  customDomainErrorTitle = "Could not attach domain";
   customDomainMessages: string[] = [];
   customDomainEligibility: CustomDomainEligibility | null = null;
   customDomainEligibilityConfirming = false;
@@ -275,11 +286,14 @@ export class EnvironmentCustomDomains implements OnChanges {
   apexRedirectHostname = "";
   apexRedirectBusy = false;
   apexRedirectError: string | null = null;
+  apexRedirectErrorTitle = "Could not set up redirect";
   apexRedirectMessages: string[] = [];
 
   protected readonly faExclamationTriangle = faExclamationTriangle;
+  protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faPlus = faPlus;
   protected readonly faSpinner = faSpinner;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.hostnameHealthReport && this.hostnameHealthReport) {
@@ -410,7 +424,8 @@ export class EnvironmentCustomDomains implements OnChanges {
       ...this.customDomains().map(domain => domain.hostname),
       ...this.hostnameStatuses().map(status => status.hostname)
     ];
-    const apex = hosts.map(host => apexHost(host)).find(host => !!host && hosts.includes(host) && hosts.includes(`www.${host}`));
+    const apex = hosts.map(host => apexHost(host)).find(host =>
+      !!host && hostnameMayHaveWwwCompanion(host) && hosts.includes(host) && hosts.includes(`www.${host}`));
     if (apex) {
       return {apex, www: `www.${apex}`};
     } else {
@@ -444,6 +459,7 @@ export class EnvironmentCustomDomains implements OnChanges {
     } else {
       const hostname = this.normaliseHostname(this.customDomainHostname);
       if (!hostname) {
+        this.customDomainErrorTitle = "Hostname needed";
         this.customDomainError = "Enter a hostname to add";
       } else {
         await this.probeThenAttachCustomDomain(hostname);
@@ -470,6 +486,7 @@ export class EnvironmentCustomDomains implements OnChanges {
     if (this.environment) {
       this.customDomainBusy = true;
       this.removingDomainHostname = domain.hostname;
+      this.customDomainErrorTitle = "Could not remove domain";
       this.customDomainError = null;
       this.customDomainMessages = [`Removing custom domain: ${domain.hostname}`];
       try {
@@ -496,6 +513,7 @@ export class EnvironmentCustomDomains implements OnChanges {
     if (this.environment) {
       this.customDomainBusy = true;
       this.checkingDomainHostname = domain.hostname;
+      this.customDomainErrorTitle = "Could not check domain";
       this.customDomainError = null;
       this.customDomainMessages = [`Checking custom domain: ${domain.hostname}`];
       try {
@@ -524,9 +542,11 @@ export class EnvironmentCustomDomains implements OnChanges {
     } else {
       const hostname = this.normaliseHostname(hostnameInput || this.apexRedirectHostname);
       if (!hostname) {
+        this.apexRedirectErrorTitle = "Hostname needed";
         this.apexRedirectError = "Enter the hostname the site is served on";
       } else {
         this.apexRedirectBusy = true;
+        this.apexRedirectErrorTitle = "Could not set up redirect";
         this.apexRedirectError = null;
         this.apexRedirectMessages = [`Setting up apex/www redirect for ${hostname}`];
         try {
@@ -558,6 +578,7 @@ export class EnvironmentCustomDomains implements OnChanges {
       this.notify.warning({ title: "No Environment Selected", message: "Please select an environment first" });
     } else {
       this.apexRedirectBusy = true;
+      this.apexRedirectErrorTitle = "Could not remove redirect";
       this.apexRedirectError = null;
       this.apexRedirectMessages = [`Removing redirect for ${hostname.hostname}`];
       try {
@@ -617,6 +638,7 @@ export class EnvironmentCustomDomains implements OnChanges {
     if (this.environment) {
       this.customDomainBusy = true;
       this.probingCustomDomain = true;
+      this.customDomainErrorTitle = "Could not attach domain";
       this.customDomainError = null;
       this.customDomainEligibility = null;
       this.customDomainEligibilityConfirming = false;

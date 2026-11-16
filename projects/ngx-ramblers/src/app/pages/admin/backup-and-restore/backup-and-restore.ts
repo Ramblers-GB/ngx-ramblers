@@ -75,6 +75,8 @@ import {
 import { SortableTableColumn, SortableTableGroup } from "../../../modules/common/sortable-table/sortable-table.model";
 import { DESCENDING } from "../../../models/table-filtering.model";
 import { SessionLogsComponent } from "../../../shared/components/session-logs";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
 
 const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
 
@@ -98,7 +100,8 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
     BackupsMultiSelectComponent,
     BackupSelectComponent,
     EnvironmentSettings,
-    TooltipDirective
+    TooltipDirective,
+    AlertPanelComponent
   ],
   styles: [`
     .session-status-aborted
@@ -478,7 +481,10 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                                   [tooltip]="summary.error || null">{{ humaniseStatus(summary.status) }}</span>
                             {{ row.type === BackupSessionType.RESTORE ? summary.copiedObjects + ' restored' : summary.copiedObjects + ' copied' }}, {{ summary.skippedObjects }} skipped, {{ formatBytes(summary.copiedSizeBytes) }}
                             @if (summary.error) {
-                              <div class="text-danger">{{ summary.error }}</div>
+                              <app-alert-panel class="mt-1 mb-0" compact title="S3 copy failed"
+                                               [icon]="faExclamationTriangle" [variant]="AlertPanelVariant.DANGER">
+                                {{ summary.error }}
+                              </app-alert-panel>
                             }
                           </div>
                         }
@@ -689,6 +695,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   protected readonly BackupRestoreTab = BackupRestoreTab;
   protected readonly BackupLocation = BackupLocation;
   protected readonly faExclamationTriangle = faExclamationTriangle;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
   protected readonly faTrash = faTrash;
   protected readonly faSpinner = faSpinner;
   protected readonly faChartBar = faChartBar;

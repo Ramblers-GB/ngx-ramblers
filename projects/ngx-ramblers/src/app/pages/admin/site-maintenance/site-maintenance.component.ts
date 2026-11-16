@@ -1,5 +1,5 @@
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
-import { faExclamationTriangle, faCheckCircle, faSpinner, faRedo, faTools, faChevronUp, faChevronDown, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { faCircleExclamation, faExclamationTriangle, faCheckCircle, faSpinner, faRedo, faTools, faChevronUp, faChevronDown, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { NgxLoggerLevel } from "ngx-logger";
 import { interval, Subscription } from "rxjs";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
@@ -15,6 +15,8 @@ import { MaintenanceMigrationFile, MigrationFileStatus, MigrationSortColumn } fr
 import { sortBy } from "../../../functions/arrays";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { isNull } from "es-toolkit/compat";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
 
 @Component({
   selector: "app-site-maintenance",
@@ -111,11 +113,10 @@ import { isNull } from "es-toolkit/compat";
                                       <span class="badge bg-info text-dark ms-2">Manual</span>
                                     }
                                     @if (isFailed(migration.status) && migration.error) {
-                                      <div class="alert alert-danger mt-2 mb-0 p-2">
-                                        <small>
-                                          <strong>Error:</strong> {{ migration.error }}
-                                        </small>
-                                      </div>
+                                      <app-alert-panel class="mt-2 mb-0" compact title="Migration failed"
+                                                       [icon]="faCircleExclamation" [variant]="AlertPanelVariant.DANGER">
+                                        {{ migration.error }}
+                                      </app-alert-panel>
                                     }
                                     @if (isSkipped(migration.status) && migration.skippedReason) {
                                       <div class="alert alert-warning mt-2 mb-0 p-2">
@@ -189,9 +190,12 @@ import { isNull } from "es-toolkit/compat";
                       </div>
                     }
                     @if (lastRetryMessage) {
-                      <div class="alert mt-3" [ngClass]="lastRetrySuccess ? 'alert-success' : 'alert-danger'">
+                      <app-alert-panel class="mt-3 mb-0"
+                                       [title]="lastRetrySuccess ? 'Retry succeeded' : 'Retry failed'"
+                                       [icon]="lastRetrySuccess ? faCheckCircle : faCircleExclamation"
+                                       [variant]="lastRetrySuccess ? AlertPanelVariant.SUCCESS : AlertPanelVariant.DANGER">
                         {{ lastRetryMessage }}
-                      </div>
+                      </app-alert-panel>
                     }
                   </div>
                 } @else {
@@ -281,7 +285,7 @@ import { isNull } from "es-toolkit/compat";
     .text-danger
       color: #dc3545 !important
   `],
-  imports: [PageComponent, FontAwesomeModule, NgClass, DatePipe]
+  imports: [PageComponent, FontAwesomeModule, NgClass, DatePipe, AlertPanelComponent]
 })
 export class SiteMaintenanceComponent implements OnInit, OnDestroy {
   protected readonly isNull = isNull;
@@ -292,6 +296,8 @@ export class SiteMaintenanceComponent implements OnInit, OnDestroy {
   private stringUtilsService = inject(StringUtilsService);
 
   faExclamationTriangle = faExclamationTriangle;
+  faCircleExclamation = faCircleExclamation;
+  AlertPanelVariant = AlertPanelVariant;
   faCheckCircle = faCheckCircle;
   faSpinner = faSpinner;
   faRedo = faRedo;

@@ -29,6 +29,8 @@ import { EnvironmentConfigService } from "../../../services/environment-config.s
 import { WebSocketClientService } from "../../../services/websockets/websocket-client.service";
 import { SecretInputComponent } from "../secret-input/secret-input.component";
 import { SessionLogsComponent } from "../../../shared/components/session-logs";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../alert-panel/alert-panel";
 import { environmentOperationErrorDetail } from "./environment-operation-error";
 
 function emptyFlyMigrateForm(): FlyOrgMigrateForm {
@@ -44,7 +46,7 @@ function emptyFlyMigrateForm(): FlyOrgMigrateForm {
 
 @Component({
   selector: "app-environment-fly-org-migrate",
-  imports: [FormsModule, FontAwesomeModule, SecretInputComponent, SessionLogsComponent],
+  imports: [FormsModule, FontAwesomeModule, SecretInputComponent, SessionLogsComponent, AlertPanelComponent],
   styles: [`
     :host
       display: block
@@ -253,10 +255,10 @@ function emptyFlyMigrateForm(): FlyOrgMigrateForm {
           </div>
         }
         @if (setupError) {
-          <div class="alert alert-danger mt-3 mb-0">
-            <fa-icon [icon]="faExclamationTriangle" class="me-2"></fa-icon>
-            <strong>Error:</strong> {{ setupError }}
-          </div>
+          <app-alert-panel class="mt-3 mb-0" title="Fly organisation migration failed"
+                           [icon]="faExclamationTriangle" [variant]="AlertPanelVariant.DANGER">
+            {{ setupError }}
+          </app-alert-panel>
         }
         <button class="btn btn-primary mt-3"
                 (click)="runFlyOrgMigration()"
@@ -307,6 +309,7 @@ export class EnvironmentFlyOrgMigrate implements OnInit, OnChanges, OnDestroy {
   protected readonly faPlaneDeparture = faPlaneDeparture;
   protected readonly faRedo = faRedo;
   protected readonly faSpinner = faSpinner;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
 
   get migratingFlyOrg(): boolean {
     return this.operationInProgress === OperationInProgress.MIGRATING_FLY_ORG;

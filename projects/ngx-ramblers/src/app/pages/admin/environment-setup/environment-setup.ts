@@ -79,6 +79,8 @@ import { EnvironmentManagement } from "../../../modules/common/environment-manag
 import { MongoClusterSelectComponent } from "../../../modules/common/selectors/mongo-cluster-select";
 import { MongoUriInputComponent, MongoUriParseResult } from "../../../modules/common/mongo-uri-input/mongo-uri-input";
 import { AreaSelector } from "../../walks/walk-edit/area-selector";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
 
 @Component({
   selector: "app-environment-setup",
@@ -956,10 +958,10 @@ import { AreaSelector } from "../../walks/walk-edit/area-selector";
                               }
 
                               @if (setupError) {
-                                <div class="alert alert-danger mt-3">
-                                  <h5><fa-icon [icon]="faExclamationTriangle" class="me-2"></fa-icon>Setup Failed</h5>
-                                  <p>{{ setupError }}</p>
-                                </div>
+                                <app-alert-panel class="mt-3 mb-0" title="Setup failed"
+                                                 [icon]="faExclamationTriangle" [variant]="AlertPanelVariant.DANGER">
+                                  {{ setupError }}
+                                </app-alert-panel>
                               }
                               <div class="stepper-nav">
                                 <button type="button" class="btn btn-primary me-2" (click)="retrySetup()">
@@ -1000,12 +1002,16 @@ import { AreaSelector } from "../../walks/walk-edit/area-selector";
               @if (notifyTarget.showAlert) {
                 <div class="row mt-3">
                   <div class="col-sm-12">
-                    <div class="alert {{ notifyTarget.alert.class }}">
-                      <fa-icon [icon]="notifyTarget.alert.icon"></fa-icon>
-                      @if (notifyTarget.alertTitle) {
-                        <strong>{{ notifyTarget.alertTitle }}: </strong>
-                      }
-                      {{ notifyTarget.alertMessage }}
+                    <div class="alert {{ notifyTarget.alert.class }} d-flex align-items-start mb-0">
+                      <fa-icon [icon]="notifyTarget.alert.icon" class="me-2 mt-1"></fa-icon>
+                      <div>
+                        @if (notifyTarget.alertTitle) {
+                          <strong>{{ notifyTarget.alertTitle }}</strong>
+                          <div class="mt-1">{{ notifyTarget.alertMessage }}</div>
+                        } @else {
+                          {{ notifyTarget.alertMessage }}
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1016,7 +1022,7 @@ import { AreaSelector } from "../../walks/walk-edit/area-selector";
       </app-page>
     `,
   styleUrls: ["./environment-setup.sass"],
-  imports: [PageComponent, FormsModule, NgClass, FontAwesomeModule, StepperModule, NgSelectComponent, StatusIconComponent, AreaSelector, SecretInputComponent, SessionLogsComponent, TabsetComponent, TabDirective, EnvironmentSettings, EnvironmentManagement, MongoUriInputComponent, RouterLink, MongoClusterSelectComponent]
+  imports: [PageComponent, FormsModule, NgClass, FontAwesomeModule, StepperModule, NgSelectComponent, StatusIconComponent, AreaSelector, SecretInputComponent, SessionLogsComponent, TabsetComponent, TabDirective, EnvironmentSettings, EnvironmentManagement, MongoUriInputComponent, RouterLink, MongoClusterSelectComponent, AlertPanelComponent]
 })
 export class EnvironmentSetupComponent implements OnInit, OnDestroy {
 
@@ -1212,6 +1218,7 @@ export class EnvironmentSetupComponent implements OnInit, OnDestroy {
   protected readonly faCopy = faCopy;
   protected readonly faExclamationCircle = faExclamationCircle;
   protected readonly faExclamationTriangle = faExclamationTriangle;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
   protected readonly faPlus = faPlus;
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faRedo = faRedo;

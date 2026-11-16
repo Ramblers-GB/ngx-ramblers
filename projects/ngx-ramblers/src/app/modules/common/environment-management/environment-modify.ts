@@ -28,6 +28,8 @@ import { EnvironmentSetupService } from "../../../services/environment-setup/env
 import { WebSocketClientService } from "../../../services/websockets/websocket-client.service";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { SessionLogsComponent } from "../../../shared/components/session-logs";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../alert-panel/alert-panel";
 import { EnvironmentHostnames } from "./environment-hostnames";
 import { environmentOperationErrorDetail } from "./environment-operation-error";
 import { mailDomainSettingsUrl } from "../../../functions/brevo-domain-dns";
@@ -95,7 +97,7 @@ export function modifyOptionsFromStatus(envStatus: EnvironmentStatus | null): En
 
 @Component({
   selector: "app-environment-modify",
-  imports: [FormsModule, FontAwesomeModule, SessionLogsComponent, EnvironmentHostnames, DisplayDateAndTimePipe],
+  imports: [FormsModule, FontAwesomeModule, SessionLogsComponent, EnvironmentHostnames, DisplayDateAndTimePipe, AlertPanelComponent],
   template: `
     <app-environment-hostnames
       [environment]="environment"
@@ -241,10 +243,10 @@ export function modifyOptionsFromStatus(envStatus: EnvironmentStatus | null): En
     @if (setupError) {
       <div class="row mt-3">
         <div class="col-md-12">
-          <div class="alert alert-danger mb-0">
-            <fa-icon [icon]="faExclamationTriangle" class="me-2"></fa-icon>
-            <strong>Error:</strong> {{ setupError }}
-          </div>
+          <app-alert-panel class="mb-0" title="Operation failed"
+                           [icon]="faExclamationTriangle" [variant]="AlertPanelVariant.DANGER">
+            {{ setupError }}
+          </app-alert-panel>
         </div>
       </div>
     }
@@ -285,6 +287,7 @@ export class EnvironmentModify implements OnInit, OnChanges, OnDestroy {
   protected readonly faExclamationTriangle = faExclamationTriangle;
   protected readonly faKey = faKey;
   protected readonly faSpinner = faSpinner;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
 
   get resuming(): boolean {
     return this.operationInProgress === OperationInProgress.CREATING;

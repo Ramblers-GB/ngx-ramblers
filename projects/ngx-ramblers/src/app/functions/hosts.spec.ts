@@ -105,6 +105,7 @@ describe("hostnameMayHaveWwwCompanion", () => {
   it("is false for www itself and for an extra subdomain such as staging", () => {
     expect(hostnameMayHaveWwwCompanion("www.example.org.uk")).toBe(false);
     expect(hostnameMayHaveWwwCompanion("staging.example.org.uk")).toBe(false);
+    expect(hostnameMayHaveWwwCompanion("group.ngx-ramblers.org.uk")).toBe(false);
     expect(hostnameMayHaveWwwCompanion("")).toBe(false);
   });
 });

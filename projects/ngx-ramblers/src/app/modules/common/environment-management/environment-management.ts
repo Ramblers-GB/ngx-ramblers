@@ -93,16 +93,21 @@ import { EnvironmentDestroy } from "./environment-destroy";
   `],
   template: `
     @if (!enabled) {
-      <div class="alert alert-warning">
-        <fa-icon [icon]="faExclamationTriangle" class="me-2"></fa-icon>
-        Environment management is not available on this environment.
-        Please use the CLI or staging environment.
+      <div class="alert alert-warning d-flex align-items-start">
+        <fa-icon [icon]="faExclamationTriangle" class="me-2 mt-1"></fa-icon>
+        <div>
+          <strong>Not available here</strong>
+          <div class="mt-1">Environment management is not available on this environment. Please use the CLI or staging environment.</div>
+        </div>
       </div>
     } @else {
       @if (!loading && existingEnvironments.length === 0) {
-        <div class="alert alert-warning">
-          <fa-icon [icon]="faExclamationTriangle" class="me-2"></fa-icon>
-          No environments configured yet. Add environments in the Settings tab first.
+        <div class="alert alert-warning d-flex align-items-start">
+          <fa-icon [icon]="faExclamationTriangle" class="me-2 mt-1"></fa-icon>
+          <div>
+            <strong>No environments yet</strong>
+            <div class="mt-1">Add environments in the Settings tab first.</div>
+          </div>
         </div>
       } @else if (existingEnvironments.length > 0) {
         <div class="row thumbnail-heading-frame">

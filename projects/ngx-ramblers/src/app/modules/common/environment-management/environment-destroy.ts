@@ -9,11 +9,13 @@ import { LoggerFactory } from "../../../services/logger-factory.service";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
 import { EnvironmentSetupService } from "../../../services/environment-setup/environment-setup.service";
 import { SessionLogsComponent } from "../../../shared/components/session-logs";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../alert-panel/alert-panel";
 import { environmentOperationErrorDetail } from "./environment-operation-error";
 
 @Component({
   selector: "app-environment-destroy",
-  imports: [FontAwesomeModule, FormsModule, SessionLogsComponent],
+  imports: [FontAwesomeModule, FormsModule, SessionLogsComponent, AlertPanelComponent],
   template: `
     <div class="row mt-3">
       <div class="col-md-12">
@@ -41,10 +43,10 @@ import { environmentOperationErrorDetail } from "./environment-operation-error";
           </div>
         }
         @if (destroyError) {
-          <div class="alert alert-danger mt-3 mb-0">
-            <fa-icon [icon]="faExclamationTriangle" class="me-2"></fa-icon>
+          <app-alert-panel class="mt-3 mb-0" title="Destroy failed"
+                           [icon]="faExclamationTriangle" [variant]="AlertPanelVariant.DANGER">
             {{ destroyError }}
-          </div>
+          </app-alert-panel>
         }
         @if (!destroyComplete) {
           <div class="mt-3">
@@ -89,6 +91,7 @@ export class EnvironmentDestroy {
   protected readonly faExclamationCircle = faExclamationCircle;
   protected readonly faExclamationTriangle = faExclamationTriangle;
   protected readonly faSpinner = faSpinner;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
 
   get destroying(): boolean {
     return this.operationInProgress === OperationInProgress.DESTROYING;

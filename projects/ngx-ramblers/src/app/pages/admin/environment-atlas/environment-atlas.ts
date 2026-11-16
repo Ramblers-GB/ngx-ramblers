@@ -41,6 +41,8 @@ import { EnvironmentSetupService } from "../../../services/environment-setup/env
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { AlertInstance, NotifierService } from "../../../services/notifier.service";
 import { AlertTarget } from "../../../models/alert-target.model";
+import { AlertPanelVariant } from "../../../models/alert-panel.model";
+import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
 
 @Component({
   selector: "app-environment-atlas",
@@ -57,7 +59,8 @@ import { AlertTarget } from "../../../models/alert-target.model";
     SectionToggle,
     VendorBrandMarkComponent,
     ConsoleAccessLinksComponent,
-    MongoClusterSelectComponent
+    MongoClusterSelectComponent,
+    AlertPanelComponent
   ],
   styles: [`
     .atlas-action-links
@@ -332,7 +335,10 @@ import { AlertTarget } from "../../../models/alert-target.model";
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.COLLECTIONS" let-row>
             @if (row.error) {
-              <span class="text-danger">{{ row.error }}</span>
+              <app-alert-panel compact title="Could not count collections"
+                               [icon]="faCircleExclamation" [variant]="AlertPanelVariant.DANGER">
+                {{ row.error }}
+              </app-alert-panel>
             } @else {
               {{ row.collections }} collections, {{ row.indexes }} indexes
             }
@@ -358,6 +364,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly faPlus = faPlus;
   protected readonly faLayerGroup = faLayerGroup;
   protected readonly faCircleExclamation = faCircleExclamation;
+  protected readonly AlertPanelVariant = AlertPanelVariant;
   protected readonly faExternalLinkAlt = faExternalLinkAlt;
   protected readonly faFloppyDisk = faFloppyDisk;
   protected readonly faGlobe = faGlobe;
