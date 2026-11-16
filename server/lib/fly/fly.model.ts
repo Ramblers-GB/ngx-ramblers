@@ -32,6 +32,20 @@ export interface FlyMachineSummary {
   config?: Record<string, unknown>;
 }
 
+export interface FlyMachineListItem {
+  id: string;
+  name?: string;
+  state?: string;
+  config?: {
+    image?: string;
+    metadata?: { fly_process_group?: string };
+  };
+  image_ref?: {
+    repository?: string;
+    tag?: string;
+  };
+}
+
 export interface FlySecureConfig {
   apiToken: string;
   appName?: string;

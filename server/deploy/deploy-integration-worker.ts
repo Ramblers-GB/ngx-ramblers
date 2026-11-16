@@ -8,7 +8,9 @@ import { envConfig } from "../lib/env-config/env-config";
 import { Environment } from "../../projects/ngx-ramblers/src/app/models/environment.model";
 import { configuredEnvironments } from "../lib/environments/environments-config";
 import { DEPLOYMENT_DEFAULTS, FLYIO_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { isArray } from "es-toolkit/compat";
 import { runCommand } from "../lib/fly/fly-commands";
+import { FlyMachineListItem } from "../lib/fly/fly.model";
 
 const debugLog = debug(envConfig.logNamespace("deploy-integration-worker"));
 debugLog.enabled = true;
@@ -53,10 +55,54 @@ async function deployIntegrationWorker(): Promise<void> {
 
   runCommand(`flyctl config validate --config ${flyTomlPath} --app ${workerConfig.appName}`);
   importWorkerSecrets(workerConfig.appName, dbConfig.secrets, workerConfig.sharedSecret, workerConfig.encryptionKey);
-  runCommand(`flyctl deploy --app ${workerConfig.appName} --config ${flyTomlPath} --image ${image} --strategy rolling --wait-timeout 600`);
+  retireWorkerMachines(workerConfig.appName, unmanagedWorkerMachines(listWorkerMachines(workerConfig.appName)));
+  runCommand(`flyctl deploy --app ${workerConfig.appName} --config ${flyTomlPath} --image ${image} --strategy rolling --ha=false --wait-timeout 600`);
   runCommand(`flyctl scale count ${scaleCount} --app ${workerConfig.appName} --yes`);
   runCommand(`flyctl scale memory ${memory} --app ${workerConfig.appName}`);
+  retireWorkerMachines(workerConfig.appName, workerMachinesToRetire(listWorkerMachines(workerConfig.appName), imageTag));
+  assertWorkerFleet(workerConfig.appName, imageTag);
   debugLog(`Deployed Ramblers upload worker ${workerConfig.appName} with image ${image}`);
+}
+
+export function parseWorkerMachineList(raw: string): FlyMachineListItem[] {
+  const parsed = raw.trim() ? JSON.parse(raw) : [];
+  return isArray(parsed) ? parsed : [];
+}
+
+export function unmanagedWorkerMachines(machines: FlyMachineListItem[]): FlyMachineListItem[] {
+  return (machines || []).filter(machine => machine.config?.metadata?.fly_process_group !== "app");
+}
+
+export function workerMachinesToRetire(machines: FlyMachineListItem[], imageTag: string): FlyMachineListItem[] {
+  return (machines || []).filter(machine => {
+    const processGroup = machine.config?.metadata?.fly_process_group;
+    const tag = machine.image_ref?.tag || "";
+    const unmanaged = processGroup !== "app";
+    const staleImage = tag !== imageTag;
+    return unmanaged || staleImage;
+  });
+}
+
+function listWorkerMachines(appName: string): FlyMachineListItem[] {
+  return parseWorkerMachineList(runCommand(`flyctl machines list --json --app ${appName}`, true));
+}
+
+function retireWorkerMachines(appName: string, machines: FlyMachineListItem[]): void {
+  machines.forEach(machine => {
+    debugLog(`destroying leftover worker machine ${machine.id} image=${machine.image_ref?.tag || "unknown"} process=${machine.config?.metadata?.fly_process_group || "none"}`);
+    runCommand(`flyctl machine destroy ${machine.id} --app ${appName} --force`);
+  });
+}
+
+function assertWorkerFleet(appName: string, imageTag: string): void {
+  const remaining = listWorkerMachines(appName);
+  const leftover = workerMachinesToRetire(remaining, imageTag);
+  if (remaining.length === 0) {
+    throw new Error(`Worker ${appName} has no machines after deploying ${imageTag}`);
+  } else if (leftover.length > 0) {
+    const detail = leftover.map(machine => `${machine.id}:${machine.image_ref?.tag || "unknown"}`).join(", ");
+    throw new Error(`Worker ${appName} still has machines not on ${imageTag}: ${detail}`);
+  }
 }
 
 export function importWorkerSecrets(
