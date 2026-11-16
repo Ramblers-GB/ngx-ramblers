@@ -6,4 +6,5 @@ export const INBOX_THREADS_COLLECTION = "inboxThreads";
 export const INBOX_MESSAGES_COLLECTION = "inboxMessages";
 export const INBOX_FOLDERS_COLLECTION = "inboxFolders";
 export const MAIL_CLIENT_CREDENTIALS_COLLECTION = "mailClientCredentials";
+export const MEMBER_UPDATE_AUDIT_COLLECTION = "memberUpdateAudit";
 export const CAMPAIGN_RECIPIENT_EXPORT_COLLECTION = "campaignRecipientExports";

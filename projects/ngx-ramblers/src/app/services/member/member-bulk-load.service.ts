@@ -1,3 +1,4 @@
+import { booleanOf } from "../../functions/strings";
 import { inject, Injectable } from "@angular/core";
 import { isEmpty } from "es-toolkit/compat";
 import { summariseFieldChanges as fieldChangeSummary } from "../../functions/member-bulk-load-digest";
@@ -487,7 +488,7 @@ export class MemberBulkLoadService {
     });
     const consentNotGiven = bulkLoadMemberAndMatch.member.emailMarketingConsent === false;
     const consentRestored = previousEmailMarketingConsent === false
-      && bulkLoadMemberAndMatch.member.emailMarketingConsent === true;
+      && booleanOf(bulkLoadMemberAndMatch.member.emailMarketingConsent);
     const listsClearedForConsent = this.memberDefaultsService.applyConsentWithdrawalToMember(
       bulkLoadMemberAndMatch.member,
       systemConfig,

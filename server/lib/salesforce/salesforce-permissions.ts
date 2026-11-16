@@ -1,25 +1,27 @@
 import { HEAD_OFFICE_SENDING_PERMISSION_FIELDS, Member } from "../../../projects/ngx-ramblers/src/app/models/member.model";
 import { member } from "../mongo/models/member";
 import { configuredSalesforce } from "./salesforce-config";
+import { booleanOf } from "../shared/string-utils";
 
 function missingAudiencePermission(sender: Member, recipients: Member[]): string | null {
   if (recipients.some(recipient => recipient.salesforceTeamStatus === "Member" || recipient.salesforceTeamStatus === "Affiliated")
-    && sender.canEmailMembers !== true) {
+    && !booleanOf(sender.canEmailMembers)) {
     return "Ramblers has not granted permission to email members";
   } else if (recipients.some(recipient => recipient.salesforceTeamStatus === "Volunteer")
-    && sender.canEmailVolunteers !== true) {
+    && !booleanOf(sender.canEmailVolunteers)) {
     return "Ramblers has not granted permission to email volunteers";
   } else if (recipients.some(recipient => recipient.salesforceTeamStatus === "Wellbeing Walker")
-    && sender.canEmailWellbeingWalkers !== true) {
+    && !booleanOf(sender.canEmailWellbeingWalkers)) {
     return "Ramblers has not granted permission to email Wellbeing Walkers";
+  } else {
+    return null;
   }
-  return null;
 }
 
 export function applyHeadOfficeSendingPermissionBounds(member: Member, prior: Member | undefined, teamEmailsEnabled: boolean): Member {
   if (teamEmailsEnabled) {
     HEAD_OFFICE_SENDING_PERMISSION_FIELDS.forEach(field => {
-      member[field] = prior?.[field] === true;
+      member[field] = booleanOf(prior?.[field]);
     });
   }
   return member;
@@ -31,20 +33,22 @@ export function protectedEmailPermissionError(sender: Member | null, recipients:
     return null;
   } else if (!sender?.salesforceMemberRef) {
     return "The signed-in account is not matched to a Ramblers supporter record";
-  } else if (sender.canViewMemberData !== true) {
+  } else if (!booleanOf(sender.canViewMemberData)) {
     return "Ramblers has not granted permission to view supporter data";
+  } else {
+    return missingAudiencePermission(sender, protectedRecipients);
   }
-  return missingAudiencePermission(sender, protectedRecipients);
 }
 
 export async function protectedEmailSendError(senderId: string | null, recipientIds: string[]): Promise<string | null> {
   const salesforceConfig = await configuredSalesforce();
   if (!salesforceConfig?.enabled || recipientIds.length === 0) {
     return null;
+  } else {
+    const [sender, recipients] = await Promise.all([
+      senderId ? member.findById(senderId).lean().exec() as Promise<Member | null> : Promise.resolve(null),
+      member.find({ _id: { $in: recipientIds } }).lean().exec() as Promise<Member[]>,
+    ]);
+    return protectedEmailPermissionError(sender, recipients);
   }
-  const [sender, recipients] = await Promise.all([
-    senderId ? member.findById(senderId).lean().exec() as Promise<Member | null> : Promise.resolve(null),
-    member.find({ _id: { $in: recipientIds } }).lean().exec() as Promise<Member[]>,
-  ]);
-  return protectedEmailPermissionError(sender, recipients);
 }

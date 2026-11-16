@@ -1,3 +1,4 @@
+import { booleanOf } from "../../../functions/strings";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { faCopy, faEye, faEyeSlash, faPaste, faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
@@ -417,7 +418,7 @@ export class MemberAdminModalComponent implements OnInit, OnDestroy {
   }
 
   consentGiven(): boolean {
-    return this.member?.emailMarketingConsent === true;
+    return booleanOf(this.member?.emailMarketingConsent);
   }
 
   consentWithheld(): boolean {
@@ -443,7 +444,7 @@ export class MemberAdminModalComponent implements OnInit, OnDestroy {
   }
 
   ramblersTeamEmailsEnabled(): boolean {
-    return this.salesforceConfig?.enabled === true;
+    return booleanOf(this.salesforceConfig?.enabled);
   }
 
   allowSendingPermissionEdits(): boolean {

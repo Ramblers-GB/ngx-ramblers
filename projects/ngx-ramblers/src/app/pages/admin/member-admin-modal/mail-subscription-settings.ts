@@ -1,3 +1,4 @@
+import { booleanOf } from "../../../functions/strings";
 import { Component, EventEmitter, inject, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { faBan, faCircleCheck, faCircleExclamation, faEnvelope, faTriangleExclamation, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -230,11 +231,11 @@ export class MailSubscriptionSettingsComponent implements OnInit {
   protected readonly faTriangleExclamation = faTriangleExclamation;
 
   private respectsHeadOfficeConsent(): boolean {
-    return this.mailMessagingConfig?.mailConfig?.respectHeadOfficeConsent !== false;
+    return booleanOf(this.mailMessagingConfig?.mailConfig?.respectHeadOfficeConsent, true);
   }
 
   private respectsEmailBlocks(): boolean {
-    return this.mailMessagingConfig?.mailConfig?.respectEmailBlocks === true;
+    return booleanOf(this.mailMessagingConfig?.mailConfig?.respectEmailBlocks);
   }
 
   blockExcludesFromSend(): boolean {

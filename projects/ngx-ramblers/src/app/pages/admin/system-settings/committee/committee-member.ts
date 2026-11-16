@@ -46,6 +46,7 @@ import {
   emailListed,
   emailLocalPart,
   emailLocalPartLengthMessage,
+  booleanOf,
   emailsOffDomain,
   extractErrorMessage,
   sanitiseEmailLocalPart,
@@ -1369,7 +1370,7 @@ export class CommitteeMemberEditor implements OnInit, OnDestroy {
     }
     const normalisedEmail = normaliseEmail(email);
     return this.emailRoutingRules.some(rule =>
-      rule.enabled !== false
+      booleanOf(rule.enabled, true)
       && rule.matchers?.some(m => m.type === EmailRoutingMatcherType.LITERAL && m.field === EmailRoutingMatcherField.TO && normaliseEmail(m.value) === normalisedEmail));
   }
 

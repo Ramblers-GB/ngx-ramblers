@@ -40,11 +40,8 @@ function normaliseConsentFields(member: Member): Member {
 
 async function priorMembersById(members: Member[]): Promise<Map<string, Member>> {
   const ids = members.map(item => item.id).filter(Boolean);
-  if (ids.length === 0) {
-    return new Map();
-  }
-  const existing = await member.find({_id: {$in: ids}}).lean().exec();
-  return new Map(existing.map((doc: any) => [doc._id.toString(), {...doc, id: doc._id.toString()} as Member]));
+  const existing = ids.length > 0 ? await member.find({_id: {$in: ids}}).exec() : [];
+  return new Map(existing.map(doc => transforms.toObjectWithId(doc) as Member).map(prior => [prior.id, prior]));
 }
 
 function subscriptionsById(priorMembers: Map<string, Member>): Map<string, MailSubscription[]> {
@@ -56,7 +53,7 @@ async function teamEmailsLocksSendingPermissions(snapshotWrite: boolean): Promis
     return false;
   } else {
     const salesforceConfig = await configuredSalesforce();
-    return salesforceConfig?.enabled === true;
+    return booleanOf(salesforceConfig?.enabled);
   }
 }
 

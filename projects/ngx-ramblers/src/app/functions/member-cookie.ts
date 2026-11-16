@@ -1,3 +1,4 @@
+import { booleanOf } from "./strings";
 import { keys } from "es-toolkit/compat";
 import { Member, MemberCookie } from "../models/member.model";
 
@@ -12,7 +13,7 @@ export function toMemberCookie(member: Member): MemberCookie {
     socialMember: member.socialMember,
     contentAdmin: member.contentAdmin,
     memberAdmin: member.memberAdmin,
-    viewAsMember: member.viewAsMember === true && member.revoked !== true,
+    viewAsMember: booleanOf(member.viewAsMember) && !booleanOf(member.revoked),
     financeAdmin: member.financeAdmin,
     committee: member.committee,
     treasuryAdmin: member.treasuryAdmin,
@@ -26,7 +27,7 @@ export function toMemberCookie(member: Member): MemberCookie {
 }
 
 export function canViewAsMember(member: Partial<MemberCookie> | null): boolean {
-  return !!member?.memberId && member.memberAdmin === true && member.viewAsMember === true;
+  return !!member?.memberId && booleanOf(member.memberAdmin) && booleanOf(member.viewAsMember);
 }
 
 export function memberSessionFields(): string[] {

@@ -2,6 +2,9 @@ import expect from "expect";
 import { describe, it } from "mocha";
 import { Member } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 import { memberFieldChanges } from "./member-field-audit";
+import { member as memberModel } from "../models/member";
+import * as transforms from "./transforms";
+import { Types } from "mongoose";
 
 function member(overrides: Partial<Member> = {}): Member {
   return {
@@ -82,6 +85,24 @@ describe("memberFieldChanges", () => {
     const prior = member({mail: {subscriptions: [{id: 2, subscribed: true}], lastSyncedSignature: "a"}} as Partial<Member>);
     const next = member({mail: {subscriptions: [{id: 2, subscribed: false}], lastSyncedSignature: "b"}} as Partial<Member>);
     expect(memberFieldChanges(prior, next)).toEqual([]);
+  });
+
+  it("records a phantom change when the stored document is compared without schema defaults", () => {
+    const stored = {_id: new Types.ObjectId(), firstName: "Colin", lastName: "Hatcher", displayName: "Colin H", email: "colin@example.com"};
+    const saved = transforms.toObjectWithId(memberModel.hydrate(stored)) as Member;
+    expect(memberFieldChanges(transforms.toObjectWithId(stored) as Member, saved)).toEqual([{
+      fieldName: "viewAsMember",
+      from: "(none)",
+      to: "false",
+      resolution: "Edited"
+    }]);
+  });
+
+  it("records nothing when both sides of a save have schema defaults applied", () => {
+    const stored = {_id: new Types.ObjectId(), firstName: "Colin", lastName: "Hatcher", displayName: "Colin H", email: "colin@example.com"};
+    const prior = transforms.toObjectWithId(memberModel.hydrate(stored)) as Member;
+    const saved = transforms.toObjectWithId(memberModel.hydrate(stored)) as Member;
+    expect(memberFieldChanges(prior, saved)).toEqual([]);
   });
 
 });

@@ -6,15 +6,13 @@ import { DEFAULT_MEMBER_SYNC_POLICY } from "../../../../../projects/ngx-ramblers
 import { MemberAuditFieldChange } from "../../../../../projects/ngx-ramblers/src/app/models/member.model";
 import { RoleType } from "../../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { ensureActionButton } from "../shared/page-content-actions";
+import { CONFIG_COLLECTION, MEMBER_UPDATE_AUDIT_COLLECTION, NOTIFICATION_CONFIG_COLLECTION } from "../shared/collection-names";
 import { keys } from "es-toolkit/compat";
 
 const debugLog = createMigrationLogger("seed-member-sync-policy");
 
 const BREVO_CONFIG_KEY = ConfigKey.BREVO;
 const COMMITTEE_CONFIG_KEY = ConfigKey.COMMITTEE;
-const NOTIFICATION_CONFIG_COLLECTION = "notificationConfigs";
-const CONFIG_COLLECTION = "config";
-const MEMBER_UPDATE_AUDIT_COLLECTION = "memberUpdateAudit";
 const MEMBER_SYNC_TEMPLATE_NAME = "member-sync-notification";
 const NOTIFICATION_SUBJECT_TEXT = "Your membership details and Head Office records";
 const ADMIN_ACTION_BUTTONS_PATH = "admin#action-buttons";

@@ -1,3 +1,4 @@
+import { booleanOf } from "./strings";
 import { Member } from "../models/member.model";
 import { MemberSelection } from "../models/mail.model";
 
@@ -6,7 +7,7 @@ export function memberChipQualifier(member: Member, nowMillis: number, includeEx
     return "no email address";
   } else if (member.emailMarketingConsent === false) {
     return "without Head Office consent";
-  } else if (member.emailMarketingConsent === true) {
+  } else if (booleanOf(member.emailMarketingConsent)) {
     if (includeExpired && member.membershipExpiryDate && member.membershipExpiryDate < nowMillis) {
       return "expired members";
     } else {
