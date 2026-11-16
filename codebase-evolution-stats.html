@@ -69,12 +69,16 @@
             padding: 0;
             box-sizing: border-box;
         }
+        html {
+            overflow-x: hidden;
+        }
         body {
             font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-primary);
             min-height: 100vh;
             color: var(--text-primary);
             transition: background 0.3s, color 0.3s;
+            overflow-x: hidden;
         }
         .header {
             background: var(--header-bg);
@@ -275,7 +279,7 @@
         }
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr));
             gap: 30px;
             margin-bottom: 30px;
         }
@@ -286,6 +290,7 @@
             border: 1px solid var(--border-color);
             box-shadow: 0 2px 10px var(--shadow);
             transition: background 0.3s, border-color 0.3s, box-shadow 0.2s;
+            min-width: 0;
         }
         .chart-card:hover {
             border-color: var(--border-strong);
@@ -301,10 +306,21 @@
         }
         .chart-container {
             position: relative;
+            width: 100%;
             height: 300px;
+            min-height: 300px;
         }
         .chart-container.tall {
             height: 350px;
+            min-height: 350px;
+        }
+        .chart-container.doughnut {
+            height: 340px;
+            min-height: 340px;
+        }
+        .chart-container canvas {
+            display: block;
+            max-width: 100%;
         }
         .full-width {
             grid-column: 1 / -1;
@@ -347,6 +363,14 @@
             color: var(--accent);
             font-weight: 700;
             margin-bottom: 4px;
+        }
+        .repo-name a {
+            color: inherit;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+        .repo-name a:hover {
+            color: var(--ramblers-sunrise-hover);
         }
         .repo-period {
             color: var(--text-muted);
@@ -441,15 +465,21 @@
             color: var(--text-primary);
             margin: 4px 0;
             font-size: 0.95rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
         }
         .timeline-desc {
             color: var(--text-secondary);
             font-size: 0.85rem;
             line-height: 1.5;
+            overflow-wrap: break-word;
         }
         .timeline-desc a {
             color: var(--ramblers-sunrise-hover);
             text-decoration: underline;
+            text-underline-offset: 2px;
         }
         .growth-badge {
             display: inline-block;
@@ -459,8 +489,12 @@
             border-radius: 12px;
             font-weight: 700;
             font-size: 0.75rem;
-            margin-left: 8px;
+            white-space: nowrap;
+            text-decoration: none;
             box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+        }
+        a.growth-badge:hover {
+            background: var(--ramblers-sunrise-hover);
         }
         .insights-grid {
             display: grid;
@@ -582,9 +616,20 @@
             .chart-card {
                 padding: 20px 16px;
             }
+            .timeline-items {
+                padding-left: 22px;
+            }
+            .timeline-item::before {
+                left: -30px;
+            }
             .chart-container,
             .chart-container.tall {
                 height: 260px;
+                min-height: 260px;
+            }
+            .chart-container.doughnut {
+                height: 360px;
+                min-height: 360px;
             }
         }
         @media (max-width: 380px) {
@@ -624,19 +669,19 @@
 
         <div class="stats-hero">
             <div class="stat-card">
-                <div class="stat-value highlight">436,854</div>
+                <div class="stat-value highlight">450,861</div>
                 <div class="stat-label">Lines of Code</div>
                 <div class="stat-detail">November 2026</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">2,408</div>
+                <div class="stat-value">2,480</div>
                 <div class="stat-label">Total Commits</div>
                 <div class="stat-detail">Across all repos</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">3,021</div>
+                <div class="stat-value">3,124</div>
                 <div class="stat-label">TypeScript Files</div>
-                <div class="stat-detail">436,854 LOC</div>
+                <div class="stat-detail">450,861 LOC</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value highlight">13</div>
@@ -694,15 +739,15 @@
                 </div>
                 <div class="arrow">→</div>
                 <div class="repo-card modern">
-                    <div class="repo-name">ngx-ramblers</div>
+                    <div class="repo-name"><a href="https://github.com/Ramblers-GB/ngx-ramblers" target="_blank" rel="noopener">ngx-ramblers</a></div>
                     <div class="repo-period">Aug 2023 - Present</div>
                     <div class="repo-stats">
                         <div class="repo-stat">
-                            <div class="repo-stat-value">1,223</div>
+                            <div class="repo-stat-value">1,295</div>
                             <div class="repo-stat-label">Commits</div>
                         </div>
                         <div class="repo-stat">
-                            <div class="repo-stat-value">436K</div>
+                            <div class="repo-stat-value">451K</div>
                             <div class="repo-stat-label">Current LOC</div>
                         </div>
                     </div>
@@ -732,14 +777,14 @@
 
             <div class="chart-card">
                 <h3>Component Distribution (2026)</h3>
-                <div class="chart-container">
+                <div class="chart-container doughnut">
                     <canvas id="componentChart"></canvas>
                 </div>
             </div>
 
             <div class="chart-card">
                 <h3>Language Breakdown (2026)</h3>
-                <div class="chart-container">
+                <div class="chart-container doughnut">
                     <canvas id="languageChart"></canvas>
                 </div>
             </div>
@@ -764,13 +809,13 @@
             <div class="timeline-items">
                 <div class="timeline-item modern">
                     <div class="timeline-year">November 2026</div>
-                    <div class="timeline-title">Moved to Ramblers GitHub <span class="growth-badge">Ramblers-GB</span></div>
-                    <div class="timeline-desc">The ngx-ramblers repository moved into the Ramblers-GB organisation. The codebase evolution stats page is published from GitHub Pages at <a href="https://ramblers-gb.github.io/ngx-ramblers/">ramblers-gb.github.io/ngx-ramblers</a>. 886 commits in 2026 so far, more than four times the entire 2025 total.</div>
+                    <div class="timeline-title">Moved to Ramblers GitHub <a class="growth-badge" href="https://github.com/Ramblers-GB" target="_blank" rel="noopener">Ramblers-GB</a></div>
+                    <div class="timeline-desc">The <a href="https://github.com/Ramblers-GB/ngx-ramblers" target="_blank" rel="noopener">ngx-ramblers</a> repository moved into the <a href="https://github.com/Ramblers-GB" target="_blank" rel="noopener">Ramblers-GB organisation</a>. Stats are published on <a href="https://ramblers-gb.github.io/ngx-ramblers/" target="_blank" rel="noopener">GitHub Pages</a>. 958 commits in 2026 so far, nearly five times the 2025 total.</div>
                 </div>
                 <div class="timeline-item modern">
                     <div class="timeline-year">October 2026</div>
                     <div class="timeline-title">Salesforce, Bookings + Committee Work <span class="growth-badge">428,881 LOC</span></div>
-                    <div class="timeline-desc">845 commits in 2026 so far, more than four times the entire 2025 total. Server grew to 140K lines on the back of the Salesforce API, the unified email composer, event bookings, committee document handling, TipTap site editing, rights-of-way volunteer management, in-app video meetings, turn-by-turn route guides and self-service site registration with automatic migration of a group's existing site.</div>
+                    <div class="timeline-desc">845 commits in 2026 so far, more than four times the 2025 total. Server grew to 140K lines with the Salesforce API, unified email composer, event bookings, committee documents, TipTap editing, volunteer management, in-app video meetings, turn-by-turn guides and self-service site registration.</div>
                 </div>
                 <div class="timeline-item modern">
                     <div class="timeline-year">March 2026</div>
@@ -784,7 +829,7 @@
                 </div>
                 <div class="timeline-item modern">
                     <div class="timeline-year">August 2023</div>
-                    <div class="timeline-title">Ramblers Rebrand <span class="growth-badge">ngx-ramblers</span></div>
+                    <div class="timeline-title">Ramblers Rebrand <a class="growth-badge" href="https://github.com/Ramblers-GB/ngx-ramblers" target="_blank" rel="noopener">ngx-ramblers</a></div>
                     <div class="timeline-desc">New repository for rebranded application with Angular 17+ and full-stack TypeScript migration.</div>
                 </div>
                 <div class="timeline-item angular">
@@ -819,23 +864,23 @@
                 </div>
                 <div class="insight-card">
                     <h4>13-Year Journey</h4>
-                    <p>From a humble AngularJS app in December 2013 to a modern 436K LOC TypeScript monorepo across three major repository transitions.</p>
+                    <p>From a humble AngularJS app in December 2013 to a modern 451K LOC TypeScript monorepo across three major repository transitions.</p>
                 </div>
                 <div class="insight-card">
-                    <h4>2,408 Commits</h4>
-                    <p>Consistent development: 750 in ekwg, 435 in ng-ekwg, 1,223 in ngx-ramblers. Peak years: 2014 (370) and 2026 (886 so far).</p>
+                    <h4>2,480 Commits</h4>
+                    <p>Consistent development: 750 in ekwg, 435 in ng-ekwg, 1,295 in ngx-ramblers. Peak years: 2014 (370) and 2026 (958 so far).</p>
                 </div>
                 <div class="insight-card">
                     <h4>21x Code Growth</h4>
-                    <p>From ~21K LOC to 436K LOC. Growth has accelerated since July 2024 - the codebase has grown more than seven-fold (+653%) in a little over two years.</p>
+                    <p>From ~21K LOC to 451K LOC. Growth has accelerated since July 2024 - the codebase has grown nearly eight-fold (+678%) in a little over two years.</p>
                 </div>
                 <div class="insight-card">
                     <h4>Server Transformation</h4>
-                    <p>Server grew from 6K to 144K lines (+2,249%) since July 2024. Complete JS to TypeScript migration with a Salesforce API layer and email composer.</p>
+                    <p>Server grew from 6K to 151K lines (+2,361%) since July 2024. Complete JS to TypeScript migration with a Salesforce API layer and email composer.</p>
                 </div>
                 <div class="insight-card">
                     <h4>Clean Code Philosophy</h4>
-                    <p>Only 318 comments across 436K TypeScript lines (0.1%). Self-documenting code with meaningful names.</p>
+                    <p>Only 331 comments across 451K TypeScript lines (0.1%). Self-documenting code with meaningful names.</p>
                 </div>
                 <div class="insight-card">
                     <h4>Technology Evolution</h4>
@@ -852,7 +897,7 @@
 
     <footer class="footer">
         NGX-Ramblers | Open-source framework for Ramblers Group and Area websites<br>
-        Snapshot generated 7 November 2026
+        Snapshot generated 16 November 2026
     </footer>
 
     <script>
@@ -911,7 +956,7 @@
                 datasets: [
                     {
                         label: 'Total LOC',
-                        data: [2000, 8000, 22572, 41223, 57974, 128584, 436854],
+                        data: [2000, 8000, 22572, 41223, 57974, 128584, 450861],
                         borderColor: chartColors.mintcake,
                         backgroundColor: chartColors.mintcakeLight,
                         fill: true,
@@ -923,7 +968,7 @@
                     },
                     {
                         label: 'Client',
-                        data: [1800, 7000, 19546, 35641, 50477, 98033, 288138],
+                        data: [1800, 7000, 19546, 35641, 50477, 98033, 295242],
                         borderColor: chartColors.mintcakeBright || chartColors.mintcake,
                         backgroundColor: 'transparent',
                         tension: 0.4,
@@ -933,7 +978,7 @@
                     },
                     {
                         label: 'Server',
-                        data: [200, 1000, 1518, 4305, 6122, 28683, 143760],
+                        data: [200, 1000, 1518, 4305, 6122, 28683, 150668],
                         borderColor: chartColors.sunset,
                         backgroundColor: 'transparent',
                         tension: 0.4,
@@ -984,7 +1029,7 @@
                     },
                     {
                         label: 'ngx-ramblers (Modern)',
-                        data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41, 99, 197, 886],
+                        data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41, 99, 197, 958],
                         backgroundColor: chartColors.mintcakeBright || chartColors.mintcake,
                         borderWidth: 0,
                         borderRadius: 4
@@ -1010,56 +1055,55 @@
             }
         });
 
-            charts.componentChart = new Chart(document.getElementById('componentChart'), {
-            type: 'doughnut',
-            data: {
-                labels: ['Client (288K)', 'Server (144K)', 'Serenity E2E (5K)'],
-                datasets: [{
-                    data: [288138, 143760, 4956],
-                    backgroundColor: [chartColors.mintcakeBright || chartColors.mintcake, chartColors.sunset, chartColors.sunrise],
-                    borderWidth: 0,
-                    hoverOffset: 10
-                }]
-            },
-            options: {
+            const doughnutOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: 8 },
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { usePointStyle: true, padding: 15 }
+                        labels: {
+                            usePointStyle: true,
+                            padding: 10,
+                            boxWidth: 10,
+                            font: { size: 11 }
+                        }
                     }
                 }
-            }
+            };
+
+            charts.componentChart = new Chart(document.getElementById('componentChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Client (295K)', 'Server (151K)', 'Serenity E2E (5K)'],
+                datasets: [{
+                    data: [295242, 150668, 4951],
+                    backgroundColor: [chartColors.mintcakeBright || chartColors.mintcake, chartColors.sunset, chartColors.sunrise],
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }]
+            },
+            options: doughnutOptions
         });
 
             charts.languageChart = new Chart(document.getElementById('languageChart'), {
             type: 'doughnut',
             data: {
-                labels: ['TypeScript (437K)', 'Sass (15.6K)', 'HTML (4.7K)', 'Other (1.4K)'],
+                labels: ['TypeScript (451K)', 'Sass (15.9K)', 'HTML (4.7K)', 'Other (1.5K)'],
                 datasets: [{
-                    data: [436854, 15557, 4732, 1426],
+                    data: [450861, 15942, 4695, 1452],
                     backgroundColor: [chartColors.mintcakeBright || chartColors.mintcake, chartColors.sunrise, chartColors.sunset, chartColors.rosycheeks],
                     borderWidth: 0,
-                    hoverOffset: 10
+                    hoverOffset: 8
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { usePointStyle: true, padding: 15 }
-                    }
-                }
-            }
+            options: doughnutOptions
         });
 
             charts.techEvolutionChart = new Chart(document.getElementById('techEvolutionChart'), {
             type: 'bar',
             data: {
-                labels: ['2013-2019\nAngularJS', '2019-2022\nAngular', '2022-2024\nAngular 7/14+', '2024-2026\nModern'],
+                labels: ['2013-19\nAngularJS', '2019-22\nAngular', '2022-24\nAngular 7+', '2024-26\nModern'],
                 datasets: [
                     {
                         label: 'JavaScript',
@@ -1070,7 +1114,7 @@
                     },
                     {
                         label: 'TypeScript',
-                        data: [0, 15000, 35000, 436854],
+                        data: [0, 15000, 35000, 450861],
                         backgroundColor: chartColors.mintcake,
                         borderWidth: 0,
                         borderRadius: 4
@@ -1087,7 +1131,10 @@
                     }
                 },
                 scales: {
-                    x: { stacked: true },
+                    x: {
+                        stacked: true,
+                        ticks: { font: { size: 11 }, maxRotation: 0, minRotation: 0, autoSkip: false }
+                    },
                     y: {
                         stacked: true,
                         beginAtZero: true,
@@ -1102,7 +1149,7 @@
             charts.serverEvolutionChart = new Chart(document.getElementById('serverEvolutionChart'), {
             type: 'bar',
             data: {
-                labels: ['2019\nekwg', '2022\nng-ekwg', 'Jul 2024', 'Jan 2026', 'Nov 2026'],
+                labels: ['2019\nekwg', '2022\nng-ekwg', 'Jul 24', 'Jan 26', 'Nov 26'],
                 datasets: [
                     {
                         label: 'JavaScript',
@@ -1113,7 +1160,7 @@
                     },
                     {
                         label: 'TypeScript',
-                        data: [0, 550, 5365, 28619, 143760],
+                        data: [0, 550, 5365, 28619, 150668],
                         backgroundColor: chartColors.mintcake,
                         borderWidth: 0,
                         borderRadius: 4
@@ -1130,7 +1177,10 @@
                     }
                 },
                 scales: {
-                    x: { stacked: true },
+                    x: {
+                        stacked: true,
+                        ticks: { font: { size: 11 }, maxRotation: 0, minRotation: 0, autoSkip: false }
+                    },
                     y: {
                         stacked: true,
                         beginAtZero: true,

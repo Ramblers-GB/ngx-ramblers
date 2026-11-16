@@ -25,6 +25,8 @@ The older destination form `[Open Inbox]({{siteUrl}}/admin/inbox)` is supported 
 
 Use normal links for documentation pages, external services, examples of exact configuration URLs and platform administration. A group website does not provide the platform administration tools. Existing sign-in and permissions checks still apply at each destination.
 
+A worked example that must stay on one named group website is an ordinary absolute link to that site. Do not put `{{siteUrl}}` on it, or **Your website** will send the reader to the wrong group.
+
 ## Sweep existing documentation
 
 From the repository root, run the CMS login helper with the target URL supplied explicitly:
