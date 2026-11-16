@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { preferredCommitteeDocumentsPagePath } from "./committee-documents-page";
+import { committeeDocumentSlug, committeeFileByReference, committeeFileReference, preferredCommitteeDocumentsPagePath } from "./committee-documents-page";
 import { CommitteeDocumentsPageChoice } from "../models/content-text.model";
+
+describe("committee file references", () => {
+  const agenda = {id: "aaaaaaaaaaaaaaaaaaaaaaaa", fileType: "AGM Agenda"};
+  const minutes = {id: "bbbbbbbbbbbbbbbbbbbbbbbb", fileType: "AGM Minutes"};
+  const slug = committeeDocumentSlug("Hillside Park AGM", "15 November 2026");
+  const sameTitleAndDate = () => slug;
+
+  it("opens each file even when the agenda and minutes share a title and date", () => {
+    const files = [agenda, minutes];
+    expect(committeeFileByReference(files, committeeFileReference(slug, agenda.id), sameTitleAndDate)).toBe(agenda);
+    expect(committeeFileByReference(files, committeeFileReference(slug, minutes.id), sameTitleAndDate)).toBe(minutes);
+  });
+
+  it("keeps an ID-based link usable after the document title changes", () => {
+    expect(committeeFileByReference([minutes], committeeFileReference(slug, minutes.id), () => "renamed-agm")).toBe(minutes);
+  });
+
+  it("resolves an old link only when it identifies one file", () => {
+    expect(committeeFileByReference([minutes], slug, sameTitleAndDate)).toBe(minutes);
+    expect(committeeFileByReference([agenda, minutes], slug, sameTitleAndDate)).toBeNull();
+    expect(committeeFileByReference([agenda], committeeFileReference(slug, minutes.id), sameTitleAndDate)).toBeNull();
+  });
+});
 
 const pages: CommitteeDocumentsPageChoice[] = [
   {path: "committee", label: "Committee"},

@@ -27,7 +27,7 @@ import {CommitteeDocumentView} from "./committee-document-view";
   `],
   template: `
     <div appStickyControls class="committee-file-editor-actions d-print-none">
-      <div class="d-flex gap-2 align-items-center flex-nowrap">
+      <div class="d-flex gap-2 align-items-center" [class.flex-nowrap]="editable" [class.flex-wrap]="!editable">
         <ng-content/>
         @if (editable) {
           <button type="button" class="btn btn-quiet" [disabled]="disabled || printing() || exporting()" (click)="togglePreview()">

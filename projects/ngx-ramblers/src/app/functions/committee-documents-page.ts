@@ -1,8 +1,31 @@
 import { toKebabCase } from "./strings";
+import { CommitteeFile } from "../models/committee.model";
 import { CommitteeDocumentsPageChoice, PageContent, PageContentRow, PageContentType } from "../models/content-text.model";
 
 export function committeeDocumentSlug(title: string, eventDateLabel: string): string {
   return toKebabCase(title, eventDateLabel).replace(/(\d)-(st|nd|rd|th)(?=-|$)/g, "$1$2");
+}
+
+const COMMITTEE_FILE_REFERENCE_SEPARATOR = "--";
+
+export function committeeFileReference(slug: string, id: string | null): string {
+  return id ? `${slug}${COMMITTEE_FILE_REFERENCE_SEPARATOR}${id}` : slug;
+}
+
+export function committeeFileByReference(
+  files: CommitteeFile[],
+  reference: string | null,
+  legacySlug: (file: CommitteeFile) => string
+): CommitteeFile | null {
+  if (!reference) {
+    return null;
+  } else if (reference.includes(COMMITTEE_FILE_REFERENCE_SEPARATOR)) {
+    const id = reference.split(COMMITTEE_FILE_REFERENCE_SEPARATOR).at(-1);
+    return id ? files.find(file => file.id === id) ?? null : null;
+  } else {
+    const matches = files.filter(file => legacySlug(file) === reference);
+    return matches.length === 1 ? matches[0] : null;
+  }
 }
 
 export function meetingMinutesDocumentSlug(room: string): string {

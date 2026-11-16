@@ -538,15 +538,15 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
   }
 
   private restoreDocumentEditState(): void {
-    const requestedFile = this.committeeFiles.find(file => this.display.committeeFileSlug(file) === this.requestedDocumentEditSlug);
-    const editingSlug = this.editingFileIsNew ? null : this.display.committeeFileSlug(this.editingFile);
+    const requestedFile = this.display.committeeFileMatchingSlug(this.committeeFiles, this.requestedDocumentEditSlug);
+    const editingId = this.editingFileIsNew ? null : this.editingFile?.id;
     if (requestedFile && this.display.allowEditCommitteeFile(requestedFile)) {
-      if (editingSlug !== this.requestedDocumentEditSlug) {
+      if (editingId !== requestedFile.id) {
         this.beginEditingCommitteeFile(requestedFile);
       } else {
         this.previewingDocument = this.requestedDocumentMode === CommitteeDocumentEditMode.PREVIEW;
       }
-    } else if (editingSlug && editingSlug !== this.requestedDocumentEditSlug) {
+    } else if (editingId) {
       this.editingFile = null;
       this.editingFileIsNew = false;
       this.previewingDocument = false;

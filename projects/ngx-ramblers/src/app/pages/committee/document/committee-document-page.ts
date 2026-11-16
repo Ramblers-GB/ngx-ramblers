@@ -28,13 +28,12 @@ const PRINT_MODE_BODY_CLASS = "committee-document-print-mode";
     <app-page includeLastSegment [pageTitle]="pageTitle()">
       @if (committeeFile && allowViewing) {
         @if (display.isComposedDocument(committeeFile)) {
-          <div class="d-flex justify-content-between gap-2 mb-3 d-print-none">
-            <button type="button" class="btn btn-secondary btn-sm" (click)="navigateBack()">
+          <app-committee-document-editor [committeeFile]="committeeFile" [editable]="false">
+            <button type="button" class="btn btn-secondary" (click)="navigateBack()">
               <fa-icon [icon]="faArrowLeft" class="me-1"/>
               Back
             </button>
-          </div>
-          <app-committee-document-editor [committeeFile]="committeeFile" [editable]="false"/>
+          </app-committee-document-editor>
           @if (hasCallTranscript) {
             <div class="mt-4 d-print-none">
               <button type="button" class="btn btn-quiet mb-3" (click)="toggleTranscript()">
@@ -104,7 +103,7 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   private logger: Logger = inject(LoggerFactory).createLogger("CommitteeDocumentPage", NgxLoggerLevel.ERROR);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private expectComposed = false;
+  private fileLoadSequence = 0;
   private renderer = inject(Renderer2);
   private documentRef = inject(DOCUMENT);
   private sanitizer = inject(DomSanitizer);
@@ -172,11 +171,10 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
     this.subscriptions.push(this.route.queryParamMap.subscribe(queryParamMap => {
       const documentSlug = queryParamMap.get(StoredValue.DOCUMENT);
       const fileSlug = queryParamMap.get(StoredValue.FILE);
-      this.expectComposed = !!documentSlug;
       const slug = documentSlug || fileSlug;
-      this.logger.info("loading committee file for slug:", slug, "expectComposed:", this.expectComposed);
+      this.logger.info("loading committee file for slug:", slug, "expectComposed:", !!documentSlug);
       if (slug) {
-        this.loadCommitteeFile(slug);
+        this.loadCommitteeFile(slug, !!documentSlug);
       }
     }));
   }
@@ -191,27 +189,35 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
     return this.committeeFile?.document?.title || this.committeeFile?.fileNameData?.title || this.committeeFile?.fileType;
   }
 
-  private loadCommitteeFile(slug: string): void {
+  private loadCommitteeFile(slug: string, expectComposed: boolean): void {
+    const sequence = ++this.fileLoadSequence;
+    this.committeeFile = null;
+    this.allowViewing = false;
+    this.notFound = false;
+    this.embedUrl = null;
     this.committeeFileService.all()
       .then(committeeFiles => {
-        const committeeFile = committeeFiles.find(candidate => this.display.isComposedDocument(candidate) === this.expectComposed
-          && this.display.committeeFileSlug(candidate) === slug);
-        if (committeeFile) {
-          this.committeeFile = committeeFile;
-          this.showTranscript = false;
-          this.transcript = "";
-          this.notFound = false;
-          if (!this.display.isComposedDocument(committeeFile) && this.display.canViewInBrowser(committeeFile)) {
-            this.embedUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.display.attachmentEmbedUrl(committeeFile));
+        if (sequence === this.fileLoadSequence) {
+          const committeeFile = this.display.committeeFileMatchingSlug(
+            committeeFiles.filter(candidate => this.display.isComposedDocument(candidate) === expectComposed), slug);
+          if (committeeFile) {
+            this.committeeFile = committeeFile;
+            this.showTranscript = false;
+            this.transcript = "";
+            if (!expectComposed && this.display.canViewInBrowser(committeeFile)) {
+              this.embedUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.display.attachmentEmbedUrl(committeeFile));
+            }
+            this.refreshVisibility();
+          } else {
+            this.notFound = true;
           }
-          this.refreshVisibility();
-        } else {
-          this.notFound = true;
         }
       })
       .catch(error => {
         this.logger.error("failed to load committee file for slug:", slug, error);
-        this.notFound = true;
+        if (sequence === this.fileLoadSequence) {
+          this.notFound = true;
+        }
       });
   }
 

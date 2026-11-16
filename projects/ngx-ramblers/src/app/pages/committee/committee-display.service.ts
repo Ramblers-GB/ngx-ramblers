@@ -20,7 +20,7 @@ import { StringUtilsService } from "../../services/string-utils.service";
 import { UrlService } from "../../services/url.service";
 import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
-import { committeeDocumentSlug, meetingMinutesDocumentSlug } from "../../functions/committee-documents-page";
+import { committeeDocumentSlug, committeeFileByReference, committeeFileReference, meetingMinutesDocumentSlug } from "../../functions/committee-documents-page";
 import { MEETING_MINUTES_TEMPLATE_ID } from "../../models/video-meeting.model";
 import { officeViewerEmbedUrl, officeViewerUrl } from "../../functions/office-viewer";
 
@@ -199,8 +199,21 @@ export class CommitteeDisplayService {
   }
 
   committeeFileSlug(committeeFile: CommitteeFile): string {
+    const slug = this.legacyCommitteeFileSlug(committeeFile);
+    return this.isRoomMinutes(committeeFile) ? slug : committeeFileReference(slug, committeeFile?.id ?? null);
+  }
+
+  committeeFileMatchingSlug(files: CommitteeFile[], slug: string | null): CommitteeFile | null {
+    return committeeFileByReference(files, slug, file => this.legacyCommitteeFileSlug(file));
+  }
+
+  private isRoomMinutes(file: CommitteeFile): boolean {
+    return file?.document?.templateId === MEETING_MINUTES_TEMPLATE_ID && !!file.meeting?.room;
+  }
+
+  private legacyCommitteeFileSlug(committeeFile: CommitteeFile): string {
     const room = committeeFile?.meeting?.room;
-    if (committeeFile?.document?.templateId === MEETING_MINUTES_TEMPLATE_ID && room) {
+    if (this.isRoomMinutes(committeeFile)) {
       return meetingMinutesDocumentSlug(room);
     } else {
       const dateStr = this.dateUtils.asString(committeeFile?.eventDate, undefined, this.dateUtils.formats.displayDateTh);

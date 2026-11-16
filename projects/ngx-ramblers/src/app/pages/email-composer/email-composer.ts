@@ -1832,7 +1832,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       if (committeeFile) {
         this.session.state.eventInclusion = EventInclusionMode.NONE;
         await this.documents.loadAllCommitteeFiles();
-        const matched = this.documents.allCommitteeFiles.find(file => this.committeeDisplayService.committeeFileSlug(file) === committeeFile);
+        const matched = this.committeeDisplayService.committeeFileMatchingSlug(this.documents.allCommitteeFiles, committeeFile);
         if (matched) {
           this.documents.ensureCommitteeFileFragmentForIds([matched.id]);
           await this.documents.resolveCommitteeFiles(this.documents.allFragmentCommitteeFileIds());
