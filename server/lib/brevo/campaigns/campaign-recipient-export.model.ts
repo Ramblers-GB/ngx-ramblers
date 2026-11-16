@@ -20,7 +20,21 @@ export interface CachedRecipientRows {
   cachedAt: number;
 }
 
+export interface RecipientExportScope {
+  accountKey: string;
+  campaignId: number;
+}
+
+export interface CampaignRecipientExportRecord {
+  campaignId: number;
+  accountKey: string;
+  rows: RecipientRow[];
+  cachedAt: number;
+}
+
 export interface MemberRecipientInfo {
   name?: string;
   membershipNumber?: string;
 }
+
+export const CAMPAIGN_RECIPIENT_EXPORT_INDEX = {accountKey: 1, campaignId: 1} as const;

@@ -1,4 +1,5 @@
-import {CampaignRecipientExportRequest} from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
+import {CampaignRecipientExportErrorCode, CampaignRecipientExportRequest} from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
+import {HttpError} from "../../shared/http-error";
 import {Request} from "express";
 import {memberFromRequest} from "../../auth/request-member";
 import WebSocket from "ws";
@@ -31,8 +32,9 @@ export async function handleCampaignRecipientExport(ws: WebSocket, data: Campaig
       send(MessageType.COMPLETE, {campaignId, type, ...report});
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const code = error instanceof HttpError ? error.code : undefined;
       debugLog("export failed for campaign", campaignId, message);
-      send(MessageType.ERROR, {campaignId, type, message});
+      send(MessageType.ERROR, {campaignId, type, message, code, warning: code === CampaignRecipientExportErrorCode.UNAVAILABLE});
     }
   }
 }

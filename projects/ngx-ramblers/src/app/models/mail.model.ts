@@ -2007,6 +2007,13 @@ export enum CampaignRecipientType {
   SOFT_BOUNCES = "softBounces"
 }
 
+export enum CampaignRecipientExportErrorCode {
+  UNAVAILABLE = "export-unavailable"
+}
+
+export const CAMPAIGN_RECIPIENT_EXPORT_UNAVAILABLE =
+  "Brevo did not start a recipient export for this campaign. The campaign totals on this page are still current. Try View again later; once an export completes it is kept for later visits.";
+
 export interface SmtpAuthIdentity {
   user: string;
   pass: string;

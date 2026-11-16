@@ -2,7 +2,7 @@ import {AuthService} from "../../../../auth/auth.service";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, RouterLink } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faArrowLeft, faPaperPlane, faPenToSquare, faPlus, faSort, faSortDown, faSortUp, faSpinner, faTriangleExclamation, faUsers } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faCircleExclamation, faPaperPlane, faPenToSquare, faPlus, faSort, faSortDown, faSortUp, faSpinner, faTriangleExclamation, faUsers } from "@fortawesome/free-solid-svg-icons";
 import { SortDirection } from "../../../../models/sort.model";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subject } from "rxjs";
@@ -100,10 +100,10 @@ import { StoredValue } from "../../../../models/ui-actions.model";
                 <div class="text-muted small mt-2">{{ recipientsProgressMessage || ("Fetching " + activeEventLabel + " from Brevo…") }}</div>
               </div>
             } @else if (recipientsError) {
-              <div class="alert alert-danger d-flex align-items-start">
-                <fa-icon [icon]="faTriangleExclamation" class="me-2 mt-1"/>
+              <div class="alert d-flex align-items-start" [class.alert-warning]="recipientsErrorWarning" [class.alert-danger]="!recipientsErrorWarning">
+                <fa-icon [icon]="recipientsErrorWarning ? faCircleExclamation : faTriangleExclamation" class="me-2 mt-1"/>
                 <div>
-                  <strong>Could not load {{ activeEventLabel }}</strong>
+                  <strong>{{ recipientsErrorWarning ? "Recipient list not available" : ("Could not load " + activeEventLabel) }}</strong>
                   <div>{{ recipientsError }}</div>
                 </div>
               </div>
@@ -444,6 +444,7 @@ export class CampaignDetailComponent implements OnInit, OnDestroy {
   protected loadingRecipients = false;
   protected recipientsProgressMessage: string = null;
   protected recipientsError: string = null;
+  protected recipientsErrorWarning = false;
   protected truncated = false;
   protected readonly RecipientSortField = RecipientSortField;
   protected recipientSortField: RecipientSortField = RecipientSortField.SUBSCRIBER;
@@ -481,6 +482,7 @@ export class CampaignDetailComponent implements OnInit, OnDestroy {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faSpinner = faSpinner;
   protected readonly faTriangleExclamation = faTriangleExclamation;
+  protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faUsers = faUsers;
   protected readonly faPaperPlane = faPaperPlane;
   protected readonly faPenToSquare = faPenToSquare;
@@ -541,6 +543,7 @@ export class CampaignDetailComponent implements OnInit, OnDestroy {
         this.recipients = data.recipients || [];
         this.truncated = !!data.truncated;
         this.recipientsError = null;
+        this.recipientsErrorWarning = false;
         this.loadingRecipients = false;
       }
     });
@@ -548,6 +551,7 @@ export class CampaignDetailComponent implements OnInit, OnDestroy {
       if (data?.campaignId === this.campaignId && data?.type === this.selectedEventType) {
         this.recipients = [];
         this.recipientsError = data.message || "Could not load recipients";
+        this.recipientsErrorWarning = !!data.warning;
         this.loadingRecipients = false;
       }
     });
@@ -593,6 +597,7 @@ export class CampaignDetailComponent implements OnInit, OnDestroy {
         this.recipients = [];
         this.truncated = false;
         this.recipientsError = null;
+        this.recipientsErrorWarning = false;
         this.loadingRecipients = false;
       }
     }
@@ -664,6 +669,7 @@ export class CampaignDetailComponent implements OnInit, OnDestroy {
     this.recipients = [];
     this.truncated = false;
     this.recipientsError = null;
+    this.recipientsErrorWarning = false;
     this.recipientsProgressMessage = "Asking Brevo for the recipient export…";
     const campaignId = this.campaignId;
     try {
@@ -675,6 +681,7 @@ export class CampaignDetailComponent implements OnInit, OnDestroy {
       this.logger.warn("Could not connect for campaign recipients", error);
       if (this.campaignId === campaignId && this.selectedEventType === eventType) {
         this.recipientsError = "Could not connect to load recipients. Try View again.";
+        this.recipientsErrorWarning = false;
         this.loadingRecipients = false;
       }
     }

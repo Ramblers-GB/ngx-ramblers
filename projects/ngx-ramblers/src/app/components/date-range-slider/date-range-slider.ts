@@ -1,14 +1,19 @@
 import {
+  AfterViewInit,
   Component,
+  ElementRef,
   EventEmitter,
   inject,
   Input,
+  NgZone,
   OnChanges,
   OnDestroy,
   OnInit,
   Output,
-  SimpleChanges
+  SimpleChanges,
+  ViewChild
 } from "@angular/core";
+import { DOCUMENT } from "@angular/common";
 
 import { FormsModule } from "@angular/forms";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -38,11 +43,42 @@ export function dateRangeSliderBounds(fromDate: DateTime, toDate: DateTime, padd
   };
 }
 
+const DATE_TICK_WIDTH_PERCENT = 16;
+const HOUR_TICK_WIDTH_PERCENT = 8;
+const TICK_LABEL_GAP_PX = 8;
+
+export type TickLabelWidthPercent = (label: string) => number;
+
+export function measuredTickLabelWidthPercent(measureLabelPx: (label: string) => number, axisWidthPx: number): TickLabelWidthPercent | null {
+  if (axisWidthPx > 0) {
+    return label => Math.min(100, ((measureLabelPx(label) + TICK_LABEL_GAP_PX) / axisWidthPx) * 100);
+  } else {
+    return null;
+  }
+}
+
+function tickLabelBounds(percent: number, start: boolean, end: boolean, widthPercent: number): {left: number; right: number} {
+  if (start) {
+    return {left: 0, right: widthPercent};
+  } else if (end) {
+    return {left: 100 - widthPercent, right: 100};
+  } else {
+    return {left: percent - widthPercent / 2, right: percent + widthPercent / 2};
+  }
+}
+
+function tickLabelsOverlap(left: DateRangeSliderAxisTick, right: DateRangeSliderAxisTick, widthPercent: TickLabelWidthPercent): boolean {
+  const first = tickLabelBounds(left.percent, left.start, left.end, widthPercent(left.label));
+  const second = tickLabelBounds(right.percent, right.start, right.end, widthPercent(right.label));
+  return first.left < second.right && second.left < first.right;
+}
+
 export function dateRangeSliderAxisTicks(
   minDate: DateTime | null,
   span: number,
   labelFor: (date: DateTime) => string,
-  unit: DateRangeSliderUnit = DateRangeSliderUnit.DAYS
+  unit: DateRangeSliderUnit = DateRangeSliderUnit.DAYS,
+  labelWidthPercent: TickLabelWidthPercent | null = null
 ): DateRangeSliderAxisTick[] {
   const empty: DateRangeSliderAxisTick[] = [];
   if (!minDate || span <= 0) {
@@ -54,10 +90,10 @@ export function dateRangeSliderAxisTicks(
     const rawCount = Math.floor(span / step);
     const values = Array.from({length: rawCount + 1}, (_, index) => index * step);
     const withEnd = values[values.length - 1] === span ? values : [...values, span];
-    const minPercent = unit === DateRangeSliderUnit.HOURS ? 18 : 12;
+    const fixedWidthPercent = unit === DateRangeSliderUnit.HOURS ? HOUR_TICK_WIDTH_PERCENT : DATE_TICK_WIDTH_PERCENT;
+    const widthPercent: TickLabelWidthPercent = labelWidthPercent || (() => fixedWidthPercent);
     const kept = withEnd.reduce((ticks: DateRangeSliderAxisTick[], value: number) => {
       const percent = (value / span) * 100;
-      const previous = ticks[ticks.length - 1];
       const candidate: DateRangeSliderAxisTick = {
         value,
         percent,
@@ -65,11 +101,20 @@ export function dateRangeSliderAxisTicks(
         start: value === 0,
         end: value === span
       };
-      if (!previous) {
+      if (ticks.length === 0) {
         return [candidate];
-      } else if (percent - previous.percent < minPercent) {
+      } else if (tickLabelsOverlap(ticks[ticks.length - 1], candidate, widthPercent)) {
         if (value === span) {
-          return [...ticks.slice(0, -1), candidate];
+          const lastSafeIndex = ticks.reduce((safe, tick, index) => {
+            if (index === 0) {
+              return 0;
+            } else if (tickLabelsOverlap(tick, candidate, widthPercent)) {
+              return safe;
+            } else {
+              return index;
+            }
+          }, 0);
+          return [...ticks.slice(0, lastSafeIndex + 1), candidate];
         } else {
           return ticks;
         }
@@ -109,7 +154,7 @@ export function dateRangeSliderAxisTicks(
         </div>
 
         <div class="range-slider-container pb-0">
-          <div class="slider-ticks" aria-hidden="true">
+          <div class="slider-ticks" aria-hidden="true" #sliderTicks>
             @for (tick of axisTicks; track tick.value) {
               <span class="slider-tick"
                     [class.tick-start]="tick.start"
@@ -308,7 +353,13 @@ export function dateRangeSliderAxisTicks(
 
   `]
 })
-export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
+export class DateRangeSlider implements OnInit, OnChanges, AfterViewInit, OnDestroy {
+  @ViewChild("sliderTicks") private sliderTicks?: ElementRef<HTMLElement>;
+  private document = inject(DOCUMENT);
+  private zone = inject(NgZone);
+  private axisWidthPx = 0;
+  private axisResizeObserver: ResizeObserver | null = null;
+  private labelMeasureContext: CanvasRenderingContext2D | null = null;
   private dateUtils = inject(DateUtilsService);
   private initialized = false;
   private rangeInputSet = false;
@@ -527,8 +578,45 @@ export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  ngAfterViewInit() {
+    const ResizeObserverType = this.document.defaultView?.ResizeObserver;
+    const element = this.sliderTicks?.nativeElement;
+    if (ResizeObserverType && element) {
+      this.axisResizeObserver = new ResizeObserverType(entries => {
+        const width = entries[0]?.contentRect?.width || 0;
+        if (Math.round(width) !== Math.round(this.axisWidthPx)) {
+          this.zone.run(() => {
+            this.axisWidthPx = width;
+            this.refreshAxisTicks();
+          });
+        }
+      });
+      this.axisResizeObserver.observe(element);
+    }
+  }
+
   ngOnDestroy() {
     this.rangeChangeSubscription.unsubscribe();
+    this.axisResizeObserver?.disconnect();
+  }
+
+  private tickLabelPx(label: string): number {
+    const element = this.sliderTicks?.nativeElement;
+    const context = this.labelMeasureContext || this.document.createElement("canvas").getContext("2d");
+    this.labelMeasureContext = context;
+    if (context && element) {
+      const style = this.document.defaultView.getComputedStyle(element.querySelector(".slider-tick") || element);
+      context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      return context.measureText(label).width;
+    } else {
+      return 0;
+    }
+  }
+
+  private refreshAxisTicks() {
+    this.axisTicks = dateRangeSliderAxisTicks(this.minDate, this.maxValue, date =>
+      this.dateUtils.asString(date, undefined, this.axisLabelFormat), this.sliderUnit,
+      measuredTickLabelWidthPercent(label => this.tickLabelPx(label), this.axisWidthPx));
   }
 
   private runWithoutViewChange(action: () => void) {
@@ -553,8 +641,7 @@ export class DateRangeSlider implements OnInit, OnChanges, OnDestroy {
     const totalDays = Math.max(0, Math.ceil(this.maxDate.diff(this.minDate, "days").days));
     const totalHours = Math.max(0, Math.ceil(this.maxDate.diff(this.minDate, "hours").hours));
     this.maxValue = this.sliderUnit === DateRangeSliderUnit.HOURS ? Math.max(1, totalHours) : totalDays;
-    this.axisTicks = dateRangeSliderAxisTicks(this.minDate, this.maxValue, date =>
-      this.dateUtils.asString(date, undefined, this.axisLabelFormat), this.sliderUnit);
+    this.refreshAxisTicks();
     this.runWithoutViewChange(() => {
       this.fromValue = Math.min(this.fromValue, this.maxValue);
       this.toValue = Math.max(this.fromValue, Math.min(this.toValue, this.maxValue));

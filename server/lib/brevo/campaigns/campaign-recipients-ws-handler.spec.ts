@@ -6,6 +6,8 @@ import jwt from "jsonwebtoken";
 import WebSocket from "ws";
 import {envConfig} from "../../env-config/env-config";
 import {MessageType} from "../../../../projects/ngx-ramblers/src/app/models/websocket.model";
+import {CAMPAIGN_RECIPIENT_EXPORT_UNAVAILABLE, CampaignRecipientExportErrorCode} from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
+import {HttpError} from "../../shared/http-error";
 import * as recipients from "./campaign-recipients";
 import {handleCampaignRecipientExport} from "./campaign-recipients-ws-handler";
 
@@ -56,6 +58,18 @@ describe("campaign recipient WebSocket authentication", () => {
     expect(report.calledOnceWithExactly(request.campaignId, request.type)).toBe(true);
     expect(JSON.parse(send.firstCall.args[0]).type).toBe(MessageType.PROGRESS);
     expect(JSON.parse(send.lastCall.args[0]).data.recipients).toEqual(result.recipients);
+  });
+
+  it("marks a missing recipient export as a warning", async () => {
+    sandbox.stub(recipients, "recipientsReportFor").rejects(new HttpError(502, CAMPAIGN_RECIPIENT_EXPORT_UNAVAILABLE, CampaignRecipientExportErrorCode.UNAVAILABLE));
+    const send = sandbox.spy();
+    const ws = {readyState: WebSocket.OPEN, send} as unknown as WebSocket;
+    const token = jwt.sign({memberId}, secret, {expiresIn: 60});
+    await handleCampaignRecipientExport(ws, request, token);
+    const payload = JSON.parse(send.lastCall.args[0]);
+    expect(payload.type).toBe(MessageType.ERROR);
+    expect(payload.data.warning).toBe(true);
+    expect(payload.data.code).toBe(CampaignRecipientExportErrorCode.UNAVAILABLE);
   });
 
   it("reports export errors without sending to a socket that has closed", async () => {

@@ -12,7 +12,7 @@ export function configuredBrevo(): Promise<MailConfig> {
     });
 }
 
-export async function brevoClient(): Promise<BrevoClient> {
-  const brevoConfig: MailConfig = await configuredBrevo();
+export async function brevoClient(configuration?: MailConfig): Promise<BrevoClient> {
+  const brevoConfig: MailConfig = configuration ?? await configuredBrevo();
   return new BrevoClient({apiKey: brevoConfig.apiKey});
 }
