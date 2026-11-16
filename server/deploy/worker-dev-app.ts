@@ -4,6 +4,7 @@ import path from "path";
 import { runCommand } from "../lib/fly/fly-commands";
 import { configuredEnvironments } from "../lib/environments/environments-config";
 import { FLYIO_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { deployFlyApp } from "../lib/fly/fly-machine-estate";
 import { importWorkerSecrets } from "./deploy-integration-worker";
 import { PROD_WORKER_APP } from "./watch-and-deploy-worker";
 import { applyFlyOrganisationToken } from "./fly-org-token";
@@ -66,7 +67,12 @@ export async function ensureDevWorkerDeployed(suffix?: string, organisation?: st
     importWorkerSecrets(appName, dbConfig.secrets, dbConfig.uploadWorker.sharedSecret, dbConfig.uploadWorker.encryptionKey);
   }
 
-  runCommand(`flyctl deploy --app ${appName} --config fly.integration-worker.toml --remote-only`);
+  await deployFlyApp({
+    appName,
+    configPath: "fly.integration-worker.toml",
+    remoteOnly: true,
+    scaleCount: FLYIO_DEFAULTS.SCALE_COUNT
+  });
   writeActiveDevWorkerApp(appName);
   return appName;
 }

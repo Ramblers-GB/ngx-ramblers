@@ -6,7 +6,7 @@ import debug from "debug";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { flyTomlAbsolutePath, runCommand, runCommandAsync, runCommandStreaming } from "../../fly/fly-commands";
+import { flyTomlAbsolutePath, runCommand, runCommandAsync } from "../../fly/fly-commands";
 import { ensureAppPublicIps } from "../../fly/fly-public-ips";
 import { loadSecretsWithFallback, REQUIRED_SECRETS, writeSecretsFile } from "../../shared/secrets";
 import { cleanDisallowedSecretsFromEnvironmentsConfig, pruneDisallowedFlySecrets } from "../../fly/fly-secrets-prune";
@@ -23,6 +23,7 @@ import { DEPLOYMENT_DEFAULTS, FLYIO_DEFAULTS } from "../../../../projects/ngx-ra
 import { log } from "../cli-logger";
 import { envConfig } from "../../env-config/env-config";
 import { keys } from "es-toolkit/compat";
+import { deployFlyApp } from "../../fly/fly-machine-estate";
 
 const debugLog = debug(envConfig.logNamespace("cli:fly"));
 
@@ -123,19 +124,6 @@ export async function deployToFlyio(config: FlyDeployConfig, onProgressOrOptions
     }
   };
 
-  const runDeployCommand = async (command: string, description: string): Promise<void> => {
-    await withMailClientTlsConfiguration(getFlyTomlPath(), booleanOf(config.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]), async configurationPath => {
-      const configuredCommand = command.replace(`--config ${getFlyTomlPath()}`, `--config ${configurationPath}`);
-      if (onDeployOutput) {
-        report(`${description} (streaming output)...`);
-        await runCommandStreaming(configuredCommand, onDeployOutput);
-      } else {
-        report(description);
-        await runCommandAsync(configuredCommand);
-      }
-    });
-  };
-
   try {
     report("Checking fly.io authentication");
     await checkFlyctlAuthentication(config.apiKey);
@@ -194,23 +182,16 @@ export async function deployToFlyio(config: FlyDeployConfig, onProgressOrOptions
       }
     }
 
-    if (needsInitialDeploy) {
-      await runDeployCommand(
-        `flyctl deploy --app ${config.appName} --config ${flyTomlPath} --image ${dockerImage} --strategy rolling --wait-timeout 600`,
-        `Deploying ${config.appName} (initial deploy)`
-      );
-    }
-
-    report("Scaling application");
-    await runCommandAsync(`flyctl scale count ${config.scaleCount} --app ${config.appName} --yes`);
-    await runCommandAsync(`flyctl scale memory ${normaliseMemory(config.memory)} --app ${config.appName}`);
-
-    if (!needsInitialDeploy) {
-      await runDeployCommand(
-        `flyctl deploy --app ${config.appName} --config ${flyTomlPath} --image ${dockerImage} --strategy rolling --wait-timeout 600`,
-        `Redeploying ${config.appName}`
-      );
-    }
+    const description = needsInitialDeploy ? `Deploying ${config.appName} (initial deploy)` : `Redeploying ${config.appName}`;
+    report(onDeployOutput ? `${description} (streaming output)...` : description);
+    await withMailClientTlsConfiguration(flyTomlPath, booleanOf(config.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]), configurationPath =>
+      deployFlyApp({
+        appName: config.appName,
+        configPath: configurationPath,
+        image: dockerImage,
+        memory: normaliseMemory(config.memory),
+        scaleCount: config.scaleCount
+      }, onDeployOutput));
 
     report("Ensuring public IPv4 and IPv6");
     await ensureAppPublicIps({

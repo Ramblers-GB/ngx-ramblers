@@ -9,7 +9,9 @@ import { envConfig } from "../lib/env-config/env-config";
 import { Environment } from "../../projects/ngx-ramblers/src/app/models/environment.model";
 import { configuredEnvironments } from "../lib/environments/environments-config";
 import { FlyioMemory, FLYIO_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { ensureScale, runCommand } from "../lib/fly/fly-commands";
+import { runCommand } from "../lib/fly/fly-commands";
+import { deployFlyApp } from "../lib/fly/fly-machine-estate";
+import { FlyDeployStrategy } from "../lib/fly/fly.model";
 import { autoDeployEnvFrom } from "./auto-deploy-target";
 
 const debugLog = debug(envConfig.logNamespace("deploy-jitsi"));
@@ -60,8 +62,13 @@ async function deployJitsi(): Promise<void> {
         JVB_AUTH_PASSWORD: internalComponentSecret(jitsi.jwtAppSecret, "jvb-auth")
       });
       runCommand(`flyctl config validate --config ${flyTomlPath} --app ${appName}`);
-      runCommand(`flyctl deploy --app ${appName} --config ${flyTomlPath} --strategy immediate --ha=false --wait-timeout 600`);
-      await ensureScale(appName, FLYIO_DEFAULTS.SCALE_COUNT, memory);
+      await deployFlyApp({
+        appName,
+        configPath: flyTomlPath,
+        memory,
+        scaleCount: FLYIO_DEFAULTS.SCALE_COUNT,
+        strategy: FlyDeployStrategy.IMMEDIATE
+      });
       debugLog(`Deployed self-hosted Jitsi ${appName} (public ${publicUrl}, media IP ${advertiseIp || "unset"}) - pinned to a single machine`);
     }
   }

@@ -6,9 +6,7 @@ import {
   configureEnvironment,
   createRuntimeConfig,
   deleteVolumeIfExists,
-  ensureScale,
   flyTomlAbsolutePath,
-  parseMemoryMb,
   runCommand,
   runCommandWithRetry,
   waitForImageAvailable
@@ -23,6 +21,7 @@ import { envConfig } from "../lib/env-config/env-config";
 import { buildSecretsContent, loadSecretsForEnvironmentFromDatabase, parseSecretsFile } from "../lib/shared/secrets";
 import { configuredEnvironments, estateDeployEnvironments } from "../lib/environments/environments-config";
 import { DEPLOYMENT_DEFAULTS, EnvironmentsConfig, FLYIO_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { deployFlyApp } from "../lib/fly/fly-machine-estate";
 import { BuildVersion } from "../../projects/ngx-ramblers/src/app/models/build-version.model";
 import { filterSecretsForSiteFlyDeploy } from "../lib/fly/fly-secrets-policy";
 import { pruneDisallowedFlySecrets } from "../lib/fly/fly-secrets-prune";
@@ -211,9 +210,13 @@ async function deployToEnvironments(environmentsFilter: string[]): Promise<void>
         debugLog("Pruned disallowed Fly secrets from %s: %s", environmentConfig.appName, pruneResult.removed.join(", "));
       }
       await waitForImageAvailable(environmentConfig.appName, config.dockerImage);
-      const memoryMb = parseMemoryMb(environmentConfig.memory);
-      await runCommandWithRetry(`flyctl deploy --app ${environmentConfig.appName} --config ${environmentFlyTomlPath} --image ${config.dockerImage} --vm-memory ${memoryMb} --strategy rolling --wait-timeout 600`);
-      await ensureScale(environmentConfig.appName, environmentConfig.scaleCount, environmentConfig.memory);
+      await deployFlyApp({
+        appName: environmentConfig.appName,
+        configPath: environmentFlyTomlPath,
+        image: config.dockerImage,
+        memory: environmentConfig.memory,
+        scaleCount: environmentConfig.scaleCount
+      });
       if (imageTag && /^\d+$/.test(imageTag)) {
         await verifyDeployedBuildNumber(environmentConfig.appName, imageTag);
       }

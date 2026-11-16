@@ -32,17 +32,50 @@ export interface FlyMachineSummary {
   config?: Record<string, unknown>;
 }
 
+export enum FlyDeployStrategy {
+  IMMEDIATE = "immediate",
+  ROLLING = "rolling"
+}
+
+export interface FlyAppDeployment {
+  appName: string;
+  configPath: string;
+  scaleCount: number;
+  image?: string;
+  memory?: string;
+  remoteOnly?: boolean;
+  strategy?: FlyDeployStrategy;
+}
+
+export interface FlyMachineTarget {
+  imageTag?: string;
+  imageDigest?: string;
+  releaseVersion?: string;
+}
+
+export interface FlyMachineEstate extends FlyMachineTarget {
+  scaleCount: number;
+}
+
+export interface FlyMachineRelease {
+  ImageRef?: string;
+  Status?: string;
+  Version?: number;
+}
+
 export interface FlyMachineListItem {
   id: string;
   name?: string;
   state?: string;
   config?: {
     image?: string;
-    metadata?: { fly_process_group?: string };
+    guest?: {memory_mb?: number};
+    metadata?: { fly_process_group?: string; fly_release_version?: string };
   };
   image_ref?: {
     repository?: string;
     tag?: string;
+    digest?: string;
   };
 }
 

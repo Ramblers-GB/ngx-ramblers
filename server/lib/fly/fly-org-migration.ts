@@ -9,7 +9,8 @@ import {
   upsertEnvironmentInDatabase,
   environmentsConfigFromDatabase
 } from "../environments/environments-config";
-import { flyTomlAbsolutePath, runCommand, runCommandStreaming } from "./fly-commands";
+import { flyTomlAbsolutePath, runCommand } from "./fly-commands";
+import { deployFlyApp } from "./fly-machine-estate";
 import { resolveSecretsForMigration, writeSecretsFile } from "../shared/secrets";
 import { normaliseMemory } from "../shared/spelling";
 import { dateTimeNowAsValue } from "../shared/dates";
@@ -176,18 +177,8 @@ async function importSecretsAndDeploy(
       }
     }
     report(`Deploying image to ${appName}`);
-    await withMailClientTlsConfiguration(flyTomlPath, booleanOf(secrets[Environment.MAIL_CLIENT_NATIVE_TLS]), async configurationPath => {
-      const deployCommand =
-        `flyctl deploy --app ${appName} --config ${configurationPath} --image ${dockerImage} --strategy rolling --wait-timeout 600`;
-      if (options.onDeployOutput) {
-        await runCommandStreaming(deployCommand, options.onDeployOutput);
-      } else {
-        runCommand(deployCommand);
-      }
-    });
-    report(`Scaling ${appName}`);
-    runCommand(`flyctl scale count ${scaleCount} --app ${appName} --yes`);
-    runCommand(`flyctl scale memory ${memory} --app ${appName}`);
+    await withMailClientTlsConfiguration(flyTomlPath, booleanOf(secrets[Environment.MAIL_CLIENT_NATIVE_TLS]), configurationPath =>
+      deployFlyApp({appName, configPath: configurationPath, image: dockerImage, memory, scaleCount}, options.onDeployOutput));
     report(`Deployed ${appName}`, SetupStepStatus.Completed);
   }
   await ensureMigratedAppHasPublicIps(appName, apiKey, report);
