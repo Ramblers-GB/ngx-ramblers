@@ -15,7 +15,7 @@ import { threadUnreadForMember } from "../inbox/inbox-unread-counts";
 import { inboxThreadId, inboxFolderSlug, inboxFolderMovedToTrash, uniqueInboxFolderSlug } from "../../../projects/ngx-ramblers/src/app/functions/inbox-thread";
 import mongoose from "mongoose";
 import { execute } from "../mongo/mongoose-client";
-import { imapMailboxKey, imapUidMailboxState, imapUidMemberships, imapUidState, IMAP_UID_MAILBOXES_COLLECTION, IMAP_UID_MEMBERSHIPS_COLLECTION, synchroniseImapThreadUids } from "./mail-client-imap-uid-store";
+import { imapMailboxKey, imapUidExpungedMessageIds, imapUidMailboxState, imapUidMemberships, imapUidState, IMAP_UID_MAILBOXES_COLLECTION, IMAP_UID_MEMBERSHIPS_COLLECTION, synchroniseImapThreadUids } from "./mail-client-imap-uid-store";
 import { IMAP_SHARED_FOLDER_ROLE, MailClientUidMailbox, MailClientUidState, MailClientUidMailboxRecord } from "./mail-client-imap-uid.model";
 import { roleMatchingFrom } from "./mail-client-auth";
 import { sentFolderFilter, sentMessageFilter } from "../inbox/inbox-sent";
@@ -31,7 +31,7 @@ const debugLog = debug(envConfig.logNamespace("mail-client:imap"));
 const IMAP_THREAD_FIELDS = "_id tenantSlug roleType folder userFolderId lastDirection unread readByMemberIds";
 const IMAP_UID_SYNC_BATCH = 25;
 const mailboxSnapshots = new Map<string, MailClientMailboxSnapshot>();
-const MAX_MAILBOX_SNAPSHOTS = 8;
+const MAX_MAILBOX_SNAPSHOTS = 256;
 
 const SYSTEM_MAILBOXES: MailClientMailbox[] = [
   {name: "INBOX", folder: InboxThreadFolder.INBOX, userFolderId: null},
@@ -190,13 +190,17 @@ async function loadMailboxMessages(role: CommitteeMember, mailbox: MailClientMai
     : [];
   const threadsById = new Map(threads.map(thread => [inboxThreadId(thread), thread]));
   const uids = new Map(memberships.map(entry => [entry.messageId, entry.uid]));
+  const messageIdsWithoutUid = messageIds.filter(messageId => !uids.has(messageId));
+  const expunged = new Set(messageIdsWithoutUid.length
+    ? await execute(async () => imapUidExpungedMessageIds(mongoose.connection.db, listedMailbox, messageIdsWithoutUid))
+    : []);
   const unsyncedThreadIds = [...new Set(messages.flatMap(message => {
     const withId = message.id ?? (message as unknown as {_id: {toString(): string}})._id?.toString();
-    return withId && !uids.has(withId) ? [String(message.threadId)] : [];
+    return withId && !uids.has(withId) && !expunged.has(withId) ? [String(message.threadId)] : [];
   }))].slice(0, IMAP_UID_SYNC_BATCH);
   const syncedMemberships = unsyncedThreadIds.length
     ? await execute(async () => {
-      await synchroniseImapThreadUids(mongoose.connection.db, mongoose.connection.getClient(), unsyncedThreadIds);
+      await synchroniseImapThreadUids(mongoose.connection.db, mongoose.connection.getClient(), unsyncedThreadIds, {bumpUnchangedMailboxes: false});
       return imapUidMemberships(mongoose.connection.db, listedMailbox, messageIds);
     }).catch((error: Error) => {
       debugLog(`IMAP UID sync skipped ${error.message}`);
@@ -332,7 +336,7 @@ export async function expungeImapMessage(role: CommitteeMember, mailbox: MailCli
   const threadId = inboxThreadId(thread);
   await execute(async () => {
     const memberships = mongoose.connection.db.collection(IMAP_UID_MEMBERSHIPS_COLLECTION);
-    const result = await memberships.updateMany({mailboxKey, messageId, active: true}, {$set: {active: false}});
+    const result = await memberships.updateMany({mailboxKey, messageId, active: true}, {$set: {active: false, expunged: true}});
     if (result.modifiedCount > 0) {
       await mongoose.connection.db.collection<MailClientUidMailboxRecord>(IMAP_UID_MAILBOXES_COLLECTION).updateOne({_id: mailboxKey}, {$inc: {revision: 1}});
     }

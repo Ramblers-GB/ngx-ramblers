@@ -7,7 +7,7 @@ import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.
 import { CommitteeConfig } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { foldersExcludedFromInboxList, foldersExcludedFromLiveMatch, InboxMessage, InboxMessageDirection, InboxThread, InboxThreadFolder, InboxUserFolder } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
 import { CONFIG_COLLECTION, INBOX_FOLDERS_COLLECTION, INBOX_MESSAGES_COLLECTION, INBOX_THREADS_COLLECTION } from "../mongo/migrations/shared/collection-names";
-import { IMAP_SHARED_FOLDER_ROLE, MailClientUidCounter, MailClientUidMailbox, MailClientUidMailboxRecord, MailClientUidMembership, MailClientUidState } from "./mail-client-imap-uid.model";
+import { IMAP_SHARED_FOLDER_ROLE, ImapUidSyncOptions, MailClientUidCounter, MailClientUidMailbox, MailClientUidMailboxRecord, MailClientUidMembership, MailClientUidState } from "./mail-client-imap-uid.model";
 
 const debugLog = debug(envConfig.logNamespace("mail-client:imap-uid"));
 
@@ -18,6 +18,7 @@ const MAX_IMAP_UID = 4294967295;
 const IMAP_UID_WRITE_CONFLICT_ATTEMPTS = 3;
 const IMAP_UID_THREAD_PROJECTION = {tenantSlug: 1, roleType: 1, folder: 1, userFolderId: 1};
 const IMAP_UID_MESSAGE_PROJECTION = {direction: 1, autoReply: 1, threadId: 1};
+const BUMP_UNCHANGED_MAILBOXES: ImapUidSyncOptions = {bumpUnchangedMailboxes: true};
 
 export function imapMailboxKey(mailbox: MailClientUidMailbox): string {
   return JSON.stringify([mailbox.tenantSlug, mailbox.roleType, mailbox.userFolderId ? null : mailbox.folder, mailbox.userFolderId]);
@@ -63,6 +64,12 @@ export async function imapUidMemberships(db: Db, mailbox: MailClientUidMailbox, 
     .find({mailboxKey: imapMailboxKey(mailbox), active: true, ...(messageIds ? {messageId: {$in: messageIds}} : {})}).sort({uid: 1}).toArray();
 }
 
+export async function imapUidExpungedMessageIds(db: Db, mailbox: MailClientUidMailbox, messageIds: string[]): Promise<string[]> {
+  const expunged = await db.collection<MailClientUidMembership>(IMAP_UID_MEMBERSHIPS_COLLECTION)
+    .find({mailboxKey: imapMailboxKey(mailbox), messageId: {$in: messageIds}, active: false, expunged: true}, {projection: {messageId: 1}}).toArray();
+  return expunged.map(entry => entry.messageId);
+}
+
 async function lockMailbox(db: Db, session: ClientSession, mailbox: MailClientUidMailbox): Promise<MailClientUidMailboxRecord> {
   const key = imapMailboxKey(mailbox);
   const collection = db.collection<MailClientUidMailboxRecord>(IMAP_UID_MAILBOXES_COLLECTION);
@@ -84,7 +91,7 @@ async function lockMailbox(db: Db, session: ClientSession, mailbox: MailClientUi
   }
 }
 
-async function synchroniseThread(db: Db, session: ClientSession, threadId: string): Promise<void> {
+async function synchroniseThread(db: Db, session: ClientSession, threadId: string, options: ImapUidSyncOptions): Promise<void> {
   await db.collection<MailClientUidCounter>(IMAP_UID_COUNTERS_COLLECTION).updateOne(
     {_id: `thread:${threadId}`}, {$inc: {value: 1}}, {session, upsert: true}
   );
@@ -96,25 +103,28 @@ async function synchroniseThread(db: Db, session: ClientSession, threadId: strin
   const memberships = db.collection<MailClientUidMembership>(IMAP_UID_MEMBERSHIPS_COLLECTION);
   const threadMemberships = await memberships.find({threadId: {$in: [threadId, ...identities.map(String)]}}, {session}).toArray();
   const previous = threadMemberships.filter(entry => entry.active);
-  const expunged = new Set(threadMemberships.filter(entry => !entry.active).map(entry => `${entry.mailboxKey}:${entry.messageId}`));
-  const desired = messages.flatMap(message => imapMessageMailboxes(thread, message).flatMap(mailbox => {
-    const mailboxKey = imapMailboxKey(mailbox);
-    const messageId = String(message["_id"]);
-    return expunged.has(`${mailboxKey}:${messageId}`) ? [] : [{mailbox, mailboxKey, messageId}];
-  }));
+  const located = messages.flatMap(message => imapMessageMailboxes(thread, message).map(mailbox => ({mailbox, mailboxKey: imapMailboxKey(mailbox), messageId: String(message["_id"])})));
+  const locatedMailboxKeys = new Set(located.map(entry => entry.mailboxKey));
+  const expungedEntries = threadMemberships.filter(entry => !entry.active && entry.expunged);
+  const leftMailbox = expungedEntries.filter(entry => !locatedMailboxKeys.has(entry.mailboxKey));
+  if (leftMailbox.length) {
+    await memberships.updateMany({_id: {$in: leftMailbox.map(entry => entry._id)}}, {$unset: {expunged: 1}}, {session});
+  }
+  const expunged = new Set(expungedEntries.filter(entry => locatedMailboxKeys.has(entry.mailboxKey)).map(entry => `${entry.mailboxKey}:${entry.messageId}`));
+  const desired = located.filter(entry => !expunged.has(`${entry.mailboxKey}:${entry.messageId}`));
   const mailboxKeys = [...new Set([...previous.map(entry => entry.mailboxKey), ...desired.map(entry => entry.mailboxKey)])].sort();
   for (const mailboxKey of mailboxKeys) {
     const wanted = desired.filter(entry => entry.mailboxKey === mailboxKey);
     const existingState = await db.collection<MailClientUidMailboxRecord>(IMAP_UID_MAILBOXES_COLLECTION).findOne({_id: mailboxKey}, {session});
     const mailbox = wanted[0]?.mailbox ?? existingState;
-    if (mailbox) {
+    const active = previous.filter(entry => entry.mailboxKey === mailboxKey);
+    const removed = active.filter(entry => !wanted.some(item => item.messageId === entry.messageId));
+    const additions = wanted.filter(item => !active.some(entry => entry.messageId === item.messageId));
+    if (mailbox && (options.bumpUnchangedMailboxes || removed.length || additions.length)) {
       const state = await lockMailbox(db, session, mailbox);
-      const active = previous.filter(entry => entry.mailboxKey === mailboxKey);
-      const removed = active.filter(entry => !wanted.some(item => item.messageId === entry.messageId));
       if (removed.length) {
         await memberships.updateMany({_id: {$in: removed.map(entry => entry._id)}}, {$set: {active: false}}, {session});
       }
-      const additions = wanted.filter(item => !active.some(entry => entry.messageId === item.messageId));
       if (state.uidNext + additions.length > MAX_IMAP_UID) {
         throw new Error("IMAP mailbox UID space exhausted");
       } else if (additions.length) {
@@ -140,7 +150,7 @@ export function imapUidWriteConflict(error: unknown): boolean {
   return codeName === "WriteConflict" || message.includes("Write conflict");
 }
 
-async function synchroniseThreadWithRetry(db: Db, client: MongoClient, threadId: string): Promise<void> {
+async function synchroniseThreadWithRetry(db: Db, client: MongoClient, threadId: string, options: ImapUidSyncOptions): Promise<void> {
   const progress = {attempt: 0, completed: false};
   const attempts = Array.from({length: IMAP_UID_WRITE_CONFLICT_ATTEMPTS}, (_, index) => index);
   await attempts.reduce(async (previous, index) => {
@@ -151,7 +161,7 @@ async function synchroniseThreadWithRetry(db: Db, client: MongoClient, threadId:
       progress.attempt = index + 1;
       const session = client.startSession();
       try {
-        await session.withTransaction(async () => synchroniseThread(db, session, threadId));
+        await session.withTransaction(async () => synchroniseThread(db, session, threadId, options));
         progress.completed = true;
       } catch (error) {
         const lastAttempt = progress.attempt === IMAP_UID_WRITE_CONFLICT_ATTEMPTS;
@@ -166,9 +176,9 @@ async function synchroniseThreadWithRetry(db: Db, client: MongoClient, threadId:
   }, Promise.resolve());
 }
 
-export async function synchroniseImapThreadUids(db: Db, client: MongoClient, threadIds: string[]): Promise<void> {
+export async function synchroniseImapThreadUids(db: Db, client: MongoClient, threadIds: string[], options: ImapUidSyncOptions = BUMP_UNCHANGED_MAILBOXES): Promise<void> {
   for (const threadId of [...new Set(threadIds)].filter(Boolean).sort()) {
-    await synchroniseThreadWithRetry(db, client, threadId);
+    await synchroniseThreadWithRetry(db, client, threadId, options);
   }
 }
 

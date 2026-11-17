@@ -117,7 +117,7 @@ databaseTests("persistent IMAP UIDs with MongoDB transactions", function() {
   });
 
   it("allocates a fresh UID when a conversation returns from a custom folder", async () => {
-    const folder = {...inbox, folder: null, userFolderId: "folder-1"};
+    const folder = {...inbox, roleType: IMAP_SHARED_FOLDER_ROLE, folder: null, userFolderId: "folder-1"};
     await state.threads.updateOne({_id: threadId}, {$set: {userFolderId: "folder-1"}});
     expect(await imapUidMemberships(state.db, inbox)).toEqual([]);
     expect((await imapUidMemberships(state.db, folder)).map(entry => entry.uid)).toEqual([1]);
@@ -155,8 +155,8 @@ databaseTests("persistent IMAP UIDs with MongoDB transactions", function() {
   });
 
   it("isolates role mailboxes and gives recreated folders a different UIDVALIDITY", async () => {
-    const firstFolder = {...inbox, folder: null, userFolderId: "folder-1"};
-    const nextFolder = {...inbox, folder: null, userFolderId: "folder-2"};
+    const firstFolder = {...inbox, roleType: IMAP_SHARED_FOLDER_ROLE, folder: null, userFolderId: "folder-1"};
+    const nextFolder = {...inbox, roleType: IMAP_SHARED_FOLDER_ROLE, folder: null, userFolderId: "folder-2"};
     await state.threads.updateOne({_id: threadId}, {$set: {userFolderId: firstFolder.userFolderId}});
     const first = await imapUidState(state.db, firstFolder);
     await state.threads.updateOne({_id: threadId}, {$set: {userFolderId: nextFolder.userFolderId}});
@@ -173,6 +173,41 @@ databaseTests("persistent IMAP UIDs with MongoDB transactions", function() {
     expect(await imapUidMemberships(state.db, {...inbox, folder: InboxThreadFolder.JUNK})).toEqual([]);
     await bootstrapImapUids(state.db, state.client);
     expect(await imapUidMemberships(state.db, inbox)).toEqual([]);
+  });
+
+  const inboxRevision = async (): Promise<number> => (await state.db.collection("mailClientImapMailboxes").findOne({_id: imapMailboxKey(inbox)} as never))?.revision;
+  const expungeInMailApp = async (mailbox: MailClientUidMailbox, id: ObjectId): Promise<void> => {
+    await state.db.collection(IMAP_UID_MEMBERSHIPS_COLLECTION).updateMany({mailboxKey: imapMailboxKey(mailbox), messageId: String(id), active: true}, {$set: {active: false, expunged: true}});
+  };
+
+  it("keeps a message deleted in a mail app hidden while its conversation stays in the mailbox, without bumping the revision on reload", async () => {
+    const second = await state.messages.create({...message, messageId: "<second@example.com>"});
+    await expungeInMailApp(inbox, messageId);
+    const revision = await inboxRevision();
+    await synchroniseImapThreadUids(state.db, state.client, [String(threadId)], {bumpUnchangedMailboxes: false});
+    expect((await imapUidMemberships(state.db, inbox)).map(entry => entry.messageId)).toEqual([String(second._id)]);
+    expect(await inboxRevision()).toBe(revision);
+  });
+
+  it("shows a conversation again after it was deleted in a mail app and restored on the website", async () => {
+    await expungeInMailApp(inbox, messageId);
+    await state.threads.updateOne({_id: threadId}, {$set: {folder: InboxThreadFolder.DELETED}});
+    await state.threads.updateOne({_id: threadId}, {$set: {folder: InboxThreadFolder.INBOX}});
+    expect((await imapUidMemberships(state.db, inbox)).map(entry => entry.uid)).toEqual([2]);
+  });
+
+  it("gives a fresh UID to a listed message whose old identifier was retired without being deleted in a mail app", async () => {
+    await state.db.collection(IMAP_UID_MEMBERSHIPS_COLLECTION).updateMany({mailboxKey: imapMailboxKey(inbox)}, {$set: {active: false}});
+    const revision = await inboxRevision();
+    await synchroniseImapThreadUids(state.db, state.client, [String(threadId)], {bumpUnchangedMailboxes: false});
+    expect((await imapUidMemberships(state.db, inbox)).map(entry => entry.uid)).toEqual([2]);
+    expect(await inboxRevision()).toBe(revision + 1);
+  });
+
+  it("bumps the mailbox revision when the website only changes read state, so connected mail apps refresh flags", async () => {
+    const revision = await inboxRevision();
+    await state.threads.updateOne({_id: threadId}, {$set: {unread: false}, $addToSet: {readByMemberIds: "member-1"}});
+    expect(await inboxRevision()).toBe(revision + 1);
   });
 
   it("does not allocate UIDs while reading a mailbox", async () => {

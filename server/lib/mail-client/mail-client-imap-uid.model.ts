@@ -46,6 +46,11 @@ export interface MailClientUidMembership {
   messageId: string;
   uid: number;
   active: boolean;
+  expunged?: boolean;
+}
+
+export interface ImapUidSyncOptions {
+  bumpUnchangedMailboxes: boolean;
 }
 
 export interface MailClientUidCounter {

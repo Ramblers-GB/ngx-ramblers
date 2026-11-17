@@ -5,7 +5,7 @@ import WebSocket, { WebSocketServer } from "ws";
 import { AddressInfo } from "node:net";
 import { member } from "../mongo/models/member";
 import { registerWebSocketServer } from "../websockets/websocket-broadcaster";
-import { startMemberSessionWatcher, stopMemberSessionWatcher } from "./member-session-watcher";
+import { MEMBER_SESSION_STREAM_MAX_AWAIT_MS, startMemberSessionWatcher, stopMemberSessionWatcher } from "./member-session-watcher";
 import { MessageType } from "../../../projects/ngx-ramblers/src/app/models/websocket.model";
 
 class SessionChangeStream extends EventEmitter {
@@ -58,5 +58,6 @@ describe("Member session change notifications", () => {
     expect(pipeline).toContain("updateDescription.updatedFields.memberAdmin");
     expect(pipeline).toContain("updateDescription.updatedFields.revoked");
     expect(pipeline).toContain("updateDescription.removedFields");
+    expect(watch.firstCall.args[1]).toEqual({maxAwaitTimeMS: MEMBER_SESSION_STREAM_MAX_AWAIT_MS});
   });
 });

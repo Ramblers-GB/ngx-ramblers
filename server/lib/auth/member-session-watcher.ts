@@ -5,6 +5,7 @@ import { memberSessionFields } from "../../../projects/ngx-ramblers/src/app/func
 import { MessageType } from "../../../projects/ngx-ramblers/src/app/models/websocket.model";
 import { broadcast } from "../websockets/websocket-broadcaster";
 
+export const MEMBER_SESSION_STREAM_MAX_AWAIT_MS = 20000;
 const debugLog = debug(envConfig.logNamespace("member-session-watcher"));
 debugLog.enabled = true;
 const watcher = {
@@ -44,7 +45,7 @@ function retryMemberSessionWatcher(): void {
 
 function openMemberSessionWatcher(): void {
   try {
-    const stream = member.watch(memberSessionChangePipeline());
+    const stream = member.watch(memberSessionChangePipeline(), {maxAwaitTimeMS: MEMBER_SESSION_STREAM_MAX_AWAIT_MS});
     watcher.stream = stream;
     stream.on("change", () => broadcast(MessageType.MEMBER_SESSION_CHANGED, {}));
     stream.on("error", error => {

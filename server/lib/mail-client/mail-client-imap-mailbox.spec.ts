@@ -27,6 +27,7 @@ describe("mail application mailbox contents", () => {
       {_id: "uid-2", mailboxKey: "sent", threadId: "thread-2", messageId: "message-1", uid: 20, active: true}
     ]);
     sandbox.stub(uidStore, "synchroniseImapThreadUids").resolves();
+    sandbox.stub(uidStore, "imapUidExpungedMessageIds").resolves([]);
   });
   afterEach(() => sandbox.restore());
 
@@ -92,6 +93,31 @@ describe("mail application mailbox contents", () => {
       ? {updateMany, countDocuments} : {updateOne}}});
     await expungeImapMessage(role, {name: "INBOX", folder: InboxThreadFolder.INBOX, userFolderId: null}, {id: "message-0"} as InboxMessage, {id: "thread-1"} as InboxThread);
     expect(updateOne.firstCall.args).toEqual([{_id: expect.any(String)}, {$inc: {revision: 1}}]);
+    expect(updateMany.firstCall.args[1]).toEqual({$set: {active: false, expunged: true}});
+  });
+
+  it("does not keep re-synchronising messages that were deleted in a mail app", async () => {
+    sandbox.stub(inboxThread, "find").returns({select: () => ({sort: () => ({lean: async () => [{_id: "thread-1", roleType: "chair", folder: InboxThreadFolder.INBOX}]})})} as any);
+    sandbox.stub(inboxMessage, "find").returns({select: () => ({sort: () => ({lean: async () => [
+      {_id: "message-0", threadId: "thread-1"},
+      {_id: "message-deleted-in-app", threadId: "thread-1"}
+    ]})})} as any);
+    (uidStore.imapUidMemberships as sinon.SinonStub).resolves([
+      {_id: "uid-1", mailboxKey: "inbox", threadId: "thread-1", messageId: "message-0", uid: 10, active: true}
+    ]);
+    (uidStore.imapUidExpungedMessageIds as sinon.SinonStub).resolves(["message-deleted-in-app"]);
+    const result = await messagesInMailbox(role, {name: "INBOX", folder: InboxThreadFolder.INBOX, userFolderId: null}, member);
+    expect(result.map(entry => entry.message.id)).toEqual(["message-0"]);
+    expect((uidStore.imapUidExpungedMessageIds as sinon.SinonStub).firstCall.args[2]).toEqual(["message-deleted-in-app"]);
+    expect((uidStore.synchroniseImapThreadUids as sinon.SinonStub).called).toBe(false);
+  });
+
+  it("synchronises missing identifiers on load without bumping mailboxes that did not change", async () => {
+    sandbox.stub(inboxThread, "find").returns({select: () => ({sort: () => ({lean: async () => [{_id: "thread-4", roleType: "chair", folder: InboxThreadFolder.INBOX}]})})} as any);
+    sandbox.stub(inboxMessage, "find").returns({select: () => ({sort: () => ({lean: async () => [{_id: "message-new", threadId: "thread-4"}]})})} as any);
+    (uidStore.imapUidMemberships as sinon.SinonStub).resolves([]);
+    await messagesInMailbox(role, {name: "INBOX", folder: InboxThreadFolder.INBOX, userFolderId: null}, member);
+    expect((uidStore.synchroniseImapThreadUids as sinon.SinonStub).firstCall.args.slice(2)).toEqual([["thread-4"], {bumpUnchangedMailboxes: false}]);
   });
 
   it("looks up only the saved message's persistent identifiers in the selected role and mailbox", async () => {
