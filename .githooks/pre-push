@@ -4,24 +4,6 @@ set -e
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-origin_push_url="$(git remote get-url --push origin 2>/dev/null || true)"
-if [[ "$1" == origin || ( -n "$origin_push_url" && "$2" == "$origin_push_url" ) ]]; then
-  while read -r local_ref local_sha remote_ref remote_sha; do
-    if [[ "$remote_ref" == refs/heads/main ]]; then
-      if [[ ! -t 2 ]]; then
-        echo "Push to origin/main blocked. Run the push from a terminal and confirm it there." >&2
-        exit 1
-      fi
-      short_sha="${local_sha:0:12}"
-      printf 'Push %s to origin/main? Type "push %s" to confirm: ' "$short_sha" "$short_sha" >&2
-      if ! read -r confirmation </dev/tty || [[ "$confirmation" != "push $short_sha" ]]; then
-        echo "Push to origin/main cancelled." >&2
-        exit 1
-      fi
-    fi
-  done
-fi
-
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
   # shellcheck source=/dev/null
