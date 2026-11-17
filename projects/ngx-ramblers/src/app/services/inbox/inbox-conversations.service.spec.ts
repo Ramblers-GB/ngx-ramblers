@@ -34,6 +34,18 @@ describe("inbox conversation grouping", () => {
     expect(service.siblingConversationThreads(threads[0], false)).toEqual([threads[0]]);
   });
 
+  it("shows one email sent to several role mailboxes as one conversation", () => {
+    const service = new InboxConversationsService();
+    const chairman = {...first, id: "chairman-copy", conversationKey: null, roleType: "chairman", messageIds: ["<Shared@Example>"], lastSeenAt: 5};
+    const walks = {...latest, id: "walks-copy", conversationKey: null, roleType: "walks", messageIds: ["<shared@example>"], lastSeenAt: 5};
+    const unrelated = {...first, id: "other", conversationKey: null, roleType: "walks", messageIds: ["<other@example>"], lastSeenAt: 3};
+    const threads = [walks, chairman, unrelated];
+    service.index(threads);
+    expect(service.conversationRepresentatives(threads, InboxGroupingMode.CONVERSATIONS, false)).toEqual([walks, unrelated]);
+    expect(service.siblingConversationThreads(chairman)).toEqual([walks, chairman]);
+    expect(service.conversationRepresentatives(threads, InboxGroupingMode.MESSAGES, false)).toEqual(threads);
+  });
+
   it("does not mix other sent copies into a Messages-mode row", () => {
     const service = new InboxConversationsService();
     const threads = [

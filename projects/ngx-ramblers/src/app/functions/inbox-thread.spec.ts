@@ -315,12 +315,13 @@ describe("inboxThreadHeaderFrom and inboxThreadHeaderTo", () => {
     expect(inboxThreadHeaderTo([])).toEqual([]);
   });
 
-  it("does not list every address when several people were on To", () => {
+  it("lists every address when several people were on To", () => {
     expect(inboxDisplayedAddressLine([{email: "one@example.com", name: "One"}])).toEqual("One <one@example.com>");
     expect(inboxDisplayedAddressLine([
       {email: "one@example.com", name: "One"},
       {email: "two@example.com", name: "Two"}
-    ])).toEqual("2 recipients");
+    ])).toEqual("One <one@example.com>, Two <two@example.com>");
+    expect(inboxDisplayedAddressLine([])).toBeNull();
   });
 
 });

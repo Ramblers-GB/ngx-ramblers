@@ -232,23 +232,9 @@ export function formatInboxAddress(address: {name?: string | null; email?: strin
   return name && email && name.toLowerCase() !== email.toLowerCase() ? `${name} <${email}>` : email;
 }
 
-export function inboxRecipientCountLabel(count: number): string {
-  if (count === 1) {
-    return "1 recipient";
-  } else {
-    return `${count} recipients`;
-  }
-}
-
 export function inboxDisplayedAddressLine(addresses: InboxAddress[] | null | undefined): string | null {
-  const list = (addresses ?? []).filter(address => !!(address?.email || address?.name));
-  if (list.length === 0) {
-    return null;
-  } else if (list.length === 1) {
-    return formatInboxAddress(list[0]) || null;
-  } else {
-    return inboxRecipientCountLabel(list.length);
-  }
+  const line = (addresses ?? []).map(formatInboxAddress).filter(Boolean).join(", ");
+  return line || null;
 }
 
 export function inboxMessageToAddresses(message: InboxMessage | null | undefined): InboxAddress[] {

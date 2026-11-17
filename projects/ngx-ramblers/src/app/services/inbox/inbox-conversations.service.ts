@@ -6,6 +6,7 @@ import { inboxThreadId } from "../../functions/inbox-thread";
 export class InboxConversationsService {
   private siblingsByConversationKey = new Map<string, InboxThread[]>();
   private siblingsBySentSubject = new Map<string, InboxThread[]>();
+  private siblingsByFirstMessage = new Map<string, InboxThread[]>();
 
   siblingConversationThreads(thread: InboxThread, viewingSent = false): InboxThread[] {
     const conversationKey = thread.conversationKey;
@@ -15,13 +16,15 @@ export class InboxConversationsService {
       const subjectKey = this.sentSubjectKey(thread);
       return subjectKey ? (this.siblingsBySentSubject.get(subjectKey) ?? [thread]) : [thread];
     } else {
-      return [thread];
+      const messageKey = this.firstMessageKey(thread);
+      return messageKey ? (this.siblingsByFirstMessage.get(messageKey) ?? [thread]) : [thread];
     }
   }
 
   index(threads: InboxThread[]): void {
     const byKey = new Map<string, InboxThread[]>();
     const bySentSubject = new Map<string, InboxThread[]>();
+    const byFirstMessage = new Map<string, InboxThread[]>();
     threads.forEach(thread => {
       const conversationKey = thread.conversationKey;
       if (conversationKey) {
@@ -31,10 +34,15 @@ export class InboxConversationsService {
         if (subjectKey) {
           this.appendSibling(bySentSubject, subjectKey, thread);
         }
+        const messageKey = this.firstMessageKey(thread);
+        if (messageKey) {
+          this.appendSibling(byFirstMessage, messageKey, thread);
+        }
       }
     });
     this.siblingsByConversationKey = byKey;
     this.siblingsBySentSubject = bySentSubject;
+    this.siblingsByFirstMessage = byFirstMessage;
   }
 
   representativeThread(threads: InboxThread[]): InboxThread {
@@ -59,16 +67,21 @@ export class InboxConversationsService {
       const seenKeys = new Set<string>();
       const representatives: InboxThread[] = [];
       threads.forEach(thread => {
-        const key = thread.conversationKey;
+        const key = thread.conversationKey || this.firstMessageKey(thread);
         if (!key) {
           representatives.push(thread);
         } else if (!seenKeys.has(key)) {
           seenKeys.add(key);
-          representatives.push(this.representativeThread(this.siblingsByConversationKey.get(key) ?? [thread]));
+          representatives.push(this.representativeThread(this.siblingConversationThreads(thread)));
         }
       });
       return representatives;
     }
+  }
+
+  private firstMessageKey(thread: InboxThread): string | null {
+    const messageId = thread.messageIds?.[0]?.trim();
+    return messageId ? `message:${messageId.toLowerCase()}` : null;
   }
 
   private sentSubjectKey(thread: InboxThread): string | null {
