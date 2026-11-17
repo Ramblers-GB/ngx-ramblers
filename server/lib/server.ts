@@ -66,6 +66,7 @@ import { buildVersion, deploymentInfo } from "./config/build-version";
 import { flyMachineState, flyMemoryHistory, flyStats, heapSnapshot, memoryUsage, restartMachine, systemLogs } from "./health/memory";
 import { startMemoryWatchdog } from "./health/memory-watchdog";
 import { installProcessErrorHandlers, productionRequestErrorHandler } from "./health/process-error-handling";
+import { installShutdownSignalHandlers } from "./health/shutdown-signals";
 import { startScheduledTaskWatchdog } from "./cron/scheduled-task-registry";
 import * as authConfig from "./auth/auth-config";
 import { requireReadOnlyViewAs } from "./auth/local-view-as";
@@ -372,6 +373,7 @@ async function runMigrationsInBackground() {
 async function startServer() {
   try {
     installProcessErrorHandlers();
+    installShutdownSignalHandlers();
     server.listen(port, "::", () => {
       debugLog(`🚀 Server is listening on port for ${envConfig.env} environment`, port);
     });

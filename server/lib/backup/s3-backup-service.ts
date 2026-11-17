@@ -65,6 +65,20 @@ function boundedConcurrency(value: unknown): number {
 export type ProgressCallback = (message: string) => void | Promise<void>;
 export type BackupAbortCheck = () => Promise<boolean>;
 
+export const BACKUP_ABORT_CHECK_INTERVAL_MS = 5000;
+
+export function throttledAbortCheck(shouldAbort: BackupAbortCheck, intervalMs: number = BACKUP_ABORT_CHECK_INTERVAL_MS, nowMs: () => number = dateTimeNowAsValue): BackupAbortCheck {
+  const state = { checkedAtMs: null as number | null, aborted: false };
+  return async () => {
+    const currentMs = nowMs();
+    if (!state.aborted && (state.checkedAtMs === null || currentMs - state.checkedAtMs >= intervalMs)) {
+      state.checkedAtMs = currentMs;
+      state.aborted = await shouldAbort();
+    }
+    return state.aborted;
+  };
+}
+
 export class BackupAbortedError extends Error {
   constructor(message: string) {
     super(message);
@@ -610,6 +624,7 @@ async function performIncrementalBackup(
     excluded: 0
   };
   const effectiveConcurrency = Math.min(boundedConcurrency(concurrency), 1);
+  const abortRequested = shouldAbort ? throttledAbortCheck(shouldAbort) : null;
 
   const emitProgress = async (finished: boolean): Promise<void> => {
     if (onProgress) {
@@ -622,7 +637,7 @@ async function performIncrementalBackup(
   };
 
   const processObject = async (obj: S3ObjectInfo): Promise<void> => {
-    if (shouldAbort && await shouldAbort()) {
+    if (abortRequested && await abortRequested()) {
       throw new BackupAbortedError(`S3 backup ${config.site} stopped after ${state.processed} objects`);
     }
     state.totalBytes += obj.size;

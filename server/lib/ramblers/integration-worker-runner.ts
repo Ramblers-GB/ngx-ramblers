@@ -66,7 +66,7 @@ function workerHoldUrl(): string | null {
   return appName ? `https://${appName}.fly.dev/api/integration-worker/hold` : null;
 }
 
-function startKeepAlive(jobId: string): () => void {
+export function startKeepAlive(jobId: string): () => void {
   const holdUrl = workerHoldUrl();
   if (!holdUrl) {
     debugLog("keep-alive not started for jobId:", jobId, "- no FLY_APP_NAME so the machine is not managed by Fly");

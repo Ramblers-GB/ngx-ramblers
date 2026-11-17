@@ -274,6 +274,21 @@ async function reconcileIncompleteRuns(taskId: string, taskName: string): Promis
   }
 }
 
+export const RUN_STOPPED_BY_SHUTDOWN_MESSAGE = "Stopped by a deploy or planned restart before it finished";
+
+export async function recordRunsStoppedByShutdown(): Promise<number> {
+  const stopped = [...taskRegistry.values()].flatMap(registered => registered.history
+    .filter(run => run.status === ScheduledTaskRunStatus.RUNNING && !run.completedAt)
+    .map(run => ({taskId: registered.definition.id, run})));
+  await Promise.all(stopped.map(({taskId, run}) => {
+    run.status = ScheduledTaskRunStatus.FAILED;
+    run.completedAt = dateTimeNow().toISO()!;
+    run.message = RUN_STOPPED_BY_SHUTDOWN_MESSAGE;
+    return persistRunCompletion(taskId, run);
+  }));
+  return stopped.length;
+}
+
 async function loadHistory(taskId: string): Promise<ScheduledTaskRun[]> {
   try {
     const records = await scheduledTaskRun.find({taskId}).sort({startedAt: -1}).limit(maximumHistoryEntries).lean();

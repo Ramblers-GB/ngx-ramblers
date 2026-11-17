@@ -406,7 +406,7 @@ export class BackupAndRestoreService {
               { site: options.environment, mongoTimestamp, concurrency: options.s3ObjectBackupConcurrency },
               (msg) => this.addLog(sessionId, msg),
               async () => {
-                const current = await this.session(sessionId);
+                const current = await this.sessionStatus(sessionId);
                 return current?.status === BackupSessionStatus.ABORTED;
               }
             );

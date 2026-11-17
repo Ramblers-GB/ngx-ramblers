@@ -13,6 +13,7 @@ import { flyAuthorizationHeader, MACHINES_API_BASE, missingFlyConfig } from "./f
 import { toMb } from "../shared/units";
 import { dateTimeNow } from "../shared/dates";
 import { flyRuntimeConfig } from "./fly-runtime-config";
+import { currentMachineState } from "./fly-machines";
 
 const debugLog = debug(envConfig.logNamespace("fly:metrics"));
 debugLog.enabled = true;
@@ -119,6 +120,19 @@ export async function organisationSlug(apiToken: string, appName: string, config
   }
 }
 
+export function noCurrentMetricsMessage(appName: string, machineId: string, org: string, machineState: string | null): string {
+  const machine = `app ${appName}${machineId ? ` machine ${machineId}` : ""}`;
+  if (machineState === "suspended" || machineState === "stopped") {
+    return `No current memory reading for ${machine}: the machine is ${machineState}, so Fly is not collecting metrics until it next starts`;
+  } else if (machineState && machineState !== "started") {
+    return `No current memory reading for ${machine}: the machine is ${machineState}`;
+  } else if (machineState === "started") {
+    return `No memory metrics found for ${machine} in org ${org} - the machine is running, so it may have only just started`;
+  } else {
+    return `No memory metrics found for ${machine} in org ${org}, and its state could not be read`;
+  }
+}
+
 function isNotAuthorisedForOrg(error: Error): boolean {
   return (error?.message || "").includes("403");
 }
@@ -168,20 +182,22 @@ export async function flyMachineMemoryStats(
       queryPrometheus(org, token, `fly_instance_memory_mem_available${selector(appName, machineId)}`)
     ]);
     if (!totalResult.length || !availableResult.length) {
+      const state = await currentMachineState(target, environmentName);
       return {
         available: false,
-        error: `No memory metrics found for app ${appName}${machineId ? ` machine ${machineId}` : ""} in org ${org} - the machine may have just restarted`
+        error: noCurrentMetricsMessage(appName, state.machineId || machineId, org, state.available ? state.state || null : null)
+      };
+    } else {
+      const totalBytes = Number(totalResult[0].value?.[1] ?? 0);
+      const availableBytes = Number(availableResult[0].value?.[1] ?? 0);
+      return {
+        available: true,
+        appName,
+        machineId,
+        memoryUsedMb: toMb(totalBytes - availableBytes),
+        memoryTotalMb: toMb(totalBytes)
       };
     }
-    const totalBytes = Number(totalResult[0].value?.[1] ?? 0);
-    const availableBytes = Number(availableResult[0].value?.[1] ?? 0);
-    return {
-      available: true,
-      appName,
-      machineId,
-      memoryUsedMb: toMb(totalBytes - availableBytes),
-      memoryTotalMb: toMb(totalBytes)
-    };
   } catch (error) {
     if (isNotAuthorisedForOrg(error)) {
       return { available: false, error: APP_SCOPED_TOKEN_ERROR };
