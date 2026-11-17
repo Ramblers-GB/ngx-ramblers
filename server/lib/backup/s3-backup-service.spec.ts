@@ -27,7 +27,8 @@ import {
   startS3Restore,
   previousSnapshotAppliesToBackup,
   isBackupAbortedError,
-  BackupAbortedError
+  BackupAbortedError,
+  throttledAbortCheck
 } from "./s3-backup-service";
 import { dateTimeFromIso } from "../shared/dates";
 import * as backupConfigService from "./backup-config";
@@ -309,6 +310,33 @@ describe("s3-backup-service", () => {
 
     it("ignores other errors", () => {
       expect(isBackupAbortedError(new Error("Access Denied"))).toEqual(false);
+    });
+
+  });
+
+  describe("throttledAbortCheck", () => {
+
+    it("asks once per interval however many objects are processed", async () => {
+      const clock = { nowMs: 1000 };
+      const shouldAbort = sinon.stub().resolves(false);
+      const abortRequested = throttledAbortCheck(shouldAbort, 5000, () => clock.nowMs);
+      await Promise.all(Array.from({ length: 50 }, () => abortRequested()));
+      clock.nowMs = 5999;
+      await abortRequested();
+      expect(shouldAbort.callCount).toEqual(1);
+      clock.nowMs = 6000;
+      await abortRequested();
+      expect(shouldAbort.callCount).toEqual(2);
+    });
+
+    it("keeps reporting an abort once it has been seen", async () => {
+      const clock = { nowMs: 0 };
+      const shouldAbort = sinon.stub().resolves(true);
+      const abortRequested = throttledAbortCheck(shouldAbort, 5000, () => clock.nowMs);
+      expect(await abortRequested()).toEqual(true);
+      clock.nowMs = 60000;
+      expect(await abortRequested()).toEqual(true);
+      expect(shouldAbort.callCount).toEqual(1);
     });
 
   });

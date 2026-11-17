@@ -3,8 +3,8 @@ import { CommonModule, DatePipe, DOCUMENT } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Params, Router } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
-import { firstValueFrom, interval, Subscription } from "rxjs";
-import { switchMap } from "rxjs/operators";
+import { firstValueFrom, from, interval, Subscription } from "rxjs";
+import { concatMap, switchMap, tap, toArray } from "rxjs/operators";
 import { isNumber, isString, isUndefined, kebabCase } from "es-toolkit/compat";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
@@ -375,7 +375,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                 <div class="row thumbnail-heading-frame">
                   <div class="thumbnail-heading">Backup/Restore History</div>
                   <div class="mb-3 row g-3 align-items-start">
-                    <div class="col-md-6">
+                    <div [class.col-md-6]="!historyEnvironmentFilterFullWidth()" [class.col-12]="historyEnvironmentFilterFullWidth()">
                       <app-environment-select
                         label="Environments"
                         [items]="environmentsWithMongo"
@@ -391,7 +391,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         }
                       </small>
                     </div>
-                    <div class="col-md-3">
+                    <div [class.col-md-3]="!historyEnvironmentFilterFullWidth()" [class.col-md-6]="historyEnvironmentFilterFullWidth()">
                       <label class="form-label" for="history-trigger-filter">Triggered by</label>
                       <select id="history-trigger-filter" class="form-select" [(ngModel)]="historyFilterTrigger"
                               (ngModelChange)="onHistoryFilterControlsChange()">
@@ -401,7 +401,7 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                         }
                       </select>
                     </div>
-                    <div class="col-md-3">
+                    <div [class.col-md-3]="!historyEnvironmentFilterFullWidth()" [class.col-md-6]="historyEnvironmentFilterFullWidth()">
                       <label class="form-label" for="history-status-filter">Status</label>
                       <select id="history-status-filter" class="form-select" [(ngModel)]="historyFilterStatus"
                               (ngModelChange)="onHistoryFilterControlsChange()">
@@ -445,6 +445,28 @@ const HISTORY_INVOCATION_GAP_MS = 15 * 60 * 1000;
                       }
                       @if (groupDuration(group); as overall) {
                         <span class="text-muted fw-normal ms-2">· overall {{ overall }}</span>
+                      }
+                      @if (groupAbortableSessions(group).length > 0) {
+                        @if (pendingAbortGroupKey === group.key) {
+                          <button type="button" class="btn btn-sm btn-danger ms-2"
+                                  container="body"
+                                  [tooltip]="'Confirm abort of ' + stringUtils.pluraliseWithCount(groupAbortableSessions(group).length, 'session')"
+                                  (click)="$event.stopPropagation(); confirmAbortGroup(group)">
+                            <fa-icon [icon]="faCheck"></fa-icon>
+                          </button>
+                          <button type="button" class="btn btn-sm btn-quiet ms-1"
+                                  container="body" tooltip="Keep these sessions"
+                                  (click)="$event.stopPropagation(); pendingAbortGroupKey = null">
+                            <fa-icon [icon]="faXmark"></fa-icon>
+                          </button>
+                        } @else {
+                          <button type="button" class="btn btn-sm btn-danger ms-2"
+                                  container="body"
+                                  tooltip="Abort all pending and in-progress sessions in this run"
+                                  (click)="$event.stopPropagation(); pendingAbortGroupKey = group.key">
+                            <fa-icon [icon]="faBan"></fa-icon>
+                          </button>
+                        }
                       }
                     </ng-template>
                     <ng-template appSortableTableCell="status" let-row>
@@ -707,6 +729,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   protected readonly faCheck = faCheck;
   protected readonly faXmark = faXmark;
   pendingAbortSessionId: string | null = null;
+  pendingAbortGroupKey: string | null = null;
 
   sessionAbortable(session: BackupSession): boolean {
     return session.status === BackupSessionStatus.PENDING || session.status === BackupSessionStatus.IN_PROGRESS;
@@ -725,6 +748,33 @@ export class BackupAndRestore implements OnInit, OnDestroy {
         },
         error: err => this.notify.error({
           title: "Could not abort session",
+          message: this.extractErrorMessage(err)
+        })
+      })
+    );
+  }
+
+  groupAbortableSessions(group: SortableTableGroup<BackupSessionHistoryRow>): BackupSessionHistoryRow[] {
+    return group.rows
+      .filter(row => this.sessionAbortable(row))
+      .sort((first, second) => Number(first.status === BackupSessionStatus.IN_PROGRESS) - Number(second.status === BackupSessionStatus.IN_PROGRESS));
+  }
+
+  confirmAbortGroup(group: SortableTableGroup<BackupSessionHistoryRow>) {
+    this.pendingAbortGroupKey = null;
+    const sessions = this.groupAbortableSessions(group);
+    this.subscriptions.push(
+      from(sessions).pipe(
+        concatMap(session => this.backupRestoreService.abortSession(session._id)),
+        tap(aborted => this.handleSessionUpdated(this.withExistingLogs(aborted))),
+        toArray()
+      ).subscribe({
+        next: aborted => this.notify.success({
+          title: "Sessions aborted",
+          message: `${this.stringUtils.pluraliseWithCount(aborted.length, "session")} in ${this.groupLabel(group)} now marked as aborted. Objects already copied stay in the archive for the next backup.`
+        }),
+        error: err => this.notify.error({
+          title: "Could not abort every session",
           message: this.extractErrorMessage(err)
         })
       })
@@ -751,6 +801,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   environmentsLoaded = false;
   environmentsWithMongo: EnvironmentInfo[] = [];
   selectedEnvironments: EnvironmentInfo[] = [];
+  private readonly historyEnvironmentFilterHalfWidthLimit = 3;
   backups: BackupListItem[] = [];
   selectedBackups: BackupListItem[] = [];
   backupDeleteConfirm = new Confirm();
@@ -919,6 +970,10 @@ export class BackupAndRestore implements OnInit, OnDestroy {
     return this.s3Manifests.find(manifest =>
       manifest.site === session.environment && manifest.mongoTimestamp === timestamp
     );
+  }
+
+  historyEnvironmentFilterFullWidth(): boolean {
+    return this.selectedEnvironments.length > this.historyEnvironmentFilterHalfWidthLimit;
   }
 
   onEnvironmentsChange(selected: EnvironmentInfo[]) {

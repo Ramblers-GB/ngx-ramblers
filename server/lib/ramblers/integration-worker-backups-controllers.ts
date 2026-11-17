@@ -17,6 +17,7 @@ import { backupAllEnvironments } from "../cron/backups-run";
 import { createBackupAndRestoreService } from "../backup/backup-service-factory";
 import { backupEvents, BackupEventMap } from "../backup/backup-events";
 import { isString } from "es-toolkit/compat";
+import { startKeepAlive } from "./integration-worker-runner";
 
 const debugLog = debug(envConfig.logNamespace("integration-worker-backups-controllers"));
 debugLog.enabled = true;
@@ -48,6 +49,7 @@ async function postResult(callback: IntegrationWorkerCallbackConfig, sharedSecre
 
 async function runBackups(request: IntegrationWorkerBackupsJobRequest): Promise<void> {
   const sharedSecret = envConfig.value(Environment.INTEGRATION_WORKER_SHARED_SECRET) || "";
+  const stopKeepAlive = startKeepAlive(request.jobId);
   const onSessionUpdated = ({session}: BackupEventMap["session-updated"]) => {
     const sessionMongoId = session._id?.toString();
     if (sessionMongoId && (!request.sessionMongoId || request.sessionMongoId === sessionMongoId)) {
@@ -96,6 +98,7 @@ async function runBackups(request: IntegrationWorkerBackupsJobRequest): Promise<
     });
   } finally {
     backupEvents.off("session-updated", onSessionUpdated);
+    stopKeepAlive();
     await mongoose.connection.close();
   }
 }
