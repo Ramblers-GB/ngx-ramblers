@@ -246,17 +246,17 @@ const MAP_LIST_BATCH_SIZE = 20;
           @if (!customising) {
             <div class="app-home-controls" role="group" aria-label="Walking app views and actions">
               @if (!embeddedLibrary) {
-                <button class="btn" [class.btn-primary]="view === AppHomeView.MAPS"
-                        [class.btn-quiet]="view !== AppHomeView.MAPS"
-                        type="button" (click)="chooseView(AppHomeView.MAPS)">
-                  <fa-icon [icon]="faMap"/>
-                  <span>Maps</span>
-                </button>
                 <button class="btn" [class.btn-primary]="view === AppHomeView.UPCOMING"
                         [class.btn-quiet]="view !== AppHomeView.UPCOMING"
                         type="button" (click)="chooseView(AppHomeView.UPCOMING)">
                   <fa-icon [icon]="faCalendarDay"/>
                   <span>Upcoming</span>
+                </button>
+                <button class="btn" [class.btn-primary]="view === AppHomeView.MAPS"
+                        [class.btn-quiet]="view !== AppHomeView.MAPS"
+                        type="button" (click)="chooseView(AppHomeView.MAPS)">
+                  <fa-icon [icon]="faMap"/>
+                  <span>Maps</span>
                 </button>
               }
               @if (view === AppHomeView.MAPS) {
@@ -546,7 +546,11 @@ const MAP_LIST_BATCH_SIZE = 20;
               </div>
             }
             @if (visibleRoutes().length === 0) {
-              <p class="app-home-empty">{{ emptyMapsMessage() }}</p>
+              @if (stillFinding()) {
+                <p class="app-home-empty"><fa-icon [icon]="faSpinner" animation="spin" class="me-2"/>Finding maps…</p>
+              } @else {
+                <p class="app-home-empty">{{ emptyMapsMessage() }}</p>
+              }
             }
           </section>
         }
@@ -554,10 +558,12 @@ const MAP_LIST_BATCH_SIZE = 20;
         @if (!customising && view === AppHomeView.UPCOMING) {
           <section class="app-home-section">
             <h2 class="visually-hidden">Upcoming walks</h2>
-            @if (loading) {
-              <p class="app-home-empty">Finding walks…</p>
-            } @else if (visibleWalks().length === 0) {
-              <p class="app-home-empty">{{ emptyWalksMessage() }}</p>
+            @if (visibleWalks().length === 0) {
+              @if (stillFinding()) {
+                <p class="app-home-empty"><fa-icon [icon]="faSpinner" animation="spin" class="me-2"/>Finding walks…</p>
+              } @else {
+                <p class="app-home-empty">{{ emptyWalksMessage() }}</p>
+              }
             }
             @for (walk of visibleWalks(); track walk.id) {
               <article class="app-home-card app-home-route-card">
@@ -751,7 +757,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
   protected readonly EventType = EventType;
   protected readonly FALLBACK_MEDIA = FALLBACK_MEDIA;
   protected walkThumbVisible: Record<string, boolean> = {};
-  protected view = AppHomeView.MAPS;
+  protected view = AppHomeView.UPCOMING;
   protected favouritesOnly = false;
   protected nearbyOnly = false;
   protected nearbyPlaceName: string | null = null;
@@ -771,6 +777,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
 
   protected walks: ExtendedGroupEvent[] = [];
   protected loading = true;
+  protected refreshing = false;
   protected groupName = walkingAppName();
   protected logoUrl: string | null = null;
   protected offlineByKey: Record<string, RouteFollowOfflineStatus> = {};
@@ -925,10 +932,10 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
     void this.listPreferences.refresh();
     this.subscriptions.push(this.activatedRoute.queryParamMap.subscribe(params => {
       this.customising = params.get(StoredValue.APP_SETTINGS) === "true";
+      this.view = this.embeddedLibrary || params.get(StoredValue.TAB) === AppHomeView.MAPS
+        ? AppHomeView.MAPS
+        : AppHomeView.UPCOMING;
     }));
-    this.view = this.embeddedLibrary || this.activatedRoute.snapshot.queryParamMap.get(StoredValue.TAB) !== AppHomeView.UPCOMING
-      ? AppHomeView.MAPS
-      : AppHomeView.UPCOMING;
     this.creator = this.activatedRoute.snapshot.queryParamMap.get(StoredValue.CREATOR) || "";
     this.favouritesOnly = this.activatedRoute.snapshot.queryParamMap.get(StoredValue.FAVOURITES) === "true";
     this.routeSearch = this.activatedRoute.snapshot.queryParamMap.get(StoredValue.SEARCH) || "";
@@ -1092,7 +1099,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
 
   chooseView(view: AppHomeView): void {
     this.view = view;
-    void this.uiActions.updateQueryParameter(StoredValue.TAB, view === AppHomeView.MAPS ? null : view);
+    void this.uiActions.updateQueryParameter(StoredValue.TAB, view === AppHomeView.UPCOMING ? null : view);
   }
 
   showHiddenMaps(): void {
@@ -1185,10 +1192,12 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
     return JSON.stringify([this.routeSearch, this.creator, this.favouritesOnly, this.nearbyOnly, this.nearbyMiles]);
   }
 
+  stillFinding(): boolean {
+    return this.loading || this.refreshing;
+  }
+
   emptyMapsMessage(): string {
-    if (this.loading) {
-      return "Finding maps…";
-    } else if (this.favouritesOnly) {
+    if (this.favouritesOnly) {
       return "No favourite maps yet.";
     } else if (this.nearbyOnly) {
       return this.nearbyEmptyMessage();
@@ -1610,6 +1619,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
     }
     this.loading = false;
     if (navigator.onLine) {
+      this.refreshing = true;
       try {
         const now = this.dateUtils.dateTimeNowNoTime();
         const until = now.plus({days: 90});
@@ -1667,6 +1677,8 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
         if (!hadSnapshot) {
           this.routes = localRoutes;
         }
+      } finally {
+        this.refreshing = false;
       }
     } else {
       if (!hadSnapshot) {

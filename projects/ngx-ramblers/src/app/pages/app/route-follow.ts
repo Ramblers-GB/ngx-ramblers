@@ -125,11 +125,13 @@ import {
   ROUTE_FOLLOW_LINE_WEIGHT_DEFAULT,
   ROUTE_FOLLOW_NETWORK_TIMEOUT_MS,
   ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD,
+  ROUTE_FOLLOW_SHEET_GHOST_CLICK_MS,
   RouteFollowOfflineStatus,
   RouteWaypointKind,
   sheetStateAfterDrag,
   RouteBranch,
-  ROUTE_FORK_PROMPT_METRES
+  ROUTE_FORK_PROMPT_METRES,
+  AppHomeView
 } from "../../models/route-follow.model";
 import { DEFAULT_OS_STYLE, MAP_BASEMAP_CHOICES, MapBasemapChoice, MapProvider } from "../../models/map.model";
 import { OsMapsBrandingHref } from "../../models/os-maps-branding.model";
@@ -1011,10 +1013,12 @@ import { SystemConfigService } from "../../services/system/system-config.service
                 <fa-icon [icon]="startControlIcon()"/>
                 {{ startControlLabel() }}
               </button>
-              <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="cancelEdit()" [disabled]="savingRoute">
-                <fa-icon [icon]="faTrash"/>
-                Discard
-              </button>
+              @if (!recordingStopAction) {
+                <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="cancelEdit()" [disabled]="savingRoute">
+                  <fa-icon [icon]="faTrash"/>
+                  Discard
+                </button>
+              }
               <button class="btn btn-primary follow-main-btn" type="button" (click)="recordingStopAction ? finishRecording() : saveRoute()" [disabled]="recordingActionDisabled">
                 @if (recordingStopAction) {
                   <fa-icon [icon]="faCircle" class="follow-recording-indicator" aria-hidden="true"
@@ -1223,6 +1227,9 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private sheetAnimation: Animation | null = null;
   private sheetDragLayout = {state: RouteFollowSheetState.MINIMISED, extras: false, startHeight: 0, lowerHeight: 0, upperHeight: 0};
   private sheetDrag = {active: false, pointerId: -1, startY: 0, lastY: 0, moved: false, target: null as HTMLElement | null};
+  private sheetGestureEndedAt: number | null = null;
+  private readonly sheetPointerDownListener = this.clearSheetClickSuppression.bind(this);
+  private readonly sheetClickListener = this.swallowSheetGhostClick.bind(this);
   protected editTool = RouteFollowEditTool.PENCIL;
   protected readonly faCircle = faCircle;
   protected readonly faCircleCheck = faCircleCheck;
@@ -1333,6 +1340,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private pointerMarker: L.Marker | null = null;
 
   ngOnInit(): void {
+    document.addEventListener("pointerdown", this.sheetPointerDownListener, true);
+    document.addEventListener("click", this.sheetClickListener, true);
     this.routeSave.setFollowScreenOpen(true);
     this.subscriptions.push(this.routeSave.websiteSaveRetry$.subscribe(() => this.retryPendingNetworkSave()));
     const storedDistanceUnit = this.uiActions.initialValueFor(StoredValue.DISTANCE_UNIT, DistanceUnit.MILES);
@@ -1401,6 +1410,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    document.removeEventListener("pointerdown", this.sheetPointerDownListener, true);
+    document.removeEventListener("click", this.sheetClickListener, true);
     this.sheetAnimation?.cancel();
     this.persistFollowSession(true);
     this.routeSave.setFollowScreenOpen(false);
@@ -2257,8 +2268,25 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       this.sheetDrag.active = false;
       this.sheetDrag.target = null;
       this.setDraggedSheetState(nextState);
-      this.sheetDrag.moved = true;
+      this.sheetDrag.moved = event.type !== "pointercancel";
+      this.sheetGestureEndedAt = this.sheetDrag.moved ? event.timeStamp : null;
     }
+  }
+
+  private clearSheetClickSuppression(): void {
+    this.sheetGestureEndedAt = null;
+    if (!this.sheetDrag.active) {
+      this.sheetDrag.moved = false;
+    }
+  }
+
+  private swallowSheetGhostClick(event: MouseEvent): void {
+    if (event.detail > 0 && this.sheetGestureEndedAt != null
+      && event.timeStamp - this.sheetGestureEndedAt < ROUTE_FOLLOW_SHEET_GHOST_CLICK_MS) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    this.clearSheetClickSuppression();
   }
 
   onSheetHandleClick(): void {
@@ -2649,7 +2677,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       this.fitRoute();
       this.clearFollowSession();
       if (this.payload?.source === RouteFollowSource.RECORDING) {
-        void this.router.navigate(["/app"], {replaceUrl: true});
+        void this.router.navigate(["/app"], {replaceUrl: true, queryParams: {[StoredValue.TAB]: AppHomeView.MAPS}});
       }
     }
   }

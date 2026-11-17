@@ -790,6 +790,7 @@ describe("follow sheet handle drag", () => {
     target.hasPointerCapture = vi.fn().mockReturnValue(type !== "pointerdown");
     const event = {
       type,
+      timeStamp: new Event(type).timeStamp,
       pointerId,
       clientY,
       cancelable: true,
@@ -914,6 +915,34 @@ describe("follow sheet handle drag", () => {
     handleEvent(view, "pointermove", 280);
     handleEvent(view, "pointerup", 280);
     expect(view["sheetState"]).toBe(RouteFollowSheetState.MINIMISED);
+  });
+
+  [
+    {label: "suppresses the click from the completed gesture", detail: 1, nextPointerDown: false, suppressed: true},
+    {label: "allows a fresh tap after a drag without a click", detail: 1, nextPointerDown: true, suppressed: false},
+    {label: "allows keyboard activation after a drag", detail: 0, nextPointerDown: false, suppressed: false}
+  ].forEach(({label, detail, nextPointerDown, suppressed}) => {
+    it(label, () => {
+      const view = handleView();
+      const pointerDownListener = view["clearSheetClickSuppression"].bind(view);
+      const clickListener = view["swallowSheetGhostClick"].bind(view);
+      document.addEventListener("pointerdown", pointerDownListener, true);
+      document.addEventListener("click", clickListener, true);
+      try {
+        handleEvent(view, "pointerdown", 400);
+        handleEvent(view, "pointermove", 320);
+        handleEvent(view, "pointerup", 320);
+        if (nextPointerDown) {
+          document.dispatchEvent(new Event("pointerdown"));
+        }
+        const click = new MouseEvent("click", {detail, bubbles: true, cancelable: true});
+        document.body.dispatchEvent(click);
+        expect(click.defaultPrevented).toBe(suppressed);
+      } finally {
+        document.removeEventListener("pointerdown", pointerDownListener, true);
+        document.removeEventListener("click", clickListener, true);
+      }
+    });
   });
 
   it("does not toggle again from the leftover click after a swipe", () => {
