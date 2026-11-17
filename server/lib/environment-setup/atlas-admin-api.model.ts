@@ -1,6 +1,7 @@
 export enum AtlasApiVersion {
   DEFAULT = "2023-01-01",
-  CLUSTERS = "2023-02-01"
+  CLUSTERS = "2023-02-01",
+  FLEX_CLUSTERS = "2024-11-13"
 }
 
 export interface AtlasApiAccess {
@@ -51,6 +52,18 @@ export interface AtlasClusterDescription {
 
 export interface AtlasClusterList {
   results?: AtlasClusterDescription[];
+}
+
+export interface AtlasFlexClusterDescription {
+  groupId?: string;
+  name?: string;
+  stateName?: string;
+  connectionStrings?: {standardSrv?: string};
+  providerSettings?: {backingProviderName?: string; providerName?: string; regionName?: string};
+}
+
+export interface AtlasFlexClusterList {
+  results?: AtlasFlexClusterDescription[];
 }
 
 export interface AtlasAccessList {

@@ -17,7 +17,9 @@ import {
   AtlasClusterTier,
   AtlasClusterView,
   EnvironmentAtlasClusterTab,
-  EnvironmentAtlasTab
+  EnvironmentAtlasTab,
+  isSharedTier,
+  nextSharedSitesClusterName
 } from "../../../models/atlas-cluster.model";
 import { AdminPlatformPath } from "../../../models/admin-route-paths.model";
 import { EnvironmentSetupTab } from "../../../models/environment-setup.model";
@@ -105,7 +107,7 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
           <fa-icon [icon]="faSpinner" class="me-2 mt-1" animation="spin"/>
           <div>
             <strong>Loading clusters</strong>
-            <div>Counting collections on each environment so we can see which clusters are full.</div>
+            <div>Counting the collections in each environment's database.</div>
           </div>
         </div>
       }
@@ -203,17 +205,18 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
       @if (activeClusterTab === EnvironmentAtlasClusterTab.CREATE) {
       <div class="row thumbnail-heading-frame mb-4">
         <div class="thumbnail-heading">Create cluster</div>
-        <p class="mb-3">Choose AWS Ireland for a free M0, or London for a dedicated tier. Atlas permits one M0 per project; choose a separate project for each group site. Start with a free M0 to prove cluster creation, credential storage and environment migration. Check storage and collection capacity before moving existing sites. You can upgrade or move databases later. Dedicated tiers require Atlas billing. Nothing is created in Atlas until you press Create cluster.</p>
+        <p class="mb-3">M0 and Flex are only offered in AWS Ireland; London is for dedicated tiers. Flex is the cheapest paid tier and takes several sites, up to 500 collections and 100 databases, so it can stay in the main project. Atlas permits one M0 per project, so an M0 needs a separate project. Check the cluster inventory before moving sites onto a cluster. Nothing is created in Atlas until you press Create cluster.</p>
         <div class="row">
           <div class="col-md-4 mb-2">
             <label class="form-label" for="new-cluster-name">Name</label>
             <input id="new-cluster-name" class="form-control" name="newClusterName" [(ngModel)]="createRequest.name" autocomplete="off"
-                   placeholder="ngx-ramblers-nonprod">
+                   placeholder="ngx-shared-sites-01">
+            <div class="form-text">A cluster shared by several group sites is named ngx-shared-sites- followed by the next number. A cluster for one group is named after the group, for example kent.</div>
           </div>
           <div class="col-md-4 mb-2">
             <label class="form-label" for="new-cluster-tier">Tier</label>
-            <select id="new-cluster-tier" class="form-control" name="newClusterTier" [(ngModel)]="createRequest.tier">
-              <option [value]="AtlasClusterTier.M0">M0 free (proof only, 500 collections)</option>
+            <select id="new-cluster-tier" class="form-control" name="newClusterTier" [(ngModel)]="createRequest.tier" (ngModelChange)="tierChanged($event)">
+              <option [value]="AtlasClusterTier.M0">M0 free (one per project, 500 collections)</option>
               <option [value]="AtlasClusterTier.FLEX">Flex ($8–30/month, 500 collections)</option>
               <option [value]="AtlasClusterTier.M10">M10 dedicated</option>
               <option [value]="AtlasClusterTier.M20">M20 dedicated (live groups)</option>
@@ -224,7 +227,7 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
             <label class="form-label">Region</label>
             <select class="form-control" name="clusterRegion" [(ngModel)]="createRequest.region">
               <option [value]="AwsRegion.EU_WEST_1">{{ awsRegionLabel(AwsRegion.EU_WEST_1) }}</option>
-              <option [value]="AwsRegion.EU_WEST_2">{{ awsRegionLabel(AwsRegion.EU_WEST_2) }}</option>
+              <option [value]="AwsRegion.EU_WEST_2" [disabled]="isSharedTier(createRequest.tier)">{{ awsRegionLabel(AwsRegion.EU_WEST_2) }}</option>
             </select>
           </div>
         </div>
@@ -375,6 +378,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly EnvironmentAtlasClusterTab = EnvironmentAtlasClusterTab;
   protected readonly environmentSetupGlobalQueryParams = {[StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS), [StoredValue.SUB_TAB]: EnvironmentSettingsSubTab.GLOBAL};
   protected readonly AtlasClusterTier = AtlasClusterTier;
+  protected readonly isSharedTier = isSharedTier;
   protected readonly AwsRegion = AwsRegion;
   protected readonly awsRegionLabel = awsRegionLabel;
   protected readonly AtlasClusterState = AtlasClusterState;
@@ -398,13 +402,13 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   activeClusterTab = EnvironmentAtlasClusterTab.INVENTORY;
   clusterTabs: SectionToggleTab[] = [
     {value: EnvironmentAtlasClusterTab.INVENTORY, label: "Cluster inventory", icon: faList},
-    {value: EnvironmentAtlasClusterTab.CREATE, label: "Create cluster", icon: faPlus}
+    {value: EnvironmentAtlasClusterTab.CREATE, label: "New cluster", icon: faPlus}
   ];
   createRequest: AtlasClusterCreateRequest = {
-    name: "group-sites",
-    tier: AtlasClusterTier.M0,
+    name: nextSharedSitesClusterName([]),
+    tier: AtlasClusterTier.FLEX,
     region: AwsRegion.EU_WEST_1,
-    separateProject: true,
+    separateProject: false,
     setAsDefault: true,
     allowAllNetworkAccess: true
   };
@@ -490,6 +494,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
       this.view = await this.environmentSetupService.atlasClusters();
       this.projectId = this.view.projectId || "";
       this.defaultCluster = this.view.defaultCluster || "";
+      this.createRequest.name = nextSharedSitesClusterName(this.view.clusters.map(cluster => cluster.name));
       this.syncDefaultClusterSelect();
     } catch (error) {
       this.errorMessage = error?.error?.error || error?.message || "Could not load Atlas clusters";
@@ -545,6 +550,13 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
     this.defaultCluster = host;
     this.syncDefaultClusterSelect();
     await this.saveProvisioning();
+  }
+
+  tierChanged(tier: AtlasClusterTier) {
+    if (isSharedTier(tier)) {
+      this.createRequest.region = AwsRegion.EU_WEST_1;
+    }
+    this.createRequest.separateProject = tier === AtlasClusterTier.M0;
   }
 
   async createCluster() {

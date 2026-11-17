@@ -144,15 +144,30 @@ export function atlasTierFromInstanceSize(instanceSize: string | null | undefine
   }
 }
 
+export const SHARED_SITES_CLUSTER_PREFIX = "ngx-shared-sites-";
+
+export function nextSharedSitesClusterName(clusterNames: string[]): string {
+  const numbers = clusterNames
+    .map(name => name.match(new RegExp(`^${SHARED_SITES_CLUSTER_PREFIX}(\\d+)$`))?.[1])
+    .filter(match => !!match)
+    .map(match => parseInt(match, 10));
+  const next = numbers.length ? Math.max(...numbers) + 1 : 1;
+  return `${SHARED_SITES_CLUSTER_PREFIX}${String(next).padStart(2, "0")}`;
+}
+
+export function isSharedTier(tier: AtlasClusterTier): boolean {
+  return tier === AtlasClusterTier.M0 || tier === AtlasClusterTier.FLEX;
+}
+
 export function clusterCapacity(instanceSize: AtlasClusterTier, collections: number, indexes: number, databases: number, newEnvironmentCollections = NEW_ENVIRONMENT_COLLECTION_HEADROOM, newEnvironmentIndexes = NEW_ENVIRONMENT_INDEX_HEADROOM): {canAdd: boolean; headline: string} {
   const nextCollections = collections + newEnvironmentCollections;
   const nextCombined = collections + indexes + newEnvironmentCollections + newEnvironmentIndexes;
   const recommended = ATLAS_RECOMMENDED_COLLECTION_AND_INDEX_LIMIT[instanceSize];
-  if (instanceSize === AtlasClusterTier.M0 || instanceSize === AtlasClusterTier.FLEX) {
+  if (isSharedTier(instanceSize)) {
     if (databases >= ATLAS_M0_MAX_DATABASES) {
-      return {canAdd: false, headline: `Free clusters allow ${ATLAS_M0_MAX_DATABASES} databases. Create another cluster before adding a site.`};
+      return {canAdd: false, headline: `M0 and Flex clusters allow ${ATLAS_M0_MAX_DATABASES} databases. Create another cluster before adding a site.`};
     } else if (nextCollections > ATLAS_M0_MAX_COLLECTIONS) {
-      return {canAdd: false, headline: `Free clusters allow ${ATLAS_M0_MAX_COLLECTIONS} collections in total. This cluster has ${collections}, and the registration template has ${newEnvironmentCollections} collections. Create another cluster.`};
+      return {canAdd: false, headline: `M0 and Flex clusters allow ${ATLAS_M0_MAX_COLLECTIONS} collections in total. This cluster has ${collections}, and the registration template has ${newEnvironmentCollections} collections. Create another cluster.`};
     } else {
       return {canAdd: true, headline: `${collections} of ${ATLAS_M0_MAX_COLLECTIONS} collections used. The registration template has ${newEnvironmentCollections} collections.`};
     }

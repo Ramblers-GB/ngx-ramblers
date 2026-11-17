@@ -17,7 +17,8 @@ import {
   NEW_ENVIRONMENT_COLLECTION_HEADROOM,
   NEW_ENVIRONMENT_INDEX_HEADROOM,
   atlasTierFromInstanceSize,
-  clusterCapacity
+  clusterCapacity,
+  isSharedTier
 } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import {
   AtlasConfig,
@@ -29,7 +30,17 @@ import {
   MongoConfig
 } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { atlasRequest } from "./atlas-admin-api";
-import { AtlasAccessList, AtlasApiAccess, AtlasApiVersion, AtlasClusterDescription, AtlasClusterList, AtlasError } from "./atlas-admin-api.model";
+import {
+  AtlasAccessList,
+  AtlasApiAccess,
+  AtlasApiVersion,
+  AtlasClusterDescription,
+  AtlasClusterList,
+  AtlasError,
+  AtlasFlexClusterDescription,
+  AtlasFlexClusterList,
+  AtlasResponse
+} from "./atlas-admin-api.model";
 import { atlasProjectForCluster } from "./atlas-projects";
 import { platformAtlasAccess } from "./mongo-database-user";
 
@@ -47,8 +58,26 @@ export function clusterHostFromSrv(standardSrv: string): string {
   }
 }
 
+export function atlasFlexClusterCreateBody(name: string, region: AwsRegion): Record<string, unknown> {
+  return {
+    name,
+    providerSettings: {backingProviderName: "AWS", regionName: atlasApiRegionName(region)},
+    terminationProtectionEnabled: false
+  };
+}
+
+export function clusterDescriptionFromFlex(flex: AtlasFlexClusterDescription): AtlasClusterDescription {
+  return {
+    groupId: flex.groupId,
+    name: flex.name,
+    stateName: flex.stateName,
+    connectionStrings: flex.connectionStrings,
+    replicationSpecs: [{regionConfigs: [{electableSpecs: {instanceSize: AtlasClusterTier.FLEX}, providerName: flex.providerSettings?.providerName, backingProviderName: flex.providerSettings?.backingProviderName, regionName: flex.providerSettings?.regionName}]}]
+  };
+}
+
 export function atlasClusterCreateBody(name: string, tier: AtlasClusterTier, region: AwsRegion): Record<string, unknown> {
-  const tenant = tier === AtlasClusterTier.M0 || tier === AtlasClusterTier.FLEX;
+  const tenant = isSharedTier(tier);
   return {
     name,
     clusterType: "REPLICASET",
@@ -206,6 +235,26 @@ function rollupClusters(
   }).sort((left, right) => left.host.localeCompare(right.host));
 }
 
+async function projectClusters(atlas: AtlasApiAccess): Promise<AtlasResponse<AtlasClusterList & AtlasError>> {
+  const id = atlas.projectId;
+  const [dedicated, flex] = await Promise.all([
+    atlasRequest<AtlasClusterList & AtlasError>(atlas, "GET", `/groups/${id}/clusters?itemsPerPage=100`, null, AtlasApiVersion.CLUSTERS),
+    atlasRequest<AtlasFlexClusterList & AtlasError>(atlas, "GET", `/groups/${id}/flexClusters?itemsPerPage=100`, null, AtlasApiVersion.FLEX_CLUSTERS)
+  ]);
+  if (dedicated.status >= 300) {
+    return dedicated;
+  } else {
+    if (flex.status >= 300) {
+      debugLog("flex clusters: project %s returned %s %o", id, flex.status, flex.body);
+    }
+    const flexClusters = flex.status < 300 ? (flex.body?.results || []).map(clusterDescriptionFromFlex) : [];
+    const flexNames = new Set(flexClusters.map(cluster => cluster.name));
+    const results = [...(dedicated.body?.results || []).filter(cluster => !flexNames.has(cluster.name)), ...flexClusters]
+      .map(cluster => ({...cluster, groupId: id}));
+    return {status: dedicated.status, body: {...dedicated.body, results}};
+  }
+}
+
 export async function atlasClusterView(): Promise<AtlasClusterView> {
   const config = await configuredEnvironments();
   const settings = await registrationSettings();
@@ -224,10 +273,7 @@ export async function atlasClusterView(): Promise<AtlasClusterView> {
     atlasState.error = "Add the Atlas project ID and API keys, then you can create clusters in this project.";
   } else {
     const projectIds = Array.from(new Set([projectId, ...(config.atlas?.managedProjects || []).map(project => project.projectId)]));
-    const responses = await Promise.all(projectIds.map(async id => {
-      const response = await atlasRequest<AtlasClusterList & AtlasError>({...atlas, projectId: id}, "GET", `/groups/${id}/clusters?itemsPerPage=100`, null, AtlasApiVersion.CLUSTERS);
-      return {...response, body: {...response.body, results: (response.body?.results || []).map(cluster => ({...cluster, groupId: id}))}};
-    }));
+    const responses = await Promise.all(projectIds.map(id => projectClusters({...atlas, projectId: id})));
     const failed = responses.find(response => response.status >= 300);
     const listed = failed || {status: 200, body: {results: responses.flatMap(response => response.body.results)}};
     if (listed.status >= 300) {
@@ -305,6 +351,15 @@ function atlasFailure(action: string, status: number, error: AtlasError | null):
   return new Error(`MongoDB Atlas would not ${action} (${status}${error?.errorCode ? ` ${error.errorCode}` : ""}): ${error?.detail || error?.reason || "no detail given"}`);
 }
 
+async function requestClusterCreate(atlas: AtlasApiAccess, name: string, tier: AtlasClusterTier, region: AwsRegion): Promise<AtlasResponse<AtlasClusterDescription & AtlasError>> {
+  if (tier === AtlasClusterTier.FLEX) {
+    const created = await atlasRequest<AtlasFlexClusterDescription & AtlasError>(atlas, "POST", `/groups/${atlas.projectId}/flexClusters`, atlasFlexClusterCreateBody(name, region), AtlasApiVersion.FLEX_CLUSTERS);
+    return created.status >= 300 ? created : {status: created.status, body: clusterDescriptionFromFlex(created.body || {})};
+  } else {
+    return atlasRequest<AtlasClusterDescription & AtlasError>(atlas, "POST", `/groups/${atlas.projectId}/clusters`, atlasClusterCreateBody(name, tier, region), AtlasApiVersion.CLUSTERS);
+  }
+}
+
 export async function createAtlasCluster(request: AtlasClusterCreateRequest): Promise<{cluster: AtlasClusterRow | null; message: string}> {
   const atlas = await platformAtlasAccess();
   if (!atlas.projectId) {
@@ -324,15 +379,11 @@ export async function createAtlasCluster(request: AtlasClusterCreateRequest): Pr
       throw new Error("Choose AWS Ireland or London.");
     } else if (request.tier === AtlasClusterTier.M0 && region === AwsRegion.EU_WEST_2) {
       throw new Error("Atlas does not offer a free M0 in AWS London. Choose Ireland.");
+    } else if (request.tier === AtlasClusterTier.FLEX && region === AwsRegion.EU_WEST_2) {
+      throw new Error("Atlas does not offer Flex in AWS London. Choose Ireland, or a dedicated tier for London.");
     }
     const targetAtlas = request.separateProject ? await atlasProjectForCluster(atlas, name) : atlas;
-    const created = await atlasRequest<AtlasClusterDescription & AtlasError>(
-      targetAtlas,
-      "POST",
-      `/groups/${targetAtlas.projectId}/clusters`,
-      atlasClusterCreateBody(name, request.tier, region),
-      AtlasApiVersion.CLUSTERS
-    );
+    const created = await requestClusterCreate(targetAtlas, name, request.tier, region);
     if (created.status >= 300) {
       throw atlasFailure("create the cluster", created.status, created.body);
     } else {
