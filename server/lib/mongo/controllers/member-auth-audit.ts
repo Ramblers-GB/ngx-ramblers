@@ -5,18 +5,23 @@ import { envConfig } from "../../env-config/env-config";
 import { parseError } from "./transforms";
 import { ApiAction } from "../../../../projects/ngx-ramblers/src/app/models/api-response.model";
 import { latestLoginsFromAudits } from "../../../../projects/ngx-ramblers/src/app/functions/member-latest-login";
-import { MemberLoginAuditSource } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
+import { LatestLoginGroup, MemberLoginAuditSource } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 
 const debugLog = debug(envConfig.logNamespace("member-auth-audit"));
 debugLog.enabled = false;
 
 export async function latestLoginTimes(req: Request, res: Response): Promise<void> {
   try {
-    const documents = await memberAuthAudit.find({})
-      .select("userName loginTime member.memberId")
-      .lean()
-      .exec();
-    const response = latestLoginsFromAudits(documents as MemberLoginAuditSource[]);
+    const latestPerMemberAndUserName: LatestLoginGroup[] = await memberAuthAudit.aggregate([
+      {$match: {loginTime: {$type: "number"}}},
+      {$group: {_id: {memberId: "$member.memberId", userName: "$userName"}, loginTime: {$max: "$loginTime"}}}
+    ]).exec();
+    const audits: MemberLoginAuditSource[] = latestPerMemberAndUserName.map(group => ({
+      userName: group._id.userName,
+      loginTime: group.loginTime,
+      member: {memberId: group._id.memberId}
+    }));
+    const response = latestLoginsFromAudits(audits);
     debugLog(req.query, "latestLoginTimes", response.length);
     res.status(200).json({
       action: ApiAction.QUERY,

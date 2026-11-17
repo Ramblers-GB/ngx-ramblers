@@ -8,6 +8,7 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { Subject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
 import { AlertTarget } from "../../../models/alert-target.model";
+import { ApiAction } from "../../../models/api-response.model";
 import {
   MEMBER_ADMIN_SITE_USE_FILTER_GROUP,
   Member,
@@ -18,6 +19,7 @@ import {
   ASCENDING,
   DESCENDING,
   ALL_MEMBERS_FILTER_TITLE,
+  WALK_LEADER_FILTER_TITLE,
   MEMBER_SORT,
   MemberTableFilter,
   NOT_RECEIVED_IN_LAST_RAMBLERS_BULK_LOAD,
@@ -55,7 +57,7 @@ import {
 import { MemberDefaultsService } from "../../../services/member/member-defaults.service";
 import { MailchimpConfig } from "../../../models/mailchimp.model";
 import { MailchimpConfigService } from "../../../services/mailchimp-config.service";
-import { faCopy, faEnvelope, faPhone, faComment, faSearch, faShareNodes, faUserCheck, faUserXmark } from "@fortawesome/free-solid-svg-icons";
+import { faCopy, faEnvelope, faPhone, faComment, faShareNodes, faUserCheck, faUserXmark } from "@fortawesome/free-solid-svg-icons";
 import { faWhatsapp } from "@fortawesome/free-brands-svg-icons";
 import { ContactAction, ContactActionDropdownComponent } from "../../../modules/common/contact-action-dropdown/contact-action-dropdown";
 import { ClipboardService } from "../../../services/clipboard.service";
@@ -76,13 +78,14 @@ import { UiActionsService } from "../../../services/ui-actions.service";
 import { MemberTerm } from "../../../models/member.model";
 import { MessageType, ProgressResponse } from "../../../models/websocket.model";
 import { WebSocketClientService } from "../../../services/websockets/websocket-client.service";
+import { SearchInputComponent } from "../../../modules/common/search-input/search-input";
 
 
 @Component({
     selector: "app-member-admin",
     templateUrl: "./member-admin.component.html",
     styleUrls: ["./member-admin.component.sass"],
-    imports: [PageComponent, FontAwesomeModule, FormsModule, NgClass, SwitchIconComponent, TitleCasePipe, DisplayDateNoDayPipe, ContactActionDropdownComponent, NgSelectComponent, NgOptgroupTemplateDirective]
+    imports: [PageComponent, FontAwesomeModule, FormsModule, NgClass, SwitchIconComponent, TitleCasePipe, DisplayDateNoDayPipe, ContactActionDropdownComponent, NgSelectComponent, NgOptgroupTemplateDirective, SearchInputComponent]
 })
 export class MemberAdminComponent implements OnInit, OnDestroy {
 
@@ -129,11 +132,12 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
   filters: any;
   private subscriptions: Subscription[] = [];
   public confirm = new Confirm();
-  private walkLeaders: string[];
+  private walkLeaders: Set<string> | null = null;
+  private walkLeadersLoad: Promise<void> | null = null;
+  private walkLeadersLoadFailed = false;
   public systemConfig: SystemConfig;
   protected readonly MailProvider = MailProvider;
   protected readonly faUserXmark = faUserXmark;
-  protected readonly faSearch = faSearch;
   protected readonly faUserCheck = faUserCheck;
   protected readonly faEnvelope = faEnvelope;
   protected readonly MemberTerm = MemberTerm;
@@ -144,6 +148,11 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
   private pendingMembershipNumberToOpen: string | null = null;
   private lastOpenedMembershipNumber: string | null = null;
   private lastLoginIndex: LastLoginIndex = emptyLastLoginIndex();
+  private bulkLoadMembershipNumbers = new Set<string>();
+  private phoneActionsByMember = new WeakMap<Member, ContactAction[]>();
+  private emailActionsByMember = new WeakMap<Member, ContactAction[]>();
+  private membersLoad: Promise<Member[]> | null = null;
+  public membersLoaded = false;
 
   async ngOnInit() {
     this.subscriptions.push(this.route.queryParamMap.subscribe(params => {
@@ -174,11 +183,9 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
     }));
     this.notify = this.notifierService.createAlertInstance(this.notifyTarget);
     this.logger.info("subscribing to systemConfigService events");
-    this.subscriptions.push(this.systemConfigService.events().subscribe(async (systemConfig: SystemConfig) => {
+    this.subscriptions.push(this.systemConfigService.events().subscribe((systemConfig: SystemConfig) => {
       this.systemConfig = systemConfig;
       this.logger.debug("retrieved systemConfig", systemConfig);
-      this.walkLeaders = await this.walksAndEventsService.queryWalkLeaders();
-      this.logger.info("walkLeaders:", this.walkLeaders);
     }));
     this.subscriptions.push(this.profileService.subscribeToLogout(this.logger));
     this.logger.off("ngOnInit");
@@ -190,19 +197,30 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
     this.memberLoginService.showLoginPromptWithRouteParameter("expenseId");
     this.logger.off("this.memberFilter:", this.memberFilter);
     this.generateFilters();
-    this.refreshMembers();
-    this.mailchimpConfig = await this.mailchimpConfigService.getConfig();
-    this.latestMemberBulkLoadAudit = await this.memberBulkLoadAuditService.findLatestBulkLoadAudit();
-    this.refreshUnsubscribeHistory();
     this.subscriptions.push(this.memberService.changeNotifications().subscribe(apiResponse => {
       if (apiResponse.error) {
         this.logger.warn("received error:", apiResponse.error);
+      } else if (apiResponse.action === ApiAction.QUERY) {
+        this.logger.info("ignoring query notification so a partial read never replaces the table");
       } else {
         this.members = this.apiResponseProcessor.processResponse(this.apiResponseProcessorLogger, this.members, apiResponse);
         this.applyFilterToMembers();
         this.openPendingMemberIfReady();
       }
     }));
+    const membersLoad = this.refreshMembers();
+    const [mailchimpConfig, latestMemberBulkLoadAudit] = await Promise.all([
+      this.mailchimpConfigService.getConfig(),
+      this.memberBulkLoadAuditService.findLatestBulkLoadAuditMembershipNumbers()
+    ]);
+    this.mailchimpConfig = mailchimpConfig;
+    this.latestMemberBulkLoadAudit = latestMemberBulkLoadAudit;
+    this.bulkLoadMembershipNumbers = new Set((latestMemberBulkLoadAudit?.members || [])
+      .map(memberInAudit => memberInAudit.membershipNumber)
+      .filter(membershipNumber => !!membershipNumber));
+    await membersLoad;
+    this.applyFilterToMembers();
+    this.refreshUnsubscribeHistory();
     this.subscriptions.push(this.memberService.deletionNotifications().subscribe(apiResponse => {
       if (apiResponse.error) {
         this.logger.warn("received error:", apiResponse.error);
@@ -366,7 +384,7 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
         title: "Not Committee Member", group: "Administrators", filter: (member: Member) => !member.committee
       },
       {
-        title: "Walk Leader", group: "Administrators", filter: (member: Member) => this.isWalkLeader(member)
+        title: WALK_LEADER_FILTER_TITLE, group: "Administrators", filter: (member: Member) => this.isWalkLeader(member)
       }
     ];
     const previousResults = this.memberFilter?.results || [];
@@ -409,7 +427,23 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
   }
 
   isWalkLeader(member: Member): boolean {
-    return this.walkLeaders.includes(member.id) || this.walkLeaders.includes(member.displayName);
+    return !!this.walkLeaders && (this.walkLeaders.has(member.id) || this.walkLeaders.has(member.displayName));
+  }
+
+  private loadWalkLeadersIfFiltering(): void {
+    if (this.memberFilter?.selectedFilter?.title === WALK_LEADER_FILTER_TITLE && !this.walkLeaders && !this.walkLeadersLoad) {
+      this.walkLeadersLoadFailed = false;
+      this.walkLeadersLoad = this.walksAndEventsService.queryWalkLeaders()
+        .then(walkLeaders => {
+          this.walkLeaders = new Set(walkLeaders);
+          this.applyFilterToMembers();
+        })
+        .catch(error => {
+          this.walkLeadersLoadFailed = true;
+          this.logger.error("loadWalkLeadersIfFiltering:failed", error);
+        })
+        .finally(() => this.walkLeadersLoad = null);
+    }
   }
 
   private async refreshUnsubscribeHistory(): Promise<void> {
@@ -449,6 +483,7 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
 
   applyFilterToMembers(searchTerm?: string) {
     if (this.memberFilter) {
+      this.loadWalkLeadersIfFiltering();
       this.notify.setBusy();
       const filter = this.memberFilter?.selectedFilter?.filter;
       const sort = this.memberFilter.sortFunction;
@@ -481,6 +516,18 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
 
   async showMemberDialog(member: Member, editMode: EditMode) {
     this.notify.hide();
+    const fullMember = await this.fullMemberFor(member);
+    if (fullMember) {
+      await this.openMemberDialog(member, fullMember, editMode);
+    } else {
+      this.notify.error({
+        title: "Edit Member",
+        message: `The record for ${this.memberLabel(member)} could not be loaded. It may have been deleted - reload the page and try again.`
+      });
+    }
+  }
+
+  private async openMemberDialog(member: Member, fullMember: Member, editMode: EditMode) {
     const memberIdentifier = member.membershipNumber || member.id;
     this.lastOpenedMembershipNumber = memberIdentifier || null;
     const needsModalTab = !this.route.snapshot.queryParamMap.get(StoredValue.MODAL_TAB);
@@ -505,13 +552,38 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
       initialState: {
         editMode,
         lastBulkLoadDate: this.latestMemberBulkLoadAudit?.createdDate,
-        receivedInLastBulkLoad: this.receivedInLastBulkLoad(member),
-        member: cloneDeep(member),
+        receivedInLastBulkLoad: this.receivedInLastBulkLoad(fullMember),
+        member: fullMember,
         members: this.members,
       }
     };
     this.logger.info("showMemberDialog:config:", config);
     this.modalService.show(MemberAdminModalComponent, config);
+  }
+
+  private async fullMemberFor(member: Member): Promise<Member | null> {
+    if (member.id) {
+      this.notify.setBusy();
+      try {
+        const fullMember = await this.memberService.getById(member.id);
+        return fullMember?.id ? fullMember : null;
+      } catch (error) {
+        this.logger.error("fullMemberFor:failed", member.id, error);
+        return null;
+      } finally {
+        this.notify.clearBusy();
+      }
+    } else {
+      return cloneDeep(member);
+    }
+  }
+
+  walkLeadersLoading(): boolean {
+    return this.memberFilter?.selectedFilter?.title === WALK_LEADER_FILTER_TITLE && !!this.walkLeadersLoad;
+  }
+
+  walkLeadersUnavailable(): boolean {
+    return this.memberFilter?.selectedFilter?.title === WALK_LEADER_FILTER_TITLE && this.walkLeadersLoadFailed;
   }
 
   showSendEmailsDialog() {
@@ -571,8 +643,23 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
   }
 
   onFilterChange(memberFilter: TableFilterItem) {
-    this.memberFilter.selectedFilter = memberFilter || this.allMembersFilter();
-    this.refreshMembers();
+    if (memberFilter) {
+      this.memberFilter.selectedFilter = memberFilter;
+      this.applyFilterToMembers();
+    } else {
+      this.clearSearchAndFilter();
+    }
+  }
+
+  clearSearchAndFilter() {
+    this.quickSearch = "";
+    this.searchChangeObservable.next("");
+    this.memberFilter.selectedFilter = this.allMembersFilter();
+    this.applyFilterToMembers();
+  }
+
+  searchOrFilterActive(): boolean {
+    return !!this.quickSearch || this.filterIsActive();
   }
 
   filterIsActive(): boolean {
@@ -588,23 +675,37 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
     if (memberFilter) {
       this.memberFilter.selectedFilter = memberFilter;
     }
-    if (this.memberLoginService.allowMemberAdminEdits()) {
+    if (this.membersLoad) {
+      return this.membersLoad;
+    } else if (this.memberLoginService.allowMemberAdminEdits()) {
       this.notify.setBusy();
-      return this.memberService.all()
-        .then(async refreshedMembers => {
-          this.members = refreshedMembers;
-          this.logger.off("refreshMembers:found", refreshedMembers.length, "members");
-          try {
-            this.lastLoginIndex = lastLoginIndex(await this.memberAuthAuditService.latestLoginTimes());
-          } catch (error) {
-            this.logger.error("refreshMembers:latestLoginTimes failed", error);
-            this.lastLoginIndex = emptyLastLoginIndex();
-          }
-          this.applyFilterToMembers();
-          return this.members;
-        });
+      this.membersLoad = Promise.all([
+        this.memberService.adminTableMembers(),
+        this.latestLoginIndex()
+      ]).then(([refreshedMembers, latestLoginIndex]) => {
+        this.members = refreshedMembers;
+        this.lastLoginIndex = latestLoginIndex;
+        this.membersLoaded = true;
+        this.logger.off("refreshMembers:found", refreshedMembers.length, "members");
+        this.applyFilterToMembers();
+        this.openPendingMemberIfReady();
+        return this.members;
+      }).finally(() => {
+        this.membersLoad = null;
+        this.notify.clearBusy();
+      });
+      return this.membersLoad;
     } else {
       return Promise.resolve(this.members);
+    }
+  }
+
+  private async latestLoginIndex(): Promise<LastLoginIndex> {
+    try {
+      return lastLoginIndex(await this.memberAuthAuditService.latestLoginTimes());
+    } catch (error) {
+      this.logger.error("refreshMembers:latestLoginTimes failed", error);
+      return emptyLastLoginIndex();
     }
   }
 
@@ -686,7 +787,13 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
   }
 
   public async updateLists() {
-    await this.memberDefaultsService.updateLists(this.systemConfig, this.notify, this.members);
+    this.notify.setBusy();
+    try {
+      const fullMembers = await this.memberService.all();
+      await this.memberDefaultsService.updateLists(this.systemConfig, this.notify, fullMembers);
+    } finally {
+      this.notify.clearBusy();
+    }
   }
 
   selectAllForBulkDelete() {
@@ -721,7 +828,7 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
   }
 
   receivedInLastBulkLoad(member: Member): boolean {
-    return this.memberBulkLoadAuditService.receivedInBulkLoad(member, true, this.latestMemberBulkLoadAudit);
+    return !!member?.membershipNumber && this.bulkLoadMembershipNumbers.has(member.membershipNumber);
   }
 
   lastLoginTime(member: Member): number | null {
@@ -854,6 +961,20 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
       return brevoListMatch;
     }
     return paramField;
+  }
+
+  phoneActions(member: Member): ContactAction[] {
+    if (!this.phoneActionsByMember.has(member)) {
+      this.phoneActionsByMember.set(member, this.phoneActionsFor(member.mobileNumber, this.memberLabel(member)));
+    }
+    return this.phoneActionsByMember.get(member);
+  }
+
+  emailActions(member: Member): ContactAction[] {
+    if (!this.emailActionsByMember.has(member)) {
+      this.emailActionsByMember.set(member, this.emailActionsFor(member.email, this.memberLabel(member), member.id));
+    }
+    return this.emailActionsByMember.get(member);
   }
 
   phoneActionsFor(phone: string, displayName: string): ContactAction[] {

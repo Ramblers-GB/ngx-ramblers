@@ -61,6 +61,11 @@ export interface MemberLoginAuditSource {
   member?: { memberId?: string };
 }
 
+export interface LatestLoginGroup {
+  _id: { memberId?: string; userName?: string };
+  loginTime: number;
+}
+
 export interface MemberLatestLoginApiResponse extends ApiResponse {
   request: any;
   response?: MemberLatestLogin[];

@@ -72,12 +72,13 @@ import { UIDateFormat } from "../../../models/date-format.model";
 import { CommitteeConfigService } from "../../../services/committee/commitee-config.service";
 import { CommitteeReferenceData } from "../../../services/committee/committee-reference-data";
 import { ThumbnailHeadingFrameComponent } from "../../../modules/common/thumbnail-heading-frame/thumbnail-heading-frame";
+import { SearchInputComponent } from "../../../modules/common/search-input/search-input";
 import { DELAYED_TOOLTIP_PROVIDERS } from "../../../modules/common/tooltip-config";
 
 @Component({
   selector: "app-inbox",
   providers: [InboxLayoutService, InboxMessageRenderingService, InboxConversationsService, ...DELAYED_TOOLTIP_PROVIDERS],
-  imports: [EmailCompositionListComponent, InboxMessageComponent, CommonModule, FormsModule, FontAwesomeModule, PageComponent, DatePipe, TooltipDirective, BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective, ResizerComponent, RouterLink, MaximisablePanelComponent, InboxOrphanedThreadsComponent, CommitteeUnassignedRolesComponent, SectionToggle, ThumbnailHeadingFrameComponent],
+  imports: [EmailCompositionListComponent, InboxMessageComponent, CommonModule, FormsModule, FontAwesomeModule, PageComponent, DatePipe, TooltipDirective, BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective, ResizerComponent, RouterLink, MaximisablePanelComponent, InboxOrphanedThreadsComponent, CommitteeUnassignedRolesComponent, SectionToggle, ThumbnailHeadingFrameComponent, SearchInputComponent],
   styleUrls: ["./inbox.component.sass"],
   template: `
     <app-page pageTitle="Mail" [showTitle]="false" [showBreadcrumb]="!layout.mobile">
@@ -542,22 +543,11 @@ import { DELAYED_TOOLTIP_PROVIDERS } from "../../../modules/common/tooltip-confi
                 </div>
               }
               @if (threadListTotalCount > 0 || conversationSearchTerm) {
-                <div class="input-group input-group-sm flex-grow-1 min-w-0">
-                  <span class="input-group-text"><fa-icon [icon]="faSearch"></fa-icon></span>
-                  <div class="inbox-search-input-wrapper">
-                    <input type="text" class="form-control" [ngModel]="conversationSearchTerm"
-                           (ngModelChange)="onConversationSearchChange($event)"
-                           [disabled]="selectingAllConversations"
-                           placeholder="Search conversations...">
-                    @if (conversationSearchTerm) {
-                      <button type="button" class="inbox-search-clear" aria-label="Clear search"
-                              [disabled]="selectingAllConversations"
-                              (click)="onConversationSearchChange('')">
-                        <fa-icon [icon]="faXmark"/>
-                      </button>
-                    }
-                  </div>
-                </div>
+                <app-search-input class="flex-grow-1 min-w-0" [small]="true"
+                                  [value]="conversationSearchTerm"
+                                  (valueChange)="onConversationSearchChange($event)"
+                                  [disabled]="selectingAllConversations"
+                                  placeholder="Search conversations..."/>
               }
             </div>
           </div>

@@ -10,6 +10,7 @@ export interface MongoCriteria {
 
 export const UNPAGINATED_RESULT_CAP = 1000;
 export const MEMBER_PAGE_SIZE = 200;
+export const MEMBER_ADMIN_TABLE_PAGE_SIZE = 1000;
 
 export interface DataQueryOptions {
   limit?: number;

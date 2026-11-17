@@ -2,9 +2,9 @@ import { HttpClient } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { firstValueFrom, Observable, Subject } from "rxjs";
-import { isNumber, isString } from "es-toolkit/compat";
+import { isNumber, isString, omit } from "es-toolkit/compat";
 import { chain } from "../../functions/chain";
-import { DataQueryOptions, MEMBER_PAGE_SIZE, QueryPagination } from "../../models/api-request.model";
+import { DataQueryOptions, MEMBER_ADMIN_TABLE_PAGE_SIZE, MEMBER_PAGE_SIZE, QueryPagination } from "../../models/api-request.model";
 import { Identifiable } from "../../models/api-response.model";
 import { MailchimpSubscription } from "../../models/mailchimp.model";
 import {
@@ -85,6 +85,30 @@ export class MemberService {
     }
   };
 
+  adminTableDataQueryOptions: DataQueryOptions = {
+    select: {
+      ...omit(this.privilegedFieldsDataQueryOptions.select, ["mail"]),
+      "mail.subscriptions": 1,
+      expiredPassword: 1,
+      jointWith: 1,
+      memberAdmin: 1,
+      photoVideoOptOut: 1,
+      postcode: 1,
+      profileSettingsConfirmed: 1,
+      profileSettingsConfirmedAt: 1,
+      contentAdmin: 1,
+      socialAdmin: 1,
+      title: 1,
+      userName: 1,
+      volunteerRoles: 1,
+    },
+    limit: MEMBER_ADMIN_TABLE_PAGE_SIZE
+  };
+
+  adminTableMembers(): Promise<Member[]> {
+    return this.allPages(this.adminTableDataQueryOptions);
+  }
+
   changeNotifications(): Observable<MemberApiResponse> {
     return this.memberChanges.asObservable();
   }
@@ -108,7 +132,7 @@ export class MemberService {
   async query(dataQueryOptions?: DataQueryOptions): Promise<Member> {
     const params = this.commonDataService.toHttpParams(dataQueryOptions);
     this.logger.debug("find-one:criteria", dataQueryOptions, "params", params.toString());
-    const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/find-one`, {params}), this.memberChanges);
+    const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/find-one`, {params}));
     this.logger.debug("find-one:received", apiResponse);
     return apiResponse.response as Member;
   }
@@ -128,7 +152,7 @@ export class MemberService {
       const options: DataQueryOptions = {...dataQueryOptions};
       const params = this.commonDataService.toHttpParams(options);
       this.logger.debug("all:params", params.toString());
-      const response = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/all`, {params}), this.memberChanges);
+      const response = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/all`, {params}));
       const responses = response.response as Member[];
       this.logger.debug("all:params", params.toString(), "received", responses.length, "members");
       return responses;
@@ -145,7 +169,7 @@ export class MemberService {
     const limit = isNumber(dataQueryOptions?.limit) && dataQueryOptions.limit > 0 ? dataQueryOptions.limit : MEMBER_PAGE_SIZE;
     const options: DataQueryOptions = {...(dataQueryOptions || {}), page, limit};
     const params = this.commonDataService.toHttpParams(options);
-    const response = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/all`, {params}), this.memberChanges);
+    const response = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/all`, {params}));
     const members = (response.response as Member[]) || [];
     const pagination = response.pagination ?? {total: members.length, page, limit, totalPages: 1};
     return {members, pagination};
@@ -172,14 +196,14 @@ export class MemberService {
 
   async getById(memberId: string): Promise<Member> {
     this.logger.debug("getById:", memberId);
-    const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/${memberId}`), this.memberChanges);
+    const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/${memberId}`));
     this.logger.debug("getById - received", apiResponse);
     return apiResponse.response as Member;
   }
 
   async getMemberByPasswordResetId(passwordResetId): Promise<Member> {
     this.logger.debug("getMemberByPasswordResetId:", passwordResetId);
-    const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/password-reset-id/${passwordResetId}`), this.memberChanges);
+    const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/password-reset-id/${passwordResetId}`));
     this.logger.debug("getMemberByPasswordResetId - received", apiResponse);
     return apiResponse.response as Member;
   }

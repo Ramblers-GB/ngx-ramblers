@@ -116,10 +116,10 @@ export class MemberBulkLoadAuditService {
     return apiResponse?.response ?? {sent: false, recipientCount: 0, recipients: []};
   }
 
-  public async findLatestBulkLoadAudit() {
-    const audits: MemberBulkLoadAudit[] = await this.all({limit: 1, sort: {createdDate: -1}});
+  public async findLatestBulkLoadAuditMembershipNumbers(): Promise<MemberBulkLoadAudit> {
+    const audits: MemberBulkLoadAudit[] = await this.all({limit: 1, sort: {createdDate: -1}, select: {createdDate: 1, "members.membershipNumber": 1}});
     const latestMemberBulkLoadAudit = first(audits);
-    this.logger.info("findLatestBulkLoadAudit:audits:", audits, "latestMemberBulkLoadAudit:", latestMemberBulkLoadAudit);
+    this.logger.info("findLatestBulkLoadAuditMembershipNumbers:audits:", audits, "latestMemberBulkLoadAudit:", latestMemberBulkLoadAudit);
     return latestMemberBulkLoadAudit;
   }
 

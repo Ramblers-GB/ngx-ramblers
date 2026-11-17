@@ -4,6 +4,7 @@ export const DESCENDING = "▼";
 export const ASCENDING = "▲";
 export const SELECT_ALL = () => true;
 export const ALL_MEMBERS_FILTER_TITLE = "All Members";
+export const WALK_LEADER_FILTER_TITLE = "Walk Leader";
 export const MEMBER_SORT = ["firstName", "lastName"];
 export const NOT_RECEIVED_IN_LAST_RAMBLERS_BULK_LOAD = "Not received in last Ramblers Bulk Load";
 
