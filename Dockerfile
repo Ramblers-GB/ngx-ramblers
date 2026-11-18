@@ -43,7 +43,8 @@ RUN apt-get update && apt-get install -y wget curl unzip gnupg2 ca-certificates 
 
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
   && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
-  && apt-get update && apt-get install -y gh
+  && (apt-get update -o Acquire::Retries=5 || (sleep 30 && apt-get update -o Acquire::Retries=5) || (sleep 90 && apt-get update -o Acquire::Retries=5)) \
+  && apt-get install -y -o Acquire::Retries=5 gh
 
 RUN curl -fsSL https://fly.io/install.sh | FLYCTL_INSTALL=/usr/local sh \
   && ln -sf /usr/local/bin/flyctl /usr/bin/flyctl \
