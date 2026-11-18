@@ -1,4 +1,4 @@
-import { withMailClientTlsConfiguration } from "../../fly/mail-client-tls-config";
+import { withFlyAppConfiguration } from "../../fly/fly-app-config";
 import { booleanOf } from "../../shared/string-utils";
 import { Environment } from "../../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { Command } from "commander";
@@ -19,7 +19,7 @@ import {
 import { normaliseMemory } from "../../shared/spelling";
 import { DeployResult, FlyDeployConfig, ProgressCallback, SetupStepStatus } from "../../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { DeployToFlyioOptions } from "../cli.model";
-import { DEPLOYMENT_DEFAULTS, FLYIO_DEFAULTS } from "../../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { DEPLOYMENT_DEFAULTS, FLYIO_DEFAULTS, FlyMachineMode } from "../../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { log } from "../cli-logger";
 import { envConfig } from "../../env-config/env-config";
 import { keys } from "es-toolkit/compat";
@@ -184,7 +184,7 @@ export async function deployToFlyio(config: FlyDeployConfig, onProgressOrOptions
 
     const description = needsInitialDeploy ? `Deploying ${config.appName} (initial deploy)` : `Redeploying ${config.appName}`;
     report(onDeployOutput ? `${description} (streaming output)...` : description);
-    await withMailClientTlsConfiguration(flyTomlPath, booleanOf(config.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]), configurationPath =>
+    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: booleanOf(config.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]), flyMachines: config.flyMachines || FlyMachineMode.ALWAYS_ON}, configurationPath =>
       deployFlyApp({
         appName: config.appName,
         configPath: configurationPath,
@@ -272,7 +272,8 @@ export function createFlyCommand(): Command {
           scaleCount: parseInt(options.scale, 10) || envConfig?.scaleCount || FLYIO_DEFAULTS.SCALE_COUNT,
           organisation: options.org || envConfig?.organisation || FLYIO_DEFAULTS.ORGANISATION,
           secrets,
-          apiKey: envConfig?.apiKey
+          apiKey: envConfig?.apiKey,
+          flyMachines: envConfig?.flyMachines
         };
 
         log("Deploying to fly.io: %s", config.appName);

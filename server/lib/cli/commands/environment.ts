@@ -127,7 +127,8 @@ export async function resumeEnvironment(
       scaleCount: envConfigData.scaleCount,
       organisation: envConfigData.organisation,
       secrets: secrets.secrets,
-      apiKey: envConfigData.apiKey
+      apiKey: envConfigData.apiKey,
+      flyMachines: envConfigData.flyMachines
     };
 
     await deployToFlyio(deployConfig, {

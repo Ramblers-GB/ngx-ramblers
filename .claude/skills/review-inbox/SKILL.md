@@ -82,7 +82,7 @@ Inbox-reply state that the composer will load:
 - `inboxReplyContext`: `threadId`, `aliasId`, `senderRoleType`, `mailboxConnectionId`, `inboxMessageId`, `inReplyTo`, `references` from the compose-reply response (so sending stays in the thread)
 - `fragmentOrder`: intro, then signoff
 
-The composer URL is `${CMS_URL}/admin/email-composer?draft-id=${created.id}`. Tell the user that URL. Do not mark the composition sent.
+Give the user a direct link to the Compose tab on the site where the draft was saved: `${CMS_URL}/admin/email-composer?draft-id=${created.id}&branding=unbranded&email-type=selected-members&tab=compose`. Use the hosted URL when the draft is available there. Use another tab only if the user asks for it or a required step needs their attention first. If so, explain why. Do not mark the composition sent.
 
 To change an existing composer draft, load it with `emailComposition(auth, id)` and `updateEmailComposition(auth, id, {title, state})`. Keep `inboxReplyContext` and the rest of `state` intact.
 

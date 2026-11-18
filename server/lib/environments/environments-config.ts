@@ -5,7 +5,8 @@ import { ConfigDocument, ConfigKey } from "../../../projects/ngx-ramblers/src/ap
 import {
   EnvironmentConfig as DbEnvironmentConfig,
   EnvironmentsConfig,
-  FLYIO_DEFAULTS
+  FLYIO_DEFAULTS,
+  FlyMachineMode
 } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { EnvironmentSummary } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { MongoClient } from "mongodb";
@@ -200,6 +201,7 @@ export async function findEnvironmentFromDatabase(environmentName: string): Prom
     memory: dbEnv.flyio?.memory || FLYIO_DEFAULTS.MEMORY,
     scaleCount: dbEnv.flyio?.scaleCount || FLYIO_DEFAULTS.SCALE_COUNT,
     organisation: dbEnv.flyio?.organisation || FLYIO_DEFAULTS.ORGANISATION,
+    flyMachines: dbEnv.flyMachines || FlyMachineMode.ALWAYS_ON,
     mongo: dbEnv.mongo ? {
       cluster: dbEnv.mongo.cluster || "",
       db: dbEnv.mongo.db || "",

@@ -30,7 +30,10 @@ import {
   createEmptyEnvironmentConfig,
   EnvironmentConfig,
   EnvironmentConfigSection,
-  EnvironmentsConfig
+  EnvironmentsConfig,
+  FLY_MACHINE_MODE_LABELS,
+  FLY_MACHINE_MODES,
+  FlyMachineMode
 } from "../../../models/environment-config.model";
 import { SectionToggle } from "../../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../../models/section-toggle.model";
@@ -176,6 +179,19 @@ import { toKebabCase } from "../../../functions/strings";
                   <small class="form-text text-muted d-block">When on, this environment is in deploy-to-all. When off, it is skipped. Unset is treated as on.</small>
                 </div>
               </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="flyMachines">Fly machines</label>
+              <select class="form-select"
+                      id="flyMachines"
+                      [ngModel]="currentEnvironment.flyMachines || FlyMachineMode.ALWAYS_ON"
+                      (ngModelChange)="currentEnvironment.flyMachines = $event"
+                      name="flyMachines">
+                @for (mode of flyMachineModes; track mode) {
+                  <option [ngValue]="mode">{{ FLY_MACHINE_MODE_LABELS[mode] }}</option>
+                }
+              </select>
+              <small class="form-text text-muted d-block">Sleep when idle suspends the machine when nobody is using it, so the first visit after a quiet spell takes a few seconds. Applied on the next deploy.</small>
             </div>
           </div>
           </div>
@@ -546,6 +562,9 @@ export class EnvironmentPerEnvSettings implements OnChanges, OnInit, OnDestroy {
   protected environmentSiteTag: string | null = null;
 
   protected readonly InputSize = InputSize;
+  protected readonly FlyMachineMode = FlyMachineMode;
+  protected readonly FLY_MACHINE_MODE_LABELS = FLY_MACHINE_MODE_LABELS;
+  protected readonly flyMachineModes = FLY_MACHINE_MODES;
   protected readonly environmentSetupGlobalQueryParams = {[StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS), [StoredValue.SUB_TAB]: EnvironmentSettingsSubTab.GLOBAL};
   protected readonly systemSettingsAreaGroupQueryParams = {[StoredValue.TAB]: toKebabCase(SystemSettingsTab.AREA_AND_GROUP)};
   protected readonly faBackward = faBackward;

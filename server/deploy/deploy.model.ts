@@ -1,3 +1,5 @@
+import { FlyMachineMode } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
+
 export interface SecretsConfig {
   [key: string]: string;
 }
@@ -17,6 +19,7 @@ export interface EnvironmentConfig {
   scaleCount: number;
   organisation: string;
   nativeMailTls?: boolean;
+  flyMachines?: FlyMachineMode;
   mongo?: MongoConfig;
 }
 

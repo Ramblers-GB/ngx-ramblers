@@ -118,6 +118,26 @@ export type EnvironmentConsoleAccess = {
   [K in ConsoleAccessService]?: ConsoleAccessLogin;
 };
 
+export enum FlyMachineMode {
+  ALWAYS_ON = "always-on",
+  SLEEP_WHEN_IDLE = "sleep-when-idle"
+}
+
+export const FLY_MACHINE_MODES: FlyMachineMode[] = [FlyMachineMode.ALWAYS_ON, FlyMachineMode.SLEEP_WHEN_IDLE];
+
+export const FLY_MACHINE_MODE_LABELS: Record<FlyMachineMode, string> = {
+  [FlyMachineMode.ALWAYS_ON]: "Always on",
+  [FlyMachineMode.SLEEP_WHEN_IDLE]: "Sleep when idle"
+};
+
+export enum EnvironmentHostingSortField {
+  ENVIRONMENT = "environment",
+  FLY_APP = "flyio.appName",
+  CUSTOM_DOMAIN = "customDomains.0.hostname",
+  FLY_MACHINES = "flyMachines",
+  ESTATE_DEPLOY = "estateDeploy"
+}
+
 export enum SiteUrlPreference {
   APEX = "apex",
   WWW = "www"
@@ -135,6 +155,7 @@ export interface EnvironmentConfig {
   ai?: Ai;
   ngxLite?: boolean;
   estateDeploy?: boolean;
+  flyMachines?: FlyMachineMode;
   consoleAccess?: EnvironmentConsoleAccess;
 }
 

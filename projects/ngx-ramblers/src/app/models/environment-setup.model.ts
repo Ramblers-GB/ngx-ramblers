@@ -1,7 +1,7 @@
 import { PlatformSendControl } from "./mail.model";
 import { ApiResponse } from "./api-response.model";
 import { RamblersGroupsApiResponse } from "./ramblers-walks-manager.model";
-import { AWS_DEFAULTS, CustomDomainEntry, FLYIO_DEFAULTS } from "./environment-config.model";
+import { AWS_DEFAULTS, CustomDomainEntry, FLYIO_DEFAULTS, FlyMachineMode } from "./environment-config.model";
 import { toKebabCase } from "../functions/strings";
 import { RootFolder } from "./system.model";
 import { MxRecordStatus } from "./cloudflare-email-routing.model";
@@ -701,6 +701,7 @@ export interface FlyDeployConfig {
   organisation: string;
   secrets: Record<string, string>;
   apiKey?: string;
+  flyMachines?: FlyMachineMode;
 }
 
 export interface DeployResult {

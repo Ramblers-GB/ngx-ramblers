@@ -26,6 +26,7 @@ import { SectionToggle } from "../../../shared/components/section-toggle";
 import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { EnvironmentGlobalSettings } from "./environment-global-settings";
 import { EnvironmentPerEnvSettings } from "./environment-per-env-settings";
+import { EnvironmentHostingSettings } from "./environment-hosting-settings";
 import { EnvironmentConfigTools } from "./environment-config-tools";
 import { Environment } from "../../../models/environment.model";
 import { StoredValue } from "../../../models/ui-actions.model";
@@ -42,6 +43,7 @@ import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
     SectionToggle,
     EnvironmentGlobalSettings,
     EnvironmentPerEnvSettings,
+    EnvironmentHostingSettings,
     EnvironmentConfigTools,
     FormSaveActionsComponent,
     AlertPanelComponent
@@ -78,6 +80,9 @@ import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
         }
         @if (showSubTab(EnvironmentSettingsSubTab.ENVIRONMENTS) && configReady) {
           <app-environment-per-env-settings [config]="editableConfig"/>
+        }
+        @if (showSubTab(EnvironmentSettingsSubTab.HOSTING) && configReady) {
+          <app-environment-hosting-settings [config]="editableConfig"/>
         }
       </form>
     </div>
@@ -125,6 +130,7 @@ export class EnvironmentSettings implements OnInit, OnDestroy {
   settingsSubTab = EnvironmentSettingsSubTab.ENVIRONMENTS;
   settingsSubTabs: SectionToggleTab[] = [
     {value: EnvironmentSettingsSubTab.ENVIRONMENTS, label: "Environments"},
+    {value: EnvironmentSettingsSubTab.HOSTING, label: "Hosting"},
     {value: EnvironmentSettingsSubTab.GLOBAL, label: "Global Settings"},
     {value: EnvironmentSettingsSubTab.TOOLS, label: "View or Initialise"},
     {value: EnvironmentSettingsSubTab.ALL, label: "All"}

@@ -1,4 +1,4 @@
-import { withMailClientTlsConfiguration } from "../lib/fly/mail-client-tls-config";
+import { withFlyAppConfiguration } from "../lib/fly/fly-app-config";
 import { Environment } from "../../projects/ngx-ramblers/src/app/models/environment.model";
 import { dateTimeNowAsValue } from "../lib/shared/dates";
 import debug from "debug";
@@ -20,7 +20,7 @@ import { booleanOf, pluraliseWithCount } from "../lib/shared/string-utils";
 import { envConfig } from "../lib/env-config/env-config";
 import { buildSecretsContent, loadSecretsForEnvironmentFromDatabase, parseSecretsFile } from "../lib/shared/secrets";
 import { configuredEnvironments, estateDeployEnvironments } from "../lib/environments/environments-config";
-import { DEPLOYMENT_DEFAULTS, EnvironmentsConfig, FLYIO_DEFAULTS } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { DEPLOYMENT_DEFAULTS, EnvironmentsConfig, FLYIO_DEFAULTS, FlyMachineMode } from "../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { deployFlyApp } from "../lib/fly/fly-machine-estate";
 import { BuildVersion } from "../../projects/ngx-ramblers/src/app/models/build-version.model";
 import { filterSecretsForSiteFlyDeploy } from "../lib/fly/fly-secrets-policy";
@@ -45,6 +45,7 @@ function buildDeploymentConfig(dbConfig: EnvironmentsConfig): DeploymentConfig {
   const environments = estateDeployEnvironments(dbConfig).map(env => ({
     name: env.environment,
     nativeMailTls: booleanOf(env.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]),
+    flyMachines: env.flyMachines || FlyMachineMode.ALWAYS_ON,
     apiKey: env.flyio?.apiKey || "",
     appName: env.flyio?.appName || `ngx-ramblers-${env.environment}`,
     memory: env.flyio?.memory || FLYIO_DEFAULTS.MEMORY,
@@ -199,9 +200,9 @@ async function deployToEnvironments(environmentsFilter: string[]): Promise<void>
     debugLog("Deploying to", pluraliseWithCount(environmentsToDeploy.length, "environment") + ":", environmentNamesFrom(environmentsToDeploy));
   }
   for (const environmentConfig of environmentsToDeploy) {
-    await withMailClientTlsConfiguration(flyTomlPath, environmentConfig.nativeMailTls, async environmentFlyTomlPath => {
+    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: environmentConfig.nativeMailTls, flyMachines: environmentConfig.flyMachines}, async environmentFlyTomlPath => {
       configureEnvironment(environmentConfig, config);
-      debugLog(`Deploying ${config.dockerImage} to ${environmentConfig.appName}`);
+      debugLog(`Deploying ${config.dockerImage} to ${environmentConfig.appName} (Fly machines: ${environmentConfig.flyMachines})`);
       deleteVolumeIfExists(environmentConfig.appName, config.region);
       runCommand(`flyctl config validate --config ${environmentFlyTomlPath} --app ${environmentConfig.appName}`);
       await importSecrets(environmentConfig.name, environmentConfig.appName);

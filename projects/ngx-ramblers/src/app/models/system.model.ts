@@ -66,6 +66,7 @@ export enum EnvironmentSettingsSubTab {
   ALL = "all",
   GLOBAL = "global",
   ENVIRONMENTS = "environments",
+  HOSTING = "hosting",
   TOOLS = "tools"
 }
 

@@ -14,7 +14,7 @@ import { deployFlyApp } from "./fly-machine-estate";
 import { resolveSecretsForMigration, writeSecretsFile } from "../shared/secrets";
 import { normaliseMemory } from "../shared/spelling";
 import { dateTimeNowAsValue } from "../shared/dates";
-import { DEPLOYMENT_DEFAULTS } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { DEPLOYMENT_DEFAULTS, FlyMachineMode } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import {
   FlyOrgMigrationPhase,
   FlyOrgMigrationStatus,
@@ -26,7 +26,7 @@ import { appIpAddresses, queryCertificates } from "./fly-certificates";
 import * as flyPublicIps from "./fly-public-ips";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 import { holdMemoryWatchdogRestart, releaseMemoryWatchdogRestart } from "../health/memory-watchdog";
-import { withMailClientTlsConfiguration } from "./mail-client-tls-config";
+import { withFlyAppConfiguration } from "./fly-app-config";
 import { booleanOf } from "../shared/string-utils";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 
@@ -156,7 +156,8 @@ async function importSecretsAndDeploy(
   options: FlyOrgMigrateOptions,
   report: FlyOrgMigrateProgress,
   skipDeployIfAlreadyLive: boolean,
-  apiKey: string
+  apiKey: string,
+  flyMachines: FlyMachineMode
 ): Promise<void> {
   const alreadyDeployed = skipDeployIfAlreadyLive ? await appDeployedWithToken(appName, apiKey) : false;
   setFlyApiToken(apiKey);
@@ -177,7 +178,7 @@ async function importSecretsAndDeploy(
       }
     }
     report(`Deploying image to ${appName}`);
-    await withMailClientTlsConfiguration(flyTomlPath, booleanOf(secrets[Environment.MAIL_CLIENT_NATIVE_TLS]), configurationPath =>
+    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: booleanOf(secrets[Environment.MAIL_CLIENT_NATIVE_TLS]), flyMachines}, configurationPath =>
       deployFlyApp({appName, configPath: configurationPath, image: dockerImage, memory, scaleCount}, options.onDeployOutput));
     report(`Deployed ${appName}`, SetupStepStatus.Completed);
   }
@@ -575,6 +576,7 @@ async function migrateFlyOrganisationUnheld(
   const cutoverAppName = `${preferredAppName}-cutover`;
   const memory = normaliseMemory(env.memory || "512mb");
   const scaleCount = env.scaleCount || 1;
+  const flyMachines = env.flyMachines || FlyMachineMode.ALWAYS_ON;
 
   const newApiKey = options.newApiKey || env.apiKey || "";
   const newOrg = options.newOrganisation || env.organisation || "personal";
@@ -785,7 +787,8 @@ async function migrateFlyOrganisationUnheld(
       options,
       report,
       true,
-      newApiKey
+      newApiKey,
+      flyMachines
     );
 
     await upsertEnvironmentInDatabase({
@@ -863,7 +866,8 @@ async function migrateFlyOrganisationUnheld(
         options,
         report,
         true,
-        newApiKey
+        newApiKey,
+        flyMachines
       );
       workingAppName = preferredAppName;
       usedTemporaryAppName = false;

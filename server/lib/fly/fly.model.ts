@@ -1,3 +1,5 @@
+import { FlyMachineMode } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+
 export interface FlyConfig {
   apiToken: string;
   appName: string;
@@ -45,6 +47,11 @@ export interface FlyAppDeployment {
   memory?: string;
   remoteOnly?: boolean;
   strategy?: FlyDeployStrategy;
+}
+
+export interface FlyAppConfigOptions {
+  nativeMailTls: boolean;
+  flyMachines: FlyMachineMode;
 }
 
 export interface FlyMachineTarget {

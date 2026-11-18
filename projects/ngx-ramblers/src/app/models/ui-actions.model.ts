@@ -180,6 +180,8 @@ export enum StoredValue {
   GROUP_AREA_TEXT_OPACITY = "group-area-text-opacity",
   GROUP_CODES = "group-codes",
   GROUPS_TABLE_HEIGHT = "groups-table-height",
+  HOSTING_SORT = "hosting-sort",
+  HOSTING_SORT_ORDER = "hosting-sort-order",
   HOSTNAME_SORT = "hostname-sort",
   HOSTNAME_SORT_ORDER = "hostname-sort-order",
   IMPORT_MODE = "import-mode",
