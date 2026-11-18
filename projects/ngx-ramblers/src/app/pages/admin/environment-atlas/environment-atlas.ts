@@ -2,7 +2,7 @@ import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faCircleExclamation, faExternalLinkAlt, faFloppyDisk, faGlobe, faKey, faLayerGroup, faList, faPlus, faSpinner, faStar, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faCircleExclamation, faExternalLinkAlt, faFloppyDisk, faGlobe, faKey, faLayerGroup, faArrowsRotate, faList, faPlus, faSpinner, faStar, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -291,10 +291,13 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
       } @else {
       <div class="row thumbnail-heading-frame mb-4">
         <div class="thumbnail-heading">Clusters</div>
-        <div class="mb-3">
+        <div class="mb-3 d-flex flex-wrap gap-2">
           <a class="btn btn-primary" [routerLink]="'/' + AdminPlatformPath.ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP">
             <fa-icon [icon]="faLayerGroup" class="me-1"/>Clean up empty collections
           </a>
+          <button type="button" class="btn btn-primary" [disabled]="loading" (click)="load()">
+            <fa-icon [icon]="loading ? faSpinner : faArrowsRotate" [animation]="loading ? 'spin' : undefined" class="me-1"/>{{ loading ? "Refreshing" : "Refresh" }}
+          </button>
         </div>
         <app-sortable-table
           [columns]="clusterColumns"
@@ -402,6 +405,11 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
       <tab heading="Environments" [active]="activeTab === EnvironmentAtlasTab.ENVIRONMENTS" (selectTab)="selectTab(EnvironmentAtlasTab.ENVIRONMENTS)">
       <div class="row thumbnail-heading-frame mb-4">
         <div class="thumbnail-heading">Environments</div>
+        <div class="mb-3">
+          <button type="button" class="btn btn-primary" [disabled]="loading" (click)="load()">
+            <fa-icon [icon]="loading ? faSpinner : faArrowsRotate" [animation]="loading ? 'spin' : undefined" class="me-1"/>{{ loading ? "Refreshing" : "Refresh" }}
+          </button>
+        </div>
         <app-sortable-table
           [columns]="environmentColumns"
           [rows]="view?.environments || []"
@@ -473,6 +481,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly clusterCanBeDeleted = clusterCanBeDeleted;
   protected readonly faTrash = faTrash;
   protected readonly faStar = faStar;
+  protected readonly faArrowsRotate = faArrowsRotate;
   protected readonly faXmark = faXmark;
   deleteTarget: AtlasClusterRow | null = null;
   deleteConfirmation = "";

@@ -237,7 +237,7 @@ export interface AtlasClusterDeleteRequest {
 }
 
 export function clusterCanBeDeleted(cluster: AtlasClusterRow, provisioningProjectId: string): boolean {
-  return !!cluster.projectId && cluster.projectId === provisioningProjectId && cluster.inProvisioningProject && !cluster.isDefault && cluster.environmentCount === 0;
+  return !!provisioningProjectId && !!cluster.projectId && cluster.inProvisioningProject && !cluster.isDefault && cluster.environmentCount === 0;
 }
 
 export function clusterAcceptsMigratedSite(cluster: AtlasClusterRow, provisioningProjectId: string): boolean {

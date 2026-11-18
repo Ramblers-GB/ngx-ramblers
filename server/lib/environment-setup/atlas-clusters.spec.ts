@@ -1,7 +1,7 @@
 import expect from "expect";
 import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
-import { AtlasClusterTier, clusterAcceptsMigratedSite, clusterCapacity, clusterFullness, ClusterFullnessLevel, flexMonthlyDollars, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { AtlasClusterTier, clusterAcceptsMigratedSite, clusterCanBeDeleted, clusterCapacity, clusterFullness, ClusterFullnessLevel, flexMonthlyDollars, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, createAtlasCluster, deleteAtlasCluster, loadFromMeasurements, processesForCluster, registrationMongoCluster } from "./atlas-clusters";
 import * as environmentsConfig from "../environments/environments-config";
@@ -122,6 +122,28 @@ describe("atlas-clusters", () => {
     providerSettings: {backingProviderName: "AWS", providerName: "FLEX", regionName: "EU_WEST_1"}
   };
 
+  it("explains when Atlas no longer lists the cluster", async () => {
+    stubAtlas({
+      "GET /clusters": {status: 200, body: {results: []}},
+      "GET /flexClusters": {status: 200, body: {results: []}},
+      "GET /accessList": {status: 200, body: {results: []}}
+    });
+
+    await expect(deleteAtlasCluster({projectId: "project-1", name: "ngx-flex"})).rejects.toThrow("Atlas no longer lists cluster ngx-flex");
+  });
+
+  it("does not delete a same-named cluster in a different Atlas project", async () => {
+    const fetchStub = stubAtlas({
+      "GET /clusters": {status: 200, body: {results: []}},
+      "GET /flexClusters": {status: 200, body: {results: [emptyFlex]}},
+      "GET /accessList": {status: 200, body: {results: []}},
+      "DELETE /flexClusters/ngx-shared-sites-09": {status: 202, body: {}}
+    });
+
+    await expect(deleteAtlasCluster({projectId: "project-2", name: "ngx-shared-sites-09"})).rejects.toThrow("Atlas no longer lists cluster ngx-shared-sites-09");
+    expect(fetchStub.getCalls().some(call => (call.args[1] as RequestInit)?.method === "DELETE")).toBe(false);
+  });
+
   it("deletes an empty Flex cluster through the Flex API", async () => {
     const fetchStub = stubAtlas({
       "GET /clusters": {status: 200, body: {results: []}},
@@ -177,6 +199,9 @@ describe("atlas-clusters", () => {
     expect(clusterAcceptsMigratedSite(row, "project-1")).toBe(true);
     expect(clusterAcceptsMigratedSite({...(row as object), projectId: "mock-project"} as never, "project-1")).toBe(false);
     expect(clusterAcceptsMigratedSite({...(row as object), projectId: "kent-project", environmentCount: 1} as never, "project-1")).toBe(true);
+    expect(clusterCanBeDeleted(row, "project-1")).toBe(true);
+    expect(clusterCanBeDeleted({...(row as object), projectId: "kent-project"} as never, "project-1")).toBe(true);
+    expect(clusterCanBeDeleted({...(row as object), environmentCount: 1} as never, "project-1")).toBe(false);
   });
 
   it("reports how full a Flex cluster is by collections and storage", () => {

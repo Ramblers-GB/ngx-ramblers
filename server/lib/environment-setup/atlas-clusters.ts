@@ -482,11 +482,13 @@ export async function createAtlasCluster(request: AtlasClusterCreateRequest): Pr
 
 export async function deleteAtlasCluster(request: AtlasClusterDeleteRequest): Promise<{message: string}> {
   const view = await atlasClusterView();
-  const cluster = view.clusters.find(candidate => candidate.name === request?.name && candidate.projectId === request?.projectId);
+  const cluster = view.clusters.find(candidate => candidate.name === request?.name && candidate.projectId === request?.projectId) || null;
   if (!view.atlasReachable) {
     throw new Error(view.atlasError || "Atlas could not be reached, so nothing was deleted.");
-  } else if (!cluster || cluster.projectId !== view.projectId) {
-    throw new Error(`Cluster ${request?.name || ""} is not in the main NGX Atlas project, so nothing was deleted.`);
+  } else if (!cluster) {
+    throw new Error(`Atlas no longer lists cluster ${request?.name || ""}. Refresh this page. If it is still in Atlas, it is not a cluster this page manages.`);
+  } else if (!cluster.inProvisioningProject || !cluster.projectId) {
+    throw new Error(`Cluster ${cluster.name} is not a cluster this page created, so nothing was deleted.`);
   } else if (cluster.isDefault) {
     throw new Error(`Cluster ${cluster.name} is the default for new sites. Choose another default before deleting it.`);
   } else if (cluster.environmentCount > 0) {
@@ -509,7 +511,9 @@ export async function deleteAtlasCluster(request: AtlasClusterDeleteRequest): Pr
     const deleted = cluster.instanceSize === AtlasClusterTier.FLEX
       ? await atlasRequest<AtlasError>(projectAtlas, "DELETE", `/groups/${cluster.projectId}/flexClusters/${name}`, null, AtlasApiVersion.FLEX_CLUSTERS)
       : await atlasRequest<AtlasError>(projectAtlas, "DELETE", `/groups/${cluster.projectId}/clusters/${name}`, null, AtlasApiVersion.CLUSTERS);
-    if (deleted.status >= 300) {
+    if (deleted.status === 404) {
+      return {message: `Cluster ${cluster.name} is already gone from Atlas.`};
+    } else if (deleted.status >= 300) {
       throw atlasFailure("delete the cluster", deleted.status, deleted.body);
     } else {
       return {message: `Cluster ${cluster.name} is being deleted. It disappears from this page once Atlas has finished.`};
