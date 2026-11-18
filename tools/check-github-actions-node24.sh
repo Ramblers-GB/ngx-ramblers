@@ -19,6 +19,11 @@ if rg -n --glob '*.yml' --glob '*.yaml' 'android-actions/setup-android@' "$workf
   failed=1
 fi
 
+if rg -n --glob '*.yml' --glob '*.yaml' 'github/codeql-action/[a-z-]+@v[1-3]\b' "$workflows"; then
+  echo "Use github/codeql-action/*@v4 (runs.using: node24). v3 declares Node 20, prints the deprecation warning, and is retired in December 2026." >&2
+  failed=1
+fi
+
 if test "$failed" -ne 0; then
   exit 1
 fi
