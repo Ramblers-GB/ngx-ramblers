@@ -1,4 +1,4 @@
-import { AfterContentInit, Component, ContentChild, ContentChildren, EventEmitter, Input, OnChanges, Output, QueryList, SimpleChanges, TemplateRef } from "@angular/core";
+import { AfterContentInit, AfterViewInit, Component, ContentChild, ContentChildren, ElementRef, EventEmitter, HostListener, Input, NgZone, OnChanges, OnDestroy, Output, QueryList, SimpleChanges, TemplateRef, ViewChild, inject } from "@angular/core";
 import { NgTemplateOutlet } from "@angular/common";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from "@angular/cdk/drag-drop";
@@ -18,11 +18,11 @@ import {
   selector: "app-sortable-table",
   imports: [NgTemplateOutlet, FontAwesomeModule, CdkDropList, CdkDrag, CdkDragHandle],
   template: `
-    <div class="sortable-table-card"
+    <div #tableCard class="sortable-table-card"
          [class.sortable-table-flat]="flat"
-         [class.scrollable]="!!maxHeight || freezeFirstColumn"
+         [class.scrollable]="!!effectiveMaxHeight || freezeFirstColumn"
          [class.freeze-first-column]="freezeFirstColumn"
-         [style.max-height]="maxHeight">
+         [style.max-height]="effectiveMaxHeight">
       <table class="sortable-table" [class.sortable-table-fixed-layout]="fixedLayout || resizableColumns"
              [style.width]="resizableColumns ? resizableTableWidth : null">
         <thead>
@@ -393,7 +393,7 @@ import {
         margin-bottom: 2px
   `]
 })
-export class SortableTableComponent implements OnChanges, AfterContentInit {
+export class SortableTableComponent implements OnChanges, AfterContentInit, AfterViewInit, OnDestroy {
 
   @Input() columns: SortableTableColumn[] = [];
   @Input() rows: any[] = [];
@@ -411,6 +411,45 @@ export class SortableTableComponent implements OnChanges, AfterContentInit {
   @Input("resizableColumns")
   set resizableColumnsValue(value: boolean) {
     this.resizableColumns = coerceBooleanProperty(value);
+  }
+  fillWindow = false;
+
+  @Input("fillWindow")
+  set fillWindowValue(value: boolean) {
+    this.fillWindow = coerceBooleanProperty(value);
+  }
+  @Input() fillWindowGapPx = 24;
+  @ViewChild("tableCard") private tableCard: ElementRef<HTMLElement>;
+  private zone = inject(NgZone);
+  private fillWindowHeightPx = 0;
+  private fillWindowObserver: ResizeObserver | null = null;
+
+  get effectiveMaxHeight(): string | null {
+    return this.fillWindow && this.fillWindowHeightPx > 0 ? `${this.fillWindowHeightPx}px` : this.maxHeight;
+  }
+
+  ngAfterViewInit(): void {
+    if (this.fillWindow) {
+      this.fillWindowObserver = new ResizeObserver(() => this.zone.run(() => this.fitToWindow()));
+      this.fillWindowObserver.observe(document.body);
+      setTimeout(() => this.fitToWindow());
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.fillWindowObserver?.disconnect();
+  }
+
+  @HostListener("window:resize")
+  protected fitToWindow(): void {
+    const card = this.tableCard?.nativeElement;
+    if (this.fillWindow && card) {
+      const top = card.getBoundingClientRect().top + window.scrollY;
+      const available = window.innerWidth < 768 ? 0 : Math.max(240, Math.floor(window.innerHeight - top - this.fillWindowGapPx));
+      if (available !== this.fillWindowHeightPx) {
+        this.fillWindowHeightPx = available;
+      }
+    }
   }
   @Input() defaultSortKey: string | null = null;
   @Input() defaultSortDirection: string = ASCENDING;

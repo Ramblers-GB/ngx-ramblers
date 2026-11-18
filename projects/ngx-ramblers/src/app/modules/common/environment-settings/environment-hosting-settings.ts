@@ -82,6 +82,8 @@ import { SortableTableAlignment, SortableTableColumn, SortableTableSortState } f
         <app-sortable-table
           [columns]="columns"
           [rows]="filteredEnvironments"
+          fillWindow
+          [fillWindowGapPx]="110"
           [defaultSortKey]="sortKey"
           [defaultSortDirection]="sortDirection"
           [trackBy]="trackEnvironment"
