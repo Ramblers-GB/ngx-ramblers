@@ -5,7 +5,7 @@ import * as environmentsConfig from "../environments/environments-config";
 import * as atlasClusters from "../environment-setup/atlas-clusters";
 import * as mongoDatabaseUser from "../environment-setup/mongo-database-user";
 import { AtlasClusterState, AtlasClusterTier, AtlasClusterView } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
-import { provisionMigrationMongoTarget, provisionMigrationMongoTargetRequest } from "./environment-migration-mongo-target";
+import { provisionMigrationMongoTarget, provisionMigrationMongoTargetRequest, secretsAfterMongoRotation, storedMongoUriConflict } from "./environment-migration-mongo-target";
 import { Request, Response } from "express";
 
 describe("migration MongoDB target provisioning", () => {
@@ -75,5 +75,32 @@ describe("migration MongoDB target provisioning", () => {
     expect(response.setHeader.calledWith("Cache-Control", "no-store")).toBe(true);
     expect(response.status.calledWith(201)).toBe(true);
     expect(response.json.firstCall.args[0].db).toBe("hillside-database");
+  });
+});
+
+describe("migration source matches the live database", () => {
+  const mongo = {cluster: "hillside.abc123", db: "hillside-database", username: "hillside-user", password: "fictional-password"};
+
+  it("allows a migration when no MONGODB_URI is stored", () => {
+    expect(storedMongoUriConflict({environment: "hillside", mongo})).toBeNull();
+  });
+
+  it("allows a migration when the stored MONGODB_URI names the same cluster and database", () => {
+    const secrets = {MONGODB_URI: "mongodb+srv://hillside-user:fictional-password@hillside.abc123.mongodb.net/hillside-database?retryWrites=true&w=majority"};
+    expect(storedMongoUriConflict({environment: "hillside", mongo, secrets})).toBeNull();
+  });
+
+  it("refuses when deploys use a stored MONGODB_URI on a different cluster", () => {
+    const secrets = {MONGODB_URI: "mongodb+srv://hillside-user:fictional-password@older.def456.mongodb.net/hillside-database?retryWrites=true&w=majority"};
+    expect(storedMongoUriConflict({environment: "hillside", mongo, secrets})).toContain("hillside runs on older.def456/hillside-database");
+  });
+
+  it("points a stored MONGODB_URI at the new cluster on rotation so a later deploy does not move the site back", () => {
+    const rotated = secretsAfterMongoRotation({MONGODB_URI: "mongodb+srv://old", AUTH_SECRET: "fictional"}, "mongodb+srv://new");
+    expect(rotated).toEqual({MONGODB_URI: "mongodb+srv://new", AUTH_SECRET: "fictional"});
+  });
+
+  it("leaves secrets without a stored MONGODB_URI unchanged on rotation", () => {
+    expect(secretsAfterMongoRotation({AUTH_SECRET: "fictional"}, "mongodb+srv://new")).toEqual({AUTH_SECRET: "fictional"});
   });
 });

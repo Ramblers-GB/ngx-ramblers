@@ -41,6 +41,7 @@ import { adminConfigFromEnvironment, bucketExists, createS3Client, generateBucke
 import { restartCurrentMachine, setCurrentMachineSecrets } from "../fly/fly-machines";
 import { FlyTargetApp } from "../../../projects/ngx-ramblers/src/app/models/health.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
+import { secretsAfterMongoRotation, storedMongoUriConflict } from "./environment-migration-mongo-target";
 
 const debugLog = debug(envConfig.logNamespace("environment-migration-service"));
 debugLog.enabled = true;
@@ -327,7 +328,8 @@ export class EnvironmentMigrationService {
             db: migration.targetMongo.db,
             username: migration.targetMongo.username,
             password: targetMongo.password
-          }
+          },
+          secrets: secretsAfterMongoRotation(environmentConfig.secrets, this.flyCutoverSecrets(targetMongo, null)[Environment.MONGODB_URI])
         } : {}),
         ...(destinationAws ? { aws: destinationAws } : {})
       }
@@ -458,6 +460,8 @@ export class EnvironmentMigrationService {
     const mongo = environmentConfig?.mongo;
     if (!mongo?.cluster || !mongo?.db || !mongo?.username || !mongo?.password) {
       throw new Error(`Environment "${environmentName}" has no complete Mongo config`);
+    } else if (storedMongoUriConflict(environmentConfig)) {
+      throw new Error(storedMongoUriConflict(environmentConfig));
     }
     return {
       cluster: mongo.cluster,
