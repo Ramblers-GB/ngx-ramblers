@@ -6,6 +6,7 @@ import * as transforms from "./controllers/transforms";
 const debugLog = debug(envConfig.logNamespace("local-database"));
 debugLog.enabled = false;
 let connected = false;
+const connectionEvents = {registered: false};
 
 function createDebugFor<T>(model: Model<T>): debug.Debugger {
   const debugLog = debug(envConfig.logNamespace("local-database:" + model.modelName));
@@ -82,18 +83,21 @@ export async function connect(debug?: debug.Debugger): Promise<boolean> {
     return true;
   } else {
     try {
-      mongoose.connection.on("connected", () => {
-        debugConnect("Connected to database:", redactForLog(mongoUri));
-        connected = true;
-      });
-      mongoose.connection.on("disconnected", () => {
-        debugConnect("Disconnected from database:", redactForLog(mongoUri));
-        connected = false;
-      });
-      mongoose.connection.on("error", err => {
-        debugConnect("Connection error:", redactForLog(String(err?.message || err)));
-        connected = false;
-      });
+      if (!connectionEvents.registered) {
+        connectionEvents.registered = true;
+        mongoose.connection.on("connected", () => {
+          debugConnect("Connected to database:", redactForLog(mongoUri));
+          connected = true;
+        });
+        mongoose.connection.on("disconnected", () => {
+          debugConnect("Disconnected from database:", redactForLog(mongoUri));
+          connected = false;
+        });
+        mongoose.connection.on("error", err => {
+          debugConnect("Connection error:", redactForLog(String(err?.message || err)));
+          connected = false;
+        });
+      }
       mongoose.set("autoCreate", false);
       mongoose.set("autoIndex", false);
       await mongoose.connect(mongoUri, {

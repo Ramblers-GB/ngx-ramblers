@@ -19,6 +19,7 @@ import { envConfig } from "./env-config/env-config";
 import { mailchimpRoutes } from "./mailchimp/mailchimp-routes";
 import { osMapsRoutes } from "./os-maps/os-maps-routes";
 import * as mongooseClient from "./mongo/mongoose-client";
+import { reconnectDatabaseAfterResume, startMachineResumeWatch } from "./mongo/machine-resume";
 import { configRoutes } from "./mongo/routes/config";
 import { meetingNoteRoutes } from "./mongo/routes/meeting-note";
 import { videoMeetingsRoutes } from "./video-meetings/video-meetings-routes";
@@ -186,6 +187,7 @@ async function scheduleInboxBackgroundWork(): Promise<void> {
 }
 
 app.get("/.well-known/acme-challenge/:token", serveMailClientAcmeChallenge);
+app.use(reconnectDatabaseAfterResume);
 app.use(compression());
 app.set("trust proxy", 1);
 app.set("port", port);
@@ -397,6 +399,7 @@ async function startServer() {
     debugLog("⏳Connecting to MongoDB in background...");
     mongooseClient.connect().then(() => {
       debugLog("✅ MongoDB connected successfully");
+      startMachineResumeWatch();
       startMemberSessionWatcher();
       warmSearchIndex();
 
