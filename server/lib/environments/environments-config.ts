@@ -5,6 +5,7 @@ import { ConfigDocument, ConfigKey } from "../../../projects/ngx-ramblers/src/ap
 import {
   EnvironmentConfig as DbEnvironmentConfig,
   EnvironmentsConfig,
+  EnvironmentSiteStatus,
   FLYIO_DEFAULTS,
   FlyMachineMode
 } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
@@ -143,6 +144,16 @@ export async function configuredEnvironments(): Promise<EnvironmentsConfig> {
 
 export function estateDeployEnvironments(config: EnvironmentsConfig) {
   return (config.environments || []).filter(environment => environment.estateDeploy !== false);
+}
+
+export function environmentIsDormant(environment: DbEnvironmentConfig | null | undefined): boolean {
+  return environment?.siteStatus === EnvironmentSiteStatus.DORMANT;
+}
+
+export function assertEnvironmentNotDormant(environment: DbEnvironmentConfig | null | undefined): void {
+  if (environmentIsDormant(environment)) {
+    throw new Error(`${environment.environment} is marked Dormant in Platform Admin, Hosting, so its domains are left pointing where they are. Change its Site status first if the site is coming back.`);
+  }
 }
 
 export async function encryptStoredEnvironmentsSecrets(): Promise<void> {

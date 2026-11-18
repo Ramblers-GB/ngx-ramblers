@@ -18,7 +18,8 @@ import { RegisteredScheduledTask, ScheduledTaskDefinition } from "./scheduled-ta
 import { scheduledTaskEvents } from "./scheduled-task-events";
 import { humanFileSize } from "../../../projects/ngx-ramblers/src/app/functions/file-utils";
 import { notifyPlatformAdminsOfScheduledTaskProblem, ScheduledTaskProblem } from "./scheduled-task-alerts";
-import { expectedIntervalMs, isScheduledTaskOverdue } from "./scheduled-task-overdue";
+import { expectedIntervalMs, isScheduledTaskOverdue, previousExpectedRun } from "./scheduled-task-overdue";
+import { machineWasSuspendedAt } from "../shared/machine-suspend";
 
 const debugLog = debug(envConfig.logNamespace("cron:scheduled-tasks"));
 debugLog.enabled = true;
@@ -523,7 +524,11 @@ async function recoverOverdueTask(registered: RegisteredScheduledTask): Promise<
   }
   const intervalMarker = String(nextRunAt.getTime());
   const alreadyAlerted = missedAlertWindows.get(registered.definition.id) === intervalMarker;
-  if (!alreadyAlerted) {
+  const missedSlot = previousExpectedRun(registered.definition.cronExpression, nextRunAt);
+  const missedWhileAsleep = !!missedSlot && machineWasSuspendedAt(missedSlot.getTime());
+  if (missedWhileAsleep) {
+    debugLog(`"${registered.definition.name}" was due while the machine was asleep; running it now without a missed-run alert`);
+  } else if (!alreadyAlerted) {
     missedAlertWindows.set(registered.definition.id, intervalMarker);
     const lastCompleted = lastCompletedAt(registered);
     await notifyPlatformAdminsOfScheduledTaskProblem({

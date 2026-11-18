@@ -87,6 +87,13 @@ export class EnvironmentManagementLandingComponent implements OnInit, OnDestroy 
             accessLevel: AccessLevel.ENVIRONMENT_ADMIN
           },
           {
+            href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HOSTING,
+            title: "Hosting",
+            icon: "faCloud",
+            contentText: "Record what each environment is for and where it stands, choose which sites sleep when idle, and which are included in estate deploys",
+            accessLevel: AccessLevel.ENVIRONMENT_ADMIN
+          },
+          {
             href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP,
             title: "MongoDB Collection Cleanup",
             icon: "faDatabase",

@@ -68,7 +68,8 @@ import { flyMachineState, flyMemoryHistory, flyStats, heapSnapshot, memoryUsage,
 import { startMemoryWatchdog } from "./health/memory-watchdog";
 import { installProcessErrorHandlers, productionRequestErrorHandler } from "./health/process-error-handling";
 import { installShutdownSignalHandlers } from "./health/shutdown-signals";
-import { startScheduledTaskWatchdog } from "./cron/scheduled-task-registry";
+import { runScheduledTaskWatchdog, startScheduledTaskWatchdog } from "./cron/scheduled-task-registry";
+import { onMachineResume } from "./shared/machine-suspend";
 import * as authConfig from "./auth/auth-config";
 import { requireReadOnlyViewAs } from "./auth/local-view-as";
 import { crossEnvironmentHealthRoutes } from "./health/cross-environment-health-routes";
@@ -464,6 +465,7 @@ async function startServer() {
       });
 
       startScheduledTaskWatchdog();
+      onMachineResume(() => runScheduledTaskWatchdog());
     }).catch(error => {
       debugLog("❌ MongoDB connection failed:", error);
       debugLog("❌ Stopping server so the runtime can restart and retry the database connection");

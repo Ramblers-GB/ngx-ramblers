@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 import { envConfig } from "../env-config/env-config";
 import {
+  environmentIsDormant,
   findEnvironmentFromDatabase,
   upsertEnvironmentInDatabase,
   environmentsConfigFromDatabase
@@ -285,7 +286,7 @@ async function customDomainHostnamesForEnvironment(
   const hrefHost = hostnameFromHref(await groupHrefForEnvironment(environmentName) || undefined);
   const candidates = [...fromConfig, hrefHost].filter((hostname): hostname is string => !!hostname);
   const unique = candidates.filter((hostname, index) => candidates.indexOf(hostname) === index);
-  return unique.filter(hostname =>
+  return environmentIsDormant(rawEnv) ? [] : unique.filter(hostname =>
     hostname !== freeHost &&
     !hostname.endsWith(".fly.dev") &&
     !hostname.endsWith(`.${freeBaseDomain}`)
@@ -319,7 +320,7 @@ async function reattachCustomDomainsForEnvironment(
 ): Promise<void> {
   const hostnames = await customDomainHostnamesForEnvironment(environmentName, freeBaseDomain);
   if (hostnames.length === 0) {
-    report("No custom domains or custom Site URL host to re-point");
+    report("No custom domains or custom Site URL host to re-point (a Dormant site keeps its domains where they are)");
   } else {
     report(`Re-pointing custom domain DNS/SSL on destination app: ${hostnames.join(", ")}`);
     await hostnames.reduce(async (previous, hostname) => {

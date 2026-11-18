@@ -181,7 +181,7 @@ import { toKebabCase } from "../../../functions/strings";
               </div>
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label" for="flyMachines">Fly machines</label>
+              <label class="form-label" for="flyMachines">Fly machine</label>
               <select class="form-select"
                       id="flyMachines"
                       [ngModel]="currentEnvironment.flyMachines || FlyMachineMode.ALWAYS_ON"

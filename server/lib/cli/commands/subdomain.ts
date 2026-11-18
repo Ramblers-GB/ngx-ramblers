@@ -23,7 +23,7 @@ import { ensureHostRedirectRule, RECOVERABLE_REDIRECT_STATUS_CODE, removeHostRed
 import { AppIpAddresses, CertificateInfo, FlyConfig } from "../../fly/fly.model";
 import { appIpAddresses, addCertificate, deleteCertificate, queryCertificates, waitForCertificateReady } from "../../fly/fly-certificates";
 import { ensureAppPublicIps } from "../../fly/fly-public-ips";
-import { findEnvironmentFromDatabase, environmentsConfigFromDatabase } from "../../environments/environments-config";
+import { assertEnvironmentNotDormant, findEnvironmentFromDatabase, environmentsConfigFromDatabase } from "../../environments/environments-config";
 import { connectToDatabase } from "../../environment-setup/database-initialiser";
 import { buildMongoUri } from "../../shared/mongodb-uri";
 import * as configController from "../../mongo/controllers/config";
@@ -450,6 +450,7 @@ export async function addCustomDomainForEnvironment(
     throw new Error("Cloudflare API token not configured. Add cloudflare.apiToken to environments config.");
   }
   assertHostnameNotUsedElsewhere(environmentsConfig, hostname, environmentName);
+  assertEnvironmentNotDormant((environmentsConfig.environments || []).find(environment => environment.environment === environmentName));
 
   const flyApiToken = envConfig.apiKey;
   if (!flyApiToken) {

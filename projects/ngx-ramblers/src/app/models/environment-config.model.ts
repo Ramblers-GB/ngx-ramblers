@@ -141,13 +141,13 @@ export enum EnvironmentSiteStatus {
 }
 
 export const ENVIRONMENT_SITE_STATUS_LABELS: Record<EnvironmentSiteStatus, string> = {
-  [EnvironmentSiteStatus.LIVE]: "Live group site",
+  [EnvironmentSiteStatus.LIVE]: "Live",
   [EnvironmentSiteStatus.ONBOARDING]: "Onboarding",
-  [EnvironmentSiteStatus.PROSPECT]: "Prospect - awaiting reply",
+  [EnvironmentSiteStatus.PROSPECT]: "Prospect",
   [EnvironmentSiteStatus.DEMO]: "Demo",
-  [EnvironmentSiteStatus.UNCLAIMED]: "Registered, not contacted",
+  [EnvironmentSiteStatus.UNCLAIMED]: "Not contacted",
   [EnvironmentSiteStatus.DORMANT]: "Dormant",
-  [EnvironmentSiteStatus.STAGING]: "Staging or dev"
+  [EnvironmentSiteStatus.STAGING]: "Staging"
 };
 
 export const ENVIRONMENT_SITE_STATUSES: EnvironmentSiteStatus[] = [
@@ -163,9 +163,6 @@ export const ENVIRONMENT_SITE_STATUSES: EnvironmentSiteStatus[] = [
 export enum EnvironmentHostingSortField {
   ENVIRONMENT = "environment",
   SITE_STATUS = "siteStatus",
-  SITE_NOTES = "siteNotes",
-  FLY_APP = "flyio.appName",
-  CUSTOM_DOMAIN = "customDomains.0.hostname",
   FLY_MACHINES = "flyMachines",
   ESTATE_DEPLOY = "estateDeploy"
 }

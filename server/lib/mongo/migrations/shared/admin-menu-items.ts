@@ -264,6 +264,14 @@ export const ATLAS_MENU_ITEM: ActionButtonColumn = {
   contentText: "Create clusters in the Ramblers Atlas project, set the default for new sites, and see occupancy before a free cluster hits its collection limit"
 };
 
+export const HOSTING_MENU_ITEM: ActionButtonColumn = {
+  accessLevel: "environmentAdmin",
+  title: "Hosting",
+  icon: "faCloud",
+  href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HOSTING,
+  contentText: "Record what each environment is for and where it stands, choose which sites sleep when idle, and which are included in estate deploys"
+};
+
 export const ENVIRONMENT_MANAGEMENT_MENU_ITEMS: ActionButtonColumn[] = [
   REGISTRATIONS_MENU_ITEM,
   {
@@ -274,6 +282,7 @@ export const ENVIRONMENT_MANAGEMENT_MENU_ITEMS: ActionButtonColumn[] = [
     contentText: "Provision new NGX-Ramblers environments for Ramblers groups"
   },
   ATLAS_MENU_ITEM,
+  HOSTING_MENU_ITEM,
   {
     accessLevel: "committee",
     title: "Backup & Restore",

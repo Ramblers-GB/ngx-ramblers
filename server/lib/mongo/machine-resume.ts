@@ -3,6 +3,7 @@ import { NextFunction, Request, Response } from "express";
 import { envConfig } from "../env-config/env-config";
 import { dateTimeNowAsValue } from "../shared/dates";
 import * as mongooseClient from "./mongoose-client";
+import { notifyMachineResumed, recordMachineSuspend } from "../shared/machine-suspend";
 
 const debugLog = debug(envConfig.logNamespace("machine-resume"));
 debugLog.enabled = true;
@@ -21,13 +22,18 @@ export function resumedAfter(lastTickAt: number, now: number): boolean {
 }
 
 function reconnectAfterResume(gapMs: number): Promise<void> {
-  resumeState.lastTickAt = dateTimeNowAsValue();
+  const resumedAt = dateTimeNowAsValue();
+  resumeState.lastTickAt = resumedAt;
   if (!resumeState.reconnecting) {
+    recordMachineSuspend({suspendedFrom: resumedAt - gapMs, resumedAt});
     debugLog("Machine resumed after %ds asleep; reopening database connections before serving requests", Math.round(gapMs / 1000));
     resumeState.reconnecting = mongooseClient.disconnect()
       .then(() => mongooseClient.connect())
       .then(() => debugLog("Database connections reopened after resume"))
       .catch(error => debugLog("Reopening database connections after resume failed:", error?.message || error))
+      .then(() => {
+        void notifyMachineResumed();
+      })
       .finally(() => {
         resumeState.reconnecting = null;
       });
