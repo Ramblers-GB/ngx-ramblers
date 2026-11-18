@@ -3,6 +3,8 @@ import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Subscription } from "rxjs";
 import {
+  ENVIRONMENT_SITE_STATUS_LABELS,
+  ENVIRONMENT_SITE_STATUSES,
   EnvironmentConfig,
   EnvironmentHostingSortField,
   EnvironmentsConfig,
@@ -24,6 +26,7 @@ import { SortableTableColumn, SortableTableSortState } from "../sortable-table/s
       <div class="thumbnail-heading">Hosting</div>
       <div class="col-sm-12">
         <p class="small text-muted">
+          <strong>Site status</strong> and <strong>Notes</strong> record what each environment is for and where it stands, saved with the platform configuration.
           <strong>Fly machines:</strong> Always on keeps the site running all the time. Sleep when idle suspends the machine when nobody is using it, so it costs almost nothing, and the first visit after a quiet spell takes a few seconds while it wakes. Mail (IMAP/SMTP) on a sleeping site wakes the same way, and scheduled jobs on that site do not run while it sleeps.
           The change is applied the next time the site is deployed.
           <strong>Include in estate deploys</strong> decides whether deploy-to-all updates the site. Sleeping sites should stay included so they keep getting new versions.
@@ -38,6 +41,26 @@ import { SortableTableColumn, SortableTableSortState } from "../sortable-table/s
           (sortChange)="sortChanged($event)">
           <ng-template [appSortableTableCell]="EnvironmentHostingSortField.ENVIRONMENT" let-row>
             <strong>{{ row.environment }}</strong>
+          </ng-template>
+          <ng-template [appSortableTableCell]="EnvironmentHostingSortField.SITE_STATUS" let-row>
+            <select class="form-select form-select-sm"
+                    [attr.aria-label]="'Site status for ' + row.environment"
+                    [ngModel]="row.siteStatus || null"
+                    (ngModelChange)="row.siteStatus = $event || undefined"
+                    [name]="'siteStatus-' + row.environment">
+              <option [ngValue]="null">Not set</option>
+              @for (status of siteStatuses; track status) {
+                <option [ngValue]="status">{{ ENVIRONMENT_SITE_STATUS_LABELS[status] }}</option>
+              }
+            </select>
+          </ng-template>
+          <ng-template [appSortableTableCell]="EnvironmentHostingSortField.SITE_NOTES" let-row>
+            <textarea class="form-control form-control-sm"
+                      rows="2"
+                      [attr.aria-label]="'Notes for ' + row.environment"
+                      [ngModel]="row.siteNotes || ''"
+                      (ngModelChange)="row.siteNotes = $event"
+                      [name]="'siteNotes-' + row.environment"></textarea>
           </ng-template>
           <ng-template [appSortableTableCell]="EnvironmentHostingSortField.FLY_APP" let-row>
             <code>{{ row.flyio?.appName }}</code>
@@ -79,12 +102,16 @@ export class EnvironmentHostingSettings implements OnInit, OnDestroy {
   protected readonly EnvironmentHostingSortField = EnvironmentHostingSortField;
   protected readonly FLY_MACHINE_MODE_LABELS = FLY_MACHINE_MODE_LABELS;
   protected readonly flyMachineModes = FLY_MACHINE_MODES;
+  protected readonly ENVIRONMENT_SITE_STATUS_LABELS = ENVIRONMENT_SITE_STATUS_LABELS;
+  protected readonly siteStatuses = ENVIRONMENT_SITE_STATUSES;
 
   sortKey: string = EnvironmentHostingSortField.ENVIRONMENT;
   sortDirection: string = ASCENDING;
 
   columns: SortableTableColumn<EnvironmentConfig>[] = [
     {key: EnvironmentHostingSortField.ENVIRONMENT, label: "Environment", sortKey: EnvironmentHostingSortField.ENVIRONMENT},
+    {key: EnvironmentHostingSortField.SITE_STATUS, label: "Site status", sortKey: EnvironmentHostingSortField.SITE_STATUS, width: "13rem"},
+    {key: EnvironmentHostingSortField.SITE_NOTES, label: "Notes", sortKey: EnvironmentHostingSortField.SITE_NOTES, width: "20rem"},
     {key: EnvironmentHostingSortField.FLY_APP, label: "Fly app", sortKey: EnvironmentHostingSortField.FLY_APP},
     {key: EnvironmentHostingSortField.CUSTOM_DOMAIN, label: "Custom domain", sortKey: EnvironmentHostingSortField.CUSTOM_DOMAIN},
     {key: EnvironmentHostingSortField.FLY_MACHINES, label: "Fly machines", sortKey: EnvironmentHostingSortField.FLY_MACHINES, width: "12rem"},

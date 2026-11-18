@@ -130,8 +130,40 @@ export const FLY_MACHINE_MODE_LABELS: Record<FlyMachineMode, string> = {
   [FlyMachineMode.SLEEP_WHEN_IDLE]: "Sleep when idle"
 };
 
+export enum EnvironmentSiteStatus {
+  LIVE = "live",
+  ONBOARDING = "onboarding",
+  PROSPECT = "prospect",
+  DEMO = "demo",
+  UNCLAIMED = "unclaimed",
+  DORMANT = "dormant",
+  STAGING = "staging"
+}
+
+export const ENVIRONMENT_SITE_STATUS_LABELS: Record<EnvironmentSiteStatus, string> = {
+  [EnvironmentSiteStatus.LIVE]: "Live group site",
+  [EnvironmentSiteStatus.ONBOARDING]: "Onboarding",
+  [EnvironmentSiteStatus.PROSPECT]: "Prospect - awaiting reply",
+  [EnvironmentSiteStatus.DEMO]: "Demo",
+  [EnvironmentSiteStatus.UNCLAIMED]: "Registered, not contacted",
+  [EnvironmentSiteStatus.DORMANT]: "Dormant",
+  [EnvironmentSiteStatus.STAGING]: "Staging or dev"
+};
+
+export const ENVIRONMENT_SITE_STATUSES: EnvironmentSiteStatus[] = [
+  EnvironmentSiteStatus.LIVE,
+  EnvironmentSiteStatus.ONBOARDING,
+  EnvironmentSiteStatus.PROSPECT,
+  EnvironmentSiteStatus.DEMO,
+  EnvironmentSiteStatus.UNCLAIMED,
+  EnvironmentSiteStatus.DORMANT,
+  EnvironmentSiteStatus.STAGING
+];
+
 export enum EnvironmentHostingSortField {
   ENVIRONMENT = "environment",
+  SITE_STATUS = "siteStatus",
+  SITE_NOTES = "siteNotes",
   FLY_APP = "flyio.appName",
   CUSTOM_DOMAIN = "customDomains.0.hostname",
   FLY_MACHINES = "flyMachines",
@@ -156,6 +188,8 @@ export interface EnvironmentConfig {
   ngxLite?: boolean;
   estateDeploy?: boolean;
   flyMachines?: FlyMachineMode;
+  siteStatus?: EnvironmentSiteStatus;
+  siteNotes?: string;
   consoleAccess?: EnvironmentConsoleAccess;
 }
 
