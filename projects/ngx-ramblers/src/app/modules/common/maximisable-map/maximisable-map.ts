@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, HostListener, inject, Input, OnDestroy, OnInit, Output, ViewEncapsulation } from "@angular/core";
+import { Component, contentChildren, ElementRef, EventEmitter, HostListener, inject, Input, OnDestroy, OnInit, Output, ViewEncapsulation } from "@angular/core";
 import { ActivatedRoute, ParamMap } from "@angular/router";
 import { Subscription } from "rxjs";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -8,10 +8,10 @@ import { DELAYED_TOOLTIP_PROVIDERS } from "../tooltip-config";
 import { StoredValue } from "../../../models/ui-actions.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 
-export interface MaximisableMapState {
-  expanded: boolean;
-  fullScreen: boolean;
-}
+import { NgSelectComponent } from "@ng-select/ng-select";
+import { MaximisableMapState } from "../../../models/map.model";
+
+export type { MaximisableMapState } from "../../../models/map.model";
 
 @Component({
   selector: "app-maximisable-map",
@@ -194,6 +194,7 @@ export class MaximisableMapComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private uiActions = inject(UiActionsService);
   private host = inject(ElementRef);
+  private selects = contentChildren(NgSelectComponent, {descendants: true});
   private fullScreenPlaceholder: Comment | null = null;
   private fullScreenWrapper: HTMLElement | null = null;
 
@@ -314,6 +315,7 @@ export class MaximisableMapComponent implements OnInit, OnDestroy {
 
   private applyState(expanded: boolean, fullScreen: boolean): void {
     if (this.expanded !== expanded || this.fullScreen !== fullScreen) {
+      this.selects().forEach(select => select.close());
       this.expanded = expanded;
       this.fullScreen = fullScreen;
       if (this.fullScreen) {

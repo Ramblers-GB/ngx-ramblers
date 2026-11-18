@@ -94,6 +94,7 @@ export interface ProcessState {
 }
 
 export interface LogViewerConfig {
+  signal?: AbortSignal;
   frontendLogPath: string;
   backendLogPath: string;
   workerLogPath?: string;
@@ -114,4 +115,10 @@ export interface QueryBenchmark {
   maxMs: number;
   docCount: number;
   indexes: number;
+}
+
+export interface LocalDevFrontendSession {
+  child: ChildProcess | null;
+  logPath: string | null;
+  onError: (label: string, message: string) => void;
 }

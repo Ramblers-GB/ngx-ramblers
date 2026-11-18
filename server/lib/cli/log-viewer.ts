@@ -3,14 +3,56 @@ import { spawn, spawnSync } from "child_process";
 import { LogViewerConfig } from "./cli.model";
 import { log } from "./cli-logger";
 
-async function waitForLogFiles(config: LogViewerConfig, timeoutMs: number = 30000): Promise<void> {
-  const pollForLogFiles = async (elapsed: number): Promise<void> => {
-    if (elapsed >= timeoutMs) return;
-    if (fs.existsSync(config.frontendLogPath) || fs.existsSync(config.backendLogPath)) return;
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return pollForLogFiles(elapsed + 500);
-  };
-  await pollForLogFiles(0);
+function waitForLogFiles(config: LogViewerConfig, timeoutMs = 30000): Promise<void> {
+  return new Promise(resolve => {
+    const finish = () => {
+      clearInterval(poll);
+      clearTimeout(timeout);
+      config.signal?.removeEventListener("abort", finish);
+      resolve();
+    };
+    const check = () => {
+      if (config.signal?.aborted || fs.existsSync(config.frontendLogPath) || fs.existsSync(config.backendLogPath)) {
+        finish();
+      }
+    };
+    const poll = setInterval(check, 100);
+    const timeout = setTimeout(finish, timeoutMs);
+    config.signal?.addEventListener("abort", finish, {once: true});
+    check();
+  });
+}
+
+function stopSecondaryLogs(config: LogViewerConfig): void {
+  [config.backendLogPath, config.workerLogPath].filter(Boolean).forEach(logPath => {
+    spawnSync("pkill", ["-f", `tail -f ${logPath}`], {stdio: "ignore"});
+  });
+}
+
+function followFrontendLog(config: LogViewerConfig, onClose: (() => void) | null = null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tail = spawn("tail", ["-f", config.frontendLogPath], {stdio: "inherit"});
+    const cancel = () => tail.kill("SIGTERM");
+    const finish = (error: Error | null) => {
+      config.signal?.removeEventListener("abort", cancel);
+      tail.removeListener("exit", exited);
+      tail.removeListener("error", failed);
+      onClose?.();
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+    const exited = () => finish(null);
+    const failed = (error: Error) => finish(error);
+    tail.once("exit", exited);
+    tail.once("error", failed);
+    config.signal?.addEventListener("abort", cancel, {once: true});
+    if (config.signal?.aborted) {
+      cancel();
+    }
+  });
 }
 
 function isTmuxAvailable(): boolean {
@@ -29,13 +71,7 @@ function openWithTmux(config: LogViewerConfig): Promise<void> {
     spawnSync("tmux", ["split-window", "-v", "-t", ".", "tail", "-f", config.workerLogPath]);
   }
 
-  const tail = spawn("tail", ["-f", config.frontendLogPath], {
-    stdio: "inherit"
-  });
-
-  return new Promise<void>(resolve => {
-    tail.on("exit", () => resolve());
-  });
+  return followFrontendLog(config, () => stopSecondaryLogs(config));
 }
 
 function openWithIterm(config: LogViewerConfig): Promise<void> {
@@ -59,26 +95,16 @@ function openWithIterm(config: LogViewerConfig): Promise<void> {
   `;
   spawnSync("osascript", ["-e", script]);
 
-  const killSplitPane = () => {
-    spawnSync("pkill", ["-f", `tail -f ${config.backendLogPath}`], { stdio: "ignore" });
-    if (config.workerLogPath) {
-      spawnSync("pkill", ["-f", `tail -f ${config.workerLogPath}`], { stdio: "ignore" });
-    }
-  };
-
+  const killSplitPane = () => stopSecondaryLogs(config);
   process.on("SIGINT", killSplitPane);
   process.on("SIGTERM", killSplitPane);
   process.on("exit", killSplitPane);
 
-  const tail = spawn("tail", ["-f", config.frontendLogPath], {
-    stdio: "inherit"
-  });
-
-  return new Promise<void>(resolve => {
-    tail.on("exit", () => {
-      killSplitPane();
-      resolve();
-    });
+  return followFrontendLog(config, () => {
+    process.removeListener("SIGINT", killSplitPane);
+    process.removeListener("SIGTERM", killSplitPane);
+    process.removeListener("exit", killSplitPane);
+    killSplitPane();
   });
 }
 
@@ -101,34 +127,25 @@ function openWithTerminalApp(config: LogViewerConfig): Promise<void> {
     spawnSync("osascript", ["-e", workerScript]);
   }
 
-  const tail = spawn("tail", ["-f", config.frontendLogPath], {
-    stdio: "inherit"
-  });
-
-  return new Promise<void>(resolve => {
-    tail.on("exit", () => resolve());
-  });
+  return followFrontendLog(config, () => stopSecondaryLogs(config));
 }
 
 export async function openLogViewer(config: LogViewerConfig): Promise<void> {
-  if (!fs.existsSync(config.frontendLogPath) && !fs.existsSync(config.backendLogPath)) {
-    log("Waiting for log files...");
-    await waitForLogFiles(config);
+  if (!config.signal?.aborted) {
+    if (!fs.existsSync(config.frontendLogPath) && !fs.existsSync(config.backendLogPath)) {
+      log("Waiting for log files...");
+      await waitForLogFiles(config);
+    }
+    if (!config.signal?.aborted) {
+      if (!fs.existsSync(config.frontendLogPath) && !fs.existsSync(config.backendLogPath)) {
+        log("No log files found after waiting.");
+      } else if (isTmuxAvailable()) {
+        await openWithTmux(config);
+      } else if ((process.env.TERM_PROGRAM || "").includes("iTerm")) {
+        await openWithIterm(config);
+      } else {
+        await openWithTerminalApp(config);
+      }
+    }
   }
-
-  if (!fs.existsSync(config.frontendLogPath) && !fs.existsSync(config.backendLogPath)) {
-    log("No log files found after waiting.");
-    return;
-  }
-
-  if (isTmuxAvailable()) {
-    return openWithTmux(config);
-  }
-
-  const termProgram = process.env.TERM_PROGRAM || "";
-  if (termProgram.includes("iTerm")) {
-    return openWithIterm(config);
-  }
-
-  return openWithTerminalApp(config);
 }

@@ -1,3 +1,4 @@
+import type { Point, Polyline } from "leaflet";
 import { MapRoute } from "./content-text.model";
 import { GeocodeMatchType } from "./address.model";
 import { values } from "es-toolkit/compat";
@@ -221,4 +222,18 @@ export enum LocationType {
   START = "Start",
   END = "End",
   FINISH = "Finish"
+}
+
+export interface LineSimplificationSegment {
+  first: number;
+  last: number;
+}
+
+export interface SimplifiableMapPolyline extends Polyline {
+  _parts: Point[][];
+}
+
+export interface MaximisableMapState {
+  expanded: boolean;
+  fullScreen: boolean;
 }

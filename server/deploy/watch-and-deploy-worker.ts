@@ -19,19 +19,27 @@ const WATCH_DIRS = [
 const DEBOUNCE_MS = 3000;
 export const PROD_WORKER_APP = "ngx-ramblers-integration-worker";
 
-function confirmDeploy(reason: string, appName: string): Promise<boolean> {
+function confirmDeploy(reason: string, appName: string, signal: AbortSignal): Promise<boolean> {
   return new Promise(resolve => {
     const rl = readline.createInterface({input: process.stdin, output: process.stdout});
+    const cancel = () => rl.close();
+    signal.addEventListener("abort", cancel, {once: true});
+    rl.once("close", () => {
+      signal.removeEventListener("abort", cancel);
+      resolve(false);
+    });
     rl.question(`Change in ${reason} - rebuild and deploy to ${appName}? This is a full Docker image build. (y/N) `, answer => {
-      rl.close();
       resolve(/^y/i.test(answer.trim()));
+      rl.close();
     });
   });
 }
 
-export async function watchAndDeployWorker(appName: string = PROD_WORKER_APP): Promise<void> {
+export async function watchAndDeployWorker(appName: string = PROD_WORKER_APP): Promise<() => void> {
   applyFlyOrganisationToken(await configuredEnvironments());
 
+  const lifecycle = new AbortController();
+  const watchers: fs.FSWatcher[] = [];
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let deploying = false;
   let awaitingConfirmation = false;
@@ -54,7 +62,7 @@ export async function watchAndDeployWorker(appName: string = PROD_WORKER_APP): P
   }
 
   function maybeTriggerPending(): void {
-    if (pendingReason) {
+    if (pendingReason && !lifecycle.signal.aborted) {
       const reason = pendingReason;
       pendingReason = null;
       void triggerDeploy(reason);
@@ -67,9 +75,9 @@ export async function watchAndDeployWorker(appName: string = PROD_WORKER_APP): P
       debugLog(`Change in ${reason} while busy - queued`);
     } else {
       awaitingConfirmation = true;
-      const confirmed = await confirmDeploy(reason, appName);
+      const confirmed = await confirmDeploy(reason, appName, lifecycle.signal);
       awaitingConfirmation = false;
-      if (confirmed) {
+      if (confirmed && !lifecycle.signal.aborted) {
         runDeploy();
       } else {
         debugLog("Skipped");
@@ -88,11 +96,11 @@ export async function watchAndDeployWorker(appName: string = PROD_WORKER_APP): P
   let watching = 0;
   WATCH_DIRS.forEach(dir => {
     if (fs.existsSync(dir)) {
-      fs.watch(dir, {recursive: true}, (_event, fileName) => {
+      watchers.push(fs.watch(dir, {recursive: true}, (_event, fileName) => {
         if (fileName && fileName.endsWith(".ts")) {
           scheduleDeploy(fileName);
         }
-      });
+      }));
       watching++;
       debugLog(`Watching ${dir}`);
     }
@@ -103,6 +111,13 @@ export async function watchAndDeployWorker(appName: string = PROD_WORKER_APP): P
   }
 
   debugLog(`Ready - edits will prompt to deploy to ${appName} ${DEBOUNCE_MS / 1000}s after the last change`);
+  return () => {
+    lifecycle.abort();
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    watchers.forEach(watcher => watcher.close());
+  };
 }
 
 if (require.main === module) {

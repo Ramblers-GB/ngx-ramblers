@@ -54,7 +54,7 @@ import { NamedEvent, NamedEventType } from "../../models/broadcast.model";
 import { ResizerComponent, ResizerOrientation, ResizerVariant } from "../../modules/common/resizer/resizer";
 import { MaximisableMapComponent, MaximisableMapState } from "../../modules/common/maximisable-map/maximisable-map";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faRotateLeft, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { ParishMapService } from "../../services/parish-map.service";
 import { ParishFeatureProperties } from "../../models/parish-map.model";
 import { MemberLoginService } from "../../services/member/member-login.service";
@@ -151,21 +151,30 @@ import {
       font-size: 0.8rem
 
     .parish-filter-bar
-      margin-top: 8px
+      margin-top: var(--space-2)
 
     .parish-filter-grid
       display: grid
       grid-template-columns: repeat(2, minmax(0, 1fr))
       gap: 0.5rem 0.75rem
-      align-items: center
+      align-items: start
     .parish-filter-grid .map-control-item
+      display: grid
+      grid-template-columns: 9rem minmax(0, 1fr)
+      align-items: start
       min-width: 0
+    .parish-filter-grid .map-control-item > span
+      padding-top: var(--space-2)
+      white-space: normal
     .parish-filter-grid .map-control-item .ng-select
       min-width: 0
       flex: 1 1 auto
-    @media (min-width: 1200px)
+    @media (max-width: 767.98px)
       .parish-filter-grid
-        grid-template-columns: repeat(3, minmax(0, 1fr))
+        grid-template-columns: minmax(0, 1fr)
+      .parish-filter-grid .map-control-item
+        grid-template-columns: minmax(0, 1fr)
+        gap: var(--space-1)
 
     .parish-legend-swatch
       display: inline-block
@@ -524,9 +533,10 @@ import {
         @if (parishFilterControlsVisible) {
           <div class="rounded img-thumbnail p-2 parish-filter-bar maximisable-map-filter">
             <div class="parish-filter-grid">
-              <div class="d-flex align-items-center map-control-item">
-                <span class="small mx-1 text-nowrap">Colour by</span>
+              <div class="map-control-item">
+                <span class="small">Colour by</span>
                 <ng-select
+                  appendTo="body"
                   [items]="parishColourModeOptions"
                   bindLabel="label"
                   bindValue="value"
@@ -537,9 +547,10 @@ import {
                   class="flex-grow-1">
                 </ng-select>
               </div>
-              <div class="d-flex align-items-start map-control-item">
-                <span class="small mx-1 text-nowrap mt-1">Coverage</span>
+              <div class="map-control-item">
+                <span class="small">Coverage</span>
                 <ng-select
+                  appendTo="body"
                   [items]="parishCoverageFilterOptions"
                   [multiple]="true"
                   [closeOnSelect]="false"
@@ -552,9 +563,10 @@ import {
                 </ng-select>
               </div>
               @if (rightsOfWayGroupOptions.length > 0) {
-                <div class="d-flex align-items-center map-control-item">
-                  <span class="small mx-1 text-nowrap">Rights of way group</span>
+                <div class="map-control-item">
+                  <span class="small">Rights of way group</span>
                   <ng-select
+                    appendTo="body"
                     [items]="rightsOfWayGroupOptions"
                     bindLabel="label"
                     bindValue="value"
@@ -569,9 +581,10 @@ import {
                 </div>
               }
               @if (localAuthorityOptions.length > 0) {
-                <div class="d-flex align-items-center map-control-item">
-                  <span class="small mx-1 text-nowrap">Authority</span>
+                <div class="map-control-item">
+                  <span class="small">Authority</span>
                   <ng-select
+                    appendTo="body"
                     [items]="localAuthorityOptions"
                     bindLabel="label"
                     bindValue="value"
@@ -586,9 +599,10 @@ import {
                 </div>
               }
               @if (sectorOptions.length > 0) {
-                <div class="d-flex align-items-center map-control-item">
-                  <span class="small mx-1 text-nowrap">Sector</span>
+                <div class="map-control-item">
+                  <span class="small">Sector</span>
                   <ng-select
+                    appendTo="body"
                     [items]="sectorOptions"
                     bindLabel="label"
                     bindValue="value"
@@ -602,11 +616,6 @@ import {
                   </ng-select>
                 </div>
               }
-              @if (parishFiltersActive) {
-                <div class="d-flex align-items-center map-control-item">
-                  <button type="button" class="btn btn-sm btn-quiet text-nowrap" (click)="resetParishFilters()">Reset filters</button>
-                </div>
-              }
             </div>
             <div class="parish-colour-legend d-flex flex-wrap align-items-center mt-2" style="gap: 0.35rem 0.9rem;">
               @for (item of parishColourLegend; track item.label) {
@@ -614,6 +623,11 @@ import {
                   <span class="parish-legend-swatch" [style.background]="item.color"></span>
                   <span class="small text-nowrap">{{ item.label }}</span>
                 </div>
+              }
+              @if (parishFiltersActive) {
+                <button type="button" class="btn btn-sm btn-quiet ms-auto" (click)="resetParishFilters()">
+                  <fa-icon [icon]="faRotateLeft" class="me-1"/>Reset filters
+                </button>
               }
             </div>
           </div>
@@ -662,6 +676,7 @@ export class AreaMap implements OnInit, OnDestroy, OnChanges {
   private suppressViewPersist = false;
   public dataLoading = true;
   protected readonly faSpinner = faSpinner;
+  protected readonly faRotateLeft = faRotateLeft;
   protected readonly LegendPosition = LegendPosition;
 
   @Input() set row(value: PageContentRow | undefined) {

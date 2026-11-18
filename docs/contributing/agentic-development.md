@@ -73,6 +73,8 @@ the frontend on http://localhost:4200 and the backend on http://localhost:5001,
 both with hot reload. `--no-docker-worker` runs the integration worker as a local
 Node process rather than a Docker container, so you do not need Docker installed.
 
+While development mode is running, press Ctrl+C to return to the environment chooser. The backend and worker stop, while Angular stays on port 4200 with its compiled output. Select another environment, wait for its backend to start, then refresh the browser so its configuration and login are loaded. Press q at the chooser to stop the whole stack. This applies to a newly started CLI session; an already running CLI keeps its previous behaviour.
+
 Each environment needs three things, and all three are scoped to a single group:
 
 1. **A secrets file** at `non-vcs/secrets/secrets.<app-name>.env`. This holds the

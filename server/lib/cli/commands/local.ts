@@ -14,8 +14,9 @@ import { log } from "../cli-logger";
 import { select, isBack, isQuit, handleQuit, clearScreen } from "../cli-prompt";
 import { dateTimeNow } from "../../shared/dates";
 import { envConfig } from "../../env-config/env-config";
-import { LocalRunConfig, ProcessState, RunningProcess } from "../cli.model";
+import { LocalDevFrontendSession, LocalRunConfig, ProcessState, RunningProcess } from "../cli.model";
 import { DEFAULT_CHROME_VERSION } from "../../shared/chrome-version";
+import { runLocalDevEnvironments, stopLocalProcess } from "../local-process-lifecycle";
 import { openLogViewer, logViewerSupported } from "../log-viewer";
 import { parseMongoUri } from "../../shared/mongodb-uri";
 import { ensureDevWorkerDeployed, devWorkerUrl } from "../../../deploy/worker-dev-app";
@@ -355,7 +356,8 @@ function runCommand(
   state: ProcessState,
   onError: (label: string, message: string) => void,
   logFilePath: string | null,
-  showOutput: boolean
+  showOutput: boolean,
+  detached = false
 ): ChildProcess {
   log(`Starting ${label}...`);
   debugLog(`Running: ${command} ${args.join(" ")}`);
@@ -363,7 +365,8 @@ function runCommand(
   const child = spawn(command, args, {
     cwd,
     env,
-    stdio: ["inherit", "pipe", "pipe"]
+    stdio: [detached ? "ignore" : "inherit", "pipe", "pipe"],
+    detached
   });
 
   const logStream = logFilePath ? fs.createWriteStream(logFilePath, { flags: "a" }) : undefined;
@@ -732,7 +735,7 @@ async function waitForWorkerReady(workerPort: number, timeoutMs: number, state: 
   return false;
 }
 
-async function runDev(config: LocalRunConfig): Promise<void> {
+async function runDev(config: LocalRunConfig, frontend: LocalDevFrontendSession): Promise<boolean> {
   const envConfig = await findEnvironmentFromDatabase(config.environmentName);
   if (!envConfig) {
     throw new Error(`Environment ${config.environmentName} not found`);
@@ -745,7 +748,9 @@ async function runDev(config: LocalRunConfig): Promise<void> {
   const workerPort = config.port + 1;
   removeWorkerContainerSync();
   await clearPortForLocalRun(config.port, "Backend");
-  await clearPortForLocalRun(4200, "Frontend");
+  if (!frontend.child) {
+    await clearPortForLocalRun(4200, "Frontend");
+  }
 
   const completeSecrets = await loadAndEnsureSecrets(config.environmentName, envConfig.appName, envConfig.apiKey);
   const s3BucketOverride = config.s3BucketOverride === false
@@ -754,6 +759,7 @@ async function runDev(config: LocalRunConfig): Promise<void> {
   const env = buildEnvironmentVariables(completeSecrets, "dev", config.port, s3BucketOverride);
 
   let dynamicWorkerTunnel: QuickTunnel | null = null;
+  const stopWorkerWatchers: (() => void)[] = [];
   if (config.dynamicWorker) {
     log("Preparing personal dev worker on fly.io...");
     const dynamicWorkerApp = await ensureDevWorkerDeployed(undefined, envConfig.organisation);
@@ -764,7 +770,7 @@ async function runDev(config: LocalRunConfig): Promise<void> {
     env[Environment.INTEGRATION_WORKER_CALLBACK_BASE_URL] = dynamicWorkerTunnel.url;
     log("Callback tunnel ready: %s -> http://localhost:%d", dynamicWorkerTunnel.url, config.port);
 
-    await watchAndDeployWorker(dynamicWorkerApp);
+    stopWorkerWatchers.push(await watchAndDeployWorker(dynamicWorkerApp));
   }
 
   const configuredWorkerUrl = (
@@ -805,7 +811,7 @@ async function runDev(config: LocalRunConfig): Promise<void> {
   const workerEnv: NodeJS.ProcessEnv = { ...env, PORT: String(workerPort) };
   const logDir = resolveLogDir(config.logDir);
   const timestamp = buildLogTimestamp(config.logTimestamp);
-  const frontendLogPath = buildLogFilePath(logDir, applyLogTimestamp("frontend.log", timestamp));
+  const frontendLogPath = frontend.logPath || buildLogFilePath(logDir, applyLogTimestamp("frontend.log", timestamp));
   const backendLogPath = buildLogFilePath(logDir, applyLogTimestamp("backend.log", timestamp));
   const workerLogPath = spawnLocalWorker ? buildLogFilePath(logDir, applyLogTimestamp("worker.log", timestamp)) : null;
 
@@ -826,6 +832,7 @@ async function runDev(config: LocalRunConfig): Promise<void> {
   } else {
     log("Worker:  %s (remote - not spawning local worker)", configuredWorkerUrl);
   }
+  log("Ctrl+C: choose another environment without rebuilding Angular. q in the chooser: stop.\n");
   log("========================================\n");
 
   const processes: RunningProcess[] = [];
@@ -849,28 +856,31 @@ async function runDev(config: LocalRunConfig): Promise<void> {
     }
   };
 
-  const cleanup = (reason?: string) => {
-    if (state.isShuttingDown) {
-      process.exit(reason ? 1 : 0);
-      return;
-    }
-    state.isShuttingDown = true;
-    if (reason) {
-      log("\nError: %s", reason);
-    }
-    log("Shutting down...");
-    teardownWorkerContainer();
-    processes.forEach(p => {
-      if (!p.child.killed) {
-        p.child.kill("SIGTERM");
-        setTimeout(() => {
-          if (!p.child.killed) {
-            p.child.kill("SIGKILL");
-          }
-        }, 1000);
+  const logViewerCancellation = new AbortController();
+  const completion = {finish: (chooseEnvironment: boolean) => {debugLog("Local environment stopped: %s", chooseEnvironment);}};
+  const stopped = new Promise<boolean>(resolve => completion.finish = resolve);
+  const cleanup = (reason?: string, chooseEnvironment = false) => {
+    if (!state.isShuttingDown) {
+      state.isShuttingDown = true;
+      logViewerCancellation.abort();
+      if (reason) {
+        log("\nError: %s", reason);
+        process.exitCode = 1;
       }
-    });
-    setTimeout(() => process.exit(reason ? 1 : 0), 2000);
+      log(chooseEnvironment ? "Stopping backend and worker; keeping Angular ready..." : "Shutting down...");
+      stopWorkerWatchers.forEach(stop => stop());
+      teardownWorkerContainer();
+      Promise.all(processes.map(running => running.label === "Callback tunnel" || running.label === "Worker (docker)"
+        ? new Promise<void>(resolve => {
+          if (running.child.exitCode !== null || running.child.signalCode !== null) {
+            resolve();
+          } else {
+            running.child.once("exit", () => resolve());
+            running.child.kill("SIGTERM");
+          }
+        })
+        : stopLocalProcess(running.child))).then(() => completion.finish(chooseEnvironment));
+    }
   };
 
   const onError = (label: string, message: string) => {
@@ -880,105 +890,120 @@ async function runDev(config: LocalRunConfig): Promise<void> {
     }
   };
 
-  const backendState = createProcessState();
-  const backendProcess = runCommand(
-    "npm",
-    ["run", "server-live", "--prefix", "server"],
-    env,
-    PROJECT_ROOT,
-    "Backend (tsx watch)",
-    backendState,
-    onError,
-    backendLogPath,
-    showOutput
-  );
-  processes.push({ child: backendProcess, label: "Backend" });
+  const chooseEnvironment = () => cleanup(null, true);
+  const terminate = () => cleanup();
+  process.on("SIGINT", chooseEnvironment);
+  process.on("SIGTERM", terminate);
 
-  if (spawnLocalWorker) {
-    const workerState = createProcessState();
-    if (useDockerWorker) {
-      const chromeVersion = env.CHROME_VERSION || completeSecrets.CHROME_VERSION || "";
-      if (!chromeVersion) {
-        throw new Error("CHROME_VERSION not resolved — cannot build worker image");
-      }
-      const imageInfo = inspectWorkerImage();
-      if (workerImageNeedsRebuild(imageInfo)) {
-        log(imageInfo.exists ? "Worker image out of date, rebuilding..." : "Worker image missing, building...");
-        await buildWorkerImage(chromeVersion, workerLogPath);
-      } else {
-        log("Worker image %s up to date", WORKER_IMAGE_TAG);
-      }
-      const workerProcess = startWorkerContainer(
-        workerEnv,
-        workerPort,
-        config.port,
-        workerLogPath,
-        showOutput,
-        workerState,
-        onError
-      );
-      workerContainerStarted = true;
-      processes.push({ child: workerProcess, label: "Worker (docker)" });
-      log("Waiting for worker container to become ready at http://localhost:%d/api/health...", workerPort);
-      const ready = await waitForWorkerReady(workerPort, 120_000, state);
-      if (!ready && !state.isShuttingDown) {
-        onError("Worker (docker)", "health check timed out after 120s");
-      } else if (ready) {
-        log("Worker container ready");
-      }
-    } else {
-      await ensureLocalPlaywrightBrowser(workerLogPath);
-      const workerProcess = runCommand(
-        "npm",
-        ["run", "worker-server-live", "--prefix", "server"],
-        workerEnv,
-        PROJECT_ROOT,
-        "Worker (tsx watch)",
-        workerState,
-        onError,
-        workerLogPath,
-        showOutput
-      );
-      processes.push({ child: workerProcess, label: "Worker" });
-    }
-  }
-
-  const frontendState = createProcessState();
-  const frontendProcess = runCommand(
-    "npm",
-    ["run", "serve"],
-    env,
-    PROJECT_ROOT,
-    "Frontend (ng serve)",
-    frontendState,
-    onError,
-    frontendLogPath,
-    showOutput
-  );
-  processes.push({ child: frontendProcess, label: "Frontend" });
-
-  process.on("SIGINT", () => cleanup());
-  process.on("SIGTERM", () => cleanup());
-
-  if (config.logViewer && frontendLogPath && backendLogPath) {
-    await openLogViewer({
-      frontendLogPath,
+  try {
+    frontend.onError = onError;
+    const backendState = createProcessState();
+    const backendProcess = runCommand(
+      "npm",
+      ["run", "server-live", "--prefix", "server"],
+      env,
+      PROJECT_ROOT,
+      "Backend (tsx watch)",
+      backendState,
+      onError,
       backendLogPath,
-      workerLogPath: workerLogPath || undefined,
-      refreshIntervalMs: 500,
-      maxLines: 2000
-    });
-    cleanup();
-  }
+      showOutput,
+      true
+    );
+    processes.push({ child: backendProcess, label: "Backend" });
 
-  await Promise.all(
-    processes.map(
-      p =>
-        new Promise<void>(resolve => {
-          p.child.on("exit", () => resolve());
-        })
-    )
-  );
+    if (spawnLocalWorker) {
+      const workerState = createProcessState();
+      if (useDockerWorker) {
+        const chromeVersion = env.CHROME_VERSION || completeSecrets.CHROME_VERSION || "";
+        if (!chromeVersion) {
+          throw new Error("CHROME_VERSION not resolved — cannot build worker image");
+        }
+        const imageInfo = inspectWorkerImage();
+        if (workerImageNeedsRebuild(imageInfo)) {
+          log(imageInfo.exists ? "Worker image out of date, rebuilding..." : "Worker image missing, building...");
+          await buildWorkerImage(chromeVersion, workerLogPath);
+        } else {
+          log("Worker image %s up to date", WORKER_IMAGE_TAG);
+        }
+        if (!state.isShuttingDown) {
+          const workerProcess = startWorkerContainer(
+            workerEnv,
+            workerPort,
+            config.port,
+            workerLogPath,
+            showOutput,
+            workerState,
+            onError
+          );
+          workerContainerStarted = true;
+          processes.push({ child: workerProcess, label: "Worker (docker)" });
+          log("Waiting for worker container to become ready at http://localhost:%d/api/health...", workerPort);
+          const ready = await waitForWorkerReady(workerPort, 120_000, state);
+          if (!ready && !state.isShuttingDown) {
+            onError("Worker (docker)", "health check timed out after 120s");
+          } else if (ready) {
+            log("Worker container ready");
+          }
+        }
+      } else {
+        await ensureLocalPlaywrightBrowser(workerLogPath);
+        if (!state.isShuttingDown) {
+          const workerProcess = runCommand(
+            "npm",
+            ["run", "worker-server-live", "--prefix", "server"],
+            workerEnv,
+            PROJECT_ROOT,
+            "Worker (tsx watch)",
+            workerState,
+            onError,
+            workerLogPath,
+            showOutput,
+            true
+          );
+          processes.push({ child: workerProcess, label: "Worker" });
+        }
+      }
+    }
+
+    if (!state.isShuttingDown && !frontend.child) {
+      const frontendState = createProcessState();
+      frontend.logPath = frontendLogPath;
+      frontend.child = runCommand(
+        "npm",
+        ["run", "serve"],
+        env,
+        PROJECT_ROOT,
+        "Frontend (ng serve)",
+        frontendState,
+        (label, message) => frontend.onError(label, message),
+        frontendLogPath,
+        showOutput,
+        true
+      );
+    } else if (!state.isShuttingDown) {
+      log("Reusing Angular on http://localhost:4200 — refresh the browser after the backend is ready.");
+    }
+    if (!state.isShuttingDown && config.logViewer && frontendLogPath && backendLogPath) {
+      await openLogViewer({
+        signal: logViewerCancellation.signal,
+        frontendLogPath,
+        backendLogPath,
+        workerLogPath: workerLogPath || undefined,
+        refreshIntervalMs: 500,
+        maxLines: 2000
+      });
+      chooseEnvironment();
+    }
+    return await stopped;
+  } catch (error) {
+    cleanup((error as Error).message);
+    await stopped;
+    return false;
+  } finally {
+    process.removeListener("SIGINT", chooseEnvironment);
+    process.removeListener("SIGTERM", terminate);
+  }
 }
 
 async function runProd(config: LocalRunConfig): Promise<void> {
@@ -1167,18 +1192,9 @@ export function createLocalCommand(): Command {
           logViewer
         );
 
-        await runDev({
-          environmentName,
-          mode: "dev",
-          port,
-          logDir: config.logDir,
-          logTimestamp: config.logTimestamp,
-          logViewer: config.logViewer,
-          s3BucketOverride: config.s3BucketOverride,
-          dockerWorker: config.dockerWorker,
-          headless: config.headless,
-          dynamicWorker: config.dynamicWorker,
-          screenshots: config.screenshots
+        await runLocalDevEnvironments(config, runDev, async () => {
+          clearScreen();
+          return selectEnvironment();
         });
       } catch (error) {
         log("Error: %s", error.message);

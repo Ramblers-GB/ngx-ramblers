@@ -1,3 +1,5 @@
+import { Observable } from "rxjs";
+
 export interface ParishBBox {
   west: number;
   south: number;
@@ -10,7 +12,7 @@ export interface ParishFeatureProperties {
   PARNCP24NM: string;
 }
 
-export interface ParishCacheEntry {
-  data: GeoJSON.FeatureCollection;
-  timestamp: number;
+export interface ParishBoundaryRequest {
+  response: Observable<GeoJSON.FeatureCollection>;
+  expiresAt: number;
 }

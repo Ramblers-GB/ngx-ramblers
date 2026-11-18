@@ -1,3 +1,5 @@
+import { range } from "es-toolkit";
+import { LineSimplificationSegment } from "../models/map.model";
 import { RouteFollowPoint, RouteFollowSnap, RoutePointAlong } from "../models/route-follow.model";
 
 const EARTH_RADIUS_METRES = 6371000;
@@ -115,28 +117,28 @@ export function routeSegments(points: RouteFollowPoint[]): RouteFollowPoint[][] 
   return starts.map((start, index) => points.slice(start, starts[index + 1] ?? points.length));
 }
 
-export function thinnedRoutePoints(points: RouteFollowPoint[], toleranceMetres: number): RouteFollowPoint[] {
+export function simplifiedLinePoints<T>(points: T[], tolerance: number, distanceToSegment: (point: T, start: T, end: T) => number): T[] {
   if (points.length <= 2) {
     return points.slice();
   } else {
-    const start = points[0];
-    const end = points[points.length - 1];
-    const farthest = points.reduce((best, point, index) => {
-      if (index === 0 || index === points.length - 1) {
-        return best;
-      } else {
-        const distance = projectOnSegment(point, start, end).distanceMetres;
+    const retained = new Set([0, points.length - 1]);
+    const pending: LineSimplificationSegment[] = [{first: 0, last: points.length - 1}];
+    for (const segment of pending) {
+      const farthest = range(segment.first + 1, segment.last).reduce((best, index) => {
+        const distance = distanceToSegment(points[index], points[segment.first], points[segment.last]);
         return distance > best.distance ? {index, distance} : best;
+      }, {index: segment.first, distance: 0});
+      if (farthest.index > segment.first && farthest.index < segment.last && farthest.distance > Math.max(0, tolerance)) {
+        retained.add(farthest.index);
+        pending.push({first: segment.first, last: farthest.index}, {first: farthest.index, last: segment.last});
       }
-    }, {index: 0, distance: 0});
-    if (farthest.distance > toleranceMetres) {
-      const left = thinnedRoutePoints(points.slice(0, farthest.index + 1), toleranceMetres);
-      const right = thinnedRoutePoints(points.slice(farthest.index), toleranceMetres);
-      return [...left.slice(0, -1), ...right];
-    } else {
-      return [start, end];
     }
+    return points.filter((point, index) => retained.has(index));
   }
+}
+
+export function thinnedRoutePoints(points: RouteFollowPoint[], toleranceMetres: number): RouteFollowPoint[] {
+  return simplifiedLinePoints(points, toleranceMetres, (point, start, end) => projectOnSegment(point, start, end).distanceMetres);
 }
 
 export function simplifiedRoutePoints(points: RouteFollowPoint[], spacingMetres: number, maxPoints: number): RouteFollowPoint[] {

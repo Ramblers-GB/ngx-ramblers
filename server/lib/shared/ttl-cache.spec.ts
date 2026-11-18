@@ -67,3 +67,17 @@ describe("ttlCached", () => {
     expect(await cache.get("key", loader)).toEqual(2);
   });
 });
+
+describe("bounded TTL caches", () => {
+  it("evicts the oldest completed entry when the cache is full", async () => {
+    const cache = ttlCached<number>(1000, 2);
+    const calls: string[] = [];
+    const load = (key: string) => cache.get(key, async () => {calls.push(key); return calls.length;});
+    await load("first");
+    await load("second");
+    await load("third");
+    expect(await load("second")).toBe(2);
+    expect(await load("first")).toBe(4);
+    expect(calls).toEqual(["first", "second", "third", "first"]);
+  });
+});

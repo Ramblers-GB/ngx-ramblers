@@ -20,11 +20,13 @@ import {
   WEB_MERCATOR_METRES_PER_PIXEL_AT_ZOOM_0
 } from "../../common/maps/map-projection.constants";
 import { Proj4LeafletApi } from "../../models/proj4leaflet.model";
+import { installLeafletLineSimplification } from "./map-line-simplification";
 import { installLeafletMapGestures } from "./map-gestures";
 import { nativeApiUrl } from "../../functions/native-walking";
 import { fetchFollowTile } from "../../functions/follow-tile-cache";
 
 installLeafletMapGestures();
+installLeafletLineSimplification();
 
 class FollowTileLayer extends L.TileLayer {
   private readonly tileBlobs = new WeakMap<HTMLImageElement, string>();
