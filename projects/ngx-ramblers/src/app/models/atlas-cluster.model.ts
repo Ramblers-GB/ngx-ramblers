@@ -69,6 +69,57 @@ export const ATLAS_RECOMMENDED_COLLECTION_AND_INDEX_LIMIT: Record<AtlasClusterTi
   [AtlasClusterTier.UNKNOWN]: null
 };
 
+const MEGABYTE = 1024 * 1024;
+
+export const ATLAS_STORAGE_LIMIT_BYTES: Record<AtlasClusterTier, number | null> = {
+  [AtlasClusterTier.M0]: 512 * MEGABYTE,
+  [AtlasClusterTier.FLEX]: 5 * 1024 * MEGABYTE,
+  [AtlasClusterTier.M10]: null,
+  [AtlasClusterTier.M20]: null,
+  [AtlasClusterTier.M30]: null,
+  [AtlasClusterTier.UNKNOWN]: null
+};
+
+export enum ClusterFullnessLevel {
+  OK = "ok",
+  FILLING = "filling",
+  FULL = "full"
+}
+
+export interface ClusterFullnessMeasure {
+  percent: number;
+  level: ClusterFullnessLevel;
+  label: string;
+}
+
+export interface ClusterFullness {
+  collections: ClusterFullnessMeasure;
+  storage: ClusterFullnessMeasure | null;
+}
+
+function fullnessMeasure(used: number, limit: number, label: string): ClusterFullnessMeasure {
+  const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const level = percent >= 85 ? ClusterFullnessLevel.FULL : percent >= 70 ? ClusterFullnessLevel.FILLING : ClusterFullnessLevel.OK;
+  return {percent, level, label};
+}
+
+function megabytes(bytes: number): string {
+  const value = bytes / MEGABYTE;
+  return value >= 1024 ? `${(value / 1024).toFixed(1)} GB` : `${value.toFixed(value < 10 ? 1 : 0)} MB`;
+}
+
+export function clusterFullness(cluster: AtlasClusterRow): ClusterFullness {
+  const recommended = ATLAS_RECOMMENDED_COLLECTION_AND_INDEX_LIMIT[cluster.instanceSize];
+  const collections = recommended
+    ? fullnessMeasure(cluster.collectionCount + cluster.indexCount, recommended, `${cluster.collectionCount + cluster.indexCount} of ${recommended} collections and indexes`)
+    : fullnessMeasure(cluster.collectionCount, ATLAS_M0_MAX_COLLECTIONS, `${cluster.collectionCount} of ${ATLAS_M0_MAX_COLLECTIONS} collections`);
+  const storageLimit = ATLAS_STORAGE_LIMIT_BYTES[cluster.instanceSize];
+  const storage = storageLimit
+    ? fullnessMeasure(cluster.dataSizeBytes || 0, storageLimit, `${megabytes(cluster.dataSizeBytes || 0)} of ${megabytes(storageLimit)} storage`)
+    : null;
+  return {collections, storage};
+}
+
 export interface AtlasNetworkAccessEntry {
   cidr: string;
   comment: string;
@@ -83,6 +134,7 @@ export interface AtlasClusterEnvironmentRow {
   username: string;
   collections: number | null;
   indexes: number | null;
+  dataSizeBytes: number | null;
   error: string | null;
 }
 
@@ -100,6 +152,7 @@ export interface AtlasClusterRow {
   collectionCount: number;
   indexCount: number;
   databaseCount: number;
+  dataSizeBytes: number;
   canAddEnvironment: boolean;
   limitHeadline: string;
 }
@@ -125,6 +178,19 @@ export interface AtlasClusterCreateRequest {
   region: AwsRegion;
   setAsDefault: boolean;
   allowAllNetworkAccess: boolean;
+}
+
+export interface AtlasClusterDeleteRequest {
+  projectId: string;
+  name: string;
+}
+
+export function clusterCanBeDeleted(cluster: AtlasClusterRow, provisioningProjectId: string): boolean {
+  return !!cluster.projectId && cluster.projectId === provisioningProjectId && cluster.inProvisioningProject && !cluster.isDefault && cluster.environmentCount === 0;
+}
+
+export function clusterAcceptsMigratedSite(cluster: AtlasClusterRow, provisioningProjectId: string): boolean {
+  return !!cluster.host && cluster.inProvisioningProject && cluster.canAddEnvironment && (cluster.projectId === provisioningProjectId || cluster.environmentCount > 0);
 }
 
 export function atlasTierFromInstanceSize(instanceSize: string | null | undefined): AtlasClusterTier {
@@ -153,6 +219,16 @@ export function nextSharedSitesClusterName(clusterNames: string[]): string {
     .map(match => parseInt(match, 10));
   const next = numbers.length ? Math.max(...numbers) + 1 : 1;
   return `${SHARED_SITES_CLUSTER_PREFIX}${String(next).padStart(2, "0")}`;
+}
+
+export function atlasTierLabel(tier: AtlasClusterTier): string {
+  if (tier === AtlasClusterTier.FLEX) {
+    return "Flex";
+  } else if (tier === AtlasClusterTier.UNKNOWN) {
+    return "—";
+  } else {
+    return tier;
+  }
 }
 
 export function isSharedTier(tier: AtlasClusterTier): boolean {

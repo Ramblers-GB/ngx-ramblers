@@ -8,7 +8,7 @@ import { EnvironmentMigrationMongoProvisionRequest, EnvironmentMigrationMongoTar
 import { createErrorDebugLog } from "../shared/error-debug-log";
 import { EnvironmentConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { parseMongoUri } from "../shared/mongodb-uri";
+import { storedMongoUri } from "../shared/stored-mongo-uri";
 
 const errorDebugLog = createErrorDebugLog("environment-migration-mongo-target");
 
@@ -48,12 +48,15 @@ export async function provisionMigrationMongoTargetRequest(req: Request, res: Re
 }
 
 export function storedMongoUriConflict(environmentConfig: EnvironmentConfig | null | undefined): string | null {
-  const stored = parseMongoUri(environmentConfig?.secrets?.[Environment.MONGODB_URI] || "");
+  const {present, parsed: stored} = storedMongoUri(environmentConfig);
   const mongo = environmentConfig?.mongo;
-  const conflicting = !!stored && !!mongo?.cluster && (stored.cluster !== mongo.cluster || stored.database !== mongo.db);
-  return conflicting
-    ? `${environmentConfig.environment} runs on ${stored.cluster}/${stored.database}, the stored MONGODB_URI that deploys use, but its MongoDB settings say ${mongo.cluster}/${mongo.db}. Correct the MongoDB settings to match the live database before migrating, otherwise the copy would come from the wrong database.`
-    : null;
+  if (present && !stored) {
+    return `${environmentConfig.environment} has a stored MONGODB_URI that cannot be read, so the database the site really uses is unknown. Correct or remove it before migrating.`;
+  } else if (stored && mongo?.cluster && (stored.cluster !== mongo.cluster || stored.database !== mongo.db)) {
+    return `${environmentConfig.environment} runs on ${stored.cluster}/${stored.database}, the stored MONGODB_URI that deploys use, but its MongoDB settings say ${mongo.cluster}/${mongo.db}. Correct the MongoDB settings to match the live database before migrating, otherwise the copy would come from the wrong database.`;
+  } else {
+    return null;
+  }
 }
 
 export function secretsAfterMongoRotation(secrets: Record<string, string> | undefined, targetUri: string): Record<string, string> | undefined {

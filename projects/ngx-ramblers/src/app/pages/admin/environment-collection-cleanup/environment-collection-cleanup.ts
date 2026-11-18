@@ -4,7 +4,7 @@ import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faChevronDown, faChevronRight, faCircleCheck, faCircleExclamation, faMagnifyingGlass, faRotate, faSpinner, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { NgxLoggerLevel } from "ngx-logger";
 import { groupBy, values } from "es-toolkit/compat";
-import { ATLAS_M0_MAX_COLLECTIONS, ATLAS_RECOMMENDED_COLLECTION_AND_INDEX_LIMIT, AtlasClusterRow, AtlasClusterTier, EmptyCollectionCleanupSortField } from "../../../models/atlas-cluster.model";
+import { ATLAS_M0_MAX_COLLECTIONS, ATLAS_RECOMMENDED_COLLECTION_AND_INDEX_LIMIT, AtlasClusterRow, AtlasClusterTier, atlasTierLabel, EmptyCollectionCleanupSortField } from "../../../models/atlas-cluster.model";
 import { EmptyCollectionCandidate, EmptyCollectionCleanupPreview, EmptyCollectionEnvironmentGroup } from "../../../models/environment-collection-cleanup.model";
 import { ConsoleAccessUrlIconKey, MONGODB_ATLAS_CONSOLE_URLS, MongoClusterInfo } from "../../../models/environment-setup.model";
 import { resolveConsoleUrls } from "../../../functions/console-access-urls";
@@ -40,7 +40,7 @@ import { StringUtilsService } from "../../../services/string-utils.service";
               <div class="flex-grow-1">
                 <div class="d-flex flex-wrap align-items-baseline gap-2">
                   <strong>{{ selectedAtlasCluster.name }}</strong>
-                  <span class="badge bg-secondary">{{ selectedAtlasCluster.instanceSize === AtlasClusterTier.UNKNOWN ? "Type unavailable" : selectedAtlasCluster.instanceSize }}</span>
+                  <span class="badge bg-secondary">{{ selectedAtlasCluster.instanceSize === AtlasClusterTier.UNKNOWN ? "Type unavailable" : atlasTierLabel(selectedAtlasCluster.instanceSize) }}</span>
                   @if (selectedAtlasCluster.region) { <span class="text-muted small">{{ selectedAtlasCluster.region }}</span> }
                   <span class="badge-cloudy">{{ selectedAtlasCluster.stateName }}</span>
                 </div>
@@ -152,6 +152,7 @@ export class EnvironmentCollectionCleanupComponent implements OnInit {
   private environmentSetupService = inject(EnvironmentSetupService);
   protected stringUtils = inject(StringUtilsService);
   protected readonly AtlasClusterTier = AtlasClusterTier;
+  protected readonly atlasTierLabel = atlasTierLabel;
   protected readonly ATLAS_M0_MAX_COLLECTIONS = ATLAS_M0_MAX_COLLECTIONS;
 
   protected readonly faCircleCheck = faCircleCheck;

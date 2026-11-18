@@ -46,10 +46,10 @@ import { MongoClusterInfo } from "../../../models/environment-setup.model";
       [dropdownPosition]="'bottom'"
       [placeholder]="placeholder"
       appearance="outline">
-      <ng-template ng-label-tmp let-item="item">{{ item.cluster }} ({{ item.environments.join(", ") }})</ng-template>
+      <ng-template ng-label-tmp let-item="item">{{ item.cluster }}@if (item.environments.length) { ({{ item.environments.join(", ") }})}</ng-template>
       <ng-template ng-option-tmp let-item="item">
         <strong>{{ item.cluster }}</strong>
-        <div><small>{{ item.environments.join(", ") }}</small></div>
+        <div><small>{{ item.environments.length ? item.environments.join(", ") : "No sites yet" }}</small></div>
       </ng-template>
     </ng-select>
   `

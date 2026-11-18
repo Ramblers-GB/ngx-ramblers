@@ -2,7 +2,7 @@ import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faCircleExclamation, faExternalLinkAlt, faFloppyDisk, faGlobe, faKey, faLayerGroup, faList, faPlus, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faCircleExclamation, faExternalLinkAlt, faFloppyDisk, faGlobe, faKey, faLayerGroup, faList, faPlus, faSpinner, faStar, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -18,6 +18,10 @@ import {
   AtlasClusterView,
   EnvironmentAtlasClusterTab,
   EnvironmentAtlasTab,
+  clusterCanBeDeleted,
+  atlasTierLabel,
+  clusterFullness,
+  ClusterFullnessLevel,
   isSharedTier,
   nextSharedSitesClusterName
 } from "../../../models/atlas-cluster.model";
@@ -65,6 +69,31 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
     AlertPanelComponent
   ],
   styles: [`
+    .row-action-icon
+      border: 0
+      background: transparent
+      padding: 0.25rem 0.4rem
+      color: var(--bs-secondary-color)
+      line-height: 1
+      cursor: pointer
+    .row-action-icon:disabled
+      opacity: .5
+      cursor: not-allowed
+    .row-action-default:not(:disabled):hover, .row-action-default:not(:disabled):focus-visible
+      color: var(--ramblers-colour-sunrise, #f9b104)
+    .row-action-delete:not(:disabled):hover, .row-action-delete:not(:disabled):focus-visible
+      color: var(--bs-danger)
+    .cluster-fullness
+      min-width: 13rem
+    .cluster-fullness-label
+      display: flex
+      align-items: center
+      justify-content: space-between
+      gap: 0.5rem
+      font-size: 0.8rem
+      white-space: nowrap
+    .cluster-fullness .progress
+      height: 6px
     .atlas-action-links
       display: flex
       flex-direction: row
@@ -278,7 +307,10 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
             @if (!row.inProvisioningProject) {
               <div><span class="badge-cloudy">External project</span></div>
             }
-            <div class="d-flex align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+              @if (clusterConsoleLinks(row).length) {
+                <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="18" [inline]="true"/>
+              }
               <app-console-access-links class="d-inline-flex" [links]="clusterConsoleLinks(row)" [showEmpty]="false"/>
               @if (row.region) {
                 <span class="text-muted text-nowrap">{{ awsRegionLabel(row.region) }}</span>
@@ -289,23 +321,58 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
             {{ row.host }}
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.SIZE" let-row>
-            <span [tooltip]="row.stateName">{{ row.instanceSize === AtlasClusterTier.UNKNOWN ? "—" : row.instanceSize }}</span>
+            <span [tooltip]="row.stateName">{{ atlasTierLabel(row.instanceSize) }}</span>
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.ENVIRONMENTS" let-row>
             {{ row.environmentNames || "—" }}
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.COLLECTIONS" let-row>
-            <span [tooltip]="row.limitHeadline" [class.text-danger]="!row.canAddEnvironment">{{ row.collectionCount }}</span>
-            @if (!row.canAddEnvironment) {
-              <fa-icon [icon]="faCircleExclamation" class="text-danger ms-1" [tooltip]="row.limitHeadline"/>
-            }
+            @let fullness = clusterFullness(row);
+            <div class="cluster-fullness" [tooltip]="row.limitHeadline">
+              <div class="cluster-fullness-label">
+                <span [class.text-danger]="!row.canAddEnvironment">{{ fullness.collections.label }}</span>
+                <span class="fw-bold">{{ fullness.collections.percent }}%</span>
+                @if (!row.canAddEnvironment) {
+                  <fa-icon [icon]="faCircleExclamation" class="text-danger"/>
+                }
+              </div>
+              <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.collections.percent" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" [class]="fullnessBarClass(fullness.collections.level)" [style.width.%]="fullness.collections.percent"></div>
+              </div>
+              @if (fullness.storage) {
+                <div class="cluster-fullness-label mt-1">
+                  <span>{{ fullness.storage.label }}</span>
+                  <span class="fw-bold">{{ fullness.storage.percent }}%</span>
+                </div>
+                <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.storage.percent" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" [class]="fullnessBarClass(fullness.storage.level)" [style.width.%]="fullness.storage.percent"></div>
+                </div>
+              }
+            </div>
           </ng-template>
           <ng-template [appSortableTableCell]="'actions'" let-row>
             @if (row.host && !row.isDefault) {
-              <button type="button" class="btn btn-primary btn-icon" tooltip="Use for new sites" aria-label="Use for new sites" [disabled]="saving" (click)="setDefaultCluster(row.host)"><fa-icon [icon]="faPlus"/></button>
+              <button type="button" class="row-action-icon row-action-default" tooltip="Use this cluster for new sites" aria-label="Use this cluster for new sites" [disabled]="saving" (click)="setDefaultCluster(row.host)"><fa-icon [icon]="faStar"/></button>
+            }
+            @if (clusterCanBeDeleted(row, view?.projectId)) {
+              <button type="button" class="row-action-icon row-action-delete ms-1" tooltip="Delete this empty cluster" aria-label="Delete this empty cluster" [disabled]="deleting" (click)="startDelete(row)"><fa-icon [icon]="faTrash"/></button>
             }
           </ng-template>
         </app-sortable-table>
+        @if (deleteTarget) {
+          <div class="alert alert-warning mt-3 mb-0">
+            <fa-icon [icon]="faCircleExclamation" class="me-1"/>
+            <strong>Delete cluster {{ deleteTarget.name }}</strong>
+            <div class="mt-1">Atlas deletes the cluster and everything on it, and this cannot be undone. No site uses it. Type the cluster name to confirm.</div>
+            <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+              <input class="form-control w-auto" name="deleteConfirmation" [(ngModel)]="deleteConfirmation" autocomplete="off" [placeholder]="deleteTarget.name">
+              <button type="button" class="btn btn-danger" [disabled]="deleting || deleteConfirmation !== deleteTarget.name" (click)="deleteCluster()">
+                <fa-icon [icon]="deleting ? faSpinner : faTrash" [animation]="deleting ? 'spin' : undefined" class="me-1"/>Delete cluster
+              </button>
+              <button type="button" class="btn btn-quiet" [disabled]="deleting" (click)="cancelDelete()"><fa-icon [icon]="faXmark" class="me-1"/>Cancel</button>
+            </div>
+          </div>
+        }
         <div class="mt-3">
           <button type="button" class="btn btn-quiet" [disabled]="!view?.keysConfigured || !projectId" (click)="allowNetwork()"><fa-icon [icon]="faGlobe" class="me-1"/>Allow Fly connections</button>
           @if (view?.networkAccess?.length) {
@@ -334,7 +401,12 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.DATABASE" let-row>
             {{ row.database }}
-            <app-console-access-links [links]="environmentConsoleLinks(row)" [showEmpty]="false"/>
+            @if (environmentConsoleLinks(row).length) {
+              <div class="d-flex align-items-center gap-2 mt-2">
+                <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="18" [inline]="true"/>
+                <app-console-access-links [links]="environmentConsoleLinks(row)" [showEmpty]="false"/>
+              </div>
+            }
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.COLLECTIONS" let-row>
             @if (row.error) {
@@ -379,6 +451,15 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly environmentSetupGlobalQueryParams = {[StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS), [StoredValue.SUB_TAB]: EnvironmentSettingsSubTab.GLOBAL};
   protected readonly AtlasClusterTier = AtlasClusterTier;
   protected readonly isSharedTier = isSharedTier;
+  protected readonly clusterFullness = clusterFullness;
+  protected readonly atlasTierLabel = atlasTierLabel;
+  protected readonly clusterCanBeDeleted = clusterCanBeDeleted;
+  protected readonly faTrash = faTrash;
+  protected readonly faStar = faStar;
+  protected readonly faXmark = faXmark;
+  deleteTarget: AtlasClusterRow | null = null;
+  deleteConfirmation = "";
+  deleting = false;
   protected readonly AwsRegion = AwsRegion;
   protected readonly awsRegionLabel = awsRegionLabel;
   protected readonly AtlasClusterState = AtlasClusterState;
@@ -418,7 +499,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
     {key: AtlasClusterSortField.HOST, label: "Cluster", sortKey: AtlasClusterSortField.HOST, cellClass: "text-nowrap"},
     {key: AtlasClusterSortField.SIZE, label: "Size", sortKey: AtlasClusterSortField.SIZE, cellClass: "text-nowrap"},
     {key: AtlasClusterSortField.ENVIRONMENTS, label: "Sites", sortKey: AtlasClusterSortField.ENVIRONMENTS},
-    {key: AtlasClusterSortField.COLLECTIONS, label: "Collections", sortKey: AtlasClusterSortField.COLLECTIONS, align: SortableTableAlignment.RIGHT, cellClass: "text-nowrap"},
+    {key: AtlasClusterSortField.COLLECTIONS, label: "How full", sortKey: AtlasClusterSortField.COLLECTIONS},
     {key: "actions", label: "", cellClass: "text-nowrap"}
   ];
 
@@ -550,6 +631,40 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
     this.defaultCluster = host;
     this.syncDefaultClusterSelect();
     await this.saveProvisioning();
+  }
+
+  fullnessBarClass(level: ClusterFullnessLevel): string {
+    if (level === ClusterFullnessLevel.FULL) {
+      return "progress-bar bg-danger";
+    } else if (level === ClusterFullnessLevel.FILLING) {
+      return "progress-bar bg-warning";
+    } else {
+      return "progress-bar bg-success";
+    }
+  }
+
+  startDelete(row: AtlasClusterRow) {
+    this.deleteTarget = row;
+    this.deleteConfirmation = "";
+  }
+
+  cancelDelete() {
+    this.deleteTarget = null;
+    this.deleteConfirmation = "";
+  }
+
+  async deleteCluster() {
+    this.deleting = true;
+    try {
+      const result = await this.environmentSetupService.deleteAtlasCluster({projectId: this.deleteTarget.projectId, name: this.deleteTarget.name});
+      this.notify.success({title: "Cluster deleted", message: result.message});
+      this.cancelDelete();
+      await this.load();
+    } catch (error) {
+      this.notify.error({title: "Could not delete cluster", message: error?.error?.error || error?.message || "Delete failed"});
+    } finally {
+      this.deleting = false;
+    }
   }
 
   tierChanged(tier: AtlasClusterTier) {

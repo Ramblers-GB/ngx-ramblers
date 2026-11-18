@@ -1,9 +1,9 @@
 import expect from "expect";
 import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
-import { AtlasClusterTier, clusterCapacity, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { AtlasClusterTier, clusterAcceptsMigratedSite, clusterCapacity, clusterFullness, ClusterFullnessLevel, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, createAtlasCluster, registrationMongoCluster } from "./atlas-clusters";
+import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, createAtlasCluster, deleteAtlasCluster, registrationMongoCluster } from "./atlas-clusters";
 import * as environmentsConfig from "../environments/environments-config";
 import * as registrationStore from "../site-registration/registration-store";
 import * as mongoDatabaseUser from "./mongo-database-user";
@@ -113,6 +113,85 @@ describe("atlas-clusters", () => {
       providerSettings: {backingProviderName: "AWS", regionName: "EU_WEST_1"},
       terminationProtectionEnabled: false
     });
+  });
+
+  const emptyFlex = {
+    name: "ngx-shared-sites-09",
+    stateName: "IDLE",
+    connectionStrings: {standardSrv: "mongodb+srv://ngx-shared-sites-09.xyz789.mongodb.net"},
+    providerSettings: {backingProviderName: "AWS", providerName: "FLEX", regionName: "EU_WEST_1"}
+  };
+
+  it("deletes an empty Flex cluster through the Flex API", async () => {
+    const fetchStub = stubAtlas({
+      "GET /clusters": {status: 200, body: {results: []}},
+      "GET /flexClusters": {status: 200, body: {results: [emptyFlex]}},
+      "GET /accessList": {status: 200, body: {results: []}},
+      "DELETE /flexClusters/ngx-shared-sites-09": {status: 202, body: {}}
+    });
+
+    const result = await deleteAtlasCluster({projectId: "project-1", name: "ngx-shared-sites-09"});
+
+    expect((authorisedCall(fetchStub, "DELETE", "/flexClusters/ngx-shared-sites-09").headers as Record<string, string>).Accept).toBe("application/vnd.atlas.2024-11-13+json");
+    expect(result.message).toContain("ngx-shared-sites-09");
+  });
+
+  it("refuses to delete a cluster that still holds a site", async () => {
+    const fetchStub = stubAtlas({
+      "GET /clusters": {status: 200, body: {results: []}},
+      "GET /flexClusters": {status: 200, body: {results: [emptyFlex]}},
+      "GET /accessList": {status: 200, body: {results: []}}
+    });
+    (environmentsConfig.configuredEnvironments as sinon.SinonStub).resolves({environments: [{environment: "hillside", mongo: {cluster: "ngx-shared-sites-09.xyz789", db: "ngx-ramblers-hillside"}}]} as never);
+
+    await expect(deleteAtlasCluster({projectId: "project-1", name: "ngx-shared-sites-09"})).rejects.toThrow("still holds hillside");
+    expect(fetchStub.getCalls().some(call => (call.args[1] as RequestInit)?.method === "DELETE")).toBe(false);
+  });
+
+  it("refuses to delete a cluster a site still connects to through its stored MONGODB_URI", async () => {
+    const fetchStub = stubAtlas({
+      "GET /clusters": {status: 200, body: {results: []}},
+      "GET /flexClusters": {status: 200, body: {results: [emptyFlex]}},
+      "GET /accessList": {status: 200, body: {results: []}}
+    });
+    (environmentsConfig.configuredEnvironments as sinon.SinonStub).resolves({environments: [{environment: "hillside", mongo: {cluster: "older.def456", db: "ngx-ramblers-hillside"}, secrets: {MONGODB_URI: "\"mongodb+srv://hillside:secret@ngx-shared-sites-09.xyz789.mongodb.net/ngx-ramblers-hillside\""}}]} as never);
+
+    await expect(deleteAtlasCluster({projectId: "project-1", name: "ngx-shared-sites-09"})).rejects.toThrow("hillside still connects to ngx-shared-sites-09");
+    expect(fetchStub.getCalls().some(call => (call.args[1] as RequestInit)?.method === "DELETE")).toBe(false);
+  });
+
+  it("refuses to delete a cluster while any stored MONGODB_URI cannot be read", async () => {
+    const fetchStub = stubAtlas({
+      "GET /clusters": {status: 200, body: {results: []}},
+      "GET /flexClusters": {status: 200, body: {results: [emptyFlex]}},
+      "GET /accessList": {status: 200, body: {results: []}}
+    });
+    (environmentsConfig.configuredEnvironments as sinon.SinonStub).resolves({environments: [{environment: "hillside", mongo: {cluster: "older.def456", db: "ngx-ramblers-hillside"}, secrets: {MONGODB_URI: "not a connection string"}}]} as never);
+
+    await expect(deleteAtlasCluster({projectId: "project-1", name: "ngx-shared-sites-09"})).rejects.toThrow("cannot be read");
+    expect(fetchStub.getCalls().some(call => (call.args[1] as RequestInit)?.method === "DELETE")).toBe(false);
+  });
+
+  it("offers a migration target only in the main project or where sites already are", () => {
+    const row = {name: "x", host: "x.abc", projectId: "project-1", instanceSize: AtlasClusterTier.FLEX, region: "", stateName: "IDLE", inProvisioningProject: true, isDefault: false, environmentCount: 0, collectionCount: 0, indexCount: 0, databaseCount: 0, canAddEnvironment: true, limitHeadline: ""} as never;
+    expect(clusterAcceptsMigratedSite(row, "project-1")).toBe(true);
+    expect(clusterAcceptsMigratedSite({...(row as object), projectId: "mock-project"} as never, "project-1")).toBe(false);
+    expect(clusterAcceptsMigratedSite({...(row as object), projectId: "kent-project", environmentCount: 1} as never, "project-1")).toBe(true);
+  });
+
+  it("reports how full a Flex cluster is by collections and storage", () => {
+    const row = {name: "x", host: "x.abc", projectId: "project-1", instanceSize: AtlasClusterTier.FLEX, region: "", stateName: "IDLE", inProvisioningProject: true, isDefault: false, environmentCount: 3, collectionCount: 400, indexCount: 900, databaseCount: 3, dataSizeBytes: 1024 * 1024 * 1024, canAddEnvironment: true, limitHeadline: ""} as never;
+    const fullness = clusterFullness(row);
+    expect(fullness.collections).toEqual({percent: 80, level: ClusterFullnessLevel.FILLING, label: "400 of 500 collections"});
+    expect(fullness.storage).toEqual({percent: 20, level: ClusterFullnessLevel.OK, label: "1.0 GB of 5.0 GB storage"});
+  });
+
+  it("reports a dedicated cluster by collections and indexes with no storage limit", () => {
+    const row = {name: "x", host: "x.abc", projectId: "project-1", instanceSize: AtlasClusterTier.M10, region: "", stateName: "IDLE", inProvisioningProject: true, isDefault: false, environmentCount: 3, collectionCount: 1000, indexCount: 3500, databaseCount: 3, dataSizeBytes: 0, canAddEnvironment: true, limitHeadline: ""} as never;
+    const fullness = clusterFullness(row);
+    expect(fullness.collections.percent).toBe(90);
+    expect(fullness.collections.level).toBe(ClusterFullnessLevel.FULL);
+    expect(fullness.storage).toBeNull();
   });
 
   it("names the next shared sites cluster after the highest existing number", () => {

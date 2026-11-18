@@ -8,6 +8,7 @@ import { buildMongoUri, extractClusterFromUri } from "../shared/mongodb-uri";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
 import {
   AtlasClusterCreateRequest,
+  AtlasClusterDeleteRequest,
   AtlasClusterEnvironmentRow,
   AtlasClusterRow,
   AtlasClusterState,
@@ -43,6 +44,7 @@ import {
 } from "./atlas-admin-api.model";
 import { atlasProjectForCluster } from "./atlas-projects";
 import { platformAtlasAccess } from "./mongo-database-user";
+import { storedMongoUri } from "../shared/stored-mongo-uri";
 
 const debugLog = debug(envConfig.logNamespace("atlas-clusters"));
 debugLog.enabled = true;
@@ -122,7 +124,7 @@ function regionFrom(cluster: AtlasClusterDescription): string {
   return awsRegionFromAny(atlasName) || atlasName;
 }
 
-async function countDatabaseUsage(mongo: MongoConfig): Promise<{collections: number; indexes: number}> {
+async function countDatabaseUsage(mongo: MongoConfig): Promise<{collections: number; indexes: number; dataSizeBytes: number | null}> {
   const client = new MongoClient(buildMongoUri({
     cluster: mongo.cluster,
     username: mongo.username,
@@ -135,7 +137,8 @@ async function countDatabaseUsage(mongo: MongoConfig): Promise<{collections: num
     const collections = await database.listCollections().toArray();
     const indexCounts = await Promise.all(collections.map(collection =>
       database.collection(collection.name).indexes().then(indexes => indexes.length).catch(() => 0)));
-    return {collections: collections.length, indexes: indexCounts.reduce((total, count) => total + count, 0)};
+    const stats = await database.stats().catch(() => null);
+    return {collections: collections.length, indexes: indexCounts.reduce((total, count) => total + count, 0), dataSizeBytes: stats ? (stats.dataSize || 0) + (stats.indexSize || 0) : null};
   } finally {
     await client.close();
   }
@@ -154,6 +157,7 @@ async function environmentRows(config: EnvironmentsConfig): Promise<AtlasCluster
       username: mongo.username || "",
       collections: null,
       indexes: null,
+      dataSizeBytes: null,
       error: null
     };
     if (!mongo.cluster || !mongo.db || !mongo.username || !mongo.password) {
@@ -164,6 +168,7 @@ async function environmentRows(config: EnvironmentsConfig): Promise<AtlasCluster
         const usage = await countDatabaseUsage(mongo);
         row.collections = usage.collections;
         row.indexes = usage.indexes;
+        row.dataSizeBytes = usage.dataSizeBytes;
         return row;
       } catch (error) {
         row.error = error?.message || "Could not count collections";
@@ -197,6 +202,7 @@ function rollupClusters(
         collectionCount: 0,
         indexCount: 0,
         databaseCount: 0,
+        dataSizeBytes: 0,
         canAddEnvironment: true,
         limitHeadline: ""
       });
@@ -210,6 +216,7 @@ function rollupClusters(
         existing.databaseCount += row.database ? 1 : 0;
         existing.collectionCount += row.collections || 0;
         existing.indexCount += row.indexes || 0;
+        existing.dataSizeBytes += row.dataSizeBytes || 0;
       } else {
         byHost.set(row.cluster, {
           name: row.cluster,
@@ -222,6 +229,7 @@ function rollupClusters(
           environmentCount: 1,
           collectionCount: row.collections || 0,
           indexCount: row.indexes || 0,
+          dataSizeBytes: row.dataSizeBytes || 0,
           databaseCount: row.database ? 1 : 0,
           canAddEnvironment: true,
           limitHeadline: ""
@@ -400,6 +408,43 @@ export async function createAtlasCluster(request: AtlasClusterCreateRequest): Pr
         ? " Atlas is still building it; refresh this page until the state is idle, then set it as the default for new sites if you have not already."
         : "";
       return {cluster, message: `Cluster ${name} has been requested.${waiting}`};
+    }
+  }
+}
+
+export async function deleteAtlasCluster(request: AtlasClusterDeleteRequest): Promise<{message: string}> {
+  const view = await atlasClusterView();
+  const cluster = view.clusters.find(candidate => candidate.name === request?.name && candidate.projectId === request?.projectId);
+  if (!view.atlasReachable) {
+    throw new Error(view.atlasError || "Atlas could not be reached, so nothing was deleted.");
+  } else if (!cluster || cluster.projectId !== view.projectId) {
+    throw new Error(`Cluster ${request?.name || ""} is not in the main NGX Atlas project, so nothing was deleted.`);
+  } else if (cluster.isDefault) {
+    throw new Error(`Cluster ${cluster.name} is the default for new sites. Choose another default before deleting it.`);
+  } else if (cluster.environmentCount > 0) {
+    throw new Error(`Cluster ${cluster.name} still holds ${cluster.environmentNames}. Move those sites with Environment Migration before deleting it.`);
+  }
+  const environments = (await configuredEnvironments()).environments || [];
+  const unreadable = environments.filter(environment => {
+    const stored = storedMongoUri(environment);
+    return stored.present && !stored.parsed;
+  }).map(environment => environment.environment);
+  const connected = environments.filter(environment => storedMongoUri(environment).parsed?.cluster === cluster.host).map(environment => environment.environment);
+  if (unreadable.length > 0) {
+    throw new Error(`The stored MONGODB_URI for ${unreadable.join(", ")} cannot be read, so it is not certain that no site uses ${cluster.name}. Correct it before deleting a cluster.`);
+  } else if (connected.length > 0) {
+    throw new Error(`${connected.join(", ")} still connects to ${cluster.name} through its stored MONGODB_URI. Move the site with Environment Migration before deleting the cluster.`);
+  } else {
+    const atlas = await platformAtlasAccess();
+    const projectAtlas = {...atlas, projectId: cluster.projectId};
+    const name = encodeURIComponent(cluster.name);
+    const deleted = cluster.instanceSize === AtlasClusterTier.FLEX
+      ? await atlasRequest<AtlasError>(projectAtlas, "DELETE", `/groups/${cluster.projectId}/flexClusters/${name}`, null, AtlasApiVersion.FLEX_CLUSTERS)
+      : await atlasRequest<AtlasError>(projectAtlas, "DELETE", `/groups/${cluster.projectId}/clusters/${name}`, null, AtlasApiVersion.CLUSTERS);
+    if (deleted.status >= 300) {
+      throw atlasFailure("delete the cluster", deleted.status, deleted.body);
+    } else {
+      return {message: `Cluster ${cluster.name} is being deleted. It disappears from this page once Atlas has finished.`};
     }
   }
 }

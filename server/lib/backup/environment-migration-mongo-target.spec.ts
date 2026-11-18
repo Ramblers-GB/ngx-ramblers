@@ -104,3 +104,21 @@ describe("migration source matches the live database", () => {
     expect(secretsAfterMongoRotation({AUTH_SECRET: "fictional"}, "mongodb+srv://new")).toEqual({AUTH_SECRET: "fictional"});
   });
 });
+
+describe("migration source check reads a stored MONGODB_URI the way the running site does", () => {
+  const mongo = {cluster: "hillside.abc123", db: "hillside-database", username: "hillside-user", password: "fictional-password"};
+
+  it("still refuses when the stored MONGODB_URI is wrapped in double quotes and names another cluster", () => {
+    const secrets = {MONGODB_URI: "\"mongodb+srv://hillside-user:fictional-password@older.def456.mongodb.net/hillside-database?retryWrites=true&w=majority\""};
+    expect(storedMongoUriConflict({environment: "hillside", mongo, secrets})).toContain("hillside runs on older.def456/hillside-database");
+  });
+
+  it("allows a quoted stored MONGODB_URI that names the same cluster and database", () => {
+    const secrets = {MONGODB_URI: "\"mongodb+srv://hillside-user:fictional-password@hillside.abc123.mongodb.net/hillside-database\""};
+    expect(storedMongoUriConflict({environment: "hillside", mongo, secrets})).toBeNull();
+  });
+
+  it("refuses when a stored MONGODB_URI is present but cannot be read", () => {
+    expect(storedMongoUriConflict({environment: "hillside", mongo, secrets: {MONGODB_URI: "not a connection string"}})).toContain("cannot be read");
+  });
+});

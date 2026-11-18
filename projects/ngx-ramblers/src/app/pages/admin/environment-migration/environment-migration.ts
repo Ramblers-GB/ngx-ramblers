@@ -41,6 +41,10 @@ import { MongoUriInputComponent, MongoUriParseResult } from "../../../modules/co
 import { SecretInputComponent } from "../../../modules/common/secret-input/secret-input.component";
 import { BackupSelectComponent } from "../../../modules/common/selectors/backup-select";
 import { EnvironmentSelectComponent } from "../../../modules/common/selectors/environment-select";
+import { MongoClusterSelectComponent } from "../../../modules/common/selectors/mongo-cluster-select";
+import { MongoClusterInfo } from "../../../models/environment-setup.model";
+import { clusterAcceptsMigratedSite } from "../../../models/atlas-cluster.model";
+import { EnvironmentSetupService } from "../../../services/environment-setup/environment-setup.service";
 import { VendorBrandMarkComponent } from "../../../modules/common/vendor-brand-mark/vendor-brand-mark.component";
 import { PageComponent } from "../../../page/page.component";
 import { BackupAndRestoreService } from "../../../services/backup-and-restore.service";
@@ -63,6 +67,7 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
     DisplayDateAbbreviatedTimePipe,
     EnvironmentSelectComponent,
     FontAwesomeModule,
+    MongoClusterSelectComponent,
     FormsModule,
     MongoUriInputComponent,
     BackupSelectComponent,
@@ -260,8 +265,9 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
                       }
                         <div class="col-12 mb-2">
                           <label class="form-label" for="target-cluster">Cluster</label>
-                          <input id="target-cluster" class="form-control" name="targetCluster"
-                                 [(ngModel)]="request.targetMongo.cluster" placeholder="group-sites.abc123" autocomplete="off" required>
+                          <app-mongo-cluster-select id="target-cluster" [clusters]="targetClusterOptions()" [selected]="selectedTargetCluster()"
+                                                    [disabled]="busy" [placeholder]="targetClusters.length ? 'Choose a cluster with room for this site' : 'Loading Atlas clusters…'"
+                                                    (selectedChange)="targetClusterChanged($event)"/>
                         </div>
                         <div class="col-12 mb-2">
                           <label class="form-label" for="target-db">Database</label>
@@ -588,6 +594,7 @@ export class EnvironmentMigrationComponent implements OnInit {
   private backupService = inject(BackupAndRestoreService);
   private environmentConfigService = inject(EnvironmentConfigService);
   private migrationService = inject(EnvironmentMigrationService);
+  private environmentSetupService = inject(EnvironmentSetupService);
   private activatedRoute = inject(ActivatedRoute);
   private router = inject(Router);
   private tab: EnvironmentMigrationTab | string = EnvironmentMigrationTab.PLAN;
@@ -624,6 +631,10 @@ export class EnvironmentMigrationComponent implements OnInit {
   selectedS3Manifest: S3BackupManifest | null = null;
   selectedMigration: EnvironmentMigrationAudit | null = null;
   environmentsConfig: EnvironmentsConfig | null = null;
+  targetClusters: MongoClusterInfo[] = [];
+  private targetClusterOptionsCache: MongoClusterInfo[] = [];
+  private targetClusterOptionsSource: MongoClusterInfo[] | null = null;
+  private targetClusterOptionsKey = "";
   backupSource: BackupLocation = BackupLocation.S3;
   copyToDestinationAws = true;
   sourceEnvironment = "";
@@ -690,6 +701,7 @@ export class EnvironmentMigrationComponent implements OnInit {
         void this.onEnvironmentChange();
       }
     });
+    void this.loadTargetClusters();
     await Promise.all([this.loadEnvironments(), this.loadBackups(), this.loadHistory(), this.loadEnvironmentConfig()]);
     this.selectedMigration = this.history[0] || null;
   }
@@ -727,6 +739,42 @@ export class EnvironmentMigrationComponent implements OnInit {
       this.logger.error("Failed to load migration history:", error);
       this.error = this.extractErrorMessage(error, "Failed to load migration history");
     }
+  }
+
+  async loadTargetClusters(): Promise<void> {
+    try {
+      const view = await this.environmentSetupService.atlasClusters();
+      this.targetClusters = view.clusters
+        .filter(cluster => clusterAcceptsMigratedSite(cluster, view.projectId))
+        .map(cluster => ({cluster: cluster.host, username: "", password: "", databases: [], environments: cluster.environmentNames ? cluster.environmentNames.split(", ") : []}));
+    } catch (error) {
+      this.logger.error("Failed to load Atlas clusters:", error);
+      this.targetClusters = [];
+    }
+  }
+
+  targetClusterOptions(): MongoClusterInfo[] {
+    const sourceCluster = this.environmentsConfig?.environments?.find(environment => environment.environment === this.request.environment)?.mongo?.cluster || "";
+    const current = this.request.targetMongo.cluster || "";
+    const key = [sourceCluster, current].join("|");
+    if (this.targetClusterOptionsSource !== this.targetClusters || this.targetClusterOptionsKey !== key) {
+      const options = this.targetClusters.filter(cluster => cluster.cluster !== sourceCluster);
+      this.targetClusterOptionsCache = current && !options.some(option => option.cluster === current)
+        ? [...options, {cluster: current, username: "", password: "", databases: [], environments: []}]
+        : options;
+      this.targetClusterOptionsSource = this.targetClusters;
+      this.targetClusterOptionsKey = key;
+    }
+    return this.targetClusterOptionsCache;
+  }
+
+  selectedTargetCluster(): MongoClusterInfo | null {
+    return this.targetClusterOptions().find(option => option.cluster === this.request.targetMongo.cluster) || null;
+  }
+
+  targetClusterChanged(cluster: MongoClusterInfo | null): void {
+    this.request.targetMongo = {...this.request.targetMongo, cluster: cluster?.cluster || "", username: "", password: ""};
+    this.selectedMigration = null;
   }
 
   async loadEnvironmentConfig(): Promise<void> {

@@ -41,6 +41,7 @@ import { AtlasConfig, SiteUrlPreference } from "../../models/environment-config.
 import { EmptyCollectionCandidate, EmptyCollectionCleanupPreview, EmptyCollectionCleanupResult } from "../../models/environment-collection-cleanup.model";
 import {
   AtlasClusterCreateRequest,
+  AtlasClusterDeleteRequest,
   AtlasClusterRow,
   AtlasClusterView
 } from "../../models/atlas-cluster.model";
@@ -277,6 +278,15 @@ export class EnvironmentSetupService {
       this.notifications
     );
     return response as unknown as {cluster: AtlasClusterRow | null; message: string};
+  }
+
+  async deleteAtlasCluster(request: AtlasClusterDeleteRequest): Promise<{message: string}> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.delete<ApiResponse>(`${this.BASE_URL}/atlas-clusters/${encodeURIComponent(request.projectId)}/${encodeURIComponent(request.name)}`, this.opts),
+      this.notifications
+    );
+    return response as unknown as {message: string};
   }
 
   async allowAtlasNetworkAccess(): Promise<{message: string}> {

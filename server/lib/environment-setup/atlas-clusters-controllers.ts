@@ -5,6 +5,7 @@ import {
   allowAtlasNetworkAccess,
   atlasClusterView,
   createAtlasCluster,
+  deleteAtlasCluster,
   saveAtlasProvisioning
 } from "./atlas-clusters";
 import { AtlasClusterCreateRequest, AtlasClusterTier } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
@@ -40,6 +41,15 @@ export async function createAtlasClusterRequest(req: Request, res: Response): Pr
   } catch (error) {
     errorDebugLog("createAtlasCluster:", error?.message || error);
     res.status(400).json({error: error?.message || "Could not create the cluster"});
+  }
+}
+
+export async function deleteAtlasClusterRequest(req: Request, res: Response): Promise<void> {
+  try {
+    res.json(await deleteAtlasCluster({projectId: req.params.projectId, name: req.params.name}));
+  } catch (error) {
+    errorDebugLog("deleteAtlasCluster:", error?.message || error);
+    res.status(400).json({error: error?.message || "Could not delete the cluster"});
   }
 }
 

@@ -31,6 +31,7 @@ router.post("/fly-org-migration-status/:environmentName", controllers.flyOrganis
 router.get("/mongo-clusters", controllers.mongoClusters);
 router.get("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.listAtlasClusters);
 router.post("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.createAtlasClusterRequest);
+router.delete("/atlas-clusters/:projectId/:name", controllers.requireSetupAccess, atlasClusters.deleteAtlasClusterRequest);
 router.post("/atlas-network-access", controllers.requireSetupAccess, atlasClusters.allowAtlasNetworkAccessRequest);
 router.put("/atlas-provisioning", controllers.requireSetupAccess, atlasClusters.saveAtlasProvisioningRequest);
 router.post("/backup-archive", controllers.requireSetupAccess, backupArchive.provisionBackupArchiveRequest);
