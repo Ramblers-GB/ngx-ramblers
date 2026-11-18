@@ -374,7 +374,7 @@ import { generateUid } from "../../../functions/numbers";
             <div class="alert {{ALERT_WARNING.class}} walk-view-status-alert" [class.walk-view-status-alert-inline]="inline">
               <fa-icon [icon]="ALERT_WARNING.icon"></fa-icon>
               <strong>Walk Status</strong>
-              <span>This walk is not approved by {{ display.walksCoordinatorName() }}</span>
+              <span>This walk is awaiting approval from {{ display.walksCoordinatorName() }}</span>
             </div>
           </ng-template>
           <div class="walk-booking-form">
