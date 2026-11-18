@@ -94,6 +94,11 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
       white-space: nowrap
     .cluster-fullness .progress
       height: 6px
+    .cluster-fullness-note
+      font-size: 0.75rem
+      color: var(--bs-secondary-color)
+      margin-top: 0.15rem
+      white-space: normal
     .atlas-action-links
       display: flex
       flex-direction: row
@@ -347,6 +352,18 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
                 <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.storage.percent" aria-valuemin="0" aria-valuemax="100">
                   <div class="progress-bar" [class]="fullnessBarClass(fullness.storage.level)" [style.width.%]="fullness.storage.percent"></div>
                 </div>
+              }
+              @if (fullness.load) {
+                <div class="cluster-fullness-label mt-1">
+                  <span>{{ fullness.load.label }}</span>
+                  <span class="fw-bold">{{ fullness.load.percent }}%</span>
+                </div>
+                <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.load.percent" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" [class]="fullnessBarClass(fullness.load.level)" [style.width.%]="fullness.load.percent"></div>
+                </div>
+              }
+              @if (fullness.loadNote) {
+                <div class="cluster-fullness-note">{{ fullness.loadNote }}</div>
               }
             </div>
           </ng-template>

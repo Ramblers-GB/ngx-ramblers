@@ -95,6 +95,51 @@ export interface ClusterFullnessMeasure {
 export interface ClusterFullness {
   collections: ClusterFullnessMeasure;
   storage: ClusterFullnessMeasure | null;
+  load: ClusterFullnessMeasure | null;
+  loadNote: string;
+}
+
+export const ATLAS_THROUGHPUT_LIMIT_OPS_PER_SECOND: Record<AtlasClusterTier, number | null> = {
+  [AtlasClusterTier.M0]: 100,
+  [AtlasClusterTier.FLEX]: 500,
+  [AtlasClusterTier.M10]: null,
+  [AtlasClusterTier.M20]: null,
+  [AtlasClusterTier.M30]: null,
+  [AtlasClusterTier.UNKNOWN]: null
+};
+
+export const FLEX_PRICE_BANDS: {upToOpsPerSecond: number; monthlyDollars: number}[] = [
+  {upToOpsPerSecond: 100, monthlyDollars: 8},
+  {upToOpsPerSecond: 200, monthlyDollars: 15},
+  {upToOpsPerSecond: 300, monthlyDollars: 21},
+  {upToOpsPerSecond: 400, monthlyDollars: 26},
+  {upToOpsPerSecond: 500, monthlyDollars: 30}
+];
+
+export function flexMonthlyDollars(opsPerSecond: number): number {
+  return (FLEX_PRICE_BANDS.find(band => opsPerSecond <= band.upToOpsPerSecond) || FLEX_PRICE_BANDS[FLEX_PRICE_BANDS.length - 1]).monthlyDollars;
+}
+
+function opsPerSecondText(value: number): string {
+  return value < 10 ? value.toFixed(1) : Math.round(value).toString();
+}
+
+function clusterLoadSummary(cluster: AtlasClusterRow): {load: ClusterFullnessMeasure | null; loadNote: string} {
+  const load = cluster.load;
+  const limit = ATLAS_THROUGHPUT_LIMIT_OPS_PER_SECOND[cluster.instanceSize];
+  if (!load) {
+    const note = cluster.instanceSize === AtlasClusterTier.FLEX
+      ? "Atlas shows Flex load only on the cluster's Metrics page in Atlas, not through its API"
+      : cluster.inProvisioningProject ? "Load not available from Atlas" : "";
+    return {load: null, loadNote: note};
+  } else {
+    const busiest = `Busiest hour ${opsPerSecondText(load.peakOpsPerSecond)} ops/s`;
+    const band = cluster.instanceSize === AtlasClusterTier.FLEX ? ` · $${flexMonthlyDollars(load.peakOpsPerSecond)}/month band` : "";
+    const average = `average ${opsPerSecondText(load.averageOpsPerSecond)} ops/s over 24 hours`;
+    return limit
+      ? {load: fullnessMeasure(load.peakOpsPerSecond, limit, `${busiest} of ${limit}`), loadNote: `${average}${band}`}
+      : {load: null, loadNote: `${busiest}, ${average}`};
+  }
 }
 
 function fullnessMeasure(used: number, limit: number, label: string): ClusterFullnessMeasure {
@@ -117,7 +162,7 @@ export function clusterFullness(cluster: AtlasClusterRow): ClusterFullness {
   const storage = storageLimit
     ? fullnessMeasure(cluster.dataSizeBytes || 0, storageLimit, `${megabytes(cluster.dataSizeBytes || 0)} of ${megabytes(storageLimit)} storage`)
     : null;
-  return {collections, storage};
+  return {collections, storage, ...clusterLoadSummary(cluster)};
 }
 
 export interface AtlasNetworkAccessEntry {
@@ -138,6 +183,11 @@ export interface AtlasClusterEnvironmentRow {
   error: string | null;
 }
 
+export interface AtlasClusterLoad {
+  averageOpsPerSecond: number;
+  peakOpsPerSecond: number;
+}
+
 export interface AtlasClusterRow {
   projectId?: string;
   name: string;
@@ -153,6 +203,7 @@ export interface AtlasClusterRow {
   indexCount: number;
   databaseCount: number;
   dataSizeBytes: number;
+  load?: AtlasClusterLoad | null;
   canAddEnvironment: boolean;
   limitHeadline: string;
 }

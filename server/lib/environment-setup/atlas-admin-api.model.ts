@@ -69,3 +69,28 @@ export interface AtlasFlexClusterList {
 export interface AtlasAccessList {
   results?: {cidrBlock?: string; ipAddress?: string; comment?: string}[];
 }
+
+export interface AtlasProcess {
+  id?: string;
+  hostname?: string;
+  userAlias?: string;
+  typeName?: string;
+}
+
+export interface AtlasProcessList {
+  results?: AtlasProcess[];
+}
+
+export interface AtlasMeasurementDataPoint {
+  timestamp?: string;
+  value?: number | null;
+}
+
+export interface AtlasMeasurement {
+  name?: string;
+  dataPoints?: AtlasMeasurementDataPoint[];
+}
+
+export interface AtlasMeasurements {
+  measurements?: AtlasMeasurement[];
+}

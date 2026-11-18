@@ -1,9 +1,9 @@
 import expect from "expect";
 import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
-import { AtlasClusterTier, clusterAcceptsMigratedSite, clusterCapacity, clusterFullness, ClusterFullnessLevel, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { AtlasClusterTier, clusterAcceptsMigratedSite, clusterCapacity, clusterFullness, ClusterFullnessLevel, flexMonthlyDollars, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, createAtlasCluster, deleteAtlasCluster, registrationMongoCluster } from "./atlas-clusters";
+import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, createAtlasCluster, deleteAtlasCluster, loadFromMeasurements, processesForCluster, registrationMongoCluster } from "./atlas-clusters";
 import * as environmentsConfig from "../environments/environments-config";
 import * as registrationStore from "../site-registration/registration-store";
 import * as mongoDatabaseUser from "./mongo-database-user";
@@ -192,6 +192,30 @@ describe("atlas-clusters", () => {
     expect(fullness.collections.percent).toBe(90);
     expect(fullness.collections.level).toBe(ClusterFullnessLevel.FULL);
     expect(fullness.storage).toBeNull();
+  });
+
+  it("adds up hourly operation counts into an average and a busiest hour", () => {
+    expect(loadFromMeasurements([
+      {name: "OPCOUNTER_QUERY", dataPoints: [{timestamp: "t1", value: 3}, {timestamp: "t2", value: 10}]},
+      {name: "OPCOUNTER_INSERT", dataPoints: [{timestamp: "t1", value: 1}, {timestamp: "t2", value: null}]},
+      {name: "CONNECTIONS", dataPoints: [{timestamp: "t1", value: 99}]}
+    ])).toEqual({averageOpsPerSecond: 7, peakOpsPerSecond: 10});
+    expect(loadFromMeasurements([{name: "OPCOUNTER_QUERY", dataPoints: [{timestamp: "t1", value: null}]}])).toBeNull();
+  });
+
+  it("matches Atlas processes to a cluster by its host suffix", () => {
+    const processes = [{id: "a:27017", hostname: "ac-1-shard-00-00.vqprbox.mongodb.net", typeName: "REPLICA_PRIMARY"}, {id: "b:27017", hostname: "ac-2-shard-00-00.other1.mongodb.net"}];
+    expect(processesForCluster(processes, "ngx-shared-sites-01.vqprbox").map(process => process.id)).toEqual(["a:27017"]);
+  });
+
+  it("puts a Flex cluster in its price band from the busiest hour", () => {
+    expect(flexMonthlyDollars(12)).toBe(8);
+    expect(flexMonthlyDollars(150)).toBe(15);
+    expect(flexMonthlyDollars(450)).toBe(30);
+    const row = {name: "x", host: "x.abc", projectId: "project-1", instanceSize: AtlasClusterTier.FLEX, region: "", stateName: "IDLE", inProvisioningProject: true, isDefault: false, environmentCount: 1, collectionCount: 0, indexCount: 0, databaseCount: 1, dataSizeBytes: 0, load: {averageOpsPerSecond: 4.2, peakOpsPerSecond: 50}, canAddEnvironment: true, limitHeadline: ""} as never;
+    const fullness = clusterFullness(row);
+    expect(fullness.load).toEqual({percent: 10, level: ClusterFullnessLevel.OK, label: "Busiest hour 50 ops/s of 500"});
+    expect(fullness.loadNote).toBe("average 4.2 ops/s over 24 hours · $8/month band");
   });
 
   it("names the next shared sites cluster after the highest existing number", () => {
