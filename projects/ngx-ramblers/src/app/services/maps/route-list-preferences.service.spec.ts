@@ -89,9 +89,9 @@ describe("route list preferences", () => {
   it("labels the show-hidden action with a counted plural", () => {
     const prefs = TestBed.inject(RouteListPreferencesService);
     prefs.hide("os-maps:1001");
-    expect(prefs.hiddenMapsActionLabel()).toBe("Show 1 hidden map");
+    expect(prefs.hiddenMapsActionLabel()).toBe("Show 1 hidden route");
     prefs.hide("os-maps:1002");
-    expect(prefs.hiddenMapsActionLabel()).toBe("Show 2 hidden maps");
+    expect(prefs.hiddenMapsActionLabel()).toBe("Show 2 hidden routes");
   });
 
   it("loads and updates the signed-in profile without borrowing another member's cache", async () => {

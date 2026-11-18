@@ -117,7 +117,7 @@ describe("walking app header counts", () => {
     expect(component.matchCountLabel()).toBe("Showing 1 upcoming walk");
   });
 
-  it("counts the visible routes when Maps is selected", () => {
+  it("counts the visible routes when Routes is selected", () => {
     const component = withCounts();
     component["view"] = AppHomeView.MAPS;
     component["favouritesOnly"] = false;

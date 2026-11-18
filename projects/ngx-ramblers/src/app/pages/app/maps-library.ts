@@ -255,8 +255,8 @@ const MAP_LIST_BATCH_SIZE = 20;
                 <button class="btn" [class.btn-primary]="view === AppHomeView.MAPS"
                         [class.btn-quiet]="view !== AppHomeView.MAPS"
                         type="button" (click)="chooseView(AppHomeView.MAPS)">
-                  <fa-icon [icon]="faMap"/>
-                  <span>Maps</span>
+                  <fa-icon [icon]="faRoute"/>
+                  <span>Routes</span>
                 </button>
               }
               @if (view === AppHomeView.MAPS) {
@@ -272,7 +272,7 @@ const MAP_LIST_BATCH_SIZE = 20;
                   <span>Favourites</span>
                 </button>
                 <button class="btn btn-primary" type="button" (click)="findOrPlotRoute()">
-                  <fa-icon [icon]="faRoute"/>
+                  <fa-icon [icon]="faMagnifyingGlass"/>
                   <span>Find or plot</span>
                 </button>
               }
@@ -401,7 +401,7 @@ const MAP_LIST_BATCH_SIZE = 20;
 
         @if (!customising && view === AppHomeView.MAPS) {
           <section class="app-home-section app-home-map-list">
-            <h2 class="visually-hidden">Maps</h2>
+            <h2 class="visually-hidden">Routes</h2>
             @for (route of displayedRoutes(); track routeKey(route)) {
               <div class="app-home-card app-home-route-card"
                    [class.os-maps-route-card]="embeddedLibrary"
@@ -1198,13 +1198,13 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
 
   emptyMapsMessage(): string {
     if (this.favouritesOnly) {
-      return "No favourite maps yet.";
+      return "No favourite routes yet.";
     } else if (this.nearbyOnly) {
       return this.nearbyEmptyMessage();
     } else if (this.routeSearch.trim()) {
-      return "No maps match that search.";
+      return "No routes match that search.";
     } else {
-      return "No maps to show. They appear here once they have been imported from OS Maps, attached to walks on the programme, or created as part of a walk route.";
+      return "No routes to show. They appear here once they have been imported from OS Maps, attached to walks on the programme, or created as part of a walk route.";
     }
   }
 
@@ -1219,7 +1219,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
   }
 
   nearbyEmptyMessage(): string {
-    return "No maps within " + this.nearbyRangeLabel() + this.nearbyOriginLabel() + ".";
+    return "No routes within " + this.nearbyRangeLabel() + this.nearbyOriginLabel() + ".";
   }
 
   private nearbyOriginLabel(): string {

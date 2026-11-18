@@ -58,7 +58,7 @@ export class RouteListPreferencesService implements OnDestroy {
   }
 
   hiddenMapsActionLabel(): string {
-    return `Show ${this.stringUtils.pluraliseWithCount(this.hiddenCount(), "hidden map")}`;
+    return `Show ${this.stringUtils.pluraliseWithCount(this.hiddenCount(), "hidden route")}`;
   }
 
   isFavourite(key: string | null): boolean {
