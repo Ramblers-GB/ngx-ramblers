@@ -144,7 +144,7 @@ export async function deployFlyApp(deployment: FlyAppDeployment, onDeployOutput?
   const release = completedRelease(appName);
   const estate = {...releaseMachineTarget(release.ImageRef.trim(), release.Version), scaleCount};
   await ensureScale(appName, estate, memoryMb);
-  const machines = listFlyMachines(appName);
+  const machines = await machinesOnceReady(appName, estate, dateTimeNowAsValue() + 90000);
   const currentRelease = completedRelease(appName);
   if (currentRelease.Version !== release.Version) {
     throw new Error(`Fly app ${appName} changed from release v${release.Version} to v${currentRelease.Version} during scaling`);
@@ -154,16 +154,20 @@ export async function deployFlyApp(deployment: FlyAppDeployment, onDeployOutput?
   assertFlyMachineEstate(appName, estate);
 }
 
-async function waitForReadyAppMachines(appName: string, options: FlyMachineEstate, deadline: number): Promise<FlyMachineListItem[]> {
+async function machinesOnceReady(appName: string, options: FlyMachineEstate, deadline: number): Promise<FlyMachineListItem[]> {
   const machines = listFlyMachines(appName);
-  const ready = readyReplacementMachines(machines, options);
-  if (ready.length < options.scaleCount && dateTimeNowAsValue() < deadline) {
+  if (readyReplacementMachines(machines, options).length < options.scaleCount && dateTimeNowAsValue() < deadline) {
     await sleep(3000);
-    return waitForReadyAppMachines(appName, options, deadline);
+    return machinesOnceReady(appName, options, deadline);
   } else {
-    assertReplacementsReady(appName, machines, options);
-    return ready;
+    return machines;
   }
+}
+
+async function waitForReadyAppMachines(appName: string, options: FlyMachineEstate, deadline: number): Promise<FlyMachineListItem[]> {
+  const machines = await machinesOnceReady(appName, options, deadline);
+  assertReplacementsReady(appName, machines, options);
+  return readyReplacementMachines(machines, options);
 }
 
 async function ensureScale(appName: string, options: FlyMachineEstate, targetMemoryMb: number | null): Promise<void> {

@@ -52,6 +52,7 @@ export interface FlyAppDeployment {
 export interface FlyAppConfigOptions {
   nativeMailTls: boolean;
   flyMachines: FlyMachineMode;
+  memory?: string | null;
 }
 
 export interface FlyMachineTarget {

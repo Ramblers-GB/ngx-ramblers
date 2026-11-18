@@ -184,7 +184,7 @@ export async function deployToFlyio(config: FlyDeployConfig, onProgressOrOptions
 
     const description = needsInitialDeploy ? `Deploying ${config.appName} (initial deploy)` : `Redeploying ${config.appName}`;
     report(onDeployOutput ? `${description} (streaming output)...` : description);
-    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: booleanOf(config.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]), flyMachines: config.flyMachines || FlyMachineMode.ALWAYS_ON}, configurationPath =>
+    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: booleanOf(config.secrets?.[Environment.MAIL_CLIENT_NATIVE_TLS]), flyMachines: config.flyMachines || FlyMachineMode.ALWAYS_ON, memory: normaliseMemory(config.memory)}, configurationPath =>
       deployFlyApp({
         appName: config.appName,
         configPath: configurationPath,

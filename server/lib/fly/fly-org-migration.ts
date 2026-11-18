@@ -178,7 +178,7 @@ async function importSecretsAndDeploy(
       }
     }
     report(`Deploying image to ${appName}`);
-    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: booleanOf(secrets[Environment.MAIL_CLIENT_NATIVE_TLS]), flyMachines}, configurationPath =>
+    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: booleanOf(secrets[Environment.MAIL_CLIENT_NATIVE_TLS]), flyMachines, memory}, configurationPath =>
       deployFlyApp({appName, configPath: configurationPath, image: dockerImage, memory, scaleCount}, options.onDeployOutput));
     report(`Deployed ${appName}`, SetupStepStatus.Completed);
   }

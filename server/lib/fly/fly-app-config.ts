@@ -4,6 +4,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { FlyMachineMode } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { FlyAppConfigOptions } from "./fly.model";
+import { parseMemoryMb } from "./fly-commands";
 
 export function nativeMailTlsConfiguration(configuration: string): string {
   return configuration.split("[[services]]").map((section, index) => index > 0 && /\bport\s*=\s*(465|993)\b/.test(section)
@@ -18,13 +19,18 @@ export function sleepWhenIdleConfiguration(configuration: string): string {
     .replace(/^(\s*min_machines_running\s*=\s*).*$/gm, (_line, setting) => `${setting}0`);
 }
 
+export function vmMemoryConfiguration(configuration: string, memory: string): string {
+  return configuration.replace(/^(\s*memory\s*=\s*).*$/m, (_line, setting) => `${setting}"${parseMemoryMb(memory)}mb"`);
+}
+
 export function flyAppConfiguration(configuration: string, options: FlyAppConfigOptions): string {
   const withMailTls = options.nativeMailTls ? nativeMailTlsConfiguration(configuration) : configuration;
-  return options.flyMachines === FlyMachineMode.SLEEP_WHEN_IDLE ? sleepWhenIdleConfiguration(withMailTls) : withMailTls;
+  const withMemory = options.memory ? vmMemoryConfiguration(withMailTls, options.memory) : withMailTls;
+  return options.flyMachines === FlyMachineMode.SLEEP_WHEN_IDLE ? sleepWhenIdleConfiguration(withMemory) : withMemory;
 }
 
 export function flyAppConfigNeedsRewrite(options: FlyAppConfigOptions): boolean {
-  return options.nativeMailTls || options.flyMachines === FlyMachineMode.SLEEP_WHEN_IDLE;
+  return options.nativeMailTls || !!options.memory || options.flyMachines === FlyMachineMode.SLEEP_WHEN_IDLE;
 }
 
 export async function withFlyAppConfiguration(source: string, options: FlyAppConfigOptions, deploy: (configurationPath: string) => Promise<void>): Promise<void> {

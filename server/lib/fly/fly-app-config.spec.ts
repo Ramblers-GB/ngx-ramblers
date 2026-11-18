@@ -3,7 +3,7 @@ import { describe, it } from "mocha";
 import { readFileSync } from "fs";
 import { resolveClientPath } from "../shared/path-utils";
 import { FlyMachineMode } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { flyAppConfiguration, nativeMailTlsConfiguration, sleepWhenIdleConfiguration, withFlyAppConfiguration } from "./fly-app-config";
+import { flyAppConfiguration, nativeMailTlsConfiguration, sleepWhenIdleConfiguration, vmMemoryConfiguration, withFlyAppConfiguration } from "./fly-app-config";
 
 const original = () => readFileSync(resolveClientPath("fly.toml"), "utf8");
 
@@ -38,5 +38,19 @@ describe("per-environment Fly app configuration", () => {
     const paths: string[] = [];
     await withFlyAppConfiguration("fictional-fly.toml", {nativeMailTls: false, flyMachines: FlyMachineMode.ALWAYS_ON}, async source => {paths.push(source);});
     expect(paths).toEqual(["fictional-fly.toml"]);
+  });
+});
+
+describe("per-environment Fly machine size", () => {
+  const original = () => readFileSync(resolveClientPath("fly.toml"), "utf8");
+
+  it("sets the environment's memory in the [[vm]] section so deploy does not resize and restart the machine afterwards", () => {
+    const updated = flyAppConfiguration(original(), {nativeMailTls: false, flyMachines: FlyMachineMode.ALWAYS_ON, memory: "1024mb"});
+    expect(updated).toContain("memory = \"1024mb\"");
+    expect(updated).not.toContain("memory = \"512mb\"");
+  });
+
+  it("accepts memory given in gigabytes", () => {
+    expect(vmMemoryConfiguration("[[vm]]\nmemory = \"512mb\"\n", "2gb")).toContain("memory = \"2048mb\"");
   });
 });

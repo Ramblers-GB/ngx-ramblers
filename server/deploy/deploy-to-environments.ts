@@ -200,7 +200,7 @@ async function deployToEnvironments(environmentsFilter: string[]): Promise<void>
     debugLog("Deploying to", pluraliseWithCount(environmentsToDeploy.length, "environment") + ":", environmentNamesFrom(environmentsToDeploy));
   }
   for (const environmentConfig of environmentsToDeploy) {
-    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: environmentConfig.nativeMailTls, flyMachines: environmentConfig.flyMachines}, async environmentFlyTomlPath => {
+    await withFlyAppConfiguration(flyTomlPath, {nativeMailTls: environmentConfig.nativeMailTls, flyMachines: environmentConfig.flyMachines, memory: environmentConfig.memory}, async environmentFlyTomlPath => {
       configureEnvironment(environmentConfig, config);
       debugLog(`Deploying ${config.dockerImage} to ${environmentConfig.appName} (Fly machines: ${environmentConfig.flyMachines})`);
       deleteVolumeIfExists(environmentConfig.appName, config.region);

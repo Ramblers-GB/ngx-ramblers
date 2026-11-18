@@ -185,6 +185,29 @@ describe("deployment machine reconciliation", () => {
     }
   });
 
+  it("waits for a machine that is still restarting after a resize before checking the deploy", async () => {
+    const sandbox = sinon.createSandbox();
+    const appName = "example-app";
+    const restarting = machine("current", "app", "latest", "replacing");
+    restarting.config.metadata.fly_release_version = "2";
+    const started = machine("current", "app", "latest", "started");
+    started.config.metadata.fly_release_version = "2";
+    try {
+      const command = sandbox.stub(flyCommands, "runCommand");
+      command.withArgs(`flyctl releases --json --app ${appName}`, true)
+        .returns(JSON.stringify([{Version: 2, Status: "complete", ImageRef: "example.registry:5000/example-app:latest"}]));
+      const list = command.withArgs(`flyctl machines list --json --app ${appName}`, true);
+      list.returns(JSON.stringify([started]));
+      list.onSecondCall().returns(JSON.stringify([restarting]));
+      sandbox.stub(flyCommands, "runCommandWithRetry").resolves();
+      const pause = sandbox.stub(flyCommands, "sleep").resolves();
+      await deployFlyApp({appName, configPath: "fly.toml", scaleCount: 1});
+      expect(pause.called).toBe(true);
+    } finally {
+      sandbox.restore();
+    }
+  });
+
   it("distinguishes successive releases that both use latest", async () => {
     const sandbox = sinon.createSandbox();
     const appName = "example-app";
