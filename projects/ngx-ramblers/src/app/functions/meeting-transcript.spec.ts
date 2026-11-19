@@ -3,10 +3,12 @@ import {
   dedupeIncomingLines,
   isUsableTranscriptText,
   joinTranscriptLines,
+  ownMicrophoneLines,
   speakerLabelledLines,
   textFromGenerateContent,
   transcriptionExceedsAudio,
   transcriptLineLabel,
+  transcriptSpeakerChanges,
   transcriptTimeSpan,
   usableTranscriptText
 } from "./meeting-transcript";
@@ -252,6 +254,37 @@ describe("speakerLabelledLines", () => {
 
   it("drops filler and refusals even when they carry a speaker label", () => {
     expect(speakerLabelledLines("Rachel: um, uh\nNick Barrett: no clear speech", "Nick Barrett", ["Rachel"])).toEqual([]);
+  });
+
+});
+
+describe("ownMicrophoneLines", () => {
+
+  it("puts every line from a device under its owner", () => {
+    expect(ownMicrophoneLines("can you see my screen\nNick: yes it works", "Nick Barrett", ["Nick Barrett", "Andrew Hickley"])).toEqual([
+      {authorName: "Nick", text: "can you see my screen"},
+      {authorName: "Nick", text: "yes it works"}
+    ]);
+  });
+
+  it("leaves out a line the model heard from someone else through the loudspeaker", () => {
+    expect(ownMicrophoneLines("Andrew: how do I edit the cards\nyou go to the page first", "Nick Barrett", ["Nick Barrett", "Andrew Hickley"])).toEqual([
+      {authorName: "Nick", text: "you go to the page first"}
+    ]);
+  });
+
+});
+
+describe("transcriptSpeakerChanges", () => {
+
+  it("keeps changes with a time and a speaker and drops the rest", () => {
+    expect(transcriptSpeakerChanges([
+      {at: 1, authorName: " Andrew "},
+      {at: "2", authorName: "Nick"},
+      {at: 3, authorName: " "},
+      null
+    ])).toEqual([{at: 1, authorName: "Andrew"}]);
+    expect(transcriptSpeakerChanges("nope")).toEqual([]);
   });
 
 });

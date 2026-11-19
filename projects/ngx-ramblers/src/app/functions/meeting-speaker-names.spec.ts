@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { givenName, matchKnownSpeaker, namesForTranscribePrompt, shortSpeakerName } from "./meeting-speaker-names";
+import { givenName, matchKnownSpeaker, namesForTranscribePrompt, shortSpeakerName, transcriptSpeakers } from "./meeting-speaker-names";
 
 describe("shortSpeakerName", () => {
 
@@ -42,4 +42,11 @@ describe("givenName", () => {
     expect(givenName("")).toEqual("");
   });
 
+});
+
+describe("transcriptSpeakers", () => {
+
+  it("lists each speaker once, in the order they first spoke", () => {
+    expect(transcriptSpeakers([{authorName: "Jane Smith"}, {authorName: " Bob Jones "}, {authorName: "Jane Smith"}, {authorName: ""}, {}])).toEqual(["Jane Smith", "Bob Jones"]);
+  });
 });

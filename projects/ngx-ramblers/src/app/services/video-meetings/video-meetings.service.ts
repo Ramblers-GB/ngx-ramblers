@@ -14,6 +14,7 @@ import {
   MeetingSpeechCapture,
   MeetingTranscriptResponse,
   MeetingTranscriptRoomSummary,
+  MeetingTranscriptSpeakerChange,
   VideoMeetingRuntimeConfig,
   VideoMeetingTokenResponse
 } from "../../models/video-meeting.model";
@@ -97,20 +98,21 @@ export class VideoMeetingsService {
     return response?.saved || 0;
   }
 
-  async transcribeAudioChunk(room: string, authorName: string, blob: Blob, participants: string[] = [], speakers: string[] = []): Promise<MeetingAudioTranscriptionResponse> {
+  async transcribeAudioChunk(room: string, authorName: string, blob: Blob, participants: string[] = [], speakers: string[] = [], ownMicrophone = false): Promise<MeetingAudioTranscriptionResponse> {
     const response = (room && blob?.size)
-      ? await firstValueFrom(this.http.post<MeetingAudioTranscriptionResponse>(`${this.apiUrl}/transcribe-audio`, this.audioForm(room, authorName, blob, participants, speakers)))
+      ? await firstValueFrom(this.http.post<MeetingAudioTranscriptionResponse>(`${this.apiUrl}/transcribe-audio`, this.audioForm(room, authorName, blob, participants, speakers, ownMicrophone)))
       : null;
     return response || {saved: 0, discarded: 0, text: ""};
   }
 
-  private audioForm(room: string, authorName: string, blob: Blob, participants: string[], speakers: string[]): FormData {
+  private audioForm(room: string, authorName: string, blob: Blob, participants: string[], speakers: string[], ownMicrophone: boolean): FormData {
     const form = new FormData();
     form.append("audio", blob, "chunk.wav");
     form.append("room", room);
     form.append("authorName", authorName);
     form.append("participants", JSON.stringify(participants));
     form.append("speakers", JSON.stringify(speakers));
+    form.append("ownMicrophone", String(ownMicrophone));
     return form;
   }
 
@@ -119,6 +121,13 @@ export class VideoMeetingsService {
       ? await firstValueFrom(this.http.get<MeetingTranscriptResponse>(`${this.apiUrl}/transcript`, {params: {room}}))
       : null;
     return response || {transcript: "", lines: 0, startedAt: null, endedAt: null};
+  }
+
+  async updateTranscriptSpeakers(room: string, changes: MeetingTranscriptSpeakerChange[]): Promise<number> {
+    const response = (room && changes?.length)
+      ? await firstValueFrom(this.http.put<{ updated: number }>(`${this.apiUrl}/transcript/speakers`, {room, changes}))
+      : null;
+    return response?.updated || 0;
   }
 
   async transcriptRooms(): Promise<MeetingTranscriptRoomSummary[]> {

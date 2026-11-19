@@ -60,3 +60,9 @@ export function namesForTranscribePrompt(names: string[]): string[] {
   const attendees = speakerAttendees(names);
   return attendees.map(name => shortSpeakerName(name, attendees));
 }
+
+export function transcriptSpeakers(entries: { authorName?: string }[]): string[] {
+  return (entries || [])
+    .map(entry => (entry.authorName || "").trim())
+    .filter((name, index, names) => !!name && names.indexOf(name) === index);
+}

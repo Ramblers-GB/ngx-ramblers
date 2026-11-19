@@ -410,6 +410,11 @@ export interface MeetingTranscriptAppendRequest {
   lines: string[];
 }
 
+export interface MeetingTranscriptSpeakerChange {
+  at: number;
+  authorName: string;
+}
+
 export interface MeetingTranscriptEntry {
   authorName?: string;
   text: string;
@@ -513,12 +518,14 @@ export interface MeetingRejoinOffer {
 
 export interface MeetingAudioRecorderOptions {
   chunkMs: number;
+  echoCancellation: boolean;
   onChunk: (blob: Blob) => void;
 }
 
 export interface MeetingAudioRecorder {
   start(): Promise<boolean>;
   stop(): void;
+  setPaused(paused: boolean): void;
 }
 
 export interface MeetingAudioTranscription {
@@ -537,4 +544,12 @@ export const MEETING_RECORDING_MESSAGE = "ngx-meeting-recording";
 export interface MeetingRecordingMessage {
   name: string;
   recording: boolean;
+}
+
+export const MEETING_CAPTURE_MESSAGE = "ngx-meeting-capture";
+
+export interface MeetingCaptureMessage {
+  name: string;
+  capturing: boolean;
+  participantId: string;
 }

@@ -4,7 +4,7 @@ import * as authConfig from "../auth/auth-config";
 import { getVideoMeetingConfig, handleGuestInvite, issueGuestTokenForRoom, issueMemberToken } from "./video-meetings-controllers";
 import { keepJitsiAwake } from "./jitsi-keep-awake";
 import { writeMeetingMinutes } from "./write-meeting-minutes";
-import { appendMeetingTranscript, deleteMeetingTranscript, getMeetingTranscript, listMeetingTranscriptRooms } from "./meeting-transcript-controllers";
+import { appendMeetingTranscript, deleteMeetingTranscript, getMeetingTranscript, listMeetingTranscriptRooms, updateMeetingTranscriptSpeakers } from "./meeting-transcript-controllers";
 import { transcribeMeetingAudio } from "./meeting-audio-transcription";
 
 const router = express.Router();
@@ -18,6 +18,7 @@ router.post("/transcript", authConfig.optionalAuthenticate(), appendMeetingTrans
 router.get("/transcript", authConfig.optionalAuthenticate(), getMeetingTranscript);
 router.get("/transcript-rooms", authConfig.authenticate(), listMeetingTranscriptRooms);
 router.delete("/transcript", authConfig.authenticate(), deleteMeetingTranscript);
+router.put("/transcript/speakers", authConfig.authenticate(), updateMeetingTranscriptSpeakers);
 router.post("/transcribe-audio", authConfig.optionalAuthenticate(), audioUpload.single("audio"), transcribeMeetingAudio);
 router.post("/guest-token", issueGuestTokenForRoom);
 router.post("/keep-awake", authConfig.optionalAuthenticate(), keepJitsiAwake);

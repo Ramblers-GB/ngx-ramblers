@@ -1,5 +1,5 @@
-import { isArray, isObject, isString } from "es-toolkit/compat";
-import { MeetingTranscriptLine } from "../models/video-meeting.model";
+import { isArray, isNumber, isObject, isString } from "es-toolkit/compat";
+import { MeetingTranscriptLine, MeetingTranscriptSpeakerChange } from "../models/video-meeting.model";
 import { toBritishEnglish } from "./british-english";
 import { matchKnownSpeaker, shortSpeakerName, speakerAttendees } from "./meeting-speaker-names";
 
@@ -79,6 +79,34 @@ export function speakerLabelledLines(text: string, recorderName: string, partici
       return {authorName: shortSpeakerName(attributed, known), text: toBritishEnglish(speech)};
     })
     .filter(line => isUsableTranscriptText(line.text));
+}
+
+export function ownMicrophoneLines(text: string, recorderName: string, participants: string[]): {authorName: string; text: string}[] {
+  const recorder = (recorderName || "").trim();
+  const known = speakerAttendees([recorder, ...(participants || [])]);
+  const recorderMatch = matchKnownSpeaker(recorder, known) || recorder;
+  return (text || "")
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => !!line)
+    .map(line => {
+      const label = speakerLabel(line, known);
+      const matched = matchKnownSpeaker(label, known);
+      const someoneElse = !!matched && matched.toLowerCase() !== recorderMatch.toLowerCase();
+      const speech = label ? transcriptSpeechText(line) : line;
+      return {someoneElse, line: {authorName: shortSpeakerName(recorderMatch, known), text: toBritishEnglish(speech)}};
+    })
+    .filter(candidate => !candidate.someoneElse)
+    .map(candidate => candidate.line)
+    .filter(line => isUsableTranscriptText(line.text));
+}
+
+export function transcriptSpeakerChanges(value: unknown): MeetingTranscriptSpeakerChange[] {
+  return (isArray(value) ? value : [])
+    .filter(change => isObject(change))
+    .map(change => change as {at?: unknown; authorName?: unknown})
+    .filter(change => isNumber(change.at) && isString(change.authorName) && !!change.authorName.trim())
+    .map(change => ({at: change.at as number, authorName: (change.authorName as string).trim()}));
 }
 
 export function textFromGenerateContent(data: unknown): string {

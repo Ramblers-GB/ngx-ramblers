@@ -214,7 +214,7 @@ import { storedMeetingVenue, venueMarkdownLink, venueSearchLabel } from "../../f
             </div>
           }
           @if (isOnline()) {
-            <p class="small text-muted mb-0 mt-2">A video link is created and added to the agenda and invite.</p>
+            <p class="small text-muted mb-0 mt-2">A video link is created and added to the {{ selectedAgendaFileType() ? "agenda and invite" : "invite" }}.</p>
           }
         </app-thumbnail-heading-frame>
         }
@@ -603,6 +603,14 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
 
   selectedAgendaFileType(): string | null {
     return this.meetingTypes.find(type => type.description === this.meetingType)?.agendaFileType || null;
+  }
+
+  private agendaGenerated(): boolean {
+    return !!this.selectedAgendaFileType() && this.generateAgenda;
+  }
+
+  private agendaIncludedInInvite(): boolean {
+    return !!this.selectedAgendaFileType() && this.includeAgendaInInvite;
   }
 
   private defaultMeetingType(): string | null {
@@ -1160,7 +1168,7 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
           persisted.joinUrl,
           venueMarkdownLink(this.meetingVenue, persisted.location),
           this.inviteNote,
-          this.includeAgendaInInvite
+          this.agendaIncludedInInvite()
             ? numberedAgendaItemsFromGenerated(persisted.savedFile?.document?.markdown || "") || ""
             : ""
         ),
@@ -1356,10 +1364,10 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
 
   private async createCommitteeCalendarEvent(startTime: number, meetingTitle: string, joinUrl: string, venue: string, meeting: CommitteeFileMeeting): Promise<CommitteeFile | null> {
     const fileType = this.selectedAgendaFileType() || this.meetingKind();
-    this.workingMessage = this.generateAgenda ? "Drafting agenda…" : "Saving meeting…";
+    this.workingMessage = this.agendaGenerated() ? "Drafting agenda…" : "Saving meeting…";
     try {
       const timeLabel = this.dateUtils.asString(this.startTimeValue(), null, UIDateFormat.DISPLAY_TIME);
-      const markdown = this.generateAgenda
+      const markdown = this.agendaGenerated()
         ? await this.buildAgendaMarkdown(fileType, joinUrl, venue)
         : committeeMeetingAgendaMarkdown({
           heading: this.meetingKind(),

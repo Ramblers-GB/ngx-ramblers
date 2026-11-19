@@ -10,6 +10,7 @@ import {
   meetingMinutesWriteError,
   meetingMinutesWriteIsEmpty,
   meetingNotesUpdatedMessage,
+  meetingOwnMicrophonePrompt,
   meetingTranscribePrompt,
   MEETING_TRANSCRIBE_PROMPT
 } from "./video-meeting-minutes";
@@ -77,10 +78,33 @@ describe("meetingTranscribePrompt", () => {
     expect(prompt).toContain("Do not label their words as Nick");
   });
 
+  it("treats one detected speaker as a hint when other people are in the meeting", () => {
+    const prompt = meetingTranscribePrompt("Nick Barrett", ["Nick Barrett", "Andrew Hickley"], ["Andrew Hickley"]);
+    expect(prompt).toContain("mostly detected Andrew speaking");
+    expect(prompt).toContain("other people may speak too");
+    expect(prompt).not.toContain("Label every line with");
+  });
+
+  it("labels every line with the one detected speaker when nobody else is in the meeting", () => {
+    const prompt = meetingTranscribePrompt("Nick Barrett", ["Nick Barrett"], ["Nick Barrett"]);
+    expect(prompt).toContain("Label every line with Nick.");
+  });
+
   it("asks for numbered speakers when nobody is known", () => {
     const prompt = meetingTranscribePrompt("", []);
     expect(prompt).toContain("Speaker 1, Speaker 2");
     expect(prompt).not.toContain("recorded on the device");
+  });
+
+});
+
+describe("meetingOwnMicrophonePrompt", () => {
+
+  it("asks for only the device owner and no speaker names", () => {
+    const prompt = meetingOwnMicrophonePrompt("Andrew Hickley");
+    expect(prompt).toContain("only from the microphone of Andrew Hickley");
+    expect(prompt).toContain("Transcribe only what Andrew Hickley says");
+    expect(prompt).toContain("without a speaker name");
   });
 
 });

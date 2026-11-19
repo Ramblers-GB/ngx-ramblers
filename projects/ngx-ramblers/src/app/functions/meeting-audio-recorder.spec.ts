@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { audioRms, downsampleAudio, encodeWav, MEETING_AUDIO_HIGHPASS_HZ, MEETING_AUDIO_MIN_RMS } from "./meeting-audio-recorder";
+import { audioRms, createMeetingAudioRecorder, downsampleAudio, encodeWav, MEETING_AUDIO_HIGHPASS_HZ, MEETING_AUDIO_MIN_RMS } from "./meeting-audio-recorder";
 
 describe("meeting audio signal chain", () => {
 
@@ -50,4 +50,57 @@ describe("encodeWav", () => {
     expect(blob.size).toEqual(44 + 6);
   });
 
+});
+
+describe("createMeetingAudioRecorder while muted", () => {
+
+  function fakeWindow() {
+    const node = () => ({connect: () => undefined, disconnect: () => undefined});
+    const audio = {processor: null as {onaudioprocess?: (event: unknown) => void; connect: () => void; disconnect: () => void} | null};
+    class FakeAudioContext {
+      state = "running";
+      sampleRate = 16000;
+      destination = {};
+      createMediaStreamSource() { return node(); }
+      createBiquadFilter() { return {...node(), type: "", frequency: {value: 0}}; }
+      createScriptProcessor() { audio.processor = {...node()}; return audio.processor; }
+      createGain() { return {...node(), gain: {value: 1}}; }
+      close() { return Promise.resolve(); }
+    }
+    const win = {
+      AudioContext: FakeAudioContext,
+      navigator: {mediaDevices: {getUserMedia: () => Promise.resolve({getTracks: () => []})}},
+      setInterval: () => 1,
+      clearInterval: () => undefined
+    } as unknown as Window;
+    const speak = () => audio.processor.onaudioprocess({inputBuffer: {getChannelData: () => Float32Array.from({length: 4096}, (ignored, index) => Math.sin(index / 5) * 0.5)}});
+    return {win, speak};
+  }
+
+  it("sends speech from before muting, and nothing said while muted", async () => {
+    const {win, speak} = fakeWindow();
+    const chunks: Blob[] = [];
+    const recorder = createMeetingAudioRecorder(win, {chunkMs: 20000, echoCancellation: true, onChunk: blob => chunks.push(blob)});
+    await recorder.start();
+    speak();
+    recorder.setPaused(true);
+    expect(chunks.length).toEqual(1);
+    speak();
+    recorder.stop();
+    expect(chunks.length).toEqual(1);
+  });
+
+  it("collects speech again after unmuting", async () => {
+    const {win, speak} = fakeWindow();
+    const chunks: Blob[] = [];
+    const recorder = createMeetingAudioRecorder(win, {chunkMs: 20000, echoCancellation: true, onChunk: blob => chunks.push(blob)});
+    recorder.setPaused(true);
+    await recorder.start();
+    speak();
+    recorder.setPaused(false);
+    speak();
+    recorder.stop();
+    expect(chunks.length).toEqual(1);
+    expect(chunks[0].size).toEqual(44 + 4096 * 2);
+  });
 });

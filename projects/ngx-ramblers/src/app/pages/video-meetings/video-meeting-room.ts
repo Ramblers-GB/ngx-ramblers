@@ -104,7 +104,7 @@ import { StoredValue } from "../../models/ui-actions.model";
 import { AdminPath } from "../../models/admin-route-paths.model";
 import { appendUniqueLine, lineFromJitsiChat, lineFromJitsiTranscription } from "../../functions/video-meeting-minutes";
 import { createMeetingAudioRecorder } from "../../functions/meeting-audio-recorder";
-import { meetingRecordingMessage, meetingRecordingMessageFrom } from "../../functions/meeting-recording-message";
+import { meetingCaptureMessage, meetingCaptureMessageFrom, meetingRecordingMessage, meetingRecordingMessageFrom } from "../../functions/meeting-recording-message";
 import { MediaPermissionOutcome, mediaPermissionsDenied, requestMediaPermissions } from "../../functions/media-permissions";
 import { pruneSpeakerTimeline, speakersInWindow } from "../../functions/meeting-speakers";
 import { createMicLevelMeter, deviceLabel, meetingCurrentDevices, meetingDeviceLists, microphoneLooksSilent, recentLevels, SILENT_MICROPHONE_PEAK, SILENT_MICROPHONE_SAMPLES } from "../../functions/mic-level-meter";
@@ -744,6 +744,9 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
   private pendingNavigation: ((allowed: boolean) => void) | null = null;
   private recovering = false;
   private audioRecorder: MeetingAudioRecorder | null = null;
+  private audioRecorderOwnMicrophone = false;
+  private capturingParticipantIds: string[] = [];
+  private recordingForModerator = false;
   private transcriptionUploads: Promise<void>[] = [];
   private captureStartedAt: number | null = null;
   private sameRoomDetector: SameRoomDetector | null = null;
@@ -1087,6 +1090,7 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
     }));
     this.api.addEventListener("audioMuteStatusChanged", (payload: { muted?: boolean }) => this.zone.run(() => {
       this.audioMuted = !!payload?.muted;
+      this.applyRecorderMute();
       if (!this.audioMuted) {
         this.microphoneOffDismissed = true;
       }
@@ -1138,8 +1142,14 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
       this.refreshParticipantCount();
       this.replaceDuplicateOccupants(payload?.id || null);
       this.broadcastRecordingState();
+      this.broadcastCaptureState();
+      this.chooseCaptureMode();
     }));
-    this.api.addEventListener("participantLeft", () => this.zone.run(() => this.refreshParticipantCount()));
+    this.api.addEventListener("participantLeft", (payload: { id?: string }) => this.zone.run(() => {
+      this.refreshParticipantCount();
+      this.capturingParticipantIds = this.capturingParticipantIds.filter(participantId => participantId !== payload?.id);
+      this.chooseCaptureMode();
+    }));
     this.api.addEventListener("endpointTextMessageReceived", (payload: unknown) => this.zone.run(() => this.onEndpointTextMessage(payload)));
     this.api.addEventListener("participantRoleChanged", (payload: { id?: string; role?: string }) => this.zone.run(() => {
       if (payload?.id && payload.id === this.localParticipantId) {
@@ -1192,6 +1202,7 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
       const muted = await this.api?.isAudioMuted?.();
       this.audioMuted = !!muted;
       this.joinedMuted = !!muted;
+      this.applyRecorderMute();
     } catch (error) {
       this.logger.info("could not read microphone state", error);
     }
@@ -1202,6 +1213,8 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
     if (this.recordingEnabled) {
       this.startMeetingSpeechCapture();
       this.startTranscriptPull();
+    } else if (this.recordingByModerator) {
+      this.startCaptureForModerator();
     }
   }
 
@@ -1231,14 +1244,55 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
 
   private onEndpointTextMessage(payload: unknown): void {
     const message = meetingRecordingMessageFrom(payload);
+    const capture = meetingCaptureMessageFrom(payload);
     if (message && !this.localIsModerator) {
       const startedRecording = message.recording && !this.recordingByModerator;
       this.recordingByModerator = message.recording;
       if (startedRecording) {
         this.showRecordingNotice();
+        this.startCaptureForModerator();
       } else if (!message.recording) {
         this.dismissRecordingNotice();
+        this.stopCaptureForModerator();
       }
+    } else if (capture && capture.participantId !== this.localParticipantId) {
+      const others = this.capturingParticipantIds.filter(participantId => participantId !== capture.participantId);
+      this.capturingParticipantIds = capture.capturing ? [...others, capture.participantId] : others;
+      this.chooseCaptureMode();
+    }
+  }
+
+  private startCaptureForModerator(): void {
+    if (this.notesEnabled && this.inMeeting && !this.recordingEnabled && !this.audioRecorder) {
+      this.recordingForModerator = true;
+      this.startMeetingSpeechCapture();
+    }
+  }
+
+  private stopCaptureForModerator(): void {
+    this.recordingForModerator = false;
+    if (!this.recordingEnabled && this.audioRecorder) {
+      this.stopMeetingSpeechCapture();
+      this.transcribeStatus = TranscribeStatus.OFF;
+      this.transcribeDetail = "";
+    }
+  }
+
+  private broadcastCaptureState(): void {
+    if (this.notesEnabled && this.inMeeting && this.localParticipantId) {
+      this.jitsiCommand("sendEndpointTextMessage", "", meetingCaptureMessage(!!this.audioRecorder, this.localParticipantId));
+    }
+  }
+
+  private everyoneElseCapturing(): boolean {
+    this.refreshPeople();
+    const others = this.people.filter(person => person.participantId !== this.localParticipantId);
+    return others.length > 0 && others.every(person => this.capturingParticipantIds.includes(person.participantId));
+  }
+
+  private chooseCaptureMode(): void {
+    if (this.audioRecorder && this.everyoneElseCapturing() !== this.audioRecorderOwnMicrophone) {
+      this.startAudioRecorder();
     }
   }
 
@@ -1447,23 +1501,36 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
   }
 
   private startMeetingSpeechCapture(): void {
-    this.stopMeetingSpeechCapture();
     this.capturedLineTotal = 0;
     this.discardedChunkTotal = 0;
     this.transcriptionUploads = [];
+    this.startAudioRecorder();
+  }
+
+  private startAudioRecorder(): void {
+    this.audioRecorder?.stop();
+    this.audioRecorder = null;
+    const ownMicrophone = this.everyoneElseCapturing();
     const recorder = createMeetingAudioRecorder(window, {
       chunkMs: MEETING_AUDIO_CHUNK_MS,
-      onChunk: blob => this.queueAudioChunk(blob)
+      echoCancellation: ownMicrophone,
+      onChunk: blob => this.queueAudioChunk(blob, ownMicrophone)
     });
     this.audioRecorder = recorder;
+    this.audioRecorderOwnMicrophone = ownMicrophone;
+    this.applyRecorderMute();
     void recorder.start().then(started => this.zone.run(() => {
-      if (started) {
-        this.recordingUsed = true;
+      if (this.audioRecorder !== recorder) {
+        recorder.stop();
+      } else if (started) {
+        this.broadcastCaptureState();
+        this.recordingUsed = this.recordingUsed || !this.recordingForModerator;
         this.transcribeStatus = TranscribeStatus.LISTENING;
         this.transcribeDetail = "Listening - speak to capture the minutes.";
-        this.logger.info("meeting transcribe: audio recording started");
+        this.logger.info("meeting transcribe: audio recording started", ownMicrophone ? "from this microphone only" : "from everyone this device can hear");
       } else {
         this.audioRecorder = null;
+        this.broadcastCaptureState();
         this.transcribeStatus = TranscribeStatus.UNSUPPORTED;
         this.transcribeDetail = "This device could not start audio recording. Check that the microphone is allowed.";
         this.logger.error("meeting transcribe: could not start audio recording");
@@ -1471,10 +1538,14 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
     }));
   }
 
-  private queueAudioChunk(blob: Blob): void {
+  private queueAudioChunk(blob: Blob, ownMicrophone: boolean): void {
     if (blob?.size && this.room) {
-      this.transcriptionUploads = [...this.transcriptionUploads, this.uploadAudioChunk(blob, this.speakersForLastChunk())];
+      this.transcriptionUploads = [...this.transcriptionUploads, this.uploadAudioChunk(blob, this.speakersForLastChunk(), ownMicrophone)];
     }
+  }
+
+  private applyRecorderMute(): void {
+    this.audioRecorder?.setPaused(this.audioMuted === true);
   }
 
   private participantNamesForTranscription(): string[] {
@@ -1484,9 +1555,9 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
       .filter(name => usableMeetingDisplayName(name));
   }
 
-  private async uploadAudioChunk(blob: Blob, speakers: string[]): Promise<void> {
+  private async uploadAudioChunk(blob: Blob, speakers: string[], ownMicrophone: boolean): Promise<void> {
     try {
-      const result = await this.videoMeetingsService.transcribeAudioChunk(this.room, this.localDisplayName, blob, this.participantNamesForTranscription(), speakers);
+      const result = await this.videoMeetingsService.transcribeAudioChunk(this.room, this.localDisplayName, blob, this.participantNamesForTranscription(), speakers, ownMicrophone);
       this.zone.run(() => {
         if (result.saved > 0 || result.discarded > 0) {
           this.capturedLineTotal += result.saved;
@@ -1510,6 +1581,8 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
     if (this.audioRecorder) {
       this.audioRecorder.stop();
       this.audioRecorder = null;
+      this.audioRecorderOwnMicrophone = false;
+      this.broadcastCaptureState();
     }
   }
 
@@ -2047,7 +2120,7 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
   }
 
   private shouldWriteMinutes(): boolean {
-    return this.recordingUsed || this.recordingEnabled || this.capturedLineTotal > 0 || !!(this.speechCapture?.transcript || "").trim();
+    return !this.recordingForModerator && (this.recordingUsed || this.recordingEnabled || this.capturedLineTotal > 0 || !!(this.speechCapture?.transcript || "").trim());
   }
 
   retryMinutes(): void {
@@ -2253,6 +2326,8 @@ export class VideoMeetingRoomComponent implements MeetingRoomLeaveCheck, OnInit,
     this.sharingParticipantIds = [];
     this.pinnedSharer = null;
     this.speakerTimeline = [];
+    this.capturingParticipantIds = [];
+    this.recordingForModerator = false;
     this.localParticipantId = "";
     this.people = [];
     this.showPeople = false;

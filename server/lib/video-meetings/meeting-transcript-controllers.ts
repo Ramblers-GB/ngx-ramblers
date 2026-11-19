@@ -6,7 +6,7 @@ import { dateTimeNowAsValue } from "../shared/dates";
 import { meetingTranscriptLine } from "../mongo/models/meeting-transcript";
 import { meetingNote } from "../mongo/models/meeting-note";
 import committeeFile from "../mongo/models/committee-file";
-import { dedupeIncomingLines, joinTranscriptLines, speakerLabelledLines, transcriptTimeSpan } from "../../../projects/ngx-ramblers/src/app/functions/meeting-transcript";
+import { dedupeIncomingLines, joinTranscriptLines, speakerLabelledLines, transcriptSpeakerChanges, transcriptTimeSpan } from "../../../projects/ngx-ramblers/src/app/functions/meeting-transcript";
 import { videoMeetingTitleFromRoom } from "../../../projects/ngx-ramblers/src/app/functions/video-meeting-join";
 import { MEETING_MINUTES_TEMPLATE_ID, MeetingTranscriptLine } from "../../../projects/ngx-ramblers/src/app/models/video-meeting.model";
 
@@ -60,6 +60,27 @@ export async function getMeetingTranscript(req: Request, res: Response): Promise
     } catch (error) {
       debug("getMeetingTranscript failed:", error);
       res.status(502).json({message: "Failed to read transcript", error: String(error)});
+    }
+  }
+}
+
+export async function updateMeetingTranscriptSpeakers(req: Request, res: Response): Promise<void> {
+  const room = (req.body?.room || "").toString().trim();
+  const changes = transcriptSpeakerChanges(req.body?.changes);
+  if (!room || !changes.length) {
+    debug("updateMeetingTranscriptSpeakers: rejected, room and changes are required");
+    res.status(400).json({message: "room and changes are required"});
+  } else {
+    try {
+      const result = await meetingTranscriptLine.bulkWrite(changes.map(change => ({
+        updateMany: {filter: {room, at: change.at}, update: {$set: {authorName: change.authorName}}}
+      })));
+      const updated = result.modifiedCount || 0;
+      debug("updateMeetingTranscriptSpeakers:", {room, requested: changes.length, updated});
+      res.status(200).json({updated});
+    } catch (error) {
+      debug("updateMeetingTranscriptSpeakers failed:", error);
+      res.status(502).json({message: "Failed to update transcript speakers", error: String(error)});
     }
   }
 }

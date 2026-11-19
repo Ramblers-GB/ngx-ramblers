@@ -14,13 +14,26 @@ export const MEETING_TRANSCRIBE_PROMPT = [
   "If there is no clear speech, return an empty response."
 ].join(" ");
 
+export function meetingOwnMicrophonePrompt(recorderName: string): string {
+  const recorder = (recorderName || "").trim() || "the speaker";
+  return [
+    MEETING_TRANSCRIBE_PROMPT,
+    `This audio comes only from the microphone of ${recorder}. The other people in the meeting record their own microphones separately.`,
+    `Transcribe only what ${recorder} says. Leave out any quieter voices coming through a loudspeaker.`,
+    "Start every utterance on its own line, without a speaker name."
+  ].join(" ");
+}
+
 export function meetingTranscribePrompt(recorderName: string, participants: string[], speakers: string[] = []): string {
   const recorder = shortSpeakerName((recorderName || "").trim(), speakerAttendees([recorderName, ...(participants || [])]));
   const known = namesForTranscribePrompt([recorderName, ...(participants || [])].filter(name => !!(name || "").trim()));
   const heard = namesForTranscribePrompt(speakers);
   const heardOther = heard.filter(name => name.toLowerCase() !== recorder.toLowerCase());
   const exampleName = heardOther[0] || known.find(name => name.toLowerCase() !== recorder.toLowerCase()) || recorder || "Rachel";
-  const heardGuidance = heard.length === 1 && (heardOther.length > 0 || known.length <= 1)
+  const othersBesideHeard = heard.length === 1 && known.some(name => name.toLowerCase() !== heard[0].toLowerCase());
+  const heardGuidance = heard.length === 1 && othersBesideHeard
+    ? [`The meeting software mostly detected ${heard[0]} speaking in this clip, but it misses short replies and quick exchanges, so other people may speak too. Decide who said each line from the voice and the flow of the conversation, not from this hint alone.`]
+    : heard.length === 1
     ? [`The meeting software detected only ${heard[0]} speaking in this clip. Label every line with ${heard[0]}.`]
     : heard.length > 1
       ? [`The meeting software detected these people speaking during this clip, the one who spoke most first: ${heard.join(", ")}. Prefer those names when deciding who said each line.`]

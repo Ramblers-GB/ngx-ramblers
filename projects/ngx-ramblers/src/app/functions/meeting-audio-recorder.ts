@@ -69,6 +69,7 @@ export function createMeetingAudioRecorder(win: Window, options: MeetingAudioRec
     highpass: null as BiquadFilterNode | null,
     chunks: [] as Float32Array[],
     timer: 0,
+    paused: false,
     running: false
   };
 
@@ -121,7 +122,7 @@ export function createMeetingAudioRecorder(win: Window, options: MeetingAudioRec
           await context.resume();
         }
         const stream = await win.navigator.mediaDevices.getUserMedia({
-          audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}
+          audio: {echoCancellation: options.echoCancellation, noiseSuppression: true, autoGainControl: true}
         });
         state.stream = stream;
         const source = context.createMediaStreamSource(stream);
@@ -132,7 +133,7 @@ export function createMeetingAudioRecorder(win: Window, options: MeetingAudioRec
         const mute = context.createGain();
         mute.gain.value = 0;
         processor.onaudioprocess = event => {
-          if (state.running) {
+          if (state.running && !state.paused) {
             state.chunks.push(Float32Array.from(event.inputBuffer.getChannelData(0)));
           }
         };
@@ -154,5 +155,12 @@ export function createMeetingAudioRecorder(win: Window, options: MeetingAudioRec
     return started;
   };
 
-  return {start, stop};
+  const setPaused = (paused: boolean): void => {
+    if (paused && !state.paused && state.running) {
+      flush();
+    }
+    state.paused = paused;
+  };
+
+  return {start, stop, setPaused};
 }

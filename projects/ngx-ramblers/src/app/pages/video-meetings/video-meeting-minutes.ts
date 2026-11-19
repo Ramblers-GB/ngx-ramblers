@@ -15,7 +15,7 @@ import { StoredValue } from "../../models/ui-actions.model";
 import { UIDateFormat } from "../../models/date-format.model";
 import { DateUtilsService } from "../../services/date-utils.service";
 import { meetingMinutesDocumentSlug, preferredCommitteeDocumentsPagePath } from "../../functions/committee-documents-page";
-import { shortSpeakerName, speakerAttendees } from "../../functions/meeting-speaker-names";
+import { shortSpeakerName, speakerAttendees, transcriptSpeakers } from "../../functions/meeting-speaker-names";
 import { CommitteeDocumentsPageChoice } from "../../models/content-text.model";
 import { AlertPanelComponent } from "../../modules/common/alert-panel/alert-panel";
 import { AlertPanelVariant } from "../../models/alert-panel.model";
@@ -45,6 +45,10 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
     .transcript-entry:last-child
       margin-bottom: 0
     .transcript-speaker
+      font-weight: 700
+    .transcript-speaker-choice
+      display: inline-block
+      width: auto
       font-weight: 700
     .transcript-time
       margin-left: 0.5rem
@@ -156,7 +160,17 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
             @if (transcriptEntries.length) {
               @for (entry of transcriptEntries; track $index) {
                 <div class="transcript-entry">
-                  <span class="transcript-speaker">{{ speakerName(entry.authorName) }}</span>
+                  @if (speakerChoices.length > 1 && entry.at) {
+                    <select class="form-select form-select-sm transcript-speaker-choice" [disabled]="busy"
+                            [ngModel]="entry.authorName" (ngModelChange)="changeSpeaker(entry, $event)"
+                            [attr.aria-label]="'Who said: ' + entry.text">
+                      @for (choice of speakerChoices; track choice) {
+                        <option [ngValue]="choice">{{ speakerName(choice) }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <span class="transcript-speaker">{{ speakerName(entry.authorName) }}</span>
+                  }
                   @if (entry.at) {
                     <span class="transcript-time">{{ transcriptTime(entry.at) }}</span>
                   }
@@ -197,6 +211,7 @@ export class VideoMeetingMinutesComponent implements OnInit {
   file: CommitteeFile | null = null;
   transcript = "";
   transcriptEntries: MeetingTranscriptEntry[] = [];
+  speakerChoices: string[] = [];
   loading = true;
   busy = false;
   confirmingDelete = false;
@@ -265,6 +280,7 @@ export class VideoMeetingMinutesComponent implements OnInit {
       const transcriptResponse = await this.videoMeetingsService.transcriptForRoom(this.room);
       this.transcript = transcriptResponse?.transcript || "";
       this.transcriptEntries = transcriptResponse?.entries || [];
+      this.speakerChoices = transcriptSpeakers(this.transcriptEntries);
       this.destinationPages = await this.committeeFileService.committeeDocumentsPages();
       const year = this.file?.eventDate
         ? this.dateUtils.asString(this.file.eventDate, undefined, UIDateFormat.YEAR)
@@ -361,8 +377,26 @@ export class VideoMeetingMinutesComponent implements OnInit {
     return this.dateUtils.displayTime(at);
   }
 
+  async changeSpeaker(entry: MeetingTranscriptEntry, authorName: string): Promise<void> {
+    const previous = entry.authorName;
+    if (authorName && authorName !== previous && entry.at) {
+      entry.authorName = authorName;
+      try {
+        await this.videoMeetingsService.updateTranscriptSpeakers(this.room, [{at: entry.at, authorName}]);
+        const transcriptResponse = await this.videoMeetingsService.transcriptForRoom(this.room);
+        this.transcript = transcriptResponse?.transcript || this.transcript;
+      } catch (error) {
+        this.logger.error("failed to change transcript speaker", this.room, error);
+        entry.authorName = previous;
+        this.statusTitle = "Could not change the speaker";
+        this.statusMessage = "Please try again in a moment.";
+        this.statusVariant = AlertPanelVariant.DANGER;
+      }
+    }
+  }
+
   speakerName(authorName: string): string {
-    const attendees = speakerAttendees(this.transcriptEntries.map(entry => entry.authorName || ""));
+    const attendees = speakerAttendees(this.speakerChoices);
     return shortSpeakerName(authorName || "Speaker", attendees) || "Speaker";
   }
 

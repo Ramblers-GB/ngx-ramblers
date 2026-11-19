@@ -6,11 +6,12 @@ import { aiConfigFromEnvironment } from "../ai/ai-config";
 import { dateTimeNowAsValue } from "../shared/dates";
 import { meetingTranscriptLine } from "../mongo/models/meeting-transcript";
 import {
+  ownMicrophoneLines,
   speakerLabelledLines,
   textFromGenerateContent,
   transcriptionExceedsAudio
 } from "../../../projects/ngx-ramblers/src/app/functions/meeting-transcript";
-import { meetingTranscribePrompt } from "../../../projects/ngx-ramblers/src/app/functions/video-meeting-minutes";
+import { meetingOwnMicrophonePrompt, meetingTranscribePrompt } from "../../../projects/ngx-ramblers/src/app/functions/video-meeting-minutes";
 import { MeetingAudioTranscription } from "../../../projects/ngx-ramblers/src/app/models/video-meeting.model";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 
@@ -41,6 +42,10 @@ export function participantNamesFromRequest(value: unknown): string[] {
   return (isArray(parsed) ? parsed : [])
     .map(name => (name ?? "").toString().trim())
     .filter(name => !!name);
+}
+
+export function ownMicrophoneFromRequest(value: unknown): boolean {
+  return value === true || value === "true";
 }
 
 async function transcribeAudioViaAi(audio: Buffer, mimeType: string, prompt: string): Promise<MeetingAudioTranscription> {
@@ -88,6 +93,7 @@ export async function transcribeMeetingAudio(req: Request, res: Response): Promi
   const authorName = (req.body?.authorName || "").toString().trim();
   const participants = participantNamesFromRequest(req.body?.participants);
   const speakers = participantNamesFromRequest(req.body?.speakers);
+  const ownMicrophone = ownMicrophoneFromRequest(req.body?.ownMicrophone);
   const file = (req as Request & {file?: {buffer: Buffer; mimetype: string}}).file;
   const mimeType = (file?.mimetype || "audio/wav").toLowerCase();
   if (!room || !file?.buffer?.length) {
@@ -96,8 +102,11 @@ export async function transcribeMeetingAudio(req: Request, res: Response): Promi
     res.status(415).json({message: "Only WAV audio is supported"});
   } else {
     try {
-      const transcription = await transcribeAudioViaAi(file.buffer, mimeType, meetingTranscribePrompt(authorName, participants, speakers));
-      const lines = speakerLabelledLines(transcription.text, authorName, participants, speakers);
+      const prompt = ownMicrophone ? meetingOwnMicrophonePrompt(authorName) : meetingTranscribePrompt(authorName, participants, speakers);
+      const transcription = await transcribeAudioViaAi(file.buffer, mimeType, prompt);
+      const lines = ownMicrophone
+        ? ownMicrophoneLines(transcription.text, authorName, participants)
+        : speakerLabelledLines(transcription.text, authorName, participants, speakers);
       if (lines.length) {
         const now = dateTimeNowAsValue();
         await meetingTranscriptLine.insertMany(lines.map((line, index) => ({room, authorName: line.authorName, text: line.text, at: now + index})));
@@ -107,6 +116,7 @@ export async function transcribeMeetingAudio(req: Request, res: Response): Promi
         authorName,
         participants,
         heardSpeakers: speakers,
+        ownMicrophone,
         bytes: file.buffer.length,
         chars: transcription.text.length,
         saved: lines.length,
