@@ -124,7 +124,14 @@ RUN echo "worker-node-diag:" && (which curl tar node npm bash || true) && (node 
   && rm /tmp/node.tar.gz \
   && node --version \
   && npm --version \
-  && npm install -g npm@${NPM_VERSION}
+  && if [ "$(npm --version)" != "${NPM_VERSION}" ]; then \
+       attempt=1; \
+       until npm install -g npm@${NPM_VERSION}; do \
+         attempt=$((attempt + 1)); \
+         if [ "$attempt" -gt 5 ]; then exit 1; fi; \
+         sleep $((attempt * 5)); \
+       done; \
+     fi
 
 WORKDIR /usr/src/app
 
