@@ -195,6 +195,7 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
           @if (committeeConfig) {
             <tabset class="custom-tabset">
               <tab heading="Committee Members" [active]="tabActive('committee-members')" (selectTab)="selectTab('committee-members')">
+                @if (tabActive("committee-members")) {
                 <div class="img-thumbnail thumbnail-admin-edit">
                   <div class="col-sm-12 mt-2 mb-2">
                     <app-content-text-editor standalone category="admin" name="committee-roles-help"
@@ -772,16 +773,20 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                       </div>
                     }
                 </div>
+                }
               </tab>
               <tab heading="Email logs" [active]="tabActive('email-logs')" (selectTab)="selectTab('email-logs')">
+                @if (tabActive("email-logs")) {
                 <div class="img-thumbnail thumbnail-admin-edit">
                   <p class="small text-muted mb-3">Inbound mail for this domain, from Cloudflare Email Routing. Includes catch-all and every role address.</p>
                   <app-email-routing-log
                     [workerScriptName]="inboxRouterScriptName()"
                     routeType="worker"/>
                 </div>
+                }
               </tab>
               <tab heading="Configuration" [active]="tabActive('configuration')" (selectTab)="selectTab('configuration')">
+                @if (tabActive("configuration")) {
                 <app-thumbnail-heading-frame heading="File Types" class="mb-3">
                   <div class="row">
                     <div class="col-sm-12 mt-2 mb-2">
@@ -794,7 +799,7 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                     <fa-icon [icon]="faAdd"></fa-icon>
                     Add new file type
                   </div>
-                  @for (fileType of committeeConfig.fileTypes; track fileType.description; let fileTypeIndex = $index) {
+                  @for (fileType of committeeConfig.fileTypes; track fileType; let fileTypeIndex = $index) {
                     <div class="row align-items-end mb-2">
                       <div class="col-sm-3">
                         <div class="form-group mb-0">
@@ -900,6 +905,7 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                     </div>
                   </div>
                 </app-thumbnail-heading-frame>
+                }
               </tab>
             </tabset>
           }
@@ -966,7 +972,8 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
   public notification: Notification;
   public committeeConfig: CommitteeConfig;
   documentsPages: CommitteeDocumentsPageChoice[] = [];
-  protected selectedTab = "committee-members";
+  protected readonly knownTabs = ["committee-members", "email-logs", "configuration"];
+  protected selectedTab = this.knownTabs[0];
   protected readonly meetingFrequencyUnitOptions = RANGE_UNIT_OPTIONS;
   protected readonly environmentSetupGlobalQueryParams = {[StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS), [StoredValue.SUB_TAB]: EnvironmentSettingsSubTab.GLOBAL};
   protected readonly ALERT_ERROR = ALERT_ERROR;
@@ -1103,7 +1110,8 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
         }
         const tab = params[StoredValue.TAB];
         if (tab) {
-          this.selectedTab = (tab === "expenses" || tab === "file-types") ? "configuration" : tab;
+          const requested = (tab === "expenses" || tab === "file-types") ? "configuration" : tab;
+          this.selectedTab = this.knownTabs.includes(requested) ? requested : this.knownTabs[0];
         }
         if (editType && this.committeeConfig) {
           this.openEditorForType(editType);
@@ -2200,6 +2208,7 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
   }
 
   selectTab(tab: string): void {
+    this.roleEditor?.commitMailboxAddresses();
     this.selectedTab = tab;
     void this.router.navigate([], {relativeTo: this.activatedRoute, queryParams: {[StoredValue.TAB]: tab}, queryParamsHandling: "merge"});
   }
