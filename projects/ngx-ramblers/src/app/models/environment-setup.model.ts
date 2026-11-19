@@ -429,6 +429,19 @@ export const MONGODB_ATLAS_CONSOLE_URLS: ConsoleAccessUrlInfo[] = [
   }
 ]
 
+export const AWS_S3_CONSOLE_URLS: ConsoleAccessUrlInfo[] = [
+  {
+    label: "Console home",
+    urlTemplate: "https://{accountId}.signin.aws.amazon.com/console",
+    iconKey: ConsoleAccessUrlIconKey.CONSOLE
+  },
+  {
+    label: "S3 bucket",
+    urlTemplate: "https://s3.console.aws.amazon.com/s3/buckets/{bucket}?region={region}",
+    iconKey: ConsoleAccessUrlIconKey.BUCKET
+  }
+]
+
 export interface ConsoleAccessResolvedUrlInfo {
   label: string;
   url: string;

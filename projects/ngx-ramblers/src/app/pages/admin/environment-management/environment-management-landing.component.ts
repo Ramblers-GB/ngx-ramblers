@@ -87,6 +87,13 @@ export class EnvironmentManagementLandingComponent implements OnInit, OnDestroy 
             accessLevel: AccessLevel.ENVIRONMENT_ADMIN
           },
           {
+            href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_AWS,
+            title: "AWS S3",
+            icon: "faBoxArchive",
+            contentText: "See which site buckets are already on unique London buckets in the Ramblers NGX account, open the S3 console, and move remaining sites",
+            accessLevel: AccessLevel.ENVIRONMENT_ADMIN
+          },
+          {
             href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HOSTING,
             title: "Hosting",
             icon: "faCloud",

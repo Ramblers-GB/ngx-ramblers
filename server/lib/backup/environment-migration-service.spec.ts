@@ -1,6 +1,7 @@
 import expect from "expect";
 import sinon from "sinon";
 import { describe, afterEach, beforeEach, it } from "mocha";
+import { MongoClient } from "mongodb";
 import { EnvironmentMigrationService } from "./environment-migration-service";
 import { environmentMigration } from "../mongo/models/environment-migration";
 import * as configController from "../mongo/controllers/config";
@@ -91,8 +92,11 @@ describe("environment-migration-service", () => {
       };
     }
 
-    function stubRotation(migration: EnvironmentMigrationAudit) {
-      sandbox.stub(environmentMigration, "findOne").returns({ lean: () => Promise.resolve(migration) } as any);
+    function stubRotation(migration: EnvironmentMigrationAudit, targetMongoPassword?: string) {
+      sandbox.stub(environmentMigration, "findOne").returns({
+        lean: () => Promise.resolve(migration),
+        select: () => ({ lean: () => Promise.resolve(targetMongoPassword ? { targetMongoPassword } : {}) })
+      } as any);
       const updateOne = sandbox.stub(environmentMigration, "updateOne").resolves({} as any);
       sandbox.stub(configController, "queryKey").resolves({ value: { environments: [previousEnvironment] } } as any);
       const createOrUpdateKey = sandbox.stub(configController, "createOrUpdateKey").resolves({} as any);
@@ -143,7 +147,7 @@ describe("environment-migration-service", () => {
       });
       expect(scopedAwsCredentials.called).toEqual(false);
       expect(setupAwsForBucket.calledOnce).toEqual(true);
-      expect(setupAwsForBucket.firstCall.args[4]).toEqual({ replaceAccessKeys: false });
+      expect(setupAwsForBucket.firstCall.args[4]).toEqual({ replaceAccessKeys: false, keepAccessKeyId: "OLDKEY" });
       expect(createOrUpdateKey.called).toEqual(true);
       expect(createOrUpdateKey.firstCall.args[1].environments[0].aws.accessKeyId).toEqual("SITEKEY");
     });
@@ -226,6 +230,20 @@ describe("environment-migration-service", () => {
       expect(createOrUpdateKey.calledOnce).toBe(true);
     });
 
+    it("switches over with the saved target login when the page no longer holds the password", async () => {
+      const {service, createOrUpdateKey, updateOne} = stubRotation(readyMigration(null), "target-password");
+      await service.rotateCredentials({migrationId: "migration", confirmEnvironment: "staging"});
+      expect(createOrUpdateKey.firstCall.args[1].environments[0].mongo).toEqual(targetMongo);
+      const rotatedUpdate = updateOne.getCalls().find(call => call.args[1].$set?.status === EnvironmentMigrationStatus.ROTATED);
+      expect(rotatedUpdate.args[1].$unset).toEqual({targetMongoPassword: ""});
+    });
+
+    it("explains when no target login was saved and the page no longer holds the password", async () => {
+      const {service, createOrUpdateKey} = stubRotation(readyMigration(null));
+      await expect(service.rotateCredentials({migrationId: "migration", confirmEnvironment: "staging"})).rejects.toThrow("was not saved");
+      expect(createOrUpdateKey.called).toBe(false);
+    });
+
     it("records an incomplete rollback as failed and retains the original rollback identity", async () => {
       const {service, updateOne} = stubRotation(readyMigration(null));
       (flyMachines.setCurrentMachineSecrets as sinon.SinonStub).resolves({ok: false, error: "Secrets unavailable"});
@@ -271,6 +289,35 @@ describe("environment-migration-service", () => {
       expect(scopedAwsCredentials.calledOnce).toEqual(true);
       expect(bucketExists.called).toEqual(false);
       expect(createOrUpdateKey.firstCall.args[1].environments[0].aws.accessKeyId).toEqual("SCOPEDKEY");
+    });
+  });
+
+  describe("validateMongoCredentials", () => {
+    it("waits for Atlas to activate the user with the same login waiter as registration", async () => {
+      sandbox.stub(environmentMigration, "updateOne").resolves({} as any);
+      const waitConnect = sandbox.stub(MongoClient, "connect").resolves({
+        db: () => ({command: sandbox.stub().resolves({ok: 1})}),
+        close: sandbox.stub().resolves()
+      } as any);
+      sandbox.stub(MongoClient.prototype, "connect").resolves();
+      sandbox.stub(MongoClient.prototype, "db").returns({
+        command: sandbox.stub().resolves({ok: 1}),
+        listCollections: () => ({toArray: sandbox.stub().resolves([])}),
+        collection: () => ({insertOne: sandbox.stub().resolves(), drop: sandbox.stub().resolves()})
+      } as any);
+      sandbox.stub(MongoClient.prototype, "close").resolves();
+
+      const service = new EnvironmentMigrationService();
+      await (service as any).validateMongoCredentials({
+        cluster: "hillside.mongodb.net",
+        db: "ngx-ramblers-hillside",
+        username: "ngx_hillside_migration_user",
+        password: "secret"
+      }, true, "environment-migration-1");
+
+      expect(waitConnect.calledOnce).toEqual(true);
+      expect(String(waitConnect.firstCall.args[0])).toContain("ngx_hillside_migration_user");
+      expect(String(waitConnect.firstCall.args[0])).toContain("hillside.mongodb.net");
     });
   });
 });

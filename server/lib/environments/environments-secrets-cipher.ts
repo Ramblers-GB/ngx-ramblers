@@ -79,16 +79,23 @@ export function encryptEnvironmentsSecrets<T extends EnvironmentsConfig>(value: 
 }
 
 export function decryptEnvironmentsSecrets<T extends EnvironmentsConfig>(value: T): T {
+  return mapSecretStrings(value, false, decryptSecretValue);
+}
+
+export function encryptSecretValue(plain: string): string {
   const key = encryptionKey();
-  return mapSecretStrings(value, false, stored => {
-    if (!isEncryptedValue(stored)) {
-      return stored;
-    } else if (!key) {
-      throw new EnvironmentsSecretsError(`config.environments contains encrypted secrets but ${Environment.ENVIRONMENTS_ENCRYPTION_KEY} is not set`);
-    } else {
-      return decryptValue(stored, key);
-    }
-  });
+  return key && plain && !isEncryptedValue(plain) ? encryptValue(plain, key) : plain;
+}
+
+export function decryptSecretValue(stored: string): string {
+  const key = encryptionKey();
+  if (!isEncryptedValue(stored)) {
+    return stored;
+  } else if (!key) {
+    throw new EnvironmentsSecretsError(`config.environments contains encrypted secrets but ${Environment.ENVIRONMENTS_ENCRYPTION_KEY} is not set`);
+  } else {
+    return decryptValue(stored, key);
+  }
 }
 
 export function containsUnencryptedSecrets(value: EnvironmentsConfig): boolean {

@@ -38,6 +38,7 @@ import {
   BackupArchiveProvisionResult
 } from "../../models/environment-setup.model";
 import { AtlasConfig, SiteUrlPreference } from "../../models/environment-config.model";
+import { AwsS3InventoryView } from "../../models/aws-s3-inventory.model";
 import { EmptyCollectionCandidate, EmptyCollectionCleanupPreview, EmptyCollectionCleanupResult } from "../../models/environment-collection-cleanup.model";
 import {
   AtlasClusterCreateRequest,
@@ -260,6 +261,15 @@ export class EnvironmentSetupService {
       this.notifications
     );
     return response as unknown as MongoClusterList;
+  }
+
+  async awsS3Inventory(): Promise<AwsS3InventoryView> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.get<ApiResponse>(`${this.BASE_URL}/s3-inventory`, this.opts),
+      this.notifications
+    );
+    return response as unknown as AwsS3InventoryView;
   }
 
   async atlasClusters(): Promise<AtlasClusterView> {

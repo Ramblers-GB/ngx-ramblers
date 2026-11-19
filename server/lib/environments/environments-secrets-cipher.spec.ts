@@ -7,7 +7,9 @@ import {
   containsUnencryptedSecrets,
   decryptEnvironmentsSecrets,
   ENCRYPTED_VALUE_PREFIX,
-  encryptEnvironmentsSecrets
+  decryptSecretValue,
+  encryptEnvironmentsSecrets,
+  encryptSecretValue
 } from "./environments-secrets-cipher";
 
 describe("environments-secrets-cipher", () => {
@@ -125,5 +127,11 @@ describe("environments-secrets-cipher", () => {
   it("tolerates a missing or empty document", () => {
     expect(decryptEnvironmentsSecrets(undefined)).toBeUndefined();
     expect(encryptEnvironmentsSecrets(null)).toBeNull();
+  });
+
+  it("encrypts and decrypts a single secret value", () => {
+    const stored = encryptSecretValue("target-password");
+    encrypted(stored);
+    expect(decryptSecretValue(stored)).toBe("target-password");
   });
 });

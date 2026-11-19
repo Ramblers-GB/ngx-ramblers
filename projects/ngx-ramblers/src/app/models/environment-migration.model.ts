@@ -194,3 +194,17 @@ export interface EnvironmentMigrationRotationRequest {
   rotateS3Credentials?: boolean;
   user?: string;
 }
+
+export enum EnvironmentMigrationStepKey {
+  PREPARE = "prepare",
+  CHECK = "check",
+  COPY = "copy",
+  SWITCH = "switch"
+}
+
+export enum EnvironmentMigrationStepState {
+  TODO = "todo",
+  RUNNING = "running",
+  DONE = "done",
+  FAILED = "failed"
+}

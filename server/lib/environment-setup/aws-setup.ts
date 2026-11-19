@@ -58,6 +58,7 @@ export { generateDestinationBucketName };
 
 export interface SetupAwsForBucketOptions {
   replaceAccessKeys?: boolean;
+  keepAccessKeyId?: string;
   publicRead?: boolean;
 }
 
@@ -79,6 +80,16 @@ export function createS3Client(adminConfig: AwsAdminConfig, region = adminConfig
   return new S3Client({
     region: region || adminConfig.region || AWS_DEFAULTS.REGION,
     followRegionRedirects: true,
+    credentials: {
+      accessKeyId: adminConfig.accessKeyId,
+      secretAccessKey: adminConfig.secretAccessKey
+    }
+  });
+}
+
+export function createStsClient(adminConfig: AwsAdminConfig): STSClient {
+  return new STSClient({
+    region: adminConfig.region || AWS_DEFAULTS.REGION,
     credentials: {
       accessKeyId: adminConfig.accessKeyId,
       secretAccessKey: adminConfig.secretAccessKey
@@ -372,13 +383,13 @@ async function deleteAccessKey(iamClient: IAMClient, userName: string, accessKey
   debugLog(`Deleted access key: ${accessKeyId}`);
 }
 
-async function prepareAccessKeySlot(iamClient: IAMClient, userName: string, replaceAccessKeys: boolean): Promise<void> {
+async function prepareAccessKeySlot(iamClient: IAMClient, userName: string, replaceAccessKeys: boolean, keepAccessKeyId?: string): Promise<void> {
   const existingKeys = await listedAccessKeys(iamClient, userName);
   debugLog(`User ${userName} has ${existingKeys.length} existing access keys`);
   if (replaceAccessKeys) {
     await Promise.all(existingKeys.filter(key => key.AccessKeyId).map(key => deleteAccessKey(iamClient, userName, key.AccessKeyId as string)));
   } else if (existingKeys.length >= 2) {
-    const oldest = [...existingKeys].sort((left, right) => {
+    const oldest = existingKeys.filter(key => key.AccessKeyId !== keepAccessKeyId).sort((left, right) => {
       const leftTime = left.CreateDate ? left.CreateDate.getTime() : 0;
       const rightTime = right.CreateDate ? right.CreateDate.getTime() : 0;
       return leftTime - rightTime;
@@ -421,7 +432,8 @@ export async function createIamUserWithBucketPolicy(
   userName: string,
   bucketName: string,
   policyName: string,
-  replaceAccessKeys = true
+  replaceAccessKeys = true,
+  keepAccessKeyId?: string
 ): Promise<{ accessKeyId: string; secretAccessKey: string; policyArn: string }> {
   debugLog("Setting up IAM user:", userName, "with policy for bucket:", bucketName);
 
@@ -484,7 +496,7 @@ export async function createIamUserWithBucketPolicy(
     debugLog("Policy already attached to user");
   }
 
-  await prepareAccessKeySlot(iamClient, userName, replaceAccessKeys);
+  await prepareAccessKeySlot(iamClient, userName, replaceAccessKeys, keepAccessKeyId);
 
   const accessKey = await createAccessKeyForUser(iamClient, userName);
 
@@ -533,7 +545,8 @@ export async function setupAwsForBucket(
     userName,
     bucketName,
     policyName,
-    replaceAccessKeys
+    replaceAccessKeys,
+    options?.keepAccessKeyId
   );
 
   return {

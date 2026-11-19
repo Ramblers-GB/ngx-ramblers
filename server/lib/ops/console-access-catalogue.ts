@@ -4,7 +4,7 @@ import {
   ConsoleAccessService,
   EnvironmentConsoleAccess
 } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { ConsoleAccessUrlIconKey, MONGODB_ATLAS_CONSOLE_URLS } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
+import { AWS_S3_CONSOLE_URLS, ConsoleAccessUrlIconKey, MONGODB_ATLAS_CONSOLE_URLS } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { resolveConsoleUrls as resolveConsoleUrlTemplates } from "../../../projects/ngx-ramblers/src/app/functions/console-access-urls";
 import {
   EstateRebuildFieldLayer,
@@ -96,10 +96,7 @@ export const CONSOLE_ACCESS_SERVICES: ConsoleAccessServiceDefinition[] = [
       {key: "region", label: "Region", placeholder: "e.g. eu-west-2"},
       {key: "bucket", label: "S3 bucket", placeholder: "bucket name"}
     ],
-    urls: [
-      {label: "Console home", urlTemplate: "https://{accountId}.signin.aws.amazon.com/console", iconKey: ConsoleAccessUrlIconKey.CONSOLE},
-      {label: "S3 bucket", urlTemplate: "https://s3.console.aws.amazon.com/s3/buckets/{bucket}?region={region}", iconKey: ConsoleAccessUrlIconKey.BUCKET}
-    ]
+    urls: AWS_S3_CONSOLE_URLS
   },
   {
     serviceId: ConsoleAccessService.CLOUDFLARE,

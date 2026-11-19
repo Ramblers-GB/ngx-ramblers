@@ -154,7 +154,7 @@ export async function waitForMongoLogin(cluster: string, user: CreatedEnvironmen
   if (await mongoLoginWorks(cluster, user, database)) {
     onWaiting(0);
   } else if (attempt >= LOGIN_ATTEMPTS) {
-    throw new Error(`MongoDB Atlas had not activated the database user ${user.username} after ${Math.round(LOGIN_ATTEMPTS * retryMs / 60000)} minutes. Retry the registration in a few minutes.`);
+    throw new Error(`MongoDB Atlas had not activated the database user ${user.username} after ${Math.round(LOGIN_ATTEMPTS * retryMs / 60000)} minutes. Retry in a few minutes.`);
   } else {
     onWaiting(attempt);
     await new Promise(resolve => setTimeout(resolve, retryMs));

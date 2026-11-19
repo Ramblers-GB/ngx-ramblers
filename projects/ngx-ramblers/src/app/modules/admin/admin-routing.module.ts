@@ -318,6 +318,12 @@ const rp = adminRelativePath;
       canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
     },
     {
+      path: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_AWS),
+      loadComponent: () => import("../../pages/admin/environment-aws/environment-aws")
+        .then(m => m.EnvironmentAwsComponent),
+      canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
+    },
+    {
       path: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HOSTING),
       loadComponent: () => import("../../pages/admin/environment-hosting/environment-hosting")
         .then(m => m.EnvironmentHostingComponent),
@@ -360,6 +366,7 @@ const rp = adminRelativePath;
     { path: "environment-management/maintenance", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MAINTENANCE), pathMatch: "full" },
     { path: "environment-management/estate-rebuild-capture", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_ESTATE_REBUILD), pathMatch: "full" },
     { path: "environment-management/atlas", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_ATLAS), pathMatch: "full" },
+    { path: "environment-management/aws", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_AWS), pathMatch: "full" },
     { path: "environment-setup", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_SETUP), pathMatch: "full" },
     { path: "backup-and-restore", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_BACKUP), pathMatch: "full" },
     { path: "migration-health", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH), pathMatch: "full" },

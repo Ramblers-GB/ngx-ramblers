@@ -264,6 +264,14 @@ export const ATLAS_MENU_ITEM: ActionButtonColumn = {
   contentText: "Create clusters in the Ramblers Atlas project, set the default for new sites, and see occupancy before a free cluster hits its collection limit"
 };
 
+export const AWS_MENU_ITEM: ActionButtonColumn = {
+  accessLevel: "environmentAdmin",
+  title: "AWS S3",
+  icon: "faBoxArchive",
+  href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_AWS,
+  contentText: "See which site buckets are already on unique London buckets in the Ramblers NGX account, open the S3 console, and move remaining sites"
+};
+
 export const HOSTING_MENU_ITEM: ActionButtonColumn = {
   accessLevel: "environmentAdmin",
   title: "Hosting",
@@ -282,6 +290,7 @@ export const ENVIRONMENT_MANAGEMENT_MENU_ITEMS: ActionButtonColumn[] = [
     contentText: "Provision new NGX-Ramblers environments for Ramblers groups"
   },
   ATLAS_MENU_ITEM,
+  AWS_MENU_ITEM,
   HOSTING_MENU_ITEM,
   {
     accessLevel: "committee",

@@ -3,6 +3,7 @@ import express from "express";
 import * as controllers from "./environment-setup-controllers";
 import * as atlasClusters from "../atlas-clusters-controllers";
 import * as backupArchive from "../backup-archive-controllers";
+import * as awsS3Inventory from "../aws-s3-inventory-controllers";
 
 const router = express.Router();
 
@@ -30,6 +31,7 @@ router.get("/existing-environments", controllers.existingEnvironments);
 router.post("/fly-org-migration-status/:environmentName", controllers.flyOrganisationMigrationStatus);
 router.get("/mongo-clusters", controllers.mongoClusters);
 router.get("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.listAtlasClusters);
+router.get("/s3-inventory", controllers.requireSetupAccess, awsS3Inventory.listAwsS3Inventory);
 router.post("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.createAtlasClusterRequest);
 router.delete("/atlas-clusters/:projectId/:name", controllers.requireSetupAccess, atlasClusters.deleteAtlasClusterRequest);
 router.post("/atlas-network-access", controllers.requireSetupAccess, atlasClusters.allowAtlasNetworkAccessRequest);

@@ -345,7 +345,7 @@ export function siteAccessFromAccounts(config: Pick<SiteConfig, "credentials" | 
     : { credentials: config.credentials, crossAccount };
 }
 
-async function siteAccessFor(config: SiteConfig): Promise<S3SiteAccess> {
+export async function siteAccessFor(config: SiteConfig): Promise<S3SiteAccess> {
   if (config.sourceBucket !== config.backupBucket) {
     return { credentials: config.siteCredentials, crossAccount: true };
   } else if (config.siteCredentials.accessKeyId === config.credentials.accessKeyId) {

@@ -33,11 +33,12 @@ import {
   migrationIncludesS3
 } from "../../../projects/ngx-ramblers/src/app/models/environment-migration.model";
 import { AWS_DEFAULTS, AwsConfig, EnvironmentConfig, EnvironmentsConfig, MongoConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { decryptEnvironmentsSecrets, encryptEnvironmentsSecrets } from "../environments/environments-secrets-cipher";
+import { decryptEnvironmentsSecrets, decryptSecretValue, encryptEnvironmentsSecrets, encryptSecretValue } from "../environments/environments-secrets-cipher";
 import { RamblersWalksManagerDateFormat as DateFormat } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";
 import { extractSourceEnvironmentFromBackupName, extractTimestampFromBackupName } from "./backup-paths";
-import { manifestByTimestamp, migrateLiveBucket, siteConfigFor, startS3Backup, startS3Restore } from "./s3-backup-service";
+import { manifestByTimestamp, migrateLiveBucket, siteAccessFor, siteConfigFor, startS3Backup, startS3Restore } from "./s3-backup-service";
 import { adminConfigFromEnvironment, bucketExists, createS3Client, generateBucketName, setupAwsForBucket } from "../environment-setup/aws-setup";
+import { waitForMongoLogin } from "../environment-setup/mongo-database-user";
 import { restartCurrentMachine, setCurrentMachineSecrets } from "../fly/fly-machines";
 import { FlyTargetApp } from "../../../projects/ngx-ramblers/src/app/models/health.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
@@ -62,6 +63,8 @@ function errorMessage(error: any): string {
 
 export class EnvironmentMigrationService {
   private dumpBaseDir: string;
+  private destinationCredentialAttempts = 12;
+  private destinationCredentialRetryMs = 5000;
 
   constructor(dumpBaseDir?: string) {
     this.dumpBaseDir = dumpBaseDir || path.join(process.cwd(), "../non-vcs/dump");
@@ -95,7 +98,7 @@ export class EnvironmentMigrationService {
     this.runMongoOnlyMigration(migrationRecord.migrationId, request, backupConfig, sourceMongo, targetMongo).catch(error => {
       debugLog("startMongoOnlyMigration background execution failed:", error);
     });
-    return migrationRecord.toObject() as EnvironmentMigrationAudit;
+    return this.requiredMigration(migrationRecord.migrationId);
   }
 
   async executeMongoOnlyMigration(request: EnvironmentMigrationRequest): Promise<EnvironmentMigrationAudit> {
@@ -134,6 +137,7 @@ export class EnvironmentMigrationService {
       backupLocation: request.backupLocation,
       ...(sourceMongo ? { sourceMongo: this.mongoSummary(sourceMongo) } : {}),
       ...(targetMongo ? { targetMongo: this.mongoSummary(targetMongo) } : {}),
+      ...(targetMongo?.password ? { targetMongoPassword: encryptSecretValue(targetMongo.password) } : {}),
       ...(sourceAws ? { sourceAws } : {}),
       ...(targetAws ? { targetAws } : {}),
       requestedBy: request.user
@@ -294,7 +298,7 @@ export class EnvironmentMigrationService {
     }
 
     const mongoIncluded = migrationIncludesMongo(migration.mode);
-    const targetMongo = mongoIncluded ? this.requiredTargetMongo(request.targetMongo) : null;
+    const targetMongo = mongoIncluded ? this.requiredTargetMongo(request.targetMongo?.password ? request.targetMongo : await this.storedTargetMongo(migration)) : null;
     if (mongoIncluded && targetMongo && migration.targetMongo) {
       const targetSummary = this.mongoSummary(targetMongo);
       if (targetSummary.cluster !== migration.targetMongo.cluster || targetSummary.db !== migration.targetMongo.db || targetSummary.username !== migration.targetMongo.username) {
@@ -362,7 +366,7 @@ export class EnvironmentMigrationService {
               heartbeatAt: dateTimeNow().toJSDate(),
               rollbackInfo,
               requestedBy: request.user || migration.requestedBy
-            }}
+            }, $unset: {targetMongoPassword: ""}}
           );
           return this.requiredMigration(request.migrationId);
         }
@@ -553,7 +557,7 @@ export class EnvironmentMigrationService {
       return {
         bucket: source.sourceBucket,
         region: source.sourceRegion,
-        accessKeyId: source.credentials.accessKeyId
+        accessKeyId: source.siteCredentials.accessKeyId
       };
     }
   }
@@ -573,13 +577,14 @@ export class EnvironmentMigrationService {
       } else {
         await this.updateMigration(migrationId, dryRun ? EnvironmentMigrationStatus.VALIDATING : EnvironmentMigrationStatus.RESTORING, EnvironmentMigrationPhase.COPY_S3);
         const resumeAfterKey = dryRun ? null : await this.interruptedCopyCheckpoint(migrationId, request);
+        const sourceAccess = await siteAccessFor(source);
         const summary = await migrateLiveBucket({
           site: request.environment,
           source: {
             bucket: source.sourceBucket,
             region: source.sourceRegion,
-            accessKeyId: source.credentials.accessKeyId,
-            secretAccessKey: source.credentials.secretAccessKey
+            accessKeyId: sourceAccess.credentials.accessKeyId,
+            secretAccessKey: sourceAccess.credentials.secretAccessKey
           },
           target: {
             bucket: request.targetAws.bucket,
@@ -627,7 +632,10 @@ export class EnvironmentMigrationService {
       this.assertDestinationBucketMatches(request.targetAws, migration.targetAws);
       const admin = this.requiredAdminAws();
       const region = request.targetAws?.region || migration.targetAws.region;
-      const setup = await setupAwsForBucket(admin, migration.environment, migration.targetAws.bucket, region, { replaceAccessKeys: false });
+      const setup = await setupAwsForBucket(admin, migration.environment, migration.targetAws.bucket, region, {
+        replaceAccessKeys: false,
+        keepAccessKeyId: matchingEnvironment?.aws?.accessKeyId
+      });
       await this.assertDestinationCredentials(setup.bucket, region, setup.accessKeyId, setup.secretAccessKey);
       return {
         bucket: setup.bucket,
@@ -661,12 +669,18 @@ export class EnvironmentMigrationService {
     }
   }
 
-  private async assertDestinationCredentials(bucket: string, region: string, accessKeyId: string, secretAccessKey: string): Promise<void> {
+  private async assertDestinationCredentials(bucket: string, region: string, accessKeyId: string, secretAccessKey: string, attempt = 1): Promise<void> {
     const client = createS3Client({ region, accessKeyId, secretAccessKey });
     try {
       await client.send(new HeadBucketCommand({ Bucket: bucket }));
     } catch (error) {
-      throw new Error(`Destination AWS credentials cannot access ${bucket}: ${(error as Error).message}`);
+      if (attempt >= this.destinationCredentialAttempts) {
+        throw new Error(`Destination AWS credentials cannot access ${bucket} after ${attempt} attempts: ${(error as Error).message}`);
+      } else {
+        debugLog(`New access key for ${bucket} not usable yet (attempt ${attempt}); waiting for AWS to activate it`);
+        await new Promise(resolve => setTimeout(resolve, this.destinationCredentialRetryMs));
+        await this.assertDestinationCredentials(bucket, region, accessKeyId, secretAccessKey, attempt + 1);
+      }
     }
   }
 
@@ -766,6 +780,9 @@ export class EnvironmentMigrationService {
   }
 
   private async validateMongoCredentials(mongo: EnvironmentMigrationMongoTarget, requireWrite: boolean, migrationId: string): Promise<void> {
+    await waitForMongoLogin(mongo.cluster, {username: mongo.username, password: mongo.password}, mongo.db, () => {
+      void environmentMigration.updateOne({migrationId}, {$set: {heartbeatAt: dateTimeNow().toJSDate()}});
+    });
     const client = new MongoClient(this.mongoUriFor(mongo), { serverSelectionTimeoutMS: 30000, maxPoolSize: 1 });
     await client.connect();
     try {
@@ -1075,6 +1092,20 @@ export class EnvironmentMigrationService {
       { migrationId },
       { $set: { status, phase, heartbeatAt: dateTimeNow().toJSDate() } }
     );
+  }
+
+  private async storedTargetMongo(migration: EnvironmentMigrationAudit): Promise<EnvironmentMigrationMongoTarget | null> {
+    const stored = await environmentMigration.findOne({migrationId: migration.migrationId}).select("+targetMongoPassword").lean() as {targetMongoPassword?: string} | null;
+    if (!stored?.targetMongoPassword || !migration.targetMongo) {
+      throw new Error("The new database login for this migration was not saved. Create a new login and copy again.");
+    } else {
+      return {
+        cluster: migration.targetMongo.cluster,
+        db: migration.targetMongo.db,
+        username: migration.targetMongo.username,
+        password: decryptSecretValue(stored.targetMongoPassword)
+      };
+    }
   }
 
   private async requiredMigration(migrationId: string): Promise<EnvironmentMigrationAudit> {

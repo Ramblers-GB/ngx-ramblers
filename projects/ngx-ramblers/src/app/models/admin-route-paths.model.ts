@@ -91,6 +91,7 @@ export enum AdminPlatformPath {
   ENVIRONMENT_MANAGEMENT_HEALTH = "admin/platform/environment-management/health",
   ENVIRONMENT_MANAGEMENT_MAINTENANCE = "admin/platform/environment-management/maintenance",
   ENVIRONMENT_MANAGEMENT_ATLAS = "admin/platform/environment-management/atlas",
+  ENVIRONMENT_MANAGEMENT_AWS = "admin/platform/environment-management/aws",
   ENVIRONMENT_MANAGEMENT_HOSTING = "admin/platform/environment-management/hosting",
   ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP = "admin/platform/environment-management/collection-cleanup",
   ENVIRONMENT_MANAGEMENT_ESTATE_REBUILD = "admin/platform/environment-management/estate-rebuild-capture",

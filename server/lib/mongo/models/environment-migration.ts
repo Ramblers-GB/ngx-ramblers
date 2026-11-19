@@ -30,6 +30,7 @@ const environmentMigrationSchema = new mongoose.Schema({
   backupLocation: { type: String },
   sourceMongo: { type: mongoSummarySchema, required: false },
   targetMongo: { type: mongoSummarySchema, required: false },
+  targetMongoPassword: { type: String, select: false },
   sourceAws: { type: mongoose.Schema.Types.Mixed },
   targetAws: { type: mongoose.Schema.Types.Mixed },
   executionId: { type: String },
