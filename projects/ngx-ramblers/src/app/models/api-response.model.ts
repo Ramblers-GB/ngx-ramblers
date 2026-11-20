@@ -1,4 +1,4 @@
-import { ApiRequest } from "./api-request.model";
+import { ApiRequest, QueryPagination } from "./api-request.model";
 
 export interface ApiResponse {
   request: ApiRequest;
@@ -11,6 +11,11 @@ export interface ApiResponse {
 
 export interface Identifiable {
   id?: string;
+}
+
+export interface PagedApiResponse<T> extends ApiResponse {
+  response?: T[];
+  pagination?: QueryPagination;
 }
 
 export interface ApiResponseWrapper<T> {

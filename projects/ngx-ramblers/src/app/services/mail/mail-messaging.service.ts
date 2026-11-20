@@ -1,4 +1,5 @@
 import { inject, Injectable } from "@angular/core";
+import { subscribedByDefault } from "../../functions/mail-subscription-defaults";
 import { ADMIN_SET_PASSWORD_PATH } from "../../models/system.model";
 import { NgxLoggerLevel } from "ngx-logger";
 import { toPairs, isNumber, isString } from "es-toolkit/compat";
@@ -655,10 +656,7 @@ export class MailMessagingService {
   }
 
   public subscribed(listSetting: ListSetting, member: Member): boolean {
-    if (member?.emailBlock) {
-      return false;
-    }
-    return listSetting?.autoSubscribeNewMembers && (listSetting?.requiresMemberEmailMarketingConsent ? member?.emailMarketingConsent : true) && !!(member.email);
+    return subscribedByDefault(listSetting, member);
   }
 
   private syncMailConfigListsWithBrevo() {

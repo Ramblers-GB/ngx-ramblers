@@ -19,7 +19,7 @@ import { ListSubscriberCountComponent } from "../mail/list-subscriber-count";
 import { interpretRecipientDraft, isValidEmailAddress } from "../../../functions/email-addresses";
 import { committeeAudienceChipQualifier, combinedMemberChipQualifier } from "../../../functions/member-chip-qualifier";
 import { MemberBulkLoadDateMap } from "../../../models/member.model";
-import { composerMemberIdentityRecipients, composerRecipientFromMember, composerRecipientFromSuggestion, composerRecipientIsExpandableSet, composerRecipientIsSamePerson, composerRecipientLacksMarketingConsent, composerRecipientMatchesQuery, composerShouldKeepRecipientQuery, composerSuggestionShowsEmail } from "../../../functions/email-composer";
+import { composerMemberIdentityRecipients, composerRecipientFromMember, composerRecipientFromSuggestion, composerRecipientIsExpandableSet, composerRecipientIsSamePerson, composerRecipientSetCanExpand, composerRecipientLacksMarketingConsent, composerRecipientMatchesQuery, composerShouldKeepRecipientQuery, composerSuggestionShowsEmail } from "../../../functions/email-composer";
 
 @Component({
   selector: "app-recipient-field",
@@ -50,7 +50,7 @@ import { composerMemberIdentityRecipients, composerRecipientFromMember, composer
                       (dragend)="onDragEnd()"
                       [tooltip]="chipTooltip(recipient)"
                       placement="bottom">
-                  <button type="button" class="recipient-chip-label" (click)="expandableSet(recipient) ? expandList.emit({field: field.key, recipient}) : openEditor(field.key, idx)">
+                  <button type="button" class="recipient-chip-label" (click)="setCanExpand(recipient) ? expandList.emit({field: field.key, recipient}) : expandableSet(recipient) ? null : openEditor(field.key, idx)">
                     <span class="recipient-chip-name">{{ displayName(recipient) }}</span>
                     @if (unavailableReasons[recipient.email.toLowerCase()]; as reason) {
                       <span class="recipient-chip-qualifier">{{ reason }}</span>
@@ -659,13 +659,19 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
     return composerRecipientIsExpandableSet(recipient);
   }
 
+  protected setCanExpand(recipient: ComposerExternalRecipient): boolean {
+    return composerRecipientSetCanExpand(recipient);
+  }
+
   protected suggestionShowsEmail(recipient: ComposerExternalRecipient): boolean {
     return composerSuggestionShowsEmail(recipient);
   }
 
   protected chipTooltip(recipient: ComposerExternalRecipient): string {
-    if (this.expandableSet(recipient)) {
+    if (this.setCanExpand(recipient)) {
       return "Click to show each member so you can remove individuals";
+    } else if (this.expandableSet(recipient)) {
+      return `This set of ${recipient.listCount ?? 0} people is too large to list one by one. Choose a mailing list or narrow the audience to remove individuals.`;
     } else {
       const reason = this.unavailableReasons[recipient.email.toLowerCase()];
       return reason ? `${recipient.email}: ${reason}` : recipient.email;

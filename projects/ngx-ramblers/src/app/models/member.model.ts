@@ -40,6 +40,11 @@ export enum MemberChangeStamp {
   PHOTO_VIDEO_OPT_OUT = "photo-video-opt-out"
 }
 
+export enum SiteMemberLabel {
+  GROUP = "Group Member",
+  AREA = "Area Member"
+}
+
 export enum MemberAdminSiteUseFilter {
   NEVER_LOGGED_IN = "Never logged in",
   HAS_LOGGED_IN = "Has logged in",
@@ -160,6 +165,8 @@ export interface Member extends HasEmailFirstAndLastName, MemberPrivileges, Audi
   salesforceMemberRef?: string;
   salesforceTeamStatus?: string;
   salesforceTeamRelationshipFrom?: number;
+  teamEmailsIgnoredReason?: string;
+  groupCodes?: string[];
   wellbeingWalker?: boolean;
   walkLeader?: boolean;
   canEmailVolunteers?: boolean;
@@ -219,6 +226,7 @@ export const HEAD_OFFICE_SENDING_PERMISSION_FIELDS = [
 
 export const HEAD_OFFICE_SUPPORTER_FIELDS: (keyof Member)[] = [
   "salesforceTeamStatus",
+  "groupCodes",
   "salesforceTeamRelationshipFrom",
   "membershipJoinDate",
   "membershipEndDate",
@@ -326,6 +334,7 @@ export interface RamblersMember extends HasEmailFirstAndLastName {
   salesforceMemberRef?: string;
   salesforceTeamStatus?: string;
   salesforceTeamRelationshipFrom?: string;
+  groupCodes?: string[];
   wellbeingWalker?: boolean;
   walkLeader?: boolean;
   canEmailVolunteers?: boolean;
@@ -372,6 +381,8 @@ export interface MemberBulkLoadAudit extends Auditable {
   auditLog: StatusMessage[];
   members?: RamblersMember[];
   memberCount?: number;
+  applyStartedAt?: number;
+  appliedAt?: number;
 }
 
 export interface MemberBulkLoadDateMap {
@@ -399,6 +410,26 @@ export enum WriteDataType {
 export enum MemberTerm {
   LIFE = "life",
   ANNUAL = "annual"
+}
+
+export enum InsightHubMemberStatus {
+  ACTIVE = "active",
+  PAYMENT_PENDING = "payment pending"
+}
+
+export enum InsightHubTeamStatus {
+  MEMBER = "member",
+  AFFILIATED = "affiliated"
+}
+
+export const VOLUNTEER_TEAM_STATUS = "volunteer";
+export const TEAM_STATUS_PRECEDENCE: string[] = [InsightHubTeamStatus.MEMBER, InsightHubTeamStatus.AFFILIATED, VOLUNTEER_TEAM_STATUS];
+
+export interface MemberBulkLoadProgress {
+  completed: number;
+  total: number;
+  failed: number;
+  auditsFailed: number;
 }
 
 export interface MemberAuditFieldChange {

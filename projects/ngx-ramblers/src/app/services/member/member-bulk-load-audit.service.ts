@@ -3,6 +3,7 @@ import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { firstValueFrom, Observable, Subject } from "rxjs";
 import { DataQueryOptions } from "../../models/api-request.model";
+import { MemberBulkApplyResult } from "../../models/member-bulk-apply.model";
 import { EmailAddress } from "../../models/mail.model";
 import {
   Member,
@@ -64,6 +65,11 @@ export class MemberBulkLoadAuditService {
     const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.post<MemberBulkLoadAuditApiResponse>(this.BASE_URL, this.dbUtils.performAudit(audit)), this.bulkLoadNotifications);
     this.logger.debug("created", audit, "- received", apiResponse);
     return apiResponse.response as MemberBulkLoadAudit;
+  }
+
+  async apply(uploadSessionId: string): Promise<MemberBulkApplyResult> {
+    const apiResponse = await firstValueFrom(this.http.post<{response: MemberBulkApplyResult}>(`${this.BASE_URL}/${uploadSessionId}/apply`, {}));
+    return apiResponse.response;
   }
 
   async delete(audit: MemberBulkLoadAudit): Promise<MemberBulkLoadAudit> {

@@ -52,6 +52,8 @@ export const memberSchema = new mongoose.Schema({
   membershipJoinDate: {type: Number},
   membershipEndDate: {type: Number},
   volunteerRoles: {type: String},
+  teamEmailsIgnoredReason: {type: String},
+  groupCodes: {type: [String], default: undefined},
   firstName: {type: String, required: true},
   lastName: {type: String, required: true},
   memberAdmin: {type: Boolean},

@@ -31,3 +31,7 @@ export interface MemberSyncPolicyApiResponse extends ApiResponse {
   request: any;
   response?: MemberSyncPolicy;
 }
+
+export function effectiveSyncMode(policy: MemberSyncPolicy, fieldName: string): MemberSyncPolicyMode {
+  return policy?.overrides?.[fieldName] ?? policy?.defaultMode ?? DEFAULT_MEMBER_SYNC_POLICY.defaultMode;
+}

@@ -11,6 +11,7 @@ import {EmailComposerSessionService} from "../../services/email-composer/email-c
 import {EmailComposerRecipientSourcesService} from "../../services/email-composer/email-composer-recipient-sources.service";
 import {EmailComposerRecipientResolutionService} from "../../services/email-composer/email-composer-recipient-resolution.service";
 import {EmailComposerRecipientsService} from "../../services/email-composer/email-composer-recipients.service";
+import {everyoneOnSiteLabel} from "../../functions/site-membership";
 
 
 @Component({
@@ -90,7 +91,7 @@ import {EmailComposerRecipientsService} from "../../services/email-composer/emai
                       groupName="narrow-list"
                       idPrefix="narrow-list"
                       [selectedId]="state.narrowListId"
-                      noneLabel="Everyone in the group"
+                      [noneLabel]="everyoneOnSiteLabel()"
                       listsHeading="Mailing lists"
                       itemClass="ms-3"
                       (selectedIdChange)="recipients.chooseMemberAudience($event)"/>
@@ -189,6 +190,10 @@ import {EmailComposerRecipientsService} from "../../services/email-composer/emai
 })
 export class EmailComposerRecipientsComponent implements OnInit {
   protected session = inject(EmailComposerSessionService);
+
+  protected everyoneOnSiteLabel(): string {
+    return everyoneOnSiteLabel(this.session.systemConfig);
+  }
   protected recipientSources = inject(EmailComposerRecipientSourcesService);
   protected recipientResolution = inject(EmailComposerRecipientResolutionService);
   protected recipients = inject(EmailComposerRecipientsService);

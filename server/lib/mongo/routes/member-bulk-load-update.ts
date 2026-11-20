@@ -2,6 +2,7 @@ import express from "express";
 import * as authConfig from "../../auth/auth-config";
 import { memberBulkLoadAudit } from "../models/member-bulk-load-audit";
 import * as crudController from "../controllers/crud-controller";
+import { apply } from "../controllers/member-bulk-apply";
 import { MemberBulkLoadAudit } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 import {
   clearAllMemberBulkLoadAudits,
@@ -24,6 +25,7 @@ router.get("/all", authConfig.authenticate(), authConfig.requireFileOrMemberAdmi
 router.get("/member-bulk-load-date-map", memberBulkLoadDateMap);
 router.get("/:id/committee-summary-preview", authConfig.authenticate(), authConfig.requireFileOrMemberAdmin, previewCommitteeSummary);
 router.post("/:id/send-committee-summary", authConfig.authenticate(), authConfig.requireFileOrMemberAdmin, sendCommitteeSummary);
+router.post("/:id/apply", authConfig.authenticate(), authConfig.requireMemberAdmin, apply);
 router.get("/:id", authConfig.authenticate(), authConfig.requireFileOrMemberAdmin, controller.findById);
 router.post("/clear-all", authConfig.authenticate(), authConfig.requireFileOrMemberAdmin, clearAllMemberBulkLoadAudits);
 router.post("/delete-by-date-range", authConfig.authenticate(), authConfig.requireFileOrMemberAdmin, deleteMemberBulkLoadAuditsByDateRange);

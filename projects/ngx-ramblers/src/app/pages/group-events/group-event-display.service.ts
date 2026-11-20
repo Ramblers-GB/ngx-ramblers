@@ -10,6 +10,7 @@ import { AuthService } from "../../auth/auth.service";
 import { FilterCriteria, SortOrder } from "../../models/api-request.model";
 import { CommitteeMember, RoleType } from "../../models/committee.model";
 import { Member, MemberFilterSelection } from "../../models/member.model";
+import { siteMemberLabel } from "../../functions/site-membership";
 import { EventsData, GroupEventsPermissions } from "../../models/group-events.model";
 import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { Confirm, StoredValue } from "../../models/ui-actions.model";
@@ -26,7 +27,7 @@ import { MemberLoginService } from "../../services/member/member-login.service";
 import { MemberService } from "../../services/member/member.service";
 import { UrlService } from "../../services/url.service";
 import { SiteEditService } from "../../site-edit/site-edit.service";
-import { EventPopulation, Organisation } from "../../models/system.model";
+import { EventPopulation, Organisation, SystemConfig } from "../../models/system.model";
 import { SystemConfigService } from "../../services/system/system-config.service";
 import { ExtendedGroupEvent, HasStartAndEndTime } from "../../models/group-event.model";
 import { StringUtilsService } from "../../services/string-utils.service";
@@ -62,6 +63,7 @@ export class GroupEventDisplayService {
   public confirm: Confirm = new Confirm();
   public memberFilterSelections: MemberFilterSelection[];
   private group: Organisation;
+  private systemConfig: SystemConfig;
   relatedLinksMediaWidth: 22;
 
   constructor() {
@@ -91,6 +93,7 @@ export class GroupEventDisplayService {
     this.committeeConfigService.committeeReferenceDataEvents().subscribe(data => this.committeeReferenceData = data);
     this.systemConfigService.events().subscribe(item => {
       this.group = item.group;
+      this.systemConfig = item;
       this.applyAllows();
     });
     this.authService.authResponse().subscribe(() => {
@@ -233,7 +236,7 @@ export class GroupEventDisplayService {
     return {
       id: member.id,
       order: 0,
-      memberGrouping: disabled ? "no email address" : `Group Member`,
+      memberGrouping: disabled ? "no email address" : siteMemberLabel(this.systemConfig),
       member,
       memberInformation: this.fullNameWithAlias.transform(member),
       disabled
@@ -241,7 +244,7 @@ export class GroupEventDisplayService {
   }
 
   refreshGroupMemberFilterSelection(): Promise<MemberFilterSelection[]> {
-    return this.memberService.publicFields(this.memberService.filterFor.SOCIAL_MEMBERS).then(members => {
+    return this.memberService.publicFields(this.memberService.filterFor.GROUP_MEMBERS).then(members => {
       this.logger.debug("refreshMembers -> populated ->", members.length, "members");
       return members.map((member => this.toMemberFilterSelection(member)))
         .sort(SORT_BY_NAME);

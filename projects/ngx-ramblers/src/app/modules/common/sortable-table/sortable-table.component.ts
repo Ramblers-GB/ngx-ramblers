@@ -1,6 +1,8 @@
 import { AfterContentInit, AfterViewInit, Component, ContentChild, ContentChildren, ElementRef, EventEmitter, HostListener, Input, NgZone, OnChanges, OnDestroy, OnInit, Output, QueryList, SimpleChanges, TemplateRef, ViewChild, inject } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Subscription } from "rxjs";
+import { FormsModule } from "@angular/forms";
+import { PageChangedEvent, PaginationComponent } from "ngx-bootstrap/pagination";
 import { StoredValue } from "../../../models/ui-actions.model";
 import { NgTemplateOutlet } from "@angular/common";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
@@ -23,7 +25,7 @@ import {
 
 @Component({
   selector: "app-sortable-table",
-  imports: [NgTemplateOutlet, FontAwesomeModule, CdkDropList, CdkDrag, CdkDragHandle, TableFilterSelectComponent],
+  imports: [NgTemplateOutlet, FontAwesomeModule, CdkDropList, CdkDrag, CdkDragHandle, TableFilterSelectComponent, PaginationComponent, FormsModule],
   template: `
     @if (filterable) {
       <div class="sortable-table-filter mb-2">
@@ -136,6 +138,13 @@ import {
         </tbody>
       </table>
     </div>
+    @if (pageSize && sortedRows.length > pageSize) {
+      <div class="d-flex justify-content-center mt-2">
+        <pagination class="pagination rounded mb-0" [boundaryLinks]="true" [rotate]="true" [maxSize]="3"
+                    [totalItems]="sortedRows.length" [itemsPerPage]="pageSize" [(ngModel)]="pageNumber"
+                    (pageChanged)="pageChanged($event)"/>
+      </div>
+    }
   `,
   styles: [`
     :host
@@ -503,6 +512,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
   @Input() defaultSortKey: string | null = null;
   @Input() defaultSortDirection: string = ASCENDING;
   @Input() emptyMessage: string = "No data to display";
+  @Input() pageSize: number | null = null;
   @Input() trackBy: (index: number, row: any) => any = (index) => index;
   @Input() groupBy: ((row: any) => string) | null = null;
   @Input() collapsibleGroups = false;
@@ -520,6 +530,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
   protected sortKey: string | null = null;
   protected sortDirection: string = ASCENDING;
   protected sortedRows: any[] = [];
+  protected pageNumber = 1;
   protected groupedRows: SortableTableGroup[] = [];
   protected columnWidths: { [key: string]: string } = {};
   private readonly columnResize = {key: null as string | null, startX: 0, startWidth: 0, moved: false};
@@ -717,11 +728,22 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
       const prefix = this.sortDirection === DESCENDING ? "-" : "";
       this.sortedRows = [...source].sort(sortBy(`${prefix}${this.sortKey}`));
     }
-    this.groupedRows = this.applyGrouping(this.sortedRows);
+    this.pageNumber = 1;
+    this.groupedRows = this.applyGrouping(this.currentPageRows());
     if (this.filterable) {
       this.filterOptions = this.buildFilterOptions(this.sortedRows);
       this.filterHeadings = this.filterColumns().filter(column => column.label).map(column => ({heading: column.label, suggestValues: column.filterSuggestions !== false}));
     }
+  }
+
+  protected pageChanged(event: PageChangedEvent): void {
+    this.pageNumber = event.page;
+    this.groupedRows = this.applyGrouping(this.currentPageRows());
+  }
+
+  private currentPageRows(): any[] {
+    const startIndex = (this.pageNumber - 1) * (this.pageSize ?? 0);
+    return this.pageSize ? this.sortedRows.slice(startIndex, startIndex + this.pageSize) : this.sortedRows;
   }
 
   private applyGrouping(rows: any[]): SortableTableGroup[] {

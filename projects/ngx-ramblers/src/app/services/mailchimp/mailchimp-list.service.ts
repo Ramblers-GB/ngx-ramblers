@@ -1,4 +1,5 @@
 import { HttpClient } from "@angular/common/http";
+import { defaultMailchimpSettings, resetMailchimpUpdateStatus } from "../../functions/mail-subscription-defaults";
 import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subject } from "rxjs";
@@ -174,22 +175,7 @@ export class MailchimpListService {
   }
 
   resetUpdateStatusForMember(member: Member): void {
-    if (!member) return;
-    if (!member.mailchimpLists) {
-      (member as any).mailchimpLists = {} as MailchimpSubscription;
-    }
-    if (!member.mailchimpLists["walks"]) {
-      (member.mailchimpLists as any)["walks"] = {} as MailchimpSubscription;
-    }
-    if (!member.mailchimpLists["socialEvents"]) {
-      (member.mailchimpLists as any)["socialEvents"] = {} as MailchimpSubscription;
-    }
-    if (!member.mailchimpLists["general"]) {
-      (member.mailchimpLists as any)["general"] = {} as MailchimpSubscription;
-    }
-    member.mailchimpLists["walks"].updated = false;
-    member.mailchimpLists["socialEvents"].updated = false;
-    member.mailchimpLists["general"].updated = false;
+    resetMailchimpUpdateStatus(member);
   }
 
   public initialiseSubscription(member: Member, listType: string, subscribed: boolean) {
@@ -308,11 +294,7 @@ export class MailchimpListService {
   }
 
   defaultMailchimpSettings(member: Member, subscribedState: boolean): void {
-    member.mailchimpLists = {
-      walks: {subscribed: subscribedState},
-      socialEvents: {subscribed: subscribedState},
-      general: {subscribed: subscribedState}
-    };
+    defaultMailchimpSettings(member, subscribedState);
   }
 
   setMailchimpSubscriptionStateFor(member: Member, subscribedState: boolean): void {

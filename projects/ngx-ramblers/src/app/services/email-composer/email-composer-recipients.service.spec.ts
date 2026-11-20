@@ -13,6 +13,17 @@ import {EmailComposerRecipientSourcesService} from "./email-composer-recipient-s
 import {EmailComposerRecipientResolutionService} from "./email-composer-recipient-resolution.service";
 import {EmailComposerRecipientsService} from "./email-composer-recipients.service";
 
+function resolverPrototype(): EmailComposerRecipientResolutionService {
+  const resolver = Object.create(EmailComposerRecipientResolutionService.prototype);
+  return Object.assign(resolver, {
+    memberIndexes: new WeakMap(),
+    campaignEntriesBySubscribers: new WeakMap(),
+    listSubscriberService: {
+      subscribers: (members: Member[], listId: number) => (members ?? []).filter(member => resolver.mailListUpdaterService.memberSubscribed(member, listId))
+    }
+  });
+}
+
 describe("composer list expansion", () => {
   afterEach(() => {
     TestBed.resetTestingModule();
@@ -30,7 +41,7 @@ describe("composer list expansion", () => {
     };
     const updater = {memberSubscribed: () => true};
     const session = {state, inboxReplyContext: null, syncStateToUrl: vi.fn()};
-    const resolver = Object.create(EmailComposerRecipientResolutionService.prototype) as EmailComposerRecipientResolutionService;
+    const resolver = resolverPrototype();
     Object.assign(resolver, {session, pool, mailListUpdaterService: updater});
     TestBed.configureTestingModule({providers: [
       EmailComposerRecipientsService,
@@ -118,7 +129,7 @@ describe("composer list expansion", () => {
     state.selectedListId = 7;
     state.externalRecipients = [{email: "chair@group.example.org.uk", memberId: "alex"}];
     state.ccRecipients = [{email: "guest@example.com"}];
-    const resolver = Object.create(EmailComposerRecipientResolutionService.prototype) as EmailComposerRecipientResolutionService;
+    const resolver = resolverPrototype();
     Object.assign(resolver, {
       session: {state},
       pool: {
@@ -142,7 +153,7 @@ describe("composer list expansion", () => {
     state.recipientMode = RecipientMode.SELECTED_MEMBERS;
     const recipientFields = {[RecipientField.TO]: "externalRecipients", [RecipientField.CC]: "ccRecipients", [RecipientField.BCC]: "bccRecipients"};
     state[recipientFields[field]] = [composerListToken(42, "Group members", 3)];
-    const resolver = Object.create(EmailComposerRecipientResolutionService.prototype);
+    const resolver = resolverPrototype();
     Object.assign(resolver, {session: {state}, pool: {unbrandedCommitteeLists: () => [{id: 7}]}});
     expect(resolver.unbrandedListsAllowed()).toBe(false);
     state[recipientFields[field]] = [composerListToken(7, "Committee", 2)];
@@ -319,7 +330,7 @@ describe("composer list expansion", () => {
       members, allMembers: members, candidateMembers: () => members,
       nonEmptyLists: () => [], unbrandedCommitteeLists: () => [], committeeReferenceData: null
     };
-    const resolver = Object.create(EmailComposerRecipientResolutionService.prototype) as EmailComposerRecipientResolutionService;
+    const resolver = resolverPrototype();
     Object.assign(resolver, {session, pool, dateUtils: {dateTimeNowNoTime: () => now}});
     vi.spyOn(resolver, "committeeRoleSendOffered").mockReturnValue(false);
     vi.spyOn(resolver, "committeeOnlyAudience").mockReturnValue(false);
@@ -437,7 +448,7 @@ describe("composer list expansion", () => {
       members, allMembers: members, candidateMembers: () => members,
       nonEmptyLists: () => [list], unbrandedCommitteeLists: () => [], committeeReferenceData: null
     };
-    const resolver = Object.create(EmailComposerRecipientResolutionService.prototype) as EmailComposerRecipientResolutionService;
+    const resolver = resolverPrototype();
     Object.assign(resolver, {session, pool, dateUtils: {dateTimeNowNoTime: () => now}});
     vi.spyOn(resolver, "committeeRoleSendOffered").mockReturnValue(false);
     vi.spyOn(resolver, "committeeOnlyAudience").mockReturnValue(false);
@@ -474,7 +485,7 @@ describe("composer list expansion", () => {
       members, allMembers: members, candidateMembers: () => members,
       nonEmptyLists: () => [list], unbrandedCommitteeLists: () => [], committeeReferenceData: null
     };
-    const resolver = Object.create(EmailComposerRecipientResolutionService.prototype) as EmailComposerRecipientResolutionService;
+    const resolver = resolverPrototype();
     Object.assign(resolver, {session, pool, dateUtils: {dateTimeNowNoTime: () => now}});
     vi.spyOn(resolver, "committeeRoleSendOffered").mockReturnValue(false);
     vi.spyOn(resolver, "committeeOnlyAudience").mockReturnValue(false);
@@ -544,7 +555,7 @@ describe("mixed unbranded committee recipients", () => {
   it.each([RecipientField.CC, RecipientField.BCC])("offers and defaults role addresses for a committee list on %s beside a guest on To", field => {
     const {instance, state} = service();
     instance.pool.members = [member];
-    const resolver = Object.create(EmailComposerRecipientResolutionService.prototype) as EmailComposerRecipientResolutionService;
+    const resolver = resolverPrototype();
     Object.assign(resolver, {
       session: {state},
       pool: instance.pool,

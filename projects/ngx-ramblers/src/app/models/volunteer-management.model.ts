@@ -400,6 +400,10 @@ export interface VolunteerLetterSeed {
   introMarkdown: string;
 }
 
+export const RIGHTS_OF_WAY_CONTACT_ROLE = "Rights of Way Contact (organisation)";
+export const RIGHTS_OF_WAY_VOLUNTEERS_CATEGORY = "Rights of way volunteers";
+export const RIGHTS_OF_WAY_CONTACTS_CATEGORY = "Rights of way contacts";
+
 export const VOLUNTEER_ROLE_MAX_ASSIGNEES: Partial<Record<VolunteerRoleType, number>> = {
   [VolunteerRoleType.LOCAL_FOOTPATH_OFFICER]: 1,
   [VolunteerRoleType.GROUP_COORDINATOR]: 1

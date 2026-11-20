@@ -844,12 +844,14 @@ export class WalksImportService {
       contact,
       ramblersMember
     };
-    const bulkLoadMemberAndMatch: BulkLoadMemberAndMatch = this.memberBulkLoadService.bulkLoadMemberAndMatchFor(ramblersMemberAndContact, members, this.systemConfig);
-    if (!bulkLoadMemberAndMatch.member.id) {
-      bulkLoadMemberAndMatch.member = null;
-      bulkLoadMemberAndMatch.memberMatch = MemberAction.notFound;
-    }
-    return bulkLoadMemberAndMatch;
+    const match = this.memberBulkLoadService.existingMemberMatchFor(ramblersMemberAndContact, members);
+    return {
+      member: match.member ?? null,
+      memberMatch: match.member ? MemberAction.found : MemberAction.notFound,
+      memberMatchType: match.memberMatchType,
+      ramblersMember,
+      contact
+    };
   }
 
   private async priorMatchesForWalksManager(): Promise<PriorContactMemberMatch[]> {

@@ -1,10 +1,16 @@
 import { MemberBulkLoadAudit } from "./member.model";
 
+export enum SalesforceAreaQueryMode {
+  AREA_CODE = "area-code",
+  GROUP_CODES = "group-codes"
+}
+
 export interface SalesforceConfig {
   endpointBaseUrl: string;
   apiKeysByGroupCode: Record<string, string>;
   enabled: boolean;
   unsubscribeWritebackEnabled?: boolean;
+  areaQueryMode?: SalesforceAreaQueryMode;
   lastSyncedAt?: number;
 }
 

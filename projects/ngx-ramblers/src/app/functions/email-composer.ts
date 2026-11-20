@@ -647,6 +647,7 @@ export function composerCommitteeRoleSendOffered(options: {
 }
 
 export const COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT = 10;
+export const COMPOSER_EXPANDABLE_SET_LIMIT = 50;
 export const COMPOSER_SUBJECT_REQUIRED_MESSAGE = "Subject line is required";
 export const COMPOSER_EVERYONE_FILTER_EMAIL = "filter-everyone-with-email@list.internal";
 
@@ -685,6 +686,10 @@ export function composerEveryoneFilterToken(label: string, count: number): Compo
 
 export function composerRecipientIsExpandableSet(recipient: ComposerExternalRecipient): boolean {
   return !!recipient.listId || !!recipient.filterKey || recipient.email === COMPOSER_EVERYONE_FILTER_EMAIL;
+}
+
+export function composerRecipientSetCanExpand(recipient: ComposerExternalRecipient): boolean {
+  return composerRecipientIsExpandableSet(recipient) && (recipient.listCount ?? 0) <= COMPOSER_EXPANDABLE_SET_LIMIT;
 }
 
 export function memberIsCoveredByComposerHeaders(

@@ -51,7 +51,9 @@ describe("composer step validation", () => {
     const instance = Object.create(EmailComposer.prototype);
     Object.assign(instance, {
       session: {state},
-      recipientSources: {workflowRemovesRecipients: () => false},
+      recipientSources: {workflowRemovesRecipients: () => false, respectsBlocks: () => true, requiresConsent: () => true, unsubscribeReferenceListId: () => null},
+      recipientResolution: {uniqueSendEntries: () => []},
+      recipients: {committeeCcEmails: () => []},
       blockedSelectedMembers: () => [
         {member: {id: "alex", firstName: "Alex", email: "alex@example.com"}, reason: "has not given consent"},
         {member: {id: "sam", firstName: "Sam", email: "sam@example.com"}, reason: "has unsubscribed"}

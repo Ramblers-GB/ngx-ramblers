@@ -4,8 +4,8 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { firstValueFrom, Observable, Subject } from "rxjs";
 import { isNumber, isString, omit } from "es-toolkit/compat";
 import { chain } from "../../functions/chain";
-import { DataQueryOptions, MEMBER_ADMIN_TABLE_PAGE_SIZE, MEMBER_PAGE_SIZE, QueryPagination } from "../../models/api-request.model";
-import { Identifiable } from "../../models/api-response.model";
+import { DataQueryOptions, MEMBER_ADMIN_TABLE_PAGE_SIZE, MEMBER_PAGE_SIZE } from "../../models/api-request.model";
+import { Identifiable, PagedApiResponse } from "../../models/api-response.model";
 import { MailchimpSubscription } from "../../models/mailchimp.model";
 import {
   DeleteDocumentsRequest,
@@ -44,7 +44,6 @@ export class MemberService {
   filterFor = {
     GROUP_MEMBERS: (member: Member) => member.groupMember,
     COMMITTEE_MEMBERS: (member: Member) => member.groupMember && member.committee,
-    SOCIAL_MEMBERS: (member: Member) => member.groupMember && member.socialMember,
   };
 
   publicFieldsDataQueryOptions: DataQueryOptions = {
@@ -100,7 +99,10 @@ export class MemberService {
       socialAdmin: 1,
       title: 1,
       userName: 1,
+      teamEmailsIgnoredReason: 1,
+      groupCodes: 1,
       volunteerRoles: 1,
+      salesforceTeamStatus: 1,
     },
     limit: MEMBER_ADMIN_TABLE_PAGE_SIZE
   };
@@ -164,34 +166,14 @@ export class MemberService {
     }
   }
 
-  async page(dataQueryOptions?: DataQueryOptions): Promise<{members: Member[]; pagination: QueryPagination}> {
-    const page = isNumber(dataQueryOptions?.page) ? dataQueryOptions.page : 1;
-    const limit = isNumber(dataQueryOptions?.limit) && dataQueryOptions.limit > 0 ? dataQueryOptions.limit : MEMBER_PAGE_SIZE;
-    const options: DataQueryOptions = {...(dataQueryOptions || {}), page, limit};
-    const params = this.commonDataService.toHttpParams(options);
-    const response = await this.commonDataService.responseFrom(this.logger, this.http.get<MemberApiResponse>(`${this.BASE_URL}/all`, {params}));
-    const members = (response.response as Member[]) || [];
-    const pagination = response.pagination ?? {total: members.length, page, limit, totalPages: 1};
-    return {members, pagination};
-  }
-
-  async eachPage(visit: (members: Member[]) => Promise<void> | void, dataQueryOptions?: DataQueryOptions): Promise<void> {
-    const first = await this.page({...(dataQueryOptions || {}), page: 1});
-    await visit(first.members);
-    const remainingPages = Array.from({length: Math.max(0, first.pagination.totalPages - 1)}, (_, index) => index + 2);
-    await remainingPages.reduce(async (prior, page) => {
-      await prior;
-      const next = await this.page({...(dataQueryOptions || {}), page, limit: first.pagination.limit});
-      await visit(next.members);
-    }, Promise.resolve());
-  }
-
   async allPages(dataQueryOptions?: DataQueryOptions): Promise<Member[]> {
-    const collected = {members: [] as Member[]};
-    await this.eachPage(chunk => {
-      collected.members = [...collected.members, ...chunk];
-    }, dataQueryOptions);
-    return collected.members;
+    const pageSize = isNumber(dataQueryOptions?.limit) && dataQueryOptions.limit > 0 ? dataQueryOptions.limit : MEMBER_PAGE_SIZE;
+    return this.commonDataService.allPages<Member>(
+      this.logger,
+      params => this.http.get<PagedApiResponse<Member>>(`${this.BASE_URL}/all`, {params}),
+      omit(dataQueryOptions ?? {}, ["limit", "page"]),
+      pageSize
+    );
   }
 
   async getById(memberId: string): Promise<Member> {

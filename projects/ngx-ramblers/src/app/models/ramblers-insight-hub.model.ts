@@ -1,5 +1,5 @@
 import { Member, RamblersMember, WriteDataRule, WriteDataType } from "./member.model";
-import { DateUtilsService } from "../services/date-utils.service";
+import { MemberApplyDates } from "./member-bulk-apply.model";
 import { RamblersInsightHubDateFormat } from "./date-format.model";
 
 export { RamblersInsightHubDateFormat as InsightHubDateFormat } from "./date-format.model";
@@ -10,8 +10,8 @@ export interface AuditField {
   writeDataIf: WriteDataRule;
   type: WriteDataType;
   dateFormat?: InsightHubDateFormat;
-  memberDerivedValue?: (member: Member, dateUtils?: DateUtilsService) => any;
-  ramblersDerivedValue?: (member: RamblersMember, dateUtils?: DateUtilsService) => any;
+  memberDerivedValue?: (member: Member, dates?: MemberApplyDates) => any;
+  ramblersDerivedValue?: (member: RamblersMember, dates?: MemberApplyDates) => any;
 }
 
 export const AUDIT_FIELDS: AuditField[] = [
@@ -38,7 +38,7 @@ export const AUDIT_FIELDS: AuditField[] = [
     fieldName: "groupMember",
     writeDataIf: WriteDataRule.TRANSITION_TO_TRUE_NEW_VALUE,
     type: WriteDataType.BOOLEAN,
-    memberDerivedValue: (member: Member, dateUtils: DateUtilsService) => !member?.membershipExpiryDate || member.membershipExpiryDate >= dateUtils.dateTimeNowNoTime().toMillis()
+    memberDerivedValue: (member: Member, dates: MemberApplyDates) => !member?.membershipExpiryDate || member.membershipExpiryDate >= dates.todayNoTime()
   },
   {fieldName: "jointWith", writeDataIf: WriteDataRule.CHANGED, type: WriteDataType.STRING},
   {fieldName: "title", writeDataIf: WriteDataRule.NO_OLD_VALUE, type: WriteDataType.STRING},
@@ -51,6 +51,7 @@ export const AUDIT_FIELDS: AuditField[] = [
     dateFormat: RamblersInsightHubDateFormat.FOUR_DIGIT_YEAR
   },
   {fieldName: "salesforceTeamStatus", writeDataIf: WriteDataRule.CHANGED, type: WriteDataType.STRING},
+  {fieldName: "groupCodes", writeDataIf: WriteDataRule.CHANGED, type: WriteDataType.STRING},
   {
     fieldName: "salesforceTeamRelationshipFrom",
     writeDataIf: WriteDataRule.CHANGED,

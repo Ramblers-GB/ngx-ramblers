@@ -48,6 +48,7 @@ import { GlobalStyles } from "./styles/global-styles";
 import { InstagramSettings } from "./external/system-instagram-settings";
 import { RamblersSettings } from "./external/ramblers-settings";
 import { VolunteerSettings } from "./volunteers/volunteer-settings";
+import { VolunteerRoleCategories } from "./volunteers/volunteer-role-categories";
 import { SystemAreaMapSyncComponent } from "./area-map/system-area-map-sync";
 import { SystemGoogleMapsSettingsComponent } from "./external/system-google-maps-settings";
 import { FlickrSettings } from "./external/system-flickr-settings";
@@ -351,6 +352,9 @@ import { MemberResourcesReferenceDataService } from "../../../services/member/me
                      [active]="tabActive(SystemSettingsTab.VOLUNTEERS)"
                      (selectTab)="selectTab(SystemSettingsTab.VOLUNTEERS)">
                   <app-volunteer-settings [config]="config"/>
+                  @if (tabActive(SystemSettingsTab.VOLUNTEERS)) {
+                    <app-volunteer-role-categories [config]="config"/>
+                  }
                 </tab>
                 <tab heading="{{enumValueForKey(SystemSettingsTab, SystemSettingsTab.EXTERNAL_SYSTEMS)}}"
                      [active]="tabActive(SystemSettingsTab.EXTERNAL_SYSTEMS)"
@@ -448,7 +452,7 @@ import { MemberResourcesReferenceDataService } from "../../../services/member/me
           </div>
         </div>
       </app-page>`,
-  imports: [PageComponent, TabsetComponent, TabDirective, FormsModule, LinksEditComponent, ImageSettings, ColourSelectorComponent, InstagramSettings, FlickrSettings, SystemRecaptchaSettingsComponent, SystemGoogleAnalyticsSettings, SystemGoogleSearchConsoleSettings, SystemOsMapsSettings, SystemGoogleMapsSettingsComponent, FontAwesomeModule, AreaAndGroupSettingsComponent, ImageSettings, ImageCollectionSettingsComponent, RamblersSettings, InstagramSettings, SystemMeetupSettingsComponent, RamblersSettings, GlobalStyles, SystemAreaMapSyncComponent, SectionToggle, SystemCloudflareSettingsComponent, SystemCloudflareWebAnalyticsSettings, CloudflareWebAnalyticsDashboard, FooterLinkSetting, SocialFeedStyleSelectComponent, SalesforceSettings, MemberSyncPolicySettings, ScheduledTasksComponent, SystemLogsSettingsComponent, SystemMemorySettingsComponent, IntegrationWorkerQueueComponent, MemberBulkLoadAuditSettingsComponent, FormSaveActionsComponent, SystemSocialPublishingSettings, VolunteerSettings, SystemVideoMeetingsSettings, ReleaseNoteUpdateSettings]
+  imports: [PageComponent, TabsetComponent, TabDirective, FormsModule, LinksEditComponent, ImageSettings, ColourSelectorComponent, InstagramSettings, FlickrSettings, SystemRecaptchaSettingsComponent, SystemGoogleAnalyticsSettings, SystemGoogleSearchConsoleSettings, SystemOsMapsSettings, SystemGoogleMapsSettingsComponent, FontAwesomeModule, AreaAndGroupSettingsComponent, ImageSettings, ImageCollectionSettingsComponent, RamblersSettings, InstagramSettings, SystemMeetupSettingsComponent, RamblersSettings, GlobalStyles, SystemAreaMapSyncComponent, SectionToggle, SystemCloudflareSettingsComponent, SystemCloudflareWebAnalyticsSettings, CloudflareWebAnalyticsDashboard, FooterLinkSetting, SocialFeedStyleSelectComponent, SalesforceSettings, MemberSyncPolicySettings, ScheduledTasksComponent, SystemLogsSettingsComponent, SystemMemorySettingsComponent, IntegrationWorkerQueueComponent, MemberBulkLoadAuditSettingsComponent, FormSaveActionsComponent, SystemSocialPublishingSettings, VolunteerSettings, VolunteerRoleCategories, SystemVideoMeetingsSettings, ReleaseNoteUpdateSettings]
 })
 export class SystemSettingsComponent implements OnInit, OnDestroy {
 

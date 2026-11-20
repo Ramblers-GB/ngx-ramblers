@@ -199,15 +199,7 @@
                              type="checkbox" class="form-check-input"
                              id="is-approved-group-member">
                       <label class="form-check-label"
-                             for="is-approved-group-member">Approved Group Member
-                      </label>
-                    </div>
-                    <div class="form-check">
-                      <input [disabled]="!allowEdits" [(ngModel)]="member.socialMember"
-                             type="checkbox" class="form-check-input"
-                             id="is-approved-social-member">
-                      <label name="socialMember" class="form-check-label"
-                             for="is-approved-social-member">Approved Social Member
+                             for="is-approved-group-member">Approved {{ siteMemberLabel() }}
                       </label>
                     </div>
                     <div class="form-check">
@@ -307,7 +299,7 @@
               <div class="thumbnail-heading">Ramblers Team Emails</div>
               <div class="col-sm-12">
                 @if (ramblersTeamEmailsEnabled()) {
-                  <div class="alert alert-warning small mb-2">
+                  <div class="alert alert-warning small py-2 px-3 mb-2">
                     <fa-icon [icon]="faTriangleExclamation" class="me-2"></fa-icon>
                     <strong>Head office decides these permissions.</strong>
                     Ramblers Team Emails is on for this website, so these permissions are refreshed on each supporter sync and cannot be raised here.
@@ -470,6 +462,20 @@
                     <input disabled [value]="member.salesforceTeamStatus || '—'" type="text"
                            class="form-control input-sm" id="ho-team-status">
                   </div>
+                  @if (member.groupCodes?.length) {
+                    <div class="form-group">
+                      <label for="ho-group-codes">Groups</label>
+                      <input disabled [value]="member.groupCodes.join(', ')" type="text"
+                             class="form-control input-sm" id="ho-group-codes">
+                    </div>
+                  }
+                  @if (member.teamEmailsIgnoredReason) {
+                    <div class="form-group">
+                      <label for="ho-ignored-reason">Ignored Because</label>
+                      <input disabled [value]="member.teamEmailsIgnoredReason" type="text"
+                             class="form-control input-sm" id="ho-ignored-reason">
+                    </div>
+                  }
                   <div class="form-group">
                     <label for="ho-team-from">Team Relationship From</label>
                     <input disabled [value]="member.salesforceTeamRelationshipFrom ? (member.salesforceTeamRelationshipFrom | displayDate) : '—'"
@@ -504,6 +510,22 @@
                           <dt>Wellbeing Walker</dt>
                           <dd><app-switch-icon [on]="member.wellbeingWalker"/></dd>
                         </dl>
+                        <dl class="dl-horizontal input-sm">
+                          <dt>Post Consent
+                            @if (member.postConsentLastUpdated) {
+                              <div class="small text-muted fw-normal">Updated {{ member.postConsentLastUpdated | displayDate }}</div>
+                            }
+                          </dt>
+                          <dd><app-switch-icon [on]="member.postConsent"/></dd>
+                        </dl>
+                        <dl class="dl-horizontal input-sm">
+                          <dt>Phone Consent
+                            @if (member.phoneConsentLastUpdated) {
+                              <div class="small text-muted fw-normal">Updated {{ member.phoneConsentLastUpdated | displayDate }}</div>
+                            }
+                          </dt>
+                          <dd><app-switch-icon [on]="member.phoneConsent"/></dd>
+                        </dl>
                       </div>
                       <div class="col-sm-6">
                         <dl class="dl-horizontal input-sm">
@@ -525,28 +547,6 @@
                         <dl class="dl-horizontal input-sm">
                           <dt>Wellbeing Walks Email Consent</dt>
                           <dd><app-switch-icon [on]="member.emailConsentWellbeingWalks"/></dd>
-                        </dl>
-                      </div>
-                    </div>
-                    <div class="row">
-                      <div class="col-sm-6">
-                        <dl class="dl-horizontal input-sm">
-                          <dt>Post Consent</dt>
-                          <dd><app-switch-icon [on]="member.postConsent"/>
-                            @if (member.postConsentLastUpdated) {
-                              <span class="ms-2 text-muted">(updated {{ member.postConsentLastUpdated | displayDate }})</span>
-                            }
-                          </dd>
-                        </dl>
-                      </div>
-                      <div class="col-sm-6">
-                        <dl class="dl-horizontal input-sm">
-                          <dt>Phone Consent</dt>
-                          <dd><app-switch-icon [on]="member.phoneConsent"/>
-                            @if (member.phoneConsentLastUpdated) {
-                              <span class="ms-2 text-muted">(updated {{ member.phoneConsentLastUpdated | displayDate }})</span>
-                            }
-                          </dd>
                         </dl>
                       </div>
                     </div>

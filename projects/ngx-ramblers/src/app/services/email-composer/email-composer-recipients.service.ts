@@ -3,7 +3,7 @@ import { committeeRoleEmailDiffersFromPersonal, memberHoldsCommitteeRole } from 
 import { isEqual, isNumber, kebabCase } from "es-toolkit/compat";
 import { Member } from "../../models/member.model";
 import { BrandingMode, ComposerExternalRecipient, RecipientAddressMode, RecipientField, RecipientMode, SendingChannel } from "../../models/email-composer.model";
-import { COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT, composerCcFieldAvailable, composerCommitteeRecipients, appendUniqueRecipients, composerEveryoneFilterToken, composerFilterToken, COMPOSER_EVERYONE_FILTER_EMAIL, composerListToken, composerRecipientFromMember, composerRecipientIsSamePerson, composerRecipientsForAddressMode, composerRecipientIsExpandableSet, syncedRecipientAddressMode } from "../../functions/email-composer";
+import { COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT, composerCcFieldAvailable, composerCommitteeRecipients, appendUniqueRecipients, composerEveryoneFilterToken, composerFilterToken, COMPOSER_EVERYONE_FILTER_EMAIL, composerListToken, composerRecipientFromMember, composerRecipientIsSamePerson, composerRecipientsForAddressMode, composerRecipientIsExpandableSet, composerRecipientSetCanExpand, syncedRecipientAddressMode } from "../../functions/email-composer";
 import { ListInfo, MemberSelection, NotificationConfig } from "../../models/mail.model";
 import { MailListUpdaterService } from "../mail/mail-list-updater.service";
 import { ExternalRecipient } from "../../models/external-recipient.model";
@@ -264,7 +264,7 @@ export class EmailComposerRecipientsService {
         }
     }
     expandListToken(field: RecipientField, token: ComposerExternalRecipient): void {
-        if (token.filterKey || token.email === COMPOSER_EVERYONE_FILTER_EMAIL) {
+        if (composerRecipientSetCanExpand(token) && (token.filterKey || token.email === COMPOSER_EVERYONE_FILTER_EMAIL)) {
             if (token.filterKey) {
                 this.expandedRecipientFilterKeys.add(token.filterKey);
             }
@@ -284,7 +284,7 @@ export class EmailComposerRecipientsService {
                 this.onUnbrandedBccChange(replace(this.session.state.bccRecipients ?? []));
             }
         }
-        else if (token.listId) {
+        else if (composerRecipientSetCanExpand(token) && token.listId) {
             this.expandedRecipientListIds.add(token.listId);
             const people = this.pool.members
                 .filter(member => this.mailListUpdaterService.memberSubscribed(member, token.listId!) && !!(member.email || "").trim())

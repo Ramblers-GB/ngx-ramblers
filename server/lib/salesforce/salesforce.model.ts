@@ -30,6 +30,13 @@ export interface SalesforceSyncOutcome {
   errorMessage?: string;
 }
 
+export interface SalesforceTeamFetch {
+  teamCode: string;
+  status: number;
+  supporters: SalesforceMember[] | null;
+  errorMessage?: string;
+}
+
 export interface SnapshotReconciliation {
   members: RamblersMember[];
   newCount: number;

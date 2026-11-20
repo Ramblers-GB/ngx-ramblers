@@ -5,6 +5,7 @@ import {
 } from "../../../projects/ngx-ramblers/src/app/models/member.model";
 import {
   MemberBulkLoadSource,
+  SalesforceAreaQueryMode,
   SalesforceConfig,
 } from "../../../projects/ngx-ramblers/src/app/models/salesforce.model";
 import { SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
@@ -18,9 +19,13 @@ import {
   SalesforceMember,
   SalesforceSyncOptions,
   SalesforceSyncOutcome,
+  SalesforceTeamFetch,
   SnapshotReconciliation,
 } from "./salesforce.model";
 import { memberBulkLoadAudit } from "../mongo/models/member-bulk-load-audit";
+import { uniq } from "es-toolkit/compat";
+import { strongestTeamStatus } from "../../../projects/ngx-ramblers/src/app/functions/team-emails-membership";
+import { combinedVolunteerRoles } from "../../../projects/ngx-ramblers/src/app/functions/volunteer-roles";
 
 const debugLog = debug(envConfig.logNamespace("salesforce-sync"));
 debugLog.enabled = true;
@@ -65,6 +70,16 @@ function identityKeysOf(member: Partial<RamblersMember>): string[] {
   ].filter((key): key is string => !!key);
 }
 
+export function combinedTeamRecord(existing: RamblersMember, candidate: RamblersMember): RamblersMember {
+  return {
+    ...existing,
+    ...candidate,
+    salesforceTeamStatus: strongestTeamStatus(existing.salesforceTeamStatus, candidate.salesforceTeamStatus),
+    volunteerRoles: combinedVolunteerRoles(existing.volunteerRoles, candidate.volunteerRoles),
+    groupCodes: uniq([...(existing.groupCodes ?? []), ...(candidate.groupCodes ?? [])])
+  };
+}
+
 function findMatchingMember(members: RamblersMember[], candidate: RamblersMember): RamblersMember | null {
   const candidateKeys = new Set(identityKeysOf(candidate));
   return members.find(member => identityKeysOf(member).some(key => candidateKeys.has(key))) ?? null;
@@ -73,12 +88,15 @@ function findMatchingMember(members: RamblersMember[], candidate: RamblersMember
 export function reconcileSupporterSnapshot(
   previousMembers: RamblersMember[],
   supporters: SalesforceMember[],
+  groupCodesByIdentity: Map<string, string[]> | null = null,
 ): SnapshotReconciliation {
-  const mapped = supporters.map(mapSalesforceMemberToRamblersMember);
+  const mapped = supporters.map(supporter => groupCodesByIdentity
+    ? {...mapSalesforceMemberToRamblersMember(supporter), groupCodes: groupCodesByIdentity.get(supporterIdentity(supporter)) ?? []}
+    : mapSalesforceMemberToRamblersMember(supporter));
   const currentMembers = mapped.reduce((result, candidate) => {
     const existing = findMatchingMember(result, candidate);
     return existing
-      ? result.map(member => member === existing ? {...member, ...candidate} : member)
+      ? result.map(member => member === existing ? combinedTeamRecord(member, candidate) : member)
       : [...result, candidate];
   }, [] as RamblersMember[]);
 
@@ -108,6 +126,27 @@ export function reconcileSupporterSnapshot(
   };
 }
 
+export function areaGroupCodes(systemConfig: SystemConfig, siteGroupCodes: string[]): string[] {
+  const areaCode = systemConfig?.area?.groupCode;
+  return areaCode && siteGroupCodes.includes(areaCode)
+    ? (systemConfig.area.groups ?? []).map(group => group.groupCode).filter(code => !!code && !siteGroupCodes.includes(code))
+    : [];
+}
+
+export function supporterIdentity(supporter: SalesforceMember): string {
+  return supporter.contactId || supporter.memberRef || supporter.membershipNo || supporter.email || "";
+}
+
+export function groupCodesByIdentityFrom(groupFetches: SalesforceTeamFetch[]): Map<string, string[]> {
+  return groupFetches.reduce((byIdentity, groupFetch) => {
+    (groupFetch.supporters ?? []).map(supporterIdentity).filter(identity => !!identity).forEach(identity => {
+      const existing = byIdentity.get(identity) ?? [];
+      byIdentity.set(identity, existing.includes(groupFetch.teamCode) ? existing : [...existing, groupFetch.teamCode]);
+    });
+    return byIdentity;
+  }, new Map<string, string[]>());
+}
+
 async function previousBulkLoadMembers(): Promise<RamblersMember[]> {
   const latestAudit = await memberBulkLoadAudit.findOne().sort({ createdDate: -1 }).lean().exec();
   return latestAudit?.members ?? [];
@@ -134,12 +173,15 @@ export async function runSalesforceSync(options: SalesforceSyncOptions = {}): Pr
     return { audit, config: salesforceConfig, status: 0, errorCode: "GROUP_CODE_MISSING", errorMessage: "Group code is not configured." };
   }
 
-  logInfo(audit, `Starting Ramblers Team Emails supporter snapshot for ${groupCodes.join(", ")} via ${salesforceConfig.endpointBaseUrl}.`);
+  const queryByGroupCodes = salesforceConfig.areaQueryMode === SalesforceAreaQueryMode.GROUP_CODES && areaGroupCodes(systemConfig, groupCodes).length > 0;
+  const teamCodes = queryByGroupCodes ? [...areaGroupCodes(systemConfig, groupCodes), ...groupCodes] : groupCodes;
+  logInfo(audit, `Starting Ramblers Team Emails supporter snapshot for ${teamCodes.join(", ")} via ${salesforceConfig.endpointBaseUrl}.`);
   const startedAt = dateTimeNowAsValue();
   const statuses: number[] = [];
   const supporters: SalesforceMember[] = [];
+  const teamFetches: SalesforceTeamFetch[] = [];
 
-  for (const groupCode of groupCodes) {
+  for (const groupCode of teamCodes) {
     const result = await fetchSalesforceMembers(salesforceConfig, { groupCode });
     if (!result.data) {
       const message = `Supporter snapshot failed for ${groupCode}: ${result.errorCode || "UNKNOWN"} - ${result.errorMessage || "no response body"} (status ${result.status}, ${result.latencyMs}ms).`;
@@ -148,11 +190,14 @@ export async function runSalesforceSync(options: SalesforceSyncOptions = {}): Pr
     }
     statuses.push(result.status);
     supporters.push(...result.data);
+    teamFetches.push({teamCode: groupCode, status: result.status, supporters: result.data});
     logInfo(audit, `Ramblers Team Emails returned ${result.data.length} supporters for ${groupCode} in ${result.latencyMs}ms.`);
   }
 
+  const groupCodesByIdentity = queryByGroupCodes ? groupCodesByIdentityFrom(teamFetches.filter(teamFetch => !groupCodes.includes(teamFetch.teamCode))) : null;
+
   const previousMembers = await previousBulkLoadMembers();
-  const reconciliation = reconcileSupporterSnapshot(previousMembers, supporters);
+  const reconciliation = reconcileSupporterSnapshot(previousMembers, supporters, groupCodesByIdentity);
   audit.members = reconciliation.members;
   logInfo(
     audit,

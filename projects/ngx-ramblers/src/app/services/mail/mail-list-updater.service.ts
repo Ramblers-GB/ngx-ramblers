@@ -1,4 +1,6 @@
 import { inject, Injectable } from "@angular/core";
+import { applyAutoSubscribeDefaults, initialiseSubscriptionsFromLists, mailContextFrom, marketingConsentBlocksSubscribeToList, setSubscription, subscriptionFor, unsubscribeFromAllLists } from "../../functions/mail-subscription-defaults";
+import { MemberApplyMailContext } from "../../models/member-bulk-apply.model";
 import { HttpClient } from "@angular/common/http";
 import { NgxLoggerLevel } from "ngx-logger";
 import { firstValueFrom } from "rxjs";
@@ -50,8 +52,6 @@ import { booleanOf } from "../../functions/strings";
 import { map } from "es-toolkit/compat";
 import { values } from "es-toolkit/compat";
 import { MailProviderStats } from "../../models/system.model";
-import { cloneDeep } from "es-toolkit/compat";
-import { FullNamePipe } from "../../pipes/full-name.pipe";
 import { MailListAuditService } from "./mail-list-audit.service";
 import { AuditStatus } from "../../models/audit.model";
 import { omit } from "es-toolkit/compat";
@@ -66,6 +66,7 @@ import { Subscription } from "rxjs";
 
 const AFFIRMATIVE_VALUES = ["yes", "y", "true", "1", "subscribed"];
 const NEGATIVE_VALUES = ["no", "n", "false", "0", "unsubscribed"];
+const BREVO_ALREADY_IN_SYNC = "Brevo contacts already in sync, no changes needed";
 
 @Injectable({
   providedIn: "root"
@@ -80,7 +81,6 @@ export class MailListUpdaterService {
   public mailMessagingConfig: MailMessagingConfig;
   public mailMessagingService: MailMessagingService = inject(MailMessagingService);
   private mailService: MailService = inject(MailService);
-  private fullNamePipe: FullNamePipe = inject(FullNamePipe);
   private memberService: MemberService = inject(MemberService);
   private broadcastService: BroadcastService<any> = inject(BroadcastService);
   private mailListAuditService: MailListAuditService = inject(MailListAuditService);
@@ -96,7 +96,7 @@ export class MailListUpdaterService {
     });
   }
 
-  async updateMailLists(notify: AlertInstance, members: Member[]): Promise<any> {
+  async updateMailLists(notify: AlertInstance, members: Member[]): Promise<string> {
     notify.setBusy();
     this.pendingMailListAudits = [];
     this.logger.info("updateMailLists:members:", members);
@@ -170,31 +170,32 @@ export class MailListUpdaterService {
       const pendingChanges = createAllRequests.length + createContactRequests.length + updateContactRequests.length + deleteContactIds.length + contactRemoveRequests.length;
       if (pendingChanges === 0) {
         this.logger.info("updateMailLists: Brevo already matches the NGX database - no changes to apply");
-        notify.success({title: "Brevo updates", message: "Brevo contacts already in sync - no changes to apply"});
+        notify.success({title: "Brevo updates", message: BREVO_ALREADY_IN_SYNC});
         notify.clearBusy();
-        return;
-      }
-      notify.progress({
-        title: "Brevo updates",
-        message: this.brevoPendingChangesSummary(createContactRequests.length, updateContactRequests.length, deleteContactIds.length, contactRemoveRequests.length)
-      }, true);
-      if (this.performUpdates) {
-        await this.processCreateContactRequests(createContactRequests, members, notify);
-        await this.processDeleteContactsRequests(deleteContactIds, members, notify);
-        await this.processUpdateContactRequests(updateContactRequests, notify);
-        await this.processContactRemoveRequests(contactRemoveRequests, notify);
-        await this.processMailListAuditing();
-        await this.stampBrevoSyncStateFor(membersRequiringSync.filter(member => !failedEmailChangeMembers.includes(member)));
+        return BREVO_ALREADY_IN_SYNC;
       } else {
-        this.logger.info("Not performing updates as performUpdates is false");
+        notify.progress({
+          title: "Brevo updates",
+          message: this.brevoPendingChangesSummary(createContactRequests.length, updateContactRequests.length, deleteContactIds.length, contactRemoveRequests.length)
+        }, true);
+        if (this.performUpdates) {
+          await this.processCreateContactRequests(createContactRequests, members, notify);
+          await this.processDeleteContactsRequests(deleteContactIds, members, notify);
+          await this.processUpdateContactRequests(updateContactRequests, notify);
+          await this.processContactRemoveRequests(contactRemoveRequests, notify);
+          await this.processMailListAuditing();
+          await this.stampBrevoSyncStateFor(membersRequiringSync.filter(member => !failedEmailChangeMembers.includes(member)));
+        } else {
+          this.logger.info("Not performing updates as performUpdates is false");
+        }
+        const summary = this.brevoSyncCompleteSummary(createContactRequests.length, updateContactRequests.length, deleteContactIds.length, contactRemoveRequests.length, this.performUpdates);
+        notify.success({title: "Brevo updates", message: summary});
+        notify.clearBusy();
+        return summary;
       }
-      notify.success({
-        title: "Brevo updates",
-        message: this.brevoSyncCompleteSummary(createContactRequests.length, updateContactRequests.length, deleteContactIds.length, contactRemoveRequests.length, this.performUpdates)
-      });
-      notify.clearBusy();
     } else {
-      return Promise.resolve(this.notifyIntegrationNotEnabled(notify));
+      this.notifyIntegrationNotEnabled(notify);
+      return "";
     }
   }
 
@@ -211,18 +212,19 @@ export class MailListUpdaterService {
   }
 
   private brevoSyncCompleteSummary(createCount: number, updateCount: number, deleteCount: number, removeFromListCount: number, performUpdates: boolean): string {
-    if (!performUpdates) {
-      return "Brevo contact and list synchronisation complete (updates skipped as performUpdates is false)";
-    }
     const parts = [
       createCount > 0 ? `${createCount} created` : null,
       updateCount > 0 ? `${updateCount} updated` : null,
       deleteCount > 0 ? `${deleteCount} deleted` : null,
       removeFromListCount > 0 ? `${removeFromListCount} list ${removeFromListCount === 1 ? "removal" : "removals"}` : null
     ].filter(Boolean);
-    return parts.length > 0
-      ? `Synchronisation complete: ${parts.join(", ")}`
-      : "Brevo contact and list synchronisation complete";
+    if (!performUpdates) {
+      return "Brevo synchronisation complete (updates skipped as performUpdates is false)";
+    } else if (parts.length > 0) {
+      return `Brevo synchronisation complete: ${parts.join(", ")}`;
+    } else {
+      return "Brevo synchronisation complete";
+    }
   }
 
   private async processMailListAuditing() {
@@ -369,14 +371,12 @@ export class MailListUpdaterService {
   public memberSubscribed(member: Member, listId: number): boolean {
     const subscriptionCount = member?.mail?.subscriptions?.filter((mailSubscription) => mailSubscription.id === listId && mailSubscription.subscribed)?.length;
     const subscribed = member?.groupMember && !!(member?.email) && subscriptionCount > 0;
-    this.logger.off("memberSubscribed:member.groupMember", member?.groupMember, "email", member?.email, "name:", this.fullNamePipe.transform(member), "listId:", listId, "member:", member, "subscriptionCount:", subscriptionCount, "subscribed:", subscribed);
     return subscribed;
   }
 
   public memberSubscribedToAnyList(member: Member): boolean {
     const subscriptionCount = member?.mail?.subscriptions?.filter((mailSubscription) => mailSubscription.subscribed)?.length;
     const subscribed = member?.groupMember && !!(member?.email) && subscriptionCount > 0;
-    this.logger.off("memberSubscribed:member.groupMember", member?.groupMember, "email", member?.email, "name:", this.fullNamePipe.transform(member), "member:", member, "subscriptionCount:", subscriptionCount, "subscribed:", subscribed);
     return subscribed;
   }
 
@@ -592,7 +592,7 @@ export class MailListUpdaterService {
   }
 
   public subscriptionFor(member: Member, listId: number): MailSubscription {
-    return member?.mail?.subscriptions?.find(subscription => subscription.id === listId);
+    return subscriptionFor(member, listId);
   }
 
   public subscribedToList(member: Member, listId: number): boolean {
@@ -604,64 +604,23 @@ export class MailListUpdaterService {
   }
 
   public marketingConsentBlocksSubscribeToList(member: Member, listId: number): boolean {
-    if (member?.emailMarketingConsent !== false) {
-      return false;
-    } else if (this.respectHeadOfficeConsent()) {
-      return true;
-    } else {
-      const listSetting = this.mailMessagingConfig?.mailConfig?.listSettings?.find(setting => setting?.id === listId);
-      return !!listSetting?.requiresMemberEmailMarketingConsent;
-    }
+    return marketingConsentBlocksSubscribeToList(member, listId, this.mailContext());
   }
 
   public setSubscription(member: Member, listId: number, subscribed: boolean): void {
-    const nextSubscribed = subscribed && this.marketingConsentBlocksSubscribeToList(member, listId) ? false : subscribed;
-    if (!member.mail) {
-      member.mail = {subscriptions: [], email: member.email, id: null};
-    }
-    if (!member.mail.subscriptions) {
-      member.mail.subscriptions = [];
-    }
-    const existing: MailSubscription = this.subscriptionFor(member, listId);
-    const wasSubscribed = !!existing?.subscribed;
-    const subscription: MailSubscription = existing || this.mapIdToSubscription(listId, nextSubscribed);
-    subscription.subscribed = nextSubscribed;
-    if (nextSubscribed) {
-      subscription.unsubscribedAt = undefined;
-    } else if (wasSubscribed) {
-      subscription.unsubscribedAt = this.dateUtils.nowAsValue();
-    }
-    if (!existing) {
-      member.mail.subscriptions.push(subscription);
-    }
+    setSubscription(member, listId, subscribed, this.mailContext(), this.dateUtils.nowAsValue());
+  }
+
+  private mailContext(mailMessagingConfig: MailMessagingConfig = this.mailMessagingConfig): MemberApplyMailContext {
+    return mailContextFrom(mailMessagingConfig, null);
   }
 
   public unsubscribeFromAllLists(member: Member): boolean {
-    const subscribed: MailSubscription[] = (member?.mail?.subscriptions ?? []).filter(subscription => subscription.subscribed);
-    subscribed.forEach(subscription => this.setSubscription(member, subscription.id, false));
-    return subscribed.length > 0;
+    return unsubscribeFromAllLists(member, this.mailContext(), this.dateUtils.nowAsValue());
   }
 
   public applyAutoSubscribeDefaults(member: Member, mailMessagingConfig: MailMessagingConfig): boolean {
-    const lists = mailMessagingConfig?.brevo?.lists?.lists ?? [];
-    const listSettings = mailMessagingConfig?.mailConfig?.listSettings ?? [];
-    if (lists.length === 0) {
-      return false;
-    } else if (!member.mail?.subscriptions?.length) {
-      this.initialiseMailSubscriptionsFromListIds(member, mailMessagingConfig);
-      return (member.mail?.subscriptions ?? []).some(subscription => subscription.subscribed);
-    } else {
-      return lists.reduce((changed, list) => {
-        const listSetting = listSettings.find(setting => setting?.id === list.id);
-        const shouldSubscribe = this.mailMessagingService.subscribed(listSetting, member);
-        if (shouldSubscribe && !this.subscribedToList(member, list.id)) {
-          this.setSubscription(member, list.id, true);
-          return true;
-        } else {
-          return changed;
-        }
-      }, false);
-    }
+    return applyAutoSubscribeDefaults(member, this.mailContext(mailMessagingConfig), this.dateUtils.nowAsValue());
   }
 
   public rowsFrom(members: Member[], lists: ListInfo[]): ListSubscriptionRow[] {
@@ -909,16 +868,7 @@ export class MailListUpdaterService {
   }
 
   public initialiseMailSubscriptionsFromListIds(member: Member, mailMessagingConfig: MailMessagingConfig) {
-    const preMail = cloneDeep(member.mail);
-    member.mail = {
-      email: null,
-      id: null,
-      subscriptions: mailMessagingConfig?.brevo?.lists?.lists.map((item: ListInfo) => {
-        const listSetting: ListSetting = mailMessagingConfig?.mailConfig?.listSettings?.find(setting => setting?.id === item?.id);
-        return this.mapIdToSubscription(item.id, this.mailMessagingService.subscribed(listSetting, member));
-      })
-    };
-    this.logger.off("initialiseMailSubscriptionsFromListIds:for subscribed:", "lists:", mailMessagingConfig?.brevo?.lists?.lists, "name:", this.fullNamePipe.transform(member), "member.mail before:", preMail, "after:", member.mail);
+    initialiseSubscriptionsFromLists(member, this.mailContext(mailMessagingConfig));
   }
 
   public toCreateContactRequest(member: Member): CreateContactRequestWithAttributes {
