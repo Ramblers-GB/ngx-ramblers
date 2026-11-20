@@ -118,7 +118,6 @@ import {
   formatMapSaveProgress,
   isLiveFollowMode,
   ROUTE_FOLLOW_NUDGE_METRES,
-  ROUTE_FOLLOW_START_RADIUS_METRES,
   RouteFollowProgressPaint,
   routeFollowProgressPaintFrom,
   ROUTE_FOLLOW_HEADING_UP_MIN_DELTA,
@@ -2449,12 +2448,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       }
       try {
         const location = this.hasLine ? await this.currentLocation.currentPosition(true) : null;
-        const metres = location ? this.followService.distanceFromStart({latitude: location.lat, longitude: location.lng}) : null;
         if (this.hasLine && !location) {
           this.startLocationMessage = "Your current location could not be found. Enable location access and try Start again.";
-          this.expandSheet();
-        } else if (isNumber(metres) && metres > ROUTE_FOLLOW_START_RADIUS_METRES) {
-          this.startLocationMessage = `You are ${this.followService.formatDistance(metres)} from the start (straight-line distance). Travel to the start, then tap Start again.`;
           this.expandSheet();
         } else {
           this.followUser = true;

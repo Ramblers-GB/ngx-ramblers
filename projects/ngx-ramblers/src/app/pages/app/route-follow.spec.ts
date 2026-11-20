@@ -1044,13 +1044,12 @@ describe("checking the walk start before following", () => {
     return view;
   }
 
-  it("shows the distance and keeps directions stopped when far from the start", async () => {
+  it("starts directions even when far from the start, picking up from the nearest point on the route", async () => {
     const view = startView(20000);
     await view.start();
-    expect(view["startLocationMessage"]).toContain("12.4 miles from the start");
-    expect(view["startLocationMessage"]).toContain("straight-line distance");
-    expect(view["followService"].startFollowing).not.toHaveBeenCalled();
-    expect(view.expandSheet).toHaveBeenCalled();
+    expect(view["startLocationMessage"]).toBeNull();
+    expect(view["followService"].startFollowing).toHaveBeenCalled();
+    expect(view.minimiseSheet).toHaveBeenCalled();
     expect(view["startingFollow"]).toBe(false);
   });
 
