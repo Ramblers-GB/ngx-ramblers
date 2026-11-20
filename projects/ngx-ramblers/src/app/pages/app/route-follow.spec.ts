@@ -1041,6 +1041,9 @@ describe("checking the walk start before following", () => {
     view.expandSheet = vi.fn();
     view.minimiseSheet = vi.fn();
     view["requestWakeLock"] = vi.fn().mockResolvedValue(null);
+    Object.defineProperty(view, "uiActions", {value: {initialObjectValueFor: vi.fn().mockReturnValue(null)}});
+    Object.defineProperty(view, "dateUtils", {value: {dateTimeNowAsValue: vi.fn().mockReturnValue(1_000_000_000)}});
+    Object.defineProperty(view, "route", {value: {snapshot: {queryParamMap: {get: vi.fn().mockReturnValue(null)}}}});
     return view;
   }
 
@@ -1059,6 +1062,22 @@ describe("checking the walk start before following", () => {
     expect(view["startLocationMessage"]).toBeNull();
     expect(view["followService"].startFollowing).toHaveBeenCalled();
     expect(view.minimiseSheet).toHaveBeenCalled();
+  });
+
+  it("carries on from progress remembered on this route when Start is tapped again", async () => {
+    const view = startView(40);
+    view["payload"] = {...view["payload"], routeId: "hillside-loop"} as RouteFollowPayload;
+    view["uiActions"].initialObjectValueFor = vi.fn().mockReturnValue({routeKey: "hillside-loop:0", completedMetres: 9500, savedAt: 1_000_000_000 - 60_000});
+    await view.start();
+    expect(view["followService"].startFollowing).toHaveBeenCalledWith(9500);
+  });
+
+  it("starts afresh when the remembered progress is for another route or too old", async () => {
+    const view = startView(40);
+    view["payload"] = {...view["payload"], routeId: "hillside-loop"} as RouteFollowPayload;
+    view["uiActions"].initialObjectValueFor = vi.fn().mockReturnValue({routeKey: "hillside-loop:0", completedMetres: 9500, savedAt: 1_000_000_000 - 13 * 60 * 60 * 1000});
+    await view.start();
+    expect(view["followService"].startFollowing).toHaveBeenCalledWith(null);
   });
 
   it("keeps directions stopped when location is unavailable", async () => {
@@ -1094,8 +1113,11 @@ describe("live route edit statistics", () => {
   it("remembers the selected unit", () => {
     const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
     view["uiActions"] = {saveValueFor: vi.fn()} as unknown as typeof view["uiActions"];
+    view["followService"] = {setDistanceUnit: vi.fn()} as unknown as typeof view["followService"];
+    view["refreshHud"] = vi.fn();
     view.distanceUnitChanged(DistanceUnit.KILOMETRES);
     expect(view["distanceUnit"]).toBe(DistanceUnit.KILOMETRES);
+    expect(view["followService"].setDistanceUnit).toHaveBeenCalledWith(DistanceUnit.KILOMETRES);
     expect(view["uiActions"].saveValueFor).toHaveBeenCalledWith(StoredValue.DISTANCE_UNIT, DistanceUnit.KILOMETRES);
   });
 
@@ -1118,5 +1140,93 @@ describe("live route edit statistics", () => {
     track.metres = 0;
     expect(view.remainingDistance).toBe("0 metres");
     expect(view.remainingTime).toBe("0 minutes");
+  });
+});
+
+describe("snapping a plotted route to paths", () => {
+  const start = {latitude: 51.2, longitude: 1.0};
+  const bend = {latitude: 51.25, longitude: 1.02};
+  const tapped = {latitude: 51.3, longitude: 1.1};
+
+  function plotting(snapToPaths: boolean, path: {latitude: number; longitude: number}[] | null): RouteFollowComponent {
+    const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
+    view["editVertices"] = [start];
+    view["progress"] = {mode: RouteFollowMode.EDITING} as typeof view["progress"];
+    view["originalEditCount"] = 0;
+    view["snapToPaths"] = snapToPaths;
+    view["snappingToPath"] = false;
+    view["pathSnapGeneration"] = 0;
+    view["pathSnapQueue"] = Promise.resolve();
+    Object.defineProperty(view, "logger", {value: {info: vi.fn(), error: vi.fn()}});
+    Object.defineProperty(view, "walkingPaths", {value: {pathBetween: vi.fn().mockResolvedValue(path)}});
+    view["followService"] = {replaceTrack: vi.fn()} as unknown as typeof view["followService"];
+    view["refreshEditHandles"] = vi.fn();
+    view["refreshArrows"] = vi.fn();
+    view["redraw"] = vi.fn();
+    return view;
+  }
+
+  it("follows the path between the end of the route and the tap", async () => {
+    const view = plotting(true, [start, bend, tapped]);
+    await view["insertPathTo"](tapped, 0);
+    expect(view["walkingPaths"].pathBetween).toHaveBeenCalledWith(start, tapped);
+    expect(view["editVertices"]).toEqual([start, bend, tapped]);
+  });
+
+  it("drops a path that arrives after editing was cancelled", async () => {
+    const pending: {resolve: (path: {latitude: number; longitude: number}[]) => void} = {resolve: null};
+    const view = plotting(true, null);
+    view["walkingPaths"].pathBetween = vi.fn().mockReturnValue(new Promise(resolve => pending.resolve = resolve));
+    const inserting = view["insertPathTo"](tapped, 0);
+    view["cancelPendingPathSnaps"]();
+    pending.resolve([start, bend, tapped]);
+    await inserting;
+    expect(view["editVertices"]).toEqual([start]);
+  });
+
+  it("adds both points when the user taps twice while a path is being found", async () => {
+    const second = {latitude: 51.35, longitude: 1.15};
+    const view = plotting(true, null);
+    view["walkingPaths"].pathBetween = vi.fn()
+      .mockResolvedValueOnce([start, bend, tapped])
+      .mockResolvedValueOnce([tapped, second]);
+    view["insertOffRouteVertex"](tapped);
+    view["insertOffRouteVertex"](second);
+    await view["pathSnapQueue"];
+    expect(view["editVertices"]).toEqual([start, bend, tapped, second]);
+  });
+
+  it("finishes a path still being found before saving, so the latest tap is kept", async () => {
+    const pending: {resolve: (path: {latitude: number; longitude: number}[]) => void} = {resolve: null};
+    const view = plotting(true, null);
+    view["walkingPaths"].pathBetween = vi.fn().mockReturnValue(new Promise(resolve => pending.resolve = resolve));
+    const verticesWhenSaving: {latitude: number; longitude: number}[][] = [];
+    view["followService"] = {
+      replaceTrack: vi.fn(),
+      flushRecording: vi.fn(() => {
+        verticesWhenSaving.push([...view["editVertices"]]);
+        return Promise.resolve(false);
+      }),
+      trackPoints: vi.fn(() => view["editVertices"])
+    } as unknown as typeof view["followService"];
+    view["insertOffRouteVertex"](tapped);
+    const saving = view.saveRoute();
+    pending.resolve([start, bend, tapped]);
+    await saving;
+    expect(verticesWhenSaving).toEqual([[start, bend, tapped]]);
+  });
+
+  it("adds a straight line and says so when no path is found", async () => {
+    const view = plotting(true, null);
+    await view["insertPathTo"](tapped, 0);
+    expect(view["editVertices"]).toEqual([start, tapped]);
+    expect(view["persistMessage"]).toContain("No path found");
+  });
+
+  it("adds a straight line without asking for a path when snapping is off", () => {
+    const view = plotting(false, [start, bend, tapped]);
+    view["insertOffRouteVertex"](tapped);
+    expect(view["walkingPaths"].pathBetween).not.toHaveBeenCalled();
+    expect(view["editVertices"]).toEqual([start, tapped]);
   });
 });

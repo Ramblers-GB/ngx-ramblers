@@ -7,6 +7,7 @@ import {
   RECORDING_MAX_ACCURACY_METRES, RECORDING_MAX_SPEED_METRES_PER_SECOND, RECORDING_GAP_MS,
   ROUTE_FOLLOW_APPROACH_METRES,
   ROUTE_FOLLOW_OFF_ROUTE_METRES,
+  ROUTE_FOLLOW_SNAP_AMBIGUITY_METRES,
   ROUTE_FOLLOW_RECORD_MIN_POINT_METRES,
   ROUTE_FOLLOW_EDIT_DETAIL_MAX,
   ROUTE_FOLLOW_EDIT_DETAIL_MIN,
@@ -32,13 +33,14 @@ import {
 import { GeoDistanceService } from "./geo-distance.service";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 import { returnDirectionFrom } from "./map-gestures";
-import { cumulativeDistances, projectOnSegment, simplifiedRoutePoints, snapToRoute, thinnedRoutePoints } from "../../functions/route-geometry";
+import { continuousSnap, cumulativeDistances, projectOnSegment, routeSnapCandidates, simplifiedRoutePoints, snapToRoute, thinnedRoutePoints } from "../../functions/route-geometry";
 import { NativeCompassService } from "./native-compass.service";
 import { NativeRouteRecorderService } from "./native-route-recorder.service";
 import { NativeRouteError, NativeRouteFailure, NativeRoutePosition } from "../../models/native-route.model";
 import { asNumber, generateUid } from "../../functions/numbers";
 import { StringUtilsService } from "../string-utils.service";
 import { DistanceUnit, FEET_PER_METRE, KM_PER_MILE } from "../../models/walk.model";
+import { followDistanceUnitFrom } from "../../models/route-follow.model";
 import { compassHeading, compassScreenAngle, smoothedCompassHeading } from "../../functions/compass-heading";
 
 @Injectable({
@@ -56,6 +58,8 @@ export class RouteFollowService {
   private cumulativeMetres: number[] = [];
   private waypoints: RouteFollowWaypoint[] = [];
   private visitedWaypointIds = new Set<string>();
+  private followedMetres: number | null = null;
+  private preferredUnit: DistanceUnit = DistanceUnit.MILES;
   private watchId: number | null = null;
   private pausedFromMode = RouteFollowMode.FOLLOWING;
   private readonly watchOptions: PositionOptions = {enableHighAccuracy: true, maximumAge: 1000, timeout: 15000};
@@ -83,6 +87,7 @@ export class RouteFollowService {
     this.waypoints = waypoints || [];
     this.cumulativeMetres = this.buildCumulative(this.track);
     this.visitedWaypointIds = new Set<string>();
+    this.followedMetres = null;
     this.previewMetres = 0;
     this.state = {
       ...this.emptyProgress(),
@@ -301,9 +306,10 @@ export class RouteFollowService {
     }, {detail: 10, score: Number.POSITIVE_INFINITY}).detail;
   }
 
-  startFollowing(): void {
+  startFollowing(rememberedMetres: number | null = null): void {
     this.stopPreview();
     this.visitedWaypointIds = new Set<string>();
+    this.followedMetres = rememberedMetres;
     this.beginLocationWatch();
   }
 
@@ -352,6 +358,7 @@ export class RouteFollowService {
   }
 
   restoreProgress(progress: RouteFollowProgress): void {
+    this.followedMetres = progress.snap ? progress.completedMetres : this.followedMetres;
     this.state = {...progress, mode: this.state.mode,
       locationError: this.state.mode === RouteFollowMode.RECORDING ? this.state.locationError : progress.locationError};
     this.progressSubject.next(this.state);
@@ -435,6 +442,7 @@ export class RouteFollowService {
   stop(): void {
     this.stopAll();
     this.visitedWaypointIds = new Set<string>();
+    this.followedMetres = null;
     this.previewMetres = 0;
     this.state = {
       ...this.emptyProgress(),
@@ -477,7 +485,16 @@ export class RouteFollowService {
     return reached[0]?.waypoint || null;
   }
 
-  formatDistance(metres: number | null, shortDistanceUnit = DistanceUnit.METRES, includeUnit = true, decimalPlaces: number | null = null): string {
+  setDistanceUnit(unit: DistanceUnit): void {
+    this.preferredUnit = followDistanceUnitFrom(unit);
+  }
+
+  distanceUnit(): DistanceUnit {
+    return this.preferredUnit;
+  }
+
+  formatDistance(metres: number | null, distanceUnit: DistanceUnit | null = null, includeUnit = true, decimalPlaces: number | null = null): string {
+    const shortDistanceUnit = distanceUnit ?? (this.preferredUnit === DistanceUnit.KILOMETRES ? DistanceUnit.METRES : DistanceUnit.FEET);
     const milesInMetres = KM_PER_MILE * 1000;
     const shortDistanceLimit = shortDistanceUnit === DistanceUnit.FEET ? milesInMetres / 4 : 1000;
     if (!isNumber(metres) || metres < 0) {
@@ -490,6 +507,9 @@ export class RouteFollowService {
       return shortDistanceUnit === DistanceUnit.FEET
         ? `${Math.round(metres * FEET_PER_METRE)} ft`
         : `${Math.round(metres)} m`;
+    } else if (shortDistanceUnit === DistanceUnit.METRES) {
+      const kilometres = metres / 1000;
+      return `${asNumber(kilometres, kilometres >= 10 ? 0 : 1)} km`;
     } else {
       const miles = metres / milesInMetres;
       const decimals = miles >= 10 ? 0 : shortDistanceUnit === DistanceUnit.FEET && miles < 1 ? 2 : 1;
@@ -512,7 +532,7 @@ export class RouteFollowService {
     if (!isNumber(metres)) {
       return "—";
     } else {
-      return `${Math.round(metres * 3.28084)} ft`;
+      return this.preferredUnit === DistanceUnit.KILOMETRES ? `${Math.round(metres)} m` : `${Math.round(metres * FEET_PER_METRE)} ft`;
     }
   }
 
@@ -607,8 +627,9 @@ export class RouteFollowService {
   }
 
   applyPosition(position: RouteFollowPoint, heading: number | null, accuracyMetres: number | null): void {
-    const snap = this.snapToRoute(position);
+    const snap = this.track.length < 2 ? null : continuousSnap(routeSnapCandidates(this.track, this.cumulativeMetres, position), this.followedMetres, ROUTE_FOLLOW_SNAP_AMBIGUITY_METRES);
     const progressMetres = snap ? snap.progressMetres : 0;
+    this.followedMetres = snap ? snap.progressMetres : this.followedMetres;
     const approached = this.markApproached(position);
     const next = this.nextWaypointFrom(progressMetres, position);
     const remainingMetres = this.track.length >= 2

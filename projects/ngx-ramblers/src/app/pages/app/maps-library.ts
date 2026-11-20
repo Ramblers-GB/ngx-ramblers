@@ -9,6 +9,7 @@ import { MobileAppAccessService } from "../../services/maps/mobile-app-access.se
 import { MobileAppAction } from "../../models/walks-config.model";
 import { RouteFollowService } from "../../services/maps/route-follow.service";
 import { generateUid } from "../../functions/numbers";
+import { deviceCanRecordRoutes } from "../../functions/route-recording-device";
 import { Component, ElementRef, inject, Input, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
@@ -276,7 +277,7 @@ const MAP_LIST_BATCH_SIZE = 20;
                   <span>Find or plot</span>
                 </button>
               }
-              @if (!embeddedLibrary) {
+              @if (!embeddedLibrary && deviceCanRecordRoutes) {
                 <button class="btn btn-primary" type="button" aria-label="Record a route"
                         [disabled]="memberLogin.memberLoggedIn() && !mobileAccess.allowed(MobileAppAction.RECORD)"
                         (click)="recordStandaloneRoute()">
@@ -814,6 +815,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
   protected readonly nativeBuildLabel = nativeBuildLabel();
   protected readonly mobileAccess = inject(MobileAppAccessService);
   protected readonly MobileAppAction = MobileAppAction;
+  protected readonly deviceCanRecordRoutes = deviceCanRecordRoutes();
   private subscriptions: Subscription[] = [];
 
   toggleCustomising(): void {

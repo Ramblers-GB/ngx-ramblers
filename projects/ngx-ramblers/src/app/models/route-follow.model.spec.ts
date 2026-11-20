@@ -1,3 +1,4 @@
+import { DistanceUnit } from "./walk.model";
 import {
   AppAppearance,
   AppInstallPlatform,
@@ -236,11 +237,17 @@ describe("compassHeadingLabel", () => {
 describe("followMapScaleBar", () => {
 
   it("picks a round feet label near the target width", () => {
-    const scale = followMapScaleBar(1000 * 0.3048 / 160, 160, 200);
+    const scale = followMapScaleBar(1000 * 0.3048 / 160, DistanceUnit.MILES, 160, 200);
     expect(scale.label).toEqual("1,000 ft");
     expect(scale.midLabel).toEqual("500 ft");
     expect(scale.widthPx).toBeGreaterThanOrEqual(156);
     expect(scale.widthPx).toBeLessThanOrEqual(164);
+  });
+
+  it("uses metres and kilometres when distances are set to km", () => {
+    const scale = followMapScaleBar(1000 / 160, DistanceUnit.KILOMETRES, 160, 200);
+    expect(scale.label).toEqual("1 km");
+    expect(scale.midLabel).toEqual("500 m");
   });
 
   it("returns an empty bar when the resolution is not usable", () => {

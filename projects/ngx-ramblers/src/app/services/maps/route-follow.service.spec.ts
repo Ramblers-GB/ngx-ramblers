@@ -280,9 +280,19 @@ describe("RouteFollowService", () => {
     expect(service.progress().returnDirection).toBe(RouteFollowReturnDirection.BACK);
   });
 
-  it("formats short distances in metres and longer ones in miles", () => {
+  it("shows every distance in miles and feet by default, never mixing in metres", () => {
+    expect(service.formatDistance(80)).toBe("262 ft");
+    expect(service.formatDistance(3200)).toBe("2 miles");
+    expect(service.formatElevation(27.7)).toBe("91 ft");
+  });
+
+  it("shows every distance in kilometres and metres when chosen", () => {
+    service.setDistanceUnit(DistanceUnit.KILOMETRES);
     expect(service.formatDistance(80)).toBe("80 m");
-    expect(service.formatDistance(3200)).toContain("mile");
+    expect(service.formatDistance(3200)).toBe("3.2 km");
+    expect(service.formatDistance(12300)).toBe("12 km");
+    expect(service.formatElevation(27.7)).toBe("28 m");
+    service.setDistanceUnit(DistanceUnit.MILES);
   });
 
   it("formats distances requested in feet until a quarter mile, then miles", () => {

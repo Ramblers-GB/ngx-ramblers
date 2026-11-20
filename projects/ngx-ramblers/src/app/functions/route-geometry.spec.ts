@@ -1,4 +1,4 @@
-import { cumulativeDistances, metresBetween, pointAlongRoute, projectOnSegment, simplifiedRoutePoints, snapToRoute } from "./route-geometry";
+import { continuousSnap, cumulativeDistances, metresBetween, pointAlongRoute, projectOnSegment, routeSnapCandidates, simplifiedRoutePoints, snapToRoute } from "./route-geometry";
 
 const line = [0, 0.01, 0.02].map(offset => ({latitude: 51 + offset, longitude: 1}));
 
@@ -59,5 +59,38 @@ describe("route geometry", () => {
     expect(snap?.point.longitude).toBeCloseTo(1, 5);
     expect(Math.round(snap?.progressMetres || 0)).toBe(Math.round(1112 * 1.51));
     expect(snapToRoute([line[0]], [0], line[1])).toBeNull();
+  });
+});
+
+describe("following a route that passes the same place twice", () => {
+  const loop = [
+    {latitude: 51.0000, longitude: 1.0000},
+    {latitude: 51.0100, longitude: 1.0000},
+    {latitude: 51.0100, longitude: 1.0030},
+    {latitude: 51.0000, longitude: 1.0030},
+    {latitude: 51.0000, longitude: 1.00005}
+  ];
+  const cumulative = cumulativeDistances(loop);
+  const total = cumulative[cumulative.length - 1];
+  const atTheCarPark = {latitude: 51.0001, longitude: 1.00003};
+
+  it("keeps you at the end of the walk when you were already near the end", () => {
+    const snap = continuousSnap(routeSnapCandidates(loop, cumulative, atTheCarPark), total - 200, 40);
+    expect(snap.progressMetres).toBeGreaterThan(total - 200);
+  });
+
+  it("keeps you at the start when you have only just set off", () => {
+    const snap = continuousSnap(routeSnapCandidates(loop, cumulative, atTheCarPark), 0, 40);
+    expect(snap.progressMetres).toBeLessThan(200);
+  });
+
+  it("uses the nearest part of the route when there is no earlier progress", () => {
+    expect(continuousSnap(routeSnapCandidates(loop, cumulative, atTheCarPark), null, 40)).toEqual(snapToRoute(loop, cumulative, atTheCarPark));
+  });
+
+  it("moves to the only part of the route nearby, even if it is far from earlier progress", () => {
+    const partWayOut = {latitude: 51.005, longitude: 0.9999};
+    const snap = continuousSnap(routeSnapCandidates(loop, cumulative, partWayOut), total - 100, 40);
+    expect(snap.progressMetres).toBeLessThan(cumulative[1]);
   });
 });

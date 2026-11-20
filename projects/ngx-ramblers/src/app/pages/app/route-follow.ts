@@ -83,17 +83,20 @@ import {
   ROUTE_FOLLOW_EDIT_TARGET_POINTS,
   ROUTE_FOLLOW_EDIT_THIN_FROM,
   ROUTE_FOLLOW_PREVIEW_SPEED_DEFAULT,
+  ROUTE_FOLLOW_PROGRESS_MEMORY_HOURS,
   ROUTE_FOLLOW_PREVIEW_SPEED_MAX,
   ROUTE_FOLLOW_PREVIEW_SPEED_MIN,
   RouteFollowLocationError,
   RouteFollowEditTool,
   RouteFollowMode,
+  RouteFollowPathPlacement,
   RouteFollowSheetState,
   RouteFollowPayload,
   RouteFollowPoint,
   RouteFollowProgress,
   RouteFollowReturnDirection,
   RouteFollowSession,
+  RouteFollowRememberedProgress,
   RouteDirectionsChrome,
   RouteFollowSource,
   RouteFollowWaypoint,
@@ -115,6 +118,7 @@ import {
   followPointerSizeFrom,
   followLineColours,
   followMapScaleBar,
+  followDistanceUnitFrom,
   formatMapSaveProgress,
   isLiveFollowMode,
   ROUTE_FOLLOW_NUDGE_METRES,
@@ -146,6 +150,7 @@ import { RamblersLibraryRouteService } from "../../services/maps/ramblers-librar
 import { RouteFollowCacheService } from "../../services/maps/route-follow-cache.service";
 import { CurrentLocationService } from "../../services/maps/current-location.service";
 import { RouteFollowService } from "../../services/maps/route-follow.service";
+import { WalkingPathService } from "../../services/maps/walking-path.service";
 import { RouteFollowSaveService } from "../../services/maps/route-follow-save.service";
 import { OsMapsExportService } from "../../services/maps/os-maps-export.service";
 import { MapGestures, mapAngleDelta, mapGesturesFor } from "../../services/maps/map-gestures";
@@ -426,6 +431,11 @@ import { SystemConfigService } from "../../services/system/system-config.service
               </p>
             }
             <p class="follow-style-heading">While following</p>
+            <p class="follow-option-label">Distances</p>
+            <app-section-toggle class="follow-unit-toggle" small pill
+                                [tabs]="distanceUnitTabs" [selectedTab]="distanceUnit"
+                                [queryParamKey]="StoredValue.DISTANCE_UNIT"
+                                (selectedTabChange)="distanceUnitChanged($event)"/>
             <p class="follow-option-label">Location pointer</p>
             <div class="follow-pointer-sizes" role="group" aria-label="Location pointer size">
               @for (choice of pointerSizeChoices; track choice.size) {
@@ -815,6 +825,11 @@ import { SystemConfigService } from "../../services/system/system-config.service
                                     [tabs]="distanceUnitTabs" [selectedTab]="distanceUnit"
                                     [queryParamKey]="StoredValue.DISTANCE_UNIT"
                                     (selectedTabChange)="distanceUnitChanged($event)"/>
+                <div class="form-check form-switch follow-option-switch">
+                  <input class="form-check-input" type="checkbox" role="switch" id="follow-snap-to-paths"
+                         [checked]="snapToPaths" (change)="toggleSnapToPaths()">
+                  <label class="form-check-label" for="follow-snap-to-paths">Snap to paths and roads{{ snappingToPath ? " (finding path…)" : "" }}</label>
+                </div>
               }
             </div>
           }
@@ -1140,6 +1155,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected readonly routeAuditCreatedLabel = routeAuditCreatedLabel;
   private memberLogin = inject(MemberLoginService);
   private uiActions = inject(UiActionsService);
+  private walkingPaths = inject(WalkingPathService);
   private gridReferences = inject(GridReferenceService);
   private walksConfigService = inject(WalksConfigService);
   private mapTiles = inject(MapTilesService);
@@ -1273,6 +1289,10 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected showStylePicker = false;
   protected showDirections = false;
   protected directionsOnMap = false;
+  protected snapToPaths = false;
+  protected snappingToPath = false;
+  private pathSnapGeneration = 0;
+  private pathSnapQueue: Promise<void> = Promise.resolve();
   protected stepPinsOnMap = true;
   protected pointerSize = FollowPointerSize.MEDIUM;
   protected readonly pointerSizeChoices = FOLLOW_POINTER_SIZES;
@@ -1344,12 +1364,14 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.routeSave.setFollowScreenOpen(true);
     this.subscriptions.push(this.routeSave.websiteSaveRetry$.subscribe(() => this.retryPendingNetworkSave()));
     const storedDistanceUnit = this.uiActions.initialValueFor(StoredValue.DISTANCE_UNIT, DistanceUnit.MILES);
-    this.distanceUnit = storedDistanceUnit === DistanceUnit.KILOMETRES ? DistanceUnit.KILOMETRES : DistanceUnit.MILES;
+    this.distanceUnit = followDistanceUnitFrom(storedDistanceUnit);
+    this.followService.setDistanceUnit(this.distanceUnit);
     this.followPanelWide = this.desktopFollowPanel();
     this.refreshTape();
     this.appearance = this.appShell.appearance();
     this.progressPaint = routeFollowProgressPaintFrom(this.uiActions.initialValueFor(StoredValue.FOLLOW_PROGRESS_PAINT, RouteFollowProgressPaint.COLOUR_WALKED));
     this.directionsOnMap = this.uiActions.initialBooleanValueFor(StoredValue.FOLLOW_DIRECTIONS_ON_MAP, false);
+    this.snapToPaths = this.uiActions.initialBooleanValueFor(StoredValue.FOLLOW_SNAP_TO_PATHS, false);
     this.stepPinsOnMap = this.uiActions.initialBooleanValueFor(StoredValue.FOLLOW_STEP_PINS_ON_MAP, true);
     this.pointerSize = followPointerSizeFrom(this.uiActions.initialValueFor(StoredValue.FOLLOW_POINTER_SIZE, FollowPointerSize.MEDIUM));
     this.followService.setPreviewSpeed(this.previewSpeed);
@@ -1388,6 +1410,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       const unit = queryParams.get(StoredValue.DISTANCE_UNIT);
       if (unit === DistanceUnit.MILES || unit === DistanceUnit.KILOMETRES) {
         this.distanceUnit = unit;
+        this.followService.setDistanceUnit(unit);
       }
       if (selection !== this.loadedRouteSelection) {
         this.loadedRouteSelection = selection;
@@ -1486,8 +1509,10 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   distanceUnitChanged(unit: string): void {
-    this.distanceUnit = unit === DistanceUnit.KILOMETRES ? DistanceUnit.KILOMETRES : DistanceUnit.MILES;
+    this.distanceUnit = followDistanceUnitFrom(unit);
+    this.followService.setDistanceUnit(this.distanceUnit);
     this.uiActions.saveValueFor(StoredValue.DISTANCE_UNIT, this.distanceUnit);
+    this.refreshHud();
   }
 
   get walkedDistance(): string {
@@ -1498,7 +1523,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     if (this.progress?.mode === RouteFollowMode.EDITING) {
       return this.followService.formatDistance(this.followService.totalMetres(), this.distanceUnit, false);
     } else if (this.recordingSession) {
-      return this.followService.formatDistance(this.followService.totalMetres(), DistanceUnit.MILES, true, 1);
+      return this.followService.formatDistance(this.followService.totalMetres());
     } else if (!this.hasLine && !this.progress?.position) {
       return "—";
     } else {
@@ -1801,6 +1826,11 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   toggleDirections(): void {
     this.showDirections = !this.showDirections;
     this.persistFollowSession(true);
+  }
+
+  toggleSnapToPaths(): void {
+    this.snapToPaths = !this.snapToPaths;
+    this.uiActions.saveValueFor(StoredValue.FOLLOW_SNAP_TO_PATHS, this.snapToPaths);
   }
 
   toggleDirectionsOnMap(): void {
@@ -2408,7 +2438,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       try {
         const left = map.containerPointToLatLng(L.point(0, 0));
         const right = map.containerPointToLatLng(L.point(100, 0));
-        this.mapScale = followMapScaleBar(map.distance(left, right) / 100);
+        this.mapScale = followMapScaleBar(map.distance(left, right) / 100, this.distanceUnit);
         this.gridReference = this.hudGridReference();
       } catch {
         this.mapScale = {label: "", midLabel: "", widthPx: 0};
@@ -2453,7 +2483,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
           this.expandSheet();
         } else {
           this.followUser = true;
-          this.followService.startFollowing();
+          this.followService.startFollowing(this.rememberedProgressMetres());
           this.minimiseSheet();
           void this.requestWakeLock();
         }
@@ -2659,6 +2689,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       }
       this.draftRouteTitle = null;
       this.draftRouteDescription = null;
+      this.cancelPendingPathSnaps();
       this.draftPoints = [];
       this.editVertices = [];
       this.editTool = RouteFollowEditTool.PENCIL;
@@ -2926,6 +2957,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   async saveRoute(asNew = false): Promise<void> {
+    await this.pathSnapQueue;
     const recovered = await this.followService.flushRecording();
     const recorded = this.followService.trackPoints();
     if (!recovered) {
@@ -2978,6 +3010,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
           this.saveAsNewRecordingId = null;
           this.routeSave.clearQueuedWebsiteSave(payload, recorded, asNew, saveAsNewRecordingId);
           this.rememberSavedStyle(this.payload);
+          this.cancelPendingPathSnaps();
           this.draftPoints = [];
           this.editVertices = [];
           this.clearEditHandles();
@@ -3085,6 +3118,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     } else {
       this.editVertices = this.draftPoints.map(point => ({...point}));
     }
+    this.cancelPendingPathSnaps();
     this.followService.replaceTrack(this.editVertices);
     this.followService.startEditing();
     this.refreshEditHandles();
@@ -3320,9 +3354,55 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     }
   }
 
-  private insertOffRouteVertex(click: {latitude: number; longitude: number}): void {
+  private pathPlacementFor(click: {latitude: number; longitude: number}): RouteFollowPathPlacement {
     const afterIndex = this.drawingNewLine ? this.editVertices.length - 1 : editExtendAfterIndex(this.editVertices, click);
-    this.insertEditVertex(click, afterIndex);
+    return {
+      afterIndex,
+      atStart: afterIndex === -1 && this.editVertices.length > 0,
+      atEnd: afterIndex >= 0 && afterIndex === this.editVertices.length - 1
+    };
+  }
+
+  private insertOffRouteVertex(click: {latitude: number; longitude: number}): void {
+    const placement = this.pathPlacementFor(click);
+    if (this.snapToPaths && (placement.atStart || placement.atEnd)) {
+      const generation = this.pathSnapGeneration;
+      this.pathSnapQueue = this.pathSnapQueue
+        .then(() => this.insertPathTo(click, generation))
+        .catch(error => this.logger.error("insertPathTo failed", error));
+    } else {
+      this.insertEditVertex(click, placement.afterIndex);
+    }
+  }
+
+  private cancelPendingPathSnaps(): void {
+    this.pathSnapGeneration++;
+    this.snappingToPath = false;
+  }
+
+  private async insertPathTo(click: {latitude: number; longitude: number}, generation: number): Promise<void> {
+    const placement = this.pathPlacementFor(click);
+    const vertices = this.editVertices;
+    const anchor = placement.atStart ? vertices[0] : vertices[placement.afterIndex];
+    if (generation !== this.pathSnapGeneration) {
+      this.logger.info("insertPathTo: editing ended before this point was added");
+    } else if (!anchor || !(placement.atStart || placement.atEnd)) {
+      this.insertEditVertex(click, placement.afterIndex);
+    } else {
+      this.snappingToPath = true;
+      const path = placement.atStart ? await this.walkingPaths.pathBetween(click, anchor) : await this.walkingPaths.pathBetween(anchor, click);
+      this.snappingToPath = false;
+      if (generation !== this.pathSnapGeneration) {
+        this.logger.info("insertPathTo: editing ended while the path was being found");
+      } else if (!path || this.editVertices !== vertices) {
+        this.persistMessage = path ? this.persistMessage : "No path found there, so a straight line was added.";
+        this.insertEditVertex(click, this.pathPlacementFor(click).afterIndex);
+      } else if (placement.atStart) {
+        this.insertEditVertices(path.slice(0, -1), -1);
+      } else {
+        this.insertEditVertices(path.slice(1), placement.afterIndex);
+      }
+    }
   }
 
   private deleteVertexNear(containerPoint: L.Point): void {
@@ -3340,9 +3420,13 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private insertEditVertex(point: {latitude: number; longitude: number}, afterIndex: number): void {
+    this.insertEditVertices([point], afterIndex);
+  }
+
+  private insertEditVertices(points: {latitude: number; longitude: number}[], afterIndex: number): void {
     this.editVertices = [
       ...this.editVertices.slice(0, afterIndex + 1),
-      point,
+      ...points,
       ...this.editVertices.slice(afterIndex + 1)
     ];
     this.followService.replaceTrack(this.editVertices);
@@ -3499,7 +3583,32 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
         const stored = this.uiActions.saveValueFor(StoredValue.FOLLOW_SESSION, this.followSessionSnapshot());
         this.sessionStorageError = stored ? null : "This phone could not save your current session. Keep the app open and save your recorded route before leaving it.";
       }
+      this.rememberProgress();
     }
+  }
+
+  private routeProgressKey(): string | null {
+    const route = this.payload;
+    const identity = route ? [route.routeId, route.walkId, route.path, route.ramblersSlug, route.osMapsRouteId, route.routeNumber].find(value => !!value) : null;
+    return identity ? `${identity}:${this.trackIndex()}` : null;
+  }
+
+  private trackIndex(): number {
+    return Number(this.route.snapshot.queryParamMap.get(StoredValue.TRACK)) || 0;
+  }
+
+  private rememberProgress(): void {
+    const routeKey = this.progress?.mode === RouteFollowMode.FOLLOWING && this.progress.snap ? this.routeProgressKey() : null;
+    if (routeKey) {
+      const remembered: RouteFollowRememberedProgress = {routeKey, completedMetres: this.progress.completedMetres, savedAt: this.dateUtils.dateTimeNowAsValue()};
+      this.uiActions.saveValueFor(StoredValue.FOLLOW_REMEMBERED_PROGRESS, remembered);
+    }
+  }
+
+  private rememberedProgressMetres(): number | null {
+    const remembered = this.uiActions.initialObjectValueFor<RouteFollowRememberedProgress>(StoredValue.FOLLOW_REMEMBERED_PROGRESS, null);
+    const fresh = remembered && this.dateUtils.dateTimeNowAsValue() - remembered.savedAt < ROUTE_FOLLOW_PROGRESS_MEMORY_HOURS * 60 * 60 * 1000;
+    return fresh && remembered.routeKey === this.routeProgressKey() ? remembered.completedMetres : null;
   }
 
   private clearFollowSession(): void {
@@ -3525,7 +3634,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       previewSpeed: this.previewSpeed,
       previewMetres: this.followService.previewProgressMetres(),
       visitedWaypointIds: this.followService.visitedIds(),
-      trackIndex: Number(this.route.snapshot.queryParamMap.get(StoredValue.TRACK)) || 0,
+      trackIndex: this.trackIndex(),
       via: this.via,
       mapCenter: center ? {latitude: center.lat, longitude: center.lng} : null,
       mapZoom: this.mapRef?.getZoom() ?? this.restoredMapView?.zoom ?? null,

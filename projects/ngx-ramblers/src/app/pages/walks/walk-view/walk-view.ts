@@ -89,6 +89,7 @@ import { MobileAppAction } from "../../../models/walks-config.model";
 import { MobileAppAccessService } from "../../../services/maps/mobile-app-access.service";
 import { RouteFollowPayloadService } from "../../../services/maps/route-follow-payload.service";
 import { generateUid } from "../../../functions/numbers";
+import { deviceCanRecordRoutes } from "../../../functions/route-recording-device";
 
 @Component({
   selector: "app-walk-view",
@@ -197,8 +198,10 @@ import { generateUid } from "../../../functions/numbers";
                          [notify]="notify"></div>
                   }
                   @if (mapFullScreen) {
-                    <ng-container *ngTemplateOutlet="mapDisplayControls"/>
-                    <ng-container *ngTemplateOutlet="followThisRoute"/>
+                    <div slot="bar-actions" class="map-full-screen-walk-actions">
+                      <ng-container *ngTemplateOutlet="mapDisplayControls"/>
+                      <ng-container *ngTemplateOutlet="followThisRoute"/>
+                    </div>
                   }
                 </app-maximisable-map>
                 @if (!mapFullScreen) {
@@ -342,6 +345,17 @@ import { generateUid } from "../../../functions/numbers";
               <fa-icon [icon]="faRoute"/>
               <span>Record this route</span>
             </button>
+          } @else if (canPlotRoute()) {
+            <button type="button" (click)="plotRoute()"
+                    tooltip="Plot this route on the map"
+                    container="body"
+                    [delay]="tooltipShowDelay"
+                    [adaptivePosition]="false"
+                    placement="top"
+                    class="btn btn-primary walk-view-action walk-view-action-follow">
+              <fa-icon [icon]="faRoute"/>
+              <span>Plot this route</span>
+            </button>
           }
         </ng-template>
         <div class="walk-meta-footer" [class.d-none]="mapExpanded">
@@ -480,7 +494,7 @@ export class WalkViewComponent implements OnInit, OnDestroy {
   private payloadService = inject(RouteFollowPayloadService);
 
   showWalkViewActions(): boolean {
-    return !!(this.allowWalkAdminEdits || this.displayedWalk?.walkAccessMode?.walkWritable || this.showPublishToRamblers || this.canShareWalk() || this.canFollowRoute() || this.canRecordRoute());
+    return !!(this.allowWalkAdminEdits || this.displayedWalk?.walkAccessMode?.walkWritable || this.showPublishToRamblers || this.canShareWalk() || this.canFollowRoute() || this.canRecordRoute() || this.canPlotRoute());
   }
 
   canFollowRoute(): boolean {
@@ -489,8 +503,17 @@ export class WalkViewComponent implements OnInit, OnDestroy {
 
   canRecordRoute(): boolean {
     return this.loggedIn && this.mobileAccess.allowed(MobileAppAction.RECORD)
+      && deviceCanRecordRoutes()
       && !this.canFollowRoute()
       && this.payloadService.walkHasStart(this.displayedWalk?.walk);
+  }
+
+  canPlotRoute(): boolean {
+    const walk = this.displayedWalk?.walk;
+    return !deviceCanRecordRoutes()
+      && !this.canFollowRoute()
+      && this.payloadService.walkHasStart(walk)
+      && (this.display.allowAdminEdits() || (!!walk && this.display.allowEdits(walk)));
   }
 
   canShareWalk(): boolean {
@@ -1049,6 +1072,10 @@ export class WalkViewComponent implements OnInit, OnDestroy {
 
   recordRoute() {
     this.openRouteFollow({[StoredValue.RECORD_ROUTE]: generateUid()});
+  }
+
+  plotRoute() {
+    this.openRouteFollow({[StoredValue.EDIT_ROUTE]: "true"});
   }
 
   private openRouteFollow(extraQuery: Record<string, string> = {}) {
