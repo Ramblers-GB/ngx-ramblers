@@ -19,11 +19,11 @@ describe("documentation link sweep", () => {
     expect(rewritten).toEqual("Open [**Admin → Members → Member Bulk Load**](/admin/members/member-bulk-load \"{{siteUrl}}\"). Go to [Mail Settings → Domains](/admin/mail-settings?tab=domains \"{{siteUrl}}\").");
     expect(rewriteDocumentationMarkdown(rewritten, context)).toEqual(rewritten);
     expect(rewriteDocumentationMarkdown("Open **Admin → Platform → Environment management → Site registrations**.", context))
-      .toEqual("Open [**Admin → Platform → Environment management → Site registrations**](/admin/platform/environment-management/registrations \"{{siteUrl}}\").");
+      .toEqual("Open [**Admin → Platform → Environment management → Site registrations**](/admin/platform-admin/registrations \"{{siteUrl}}\").");
     expect(rewriteDocumentationMarkdown("Platform administrators use <strong>Admin → Platform → Environment management → Site registrations</strong> to follow requests.", context))
-      .toEqual("Platform administrators use [Admin → Platform → Environment management → Site registrations](/admin/platform/environment-management/registrations \"{{siteUrl}}\") to follow requests.");
+      .toEqual("Platform administrators use [Admin → Platform → Environment management → Site registrations](/admin/platform-admin/registrations \"{{siteUrl}}\") to follow requests.");
     expect(rewriteDocumentationMarkdown("Turn on public registration under **Site registrations**.", context))
-      .toEqual("Turn on public registration under [**Site registrations**](/admin/platform/environment-management/registrations \"{{siteUrl}}\").");
+      .toEqual("Turn on public registration under [**Site registrations**](/admin/platform-admin/registrations \"{{siteUrl}}\").");
   });
 
   it("protects external consoles, platform operations, images, code fences and configuration examples", () => {
@@ -64,6 +64,6 @@ describe("documentation sweep compatibility", () => {
 
   it("aligns obsolete tabs and leaves platform destinations on the documentation host", () => {
     const markdown = "[Group](/admin/system-settings?tab=group-details) [Queue](/admin/mail-settings?tab=campaign-queue) [Platform](/admin/environment-management)";
-    expect(rewriteDocumentationMarkdown(markdown, context)).toEqual("[Group](/admin/settings/system-settings?tab=area-group \"{{siteUrl}}\") [Queue](/admin/settings/system-settings?tab=scheduled-tasks&task-sub-tab=brevo \"{{siteUrl}}\") [Platform](/admin/platform/environment-management \"{{siteUrl}}\")");
+    expect(rewriteDocumentationMarkdown(markdown, context)).toEqual("[Group](/admin/settings/system-settings?tab=area-group \"{{siteUrl}}\") [Queue](/admin/settings/system-settings?tab=scheduled-tasks&task-sub-tab=brevo \"{{siteUrl}}\") [Platform](/admin/platform-admin \"{{siteUrl}}\")");
   });
 });

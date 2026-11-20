@@ -97,6 +97,6 @@ export class EnvironmentHostingComponent implements OnInit, OnDestroy {
   }
 
   private exit() {
-    this.urlService.navigateTo([AdminPlatformPath.ENVIRONMENT_MANAGEMENT]);
+    this.urlService.navigateTo([AdminPlatformPath.ROOT]);
   }
 }

@@ -31,7 +31,8 @@ export enum AdminPath {
 
 export enum LegacyAdminPath {
   FRAGMENT_INDEX = "admin/fragment-index",
-  CONTRIBUTOR_ENVIRONMENT = "admin/platform/contributor-environment"
+  CONTRIBUTOR_ENVIRONMENT = "admin/platform/contributor-environment",
+  ENVIRONMENT_MANAGEMENT = "admin/environment-management"
 }
 
 export function adminRelativePath(fullPath: string): string {
@@ -80,6 +81,25 @@ export enum AdminSettingsPath {
 }
 
 export enum AdminPlatformPath {
+  ROOT = "admin/platform-admin",
+  CLOUDFLARE_WORKERS = "admin/platform-admin/cloudflare-workers",
+  ENVIRONMENT_MANAGEMENT_REGISTRATIONS = "admin/platform-admin/registrations",
+  ENVIRONMENT_MANAGEMENT_SETUP = "admin/platform-admin/setup",
+  ENVIRONMENT_MANAGEMENT_BACKUP = "admin/platform-admin/backup",
+  ENVIRONMENT_MANAGEMENT_MIGRATION = "admin/platform-admin/migration",
+  ENVIRONMENT_MANAGEMENT_MOVE_BREVO = "admin/platform-admin/move-brevo",
+  ENVIRONMENT_MANAGEMENT_HEALTH = "admin/platform-admin/health",
+  ENVIRONMENT_MANAGEMENT_MAINTENANCE = "admin/platform-admin/maintenance",
+  ENVIRONMENT_MANAGEMENT_ATLAS = "admin/platform-admin/atlas",
+  ENVIRONMENT_MANAGEMENT_AWS = "admin/platform-admin/aws",
+  ENVIRONMENT_MANAGEMENT_HOSTING = "admin/platform-admin/hosting",
+  ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP = "admin/platform-admin/collection-cleanup",
+  ENVIRONMENT_MANAGEMENT_ESTATE_REBUILD = "admin/platform-admin/estate-rebuild-capture",
+  LITE_TEMPLATES = "admin/platform-admin/lite-templates",
+  SYSTEM_LOGS = "admin/platform-admin/system-logs",
+}
+
+export enum LegacyAdminPlatformPath {
   CLOUDFLARE_WORKERS = "admin/platform/cloudflare-workers",
   ROOT = "admin/platform",
   ENVIRONMENT_MANAGEMENT = "admin/platform/environment-management",
@@ -99,9 +119,30 @@ export enum AdminPlatformPath {
   SYSTEM_LOGS = "admin/platform/system-logs",
 }
 
+export const LEGACY_PLATFORM_PATH_REDIRECTS: Record<LegacyAdminPlatformPath, AdminPlatformPath> = {
+  [LegacyAdminPlatformPath.CLOUDFLARE_WORKERS]: AdminPlatformPath.CLOUDFLARE_WORKERS,
+  [LegacyAdminPlatformPath.ROOT]: AdminPlatformPath.ROOT,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT]: AdminPlatformPath.ROOT,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_REGISTRATIONS]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_REGISTRATIONS,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_SETUP]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_SETUP,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_BACKUP]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_BACKUP,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_MIGRATION]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MIGRATION,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_MOVE_BREVO]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MOVE_BREVO,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_MAINTENANCE]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MAINTENANCE,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_ATLAS]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_ATLAS,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_AWS]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_AWS,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_HOSTING]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HOSTING,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP,
+  [LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_ESTATE_REBUILD]: AdminPlatformPath.ENVIRONMENT_MANAGEMENT_ESTATE_REBUILD,
+  [LegacyAdminPlatformPath.LITE_TEMPLATES]: AdminPlatformPath.LITE_TEMPLATES,
+  [LegacyAdminPlatformPath.SYSTEM_LOGS]: AdminPlatformPath.SYSTEM_LOGS
+};
+
 export const ADMIN_PATH_REDIRECTS: Record<LegacyAdminPath, string> = {
   [LegacyAdminPath.FRAGMENT_INDEX]: AdminContentPath.CONTENT_TEMPLATES,
-  [LegacyAdminPath.CONTRIBUTOR_ENVIRONMENT]: AdminPath.CONTRIBUTOR_ENVIRONMENT
+  [LegacyAdminPath.CONTRIBUTOR_ENVIRONMENT]: AdminPath.CONTRIBUTOR_ENVIRONMENT,
+  [LegacyAdminPath.ENVIRONMENT_MANAGEMENT]: AdminPlatformPath.ROOT
 };
 
 const NGX_LITE_ADMIN_PATHS: string[] = [

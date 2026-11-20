@@ -87,11 +87,14 @@ export function environmentHealthFromFindings(input: {
   pendingMigrations: number;
   failedMigrations: boolean;
   machineHealthStatus?: HealthStatus;
+  asleep?: boolean;
 }): EnvironmentHealthCheckStatus {
   const fails = input.findings.filter(finding => finding.severity === EnvironmentHealthFindingSeverity.FAIL);
   const warnings = input.findings.filter(finding => finding.severity === EnvironmentHealthFindingSeverity.WARNING);
   const publicFailed = fails.some(finding => finding.name === EnvironmentHealthCheckName.PUBLIC_HTTP);
-  if (publicFailed) {
+  if (input.asleep) {
+    return fails.length > 0 ? EnvironmentHealthCheckStatus.DEGRADED : EnvironmentHealthCheckStatus.SLEEPING;
+  } else if (publicFailed) {
     return EnvironmentHealthCheckStatus.UNREACHABLE;
   } else if (input.failedMigrations || warnings.length > 0 || fails.length > 0) {
     return EnvironmentHealthCheckStatus.DEGRADED;

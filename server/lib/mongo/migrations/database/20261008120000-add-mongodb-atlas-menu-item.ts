@@ -2,10 +2,10 @@ import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
 import { ensureActionButton } from "../shared/page-content-actions";
 import { ATLAS_MENU_ITEM } from "../shared/admin-menu-items";
-import { AdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
+import { LegacyAdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 
 const debugLog = createMigrationLogger("add-mongodb-atlas-menu-item");
-const TARGET_PATH = `${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
+const TARGET_PATH = `${LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
 
 export async function up(db: Db, _client: MongoClient) {
   debugLog("Adding MongoDB Atlas menu item to environment management action buttons");

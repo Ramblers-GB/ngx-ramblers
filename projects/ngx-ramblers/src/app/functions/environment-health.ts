@@ -6,6 +6,7 @@ export function environmentHealthSummary(environments: EnvironmentHealthCheck[],
     healthy: environments.filter(environment => environment.checkStatus === EnvironmentHealthCheckStatus.HEALTHY).length,
     degraded: environments.filter(environment => environment.checkStatus === EnvironmentHealthCheckStatus.DEGRADED).length,
     unreachable: environments.filter(environment => environment.checkStatus === EnvironmentHealthCheckStatus.UNREACHABLE).length,
-    pending: environments.filter(environment => environment.checkStatus === EnvironmentHealthCheckStatus.PENDING).length
+    pending: environments.filter(environment => environment.checkStatus === EnvironmentHealthCheckStatus.PENDING).length,
+    sleeping: environments.filter(environment => environment.checkStatus === EnvironmentHealthCheckStatus.SLEEPING).length
   };
 }

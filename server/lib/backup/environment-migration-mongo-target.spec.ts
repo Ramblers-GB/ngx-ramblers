@@ -5,7 +5,7 @@ import * as environmentsConfig from "../environments/environments-config";
 import * as atlasClusters from "../environment-setup/atlas-clusters";
 import * as mongoDatabaseUser from "../environment-setup/mongo-database-user";
 import { AtlasClusterState, AtlasClusterTier, AtlasClusterView } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
-import { provisionMigrationMongoTarget, provisionMigrationMongoTargetRequest, secretsAfterMongoRotation, storedMongoUriConflict } from "./environment-migration-mongo-target";
+import { provisionMigrationMongoTarget, provisionMigrationMongoTargetRequest, secretsAfterRotation, storedMongoUriConflict } from "./environment-migration-mongo-target";
 import { Request, Response } from "express";
 
 describe("migration MongoDB target provisioning", () => {
@@ -96,12 +96,18 @@ describe("migration source matches the live database", () => {
   });
 
   it("points a stored MONGODB_URI at the new cluster on rotation so a later deploy does not move the site back", () => {
-    const rotated = secretsAfterMongoRotation({MONGODB_URI: "mongodb+srv://old", AUTH_SECRET: "fictional"}, "mongodb+srv://new");
+    const rotated = secretsAfterRotation({MONGODB_URI: "mongodb+srv://old", AUTH_SECRET: "fictional"}, {MONGODB_URI: "mongodb+srv://new"});
     expect(rotated).toEqual({MONGODB_URI: "mongodb+srv://new", AUTH_SECRET: "fictional"});
   });
 
   it("leaves secrets without a stored MONGODB_URI unchanged on rotation", () => {
-    expect(secretsAfterMongoRotation({AUTH_SECRET: "fictional"}, "mongodb+srv://new")).toEqual({AUTH_SECRET: "fictional"});
+    expect(secretsAfterRotation({AUTH_SECRET: "fictional"}, {MONGODB_URI: "mongodb+srv://new"})).toEqual({AUTH_SECRET: "fictional"});
+  });
+
+  it("points stored AWS secrets at the new bucket on rotation so a later deploy does not move the site back", () => {
+    const stored = {AWS_BUCKET: "hillside-old", AWS_REGION: "eu-west-1", AWS_ACCESS_KEY_ID: "OLDKEY", AWS_SECRET_ACCESS_KEY: "old-secret", AUTH_SECRET: "fictional"};
+    const rotated = secretsAfterRotation(stored, {AWS_BUCKET: "hillside-eu-west-2", AWS_REGION: "eu-west-2", AWS_ACCESS_KEY_ID: "NEWKEY", AWS_SECRET_ACCESS_KEY: "new-secret"});
+    expect(rotated).toEqual({AWS_BUCKET: "hillside-eu-west-2", AWS_REGION: "eu-west-2", AWS_ACCESS_KEY_ID: "NEWKEY", AWS_SECRET_ACCESS_KEY: "new-secret", AUTH_SECRET: "fictional"});
   });
 });
 

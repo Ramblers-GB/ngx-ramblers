@@ -14,6 +14,7 @@ import {
 } from "../../../projects/ngx-ramblers/src/app/models/aws-s3-inventory.model";
 import { AWS_DEFAULTS, AwsConfig, AwsRegion, awsRegionFromAny } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { backupArchiveBucketName, generateDestinationBucketName } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
+import { configuredSiteLinks, configuredSiteUrl } from "../../../projects/ngx-ramblers/src/app/functions/environment-site-url";
 import { adminConfigFromEnvironment, createS3Client, createStsClient, s3RegionFromLocationConstraint } from "./aws-setup";
 
 const debugLog = debug(envConfig.logNamespace("aws-s3-inventory"));
@@ -141,6 +142,7 @@ export async function awsS3InventoryView(): Promise<AwsS3InventoryView> {
           kind,
           environmentNames: envNames.join(", "),
           environments: envNames,
+          sites: configuredSiteLinks(config, envNames),
           status,
           statusRank: AWS_S3_STATUS_RANK[status],
           migrateEnvironment
@@ -154,6 +156,7 @@ export async function awsS3InventoryView(): Promise<AwsS3InventoryView> {
         const status = environmentMigrationStatus(inRamblersAccount, region, isArchive, !!environment.bucket);
         return {
           environment: environment.environment,
+          siteUrl: configuredSiteUrl(config, environment.environment),
           bucket: environment.bucket,
           region,
           inRamblersAccount,

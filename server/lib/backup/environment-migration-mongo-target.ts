@@ -1,3 +1,4 @@
+import { keys } from "es-toolkit/compat";
 import { generateUid } from "../../../projects/ngx-ramblers/src/app/functions/numbers";
 import { Request, Response } from "express";
 import { configuredEnvironments } from "../environments/environments-config";
@@ -7,7 +8,6 @@ import { AtlasClusterState } from "../../../projects/ngx-ramblers/src/app/models
 import { EnvironmentMigrationMongoProvisionRequest, EnvironmentMigrationMongoTarget } from "../../../projects/ngx-ramblers/src/app/models/environment-migration.model";
 import { createErrorDebugLog } from "../shared/error-debug-log";
 import { EnvironmentConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { storedMongoUri } from "../shared/stored-mongo-uri";
 
 const errorDebugLog = createErrorDebugLog("environment-migration-mongo-target");
@@ -59,6 +59,7 @@ export function storedMongoUriConflict(environmentConfig: EnvironmentConfig | nu
   }
 }
 
-export function secretsAfterMongoRotation(secrets: Record<string, string> | undefined, targetUri: string): Record<string, string> | undefined {
-  return secrets?.[Environment.MONGODB_URI] ? {...secrets, [Environment.MONGODB_URI]: targetUri} : secrets;
+export function secretsAfterRotation(secrets: Record<string, string> | undefined, rotated: Record<string, string>): Record<string, string> | undefined {
+  const replaced = keys(rotated).filter(key => secrets?.[key]);
+  return secrets && replaced.length ? replaced.reduce((result, key) => ({...result, [key]: rotated[key]}), secrets) : secrets;
 }

@@ -11,13 +11,13 @@ import {
   SETTINGS_MENU_ITEMS
 } from "../shared/admin-menu-items";
 import { pullBannersOntoAdminLanding, renameSendNotificationToEmailComposer } from "../shared/admin-menu-actions";
-import { AdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
+import { LegacyAdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 
 const debugLog = createMigrationLogger("reapply-admin-menu-fixes");
 
 const ADMIN_PATH = "admin#action-buttons";
 const MEMBERS_PATH = "admin/members#action-buttons";
-const ENVIRONMENT_MANAGEMENT_PATH = `${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
+const ENVIRONMENT_MANAGEMENT_PATH = `${LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
 const BUTTON_DETAIL_SYNCS: { path: string; items: typeof MEMBERS_MENU_ITEMS }[] = [
   { path: ADMIN_PATH, items: ADMIN_CATEGORY_MENU_ITEMS },
   { path: "admin/profile#action-buttons", items: PROFILE_MENU_ITEMS },

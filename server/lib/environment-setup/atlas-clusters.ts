@@ -51,6 +51,7 @@ import {
 import { atlasProjectForCluster } from "./atlas-projects";
 import { platformAtlasAccess } from "./mongo-database-user";
 import { storedMongoUri } from "../shared/stored-mongo-uri";
+import { configuredSiteUrl } from "../../../projects/ngx-ramblers/src/app/functions/environment-site-url";
 
 const debugLog = debug(envConfig.logNamespace("atlas-clusters"));
 debugLog.enabled = true;
@@ -156,6 +157,7 @@ async function environmentRows(config: EnvironmentsConfig): Promise<AtlasCluster
     const mongo = environment.mongo || {};
     const row: AtlasClusterEnvironmentRow = {
       environment: environment.environment,
+      siteUrl: configuredSiteUrl(config, environment.environment),
       cluster: mongo.cluster || "",
       clusterName: "",
       projectId: environment.consoleAccess?.[ConsoleAccessService.MONGODB_ATLAS]?.identifiers?.projectId || "",
@@ -247,7 +249,14 @@ function rollupClusters(
   });
   return Array.from(byHost.values()).map(cluster => {
     const capacity = clusterCapacity(cluster.instanceSize, cluster.collectionCount, cluster.indexCount, cluster.databaseCount, templateCollections, templateIndexes);
-    return {...cluster, environmentNames: rows.filter(row => row.cluster === cluster.host).map(row => row.environment).sort().join(", "), canAddEnvironment: capacity.canAdd, limitHeadline: capacity.headline};
+    const clusterRows = rows.filter(row => row.cluster === cluster.host).sort((left, right) => left.environment.localeCompare(right.environment));
+    return {
+      ...cluster,
+      environmentNames: clusterRows.map(row => row.environment).join(", "),
+      sites: clusterRows.map(row => ({environment: row.environment, url: row.siteUrl})),
+      canAddEnvironment: capacity.canAdd,
+      limitHeadline: capacity.headline
+    };
   }).sort((left, right) => left.host.localeCompare(right.host));
 }
 

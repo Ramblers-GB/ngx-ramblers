@@ -1,4 +1,4 @@
-import { AwsRegion } from "./environment-config.model";
+import { AwsRegion, EnvironmentSiteLink } from "./environment-config.model";
 
 export enum AwsS3MigrationStatus {
   NOT_MIGRATED = "not-migrated",
@@ -43,6 +43,7 @@ export interface AwsS3BucketRow {
   kind: AwsS3BucketKind;
   environmentNames: string;
   environments: string[];
+  sites: EnvironmentSiteLink[];
   status: AwsS3MigrationStatus;
   statusRank: number;
   migrateEnvironment: string | null;
@@ -50,6 +51,7 @@ export interface AwsS3BucketRow {
 
 export interface AwsS3EnvironmentRow {
   environment: string;
+  siteUrl: string;
   bucket: string;
   region: string | null;
   inRamblersAccount: boolean;
@@ -91,6 +93,16 @@ export function awsS3StatusLabel(status: AwsS3MigrationStatus): string {
     return "No bucket configured";
   } else {
     return "Not used by a site";
+  }
+}
+
+export function awsS3StatusBadgeClass(status: AwsS3MigrationStatus): string {
+  if (status === AwsS3MigrationStatus.MIGRATED) {
+    return "badge-mintcake";
+  } else if (status === AwsS3MigrationStatus.NOT_MIGRATED || status === AwsS3MigrationStatus.NO_BUCKET) {
+    return "badge-granite";
+  } else {
+    return "badge-cloudy";
   }
 }
 

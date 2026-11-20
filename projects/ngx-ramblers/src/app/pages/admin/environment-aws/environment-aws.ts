@@ -14,6 +14,7 @@ import {
   AwsS3BucketKind,
   AwsS3InventoryView,
   AwsS3MigrationStatus,
+  awsS3StatusBadgeClass,
   awsS3StatusLabel,
   EnvironmentAwsTab
 } from "../../../models/aws-s3-inventory.model";
@@ -38,6 +39,7 @@ import { EnvironmentSetupService } from "../../../services/environment-setup/env
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { NotifierService } from "../../../services/notifier.service";
 import { AlertTarget } from "../../../models/alert-target.model";
+import { EnvironmentSiteLinksComponent } from "../../../modules/common/environment-site-links/environment-site-links";
 
 @Component({
   selector: "app-environment-aws",
@@ -51,6 +53,7 @@ import { AlertTarget } from "../../../models/alert-target.model";
     SortableTableCellDirective,
     VendorBrandMarkComponent,
     ConsoleAccessLinksComponent,
+    EnvironmentSiteLinksComponent,
     TooltipDirective
   ],
   styles: [`
@@ -196,6 +199,9 @@ import { AlertTarget } from "../../../models/alert-target.model";
               [defaultSortKey]="bucketSortKey"
               [defaultSortDirection]="bucketSortDirection"
               [trackBy]="trackBucket"
+              filterable
+              fillWindow
+              [filterStoredValue]="StoredValue.AWS_BUCKET_FILTER"
               emptyMessage="No buckets listed yet. Add the Ramblers NGX setup keys, or site buckets will appear here from environment configuration."
               (sortChange)="bucketSortChanged($event)">
               <ng-template [appSortableTableCell]="AwsS3BucketSortField.NAME" let-row>
@@ -214,10 +220,10 @@ import { AlertTarget } from "../../../models/alert-target.model";
                 {{ kindLabel(row.kind) }}
               </ng-template>
               <ng-template [appSortableTableCell]="AwsS3BucketSortField.ENVIRONMENTS" let-row>
-                {{ row.environmentNames || "—" }}
+                <app-environment-site-links [sites]="row.sites"/>
               </ng-template>
               <ng-template [appSortableTableCell]="AwsS3BucketSortField.STATUS" let-row>
-                <span [class.text-danger]="row.status === AwsS3MigrationStatus.NOT_MIGRATED">{{ awsS3StatusLabel(row.status) }}</span>
+                <span class="text-nowrap" [class]="awsS3StatusBadgeClass(row.status)">{{ awsS3StatusLabel(row.status) }}</span>
               </ng-template>
               <ng-template [appSortableTableCell]="'actions'" let-row>
                 @if (row.migrateEnvironment) {
@@ -245,10 +251,13 @@ import { AlertTarget } from "../../../models/alert-target.model";
               [defaultSortKey]="environmentSortKey"
               [defaultSortDirection]="environmentSortDirection"
               [trackBy]="trackEnvironment"
+              filterable
+              fillWindow
+              [filterStoredValue]="StoredValue.AWS_ENVIRONMENT_FILTER"
               [emptyMessage]="loading ? 'Waiting for environment data…' : 'No environments in platform configuration.'"
               (sortChange)="environmentSortChanged($event)">
               <ng-template [appSortableTableCell]="AwsS3EnvironmentSortField.ENVIRONMENT" let-row>
-                {{ row.environment }}
+                <app-environment-site-links [sites]="[{environment: row.environment, url: row.siteUrl}]"/>
               </ng-template>
               <ng-template [appSortableTableCell]="AwsS3EnvironmentSortField.BUCKET" let-row>
                 {{ row.bucket || "—" }}
@@ -266,7 +275,7 @@ import { AlertTarget } from "../../../models/alert-target.model";
                 {{ row.expectedLondonBucket }}
               </ng-template>
               <ng-template [appSortableTableCell]="AwsS3EnvironmentSortField.STATUS" let-row>
-                <span [class.text-danger]="row.status === AwsS3MigrationStatus.NOT_MIGRATED || row.status === AwsS3MigrationStatus.NO_BUCKET">{{ awsS3StatusLabel(row.status) }}</span>
+                <span class="text-nowrap" [class]="awsS3StatusBadgeClass(row.status)">{{ awsS3StatusLabel(row.status) }}</span>
               </ng-template>
               <ng-template [appSortableTableCell]="'actions'" let-row>
                 @if (row.status === AwsS3MigrationStatus.NOT_MIGRATED || row.status === AwsS3MigrationStatus.NO_BUCKET) {
@@ -299,11 +308,13 @@ export class EnvironmentAwsComponent implements OnInit, OnDestroy {
   protected readonly faArrowsRotate = faArrowsRotate;
   protected readonly faExchangeAlt = faExchangeAlt;
   protected readonly AdminPlatformPath = AdminPlatformPath;
+  protected readonly StoredValue = StoredValue;
   protected readonly EnvironmentAwsTab = EnvironmentAwsTab;
   protected readonly AwsS3BucketSortField = AwsS3BucketSortField;
   protected readonly AwsS3EnvironmentSortField = AwsS3EnvironmentSortField;
   protected readonly AwsS3MigrationStatus = AwsS3MigrationStatus;
   protected readonly awsS3StatusLabel = awsS3StatusLabel;
+  protected readonly awsS3StatusBadgeClass = awsS3StatusBadgeClass;
   protected readonly awsRegionLabel = awsRegionLabel;
   protected readonly environmentSetupGlobalQueryParams = {
     [StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS),
@@ -321,19 +332,19 @@ export class EnvironmentAwsComponent implements OnInit, OnDestroy {
 
   bucketColumns: SortableTableColumn<AwsS3BucketRow>[] = [
     {key: AwsS3BucketSortField.NAME, label: "Bucket", sortKey: AwsS3BucketSortField.NAME},
-    {key: AwsS3BucketSortField.REGION, label: "Region", sortKey: AwsS3BucketSortField.REGION, cellClass: "text-nowrap"},
-    {key: AwsS3BucketSortField.KIND, label: "Use", sortKey: AwsS3BucketSortField.KIND},
-    {key: AwsS3BucketSortField.ENVIRONMENTS, label: "Sites", sortKey: AwsS3BucketSortField.ENVIRONMENTS},
-    {key: AwsS3BucketSortField.STATUS, label: "London move", sortKey: AwsS3BucketSortField.STATUS},
+    {key: AwsS3BucketSortField.REGION, label: "Region", sortKey: AwsS3BucketSortField.REGION, cellClass: "text-nowrap", filterText: row => awsRegionLabel(row.region)},
+    {key: AwsS3BucketSortField.KIND, label: "Use", sortKey: AwsS3BucketSortField.KIND, filterText: row => this.kindLabel(row.kind)},
+    {key: AwsS3BucketSortField.ENVIRONMENTS, label: "Sites", sortKey: AwsS3BucketSortField.ENVIRONMENTS, filterValues: row => row.environments},
+    {key: AwsS3BucketSortField.STATUS, label: "London move", sortKey: AwsS3BucketSortField.STATUS, filterText: row => awsS3StatusLabel(row.status)},
     {key: "actions", label: "", cellClass: "text-nowrap"}
   ];
 
   environmentColumns: SortableTableColumn<AwsS3EnvironmentRow>[] = [
     {key: AwsS3EnvironmentSortField.ENVIRONMENT, label: "Environment", sortKey: AwsS3EnvironmentSortField.ENVIRONMENT},
     {key: AwsS3EnvironmentSortField.BUCKET, label: "Current bucket", sortKey: AwsS3EnvironmentSortField.BUCKET},
-    {key: AwsS3EnvironmentSortField.REGION, label: "Region", sortKey: AwsS3EnvironmentSortField.REGION, cellClass: "text-nowrap"},
+    {key: AwsS3EnvironmentSortField.REGION, label: "Region", sortKey: AwsS3EnvironmentSortField.REGION, cellClass: "text-nowrap", filterText: row => awsRegionLabel(row.region)},
     {key: AwsS3EnvironmentSortField.EXPECTED, label: "London bucket", sortKey: AwsS3EnvironmentSortField.EXPECTED},
-    {key: AwsS3EnvironmentSortField.STATUS, label: "London move", sortKey: AwsS3EnvironmentSortField.STATUS},
+    {key: AwsS3EnvironmentSortField.STATUS, label: "London move", sortKey: AwsS3EnvironmentSortField.STATUS, filterText: row => awsS3StatusLabel(row.status)},
     {key: "actions", label: "", cellClass: "text-nowrap"}
   ];
 

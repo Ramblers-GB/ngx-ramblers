@@ -1,4 +1,5 @@
 import debug from "debug";
+import { siteUrlForEnvironment } from "../../../projects/ngx-ramblers/src/app/functions/environment-site-url";
 import { ensureCollectionIndexesInDatabase, indexExistingCollections } from "../mongo/utils/collection-indexes";
 import { pluraliseWithCount } from "../shared/string-utils";
 import { toPairs, keys } from "es-toolkit/compat";
@@ -37,8 +38,7 @@ debugLog.enabled = true;
 
 export async function environmentSiteUrl(environmentName: string, appName: string): Promise<string> {
   const environmentsConfig = await configuredEnvironments();
-  const baseDomain = environmentsConfig?.cloudflare?.baseDomain;
-  return baseDomain ? `https://${environmentName}.${baseDomain}` : `https://${appName}.fly.dev`;
+  return siteUrlForEnvironment(environmentName, appName, environmentsConfig?.cloudflare?.baseDomain);
 }
 
 export function toGroupShortName(groupName: string): string {

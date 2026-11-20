@@ -10,7 +10,7 @@ import { seedAdminMenuStructure } from "../shared/seed-admin-menu";
 import {
   AdminContentPath,
   AdminPath,
-  AdminPlatformPath
+  LegacyAdminPlatformPath
 } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 
 const debugLog = createMigrationLogger("reorganise-admin-menu-into-categories");
@@ -20,11 +20,11 @@ const PAGE_CONTENT_COLLECTION = "pageContent";
 const ADMIN_PATH = "admin#action-buttons";
 const MEMBERS_PATH = "admin/members#action-buttons";
 const OLD_ENV_MGMT_PATH = "admin/environment-management#action-buttons";
-const NEW_ENV_MGMT_PATH = `${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
+const NEW_ENV_MGMT_PATH = `${LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
 const OLD_ENV_MGMT_HREF_PREFIX = "admin/environment-management/";
-const NEW_ENV_MGMT_HREF_PREFIX = `${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}/`;
+const NEW_ENV_MGMT_HREF_PREFIX = `${LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT}/`;
 const DUPLICATE_CONTENT_HREF = "admin/content/duplicate-page-content-navigator";
-const ENVIRONMENT_MAINTENANCE_HREF = AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MAINTENANCE;
+const ENVIRONMENT_MAINTENANCE_HREF = LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT_MAINTENANCE;
 const LEGACY_ADMIN_CONTENT_LINKS = [
   { from: "admin/page-content-navigator", to: AdminContentPath.PAGE_CONTENT_NAVIGATOR },
   { from: "admin/content-templates", to: AdminContentPath.CONTENT_TEMPLATES },
@@ -155,7 +155,7 @@ async function movePlatformAdministrationToEnd(db: Db): Promise<void> {
     return;
   }
   const columns: any[] = doc.rows[rowIndex].columns || [];
-  const platformIndex = columns.findIndex(column => column?.href === AdminPlatformPath.ROOT);
+  const platformIndex = columns.findIndex(column => column?.href === LegacyAdminPlatformPath.ROOT);
   if (platformIndex < 0 || platformIndex === columns.length - 1) {
     return;
   }

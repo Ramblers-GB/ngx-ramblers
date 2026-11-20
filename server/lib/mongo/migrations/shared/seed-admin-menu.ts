@@ -15,9 +15,8 @@ import {
 import {
   ADMIN_CATEGORY_MENU_ITEMS,
   CONTENT_MENU_ITEMS,
-  ENVIRONMENT_MANAGEMENT_MENU_ITEMS,
   MEMBERS_MENU_ITEMS,
-  PLATFORM_MENU_ITEMS,
+  PLATFORM_ADMIN_MENU_ITEMS,
   PROFILE_MENU_ITEMS,
   SETTINGS_MENU_ITEMS
 } from "./admin-menu-items";
@@ -30,8 +29,7 @@ const CATEGORY_PAGES: { path: string; items: ActionButtonColumn[] }[] = [
   { path: `${AdminMembersPath.ROOT}#action-buttons`, items: MEMBERS_MENU_ITEMS },
   { path: `${AdminContentPath.ROOT}#action-buttons`, items: CONTENT_MENU_ITEMS },
   { path: `${AdminSettingsPath.ROOT}#action-buttons`, items: SETTINGS_MENU_ITEMS },
-  { path: `${AdminPlatformPath.ROOT}#action-buttons`, items: PLATFORM_MENU_ITEMS },
-  { path: `${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`, items: ENVIRONMENT_MANAGEMENT_MENU_ITEMS }
+  { path: `${AdminPlatformPath.ROOT}#action-buttons`, items: PLATFORM_ADMIN_MENU_ITEMS }
 ];
 
 function actionButtonsDocument(path: string, columns: ActionButtonColumn[]) {

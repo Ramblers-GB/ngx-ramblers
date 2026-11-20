@@ -27,6 +27,12 @@ export interface FlyAppDetailsResponse {
   organization?: { slug: string };
 }
 
+export enum FlyMachineRunState {
+  STARTED = "started",
+  STOPPED = "stopped",
+  SUSPENDED = "suspended"
+}
+
 export interface FlyMachineSummary {
   id: string;
   state: string;

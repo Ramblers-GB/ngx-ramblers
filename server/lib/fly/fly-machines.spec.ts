@@ -2,7 +2,7 @@ import expect from "expect";
 import sinon from "sinon";
 import {afterEach, describe, it} from "mocha";
 import * as runtime from "./fly-runtime-config";
-import {setCurrentMachineSecrets} from "./fly-machines";
+import {flyMachinesAsleep, setCurrentMachineSecrets} from "./fly-machines";
 
 describe("Fly cutover secrets confirmation", () => {
   const sandbox = sinon.createSandbox();
@@ -23,5 +23,25 @@ describe("Fly cutover secrets confirmation", () => {
       fetchStub.onSecondCall().resolves(new Response(JSON.stringify({version: 9}), {status: 200}));
       expect((await setCurrentMachineSecrets({MONGODB_URI: "mongodb+srv://user:password@cluster.example.org.uk/database"})).ok).toBe(example.ok);
     });
+  });
+});
+
+describe("flyMachinesAsleep", () => {
+  it("is asleep when a machine is stopped or suspended and none is running", () => {
+    expect(flyMachinesAsleep([{id: "a", state: "suspended"}])).toEqual(true);
+    expect(flyMachinesAsleep([{id: "a", state: "stopped"}])).toEqual(true);
+  });
+
+  it("is awake when any machine is running", () => {
+    expect(flyMachinesAsleep([{id: "a", state: "started"}, {id: "b", state: "stopped"}])).toEqual(false);
+  });
+
+  it("is not asleep when there are no machines, so the site is still checked", () => {
+    expect(flyMachinesAsleep([])).toEqual(false);
+  });
+
+  it("is not asleep when the machine is in some other state, such as failed or replacing", () => {
+    expect(flyMachinesAsleep([{id: "a", state: "failed"}])).toEqual(false);
+    expect(flyMachinesAsleep([{id: "a", state: "replacing"}])).toEqual(false);
   });
 });

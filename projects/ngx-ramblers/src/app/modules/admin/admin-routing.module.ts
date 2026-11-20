@@ -22,7 +22,9 @@ import {
   AdminContentPath,
   AdminSettingsPath,
   AdminPlatformPath,
+  LEGACY_PLATFORM_PATH_REDIRECTS,
 } from "../../models/admin-route-paths.model";
+import { entries } from "es-toolkit/compat";
 
 const rp = adminRelativePath;
 
@@ -259,12 +261,6 @@ const rp = adminRelativePath;
     { path: "bookings", redirectTo: rp(AdminSettingsPath.BOOKINGS), pathMatch: "full" },
 
     {
-      path: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT),
-      loadComponent: () => import("../../pages/admin/environment-management/environment-management-landing.component")
-        .then(m => m.EnvironmentManagementLandingComponent),
-      canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
-    },
-    {
       path: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_REGISTRATIONS),
       loadComponent: () => import("../../pages/admin/site-registrations/site-registrations").then(m => m.SiteRegistrationsComponent),
       canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
@@ -354,11 +350,12 @@ const rp = adminRelativePath;
       canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
     },
     {
-      path: rp(AdminPlatformPath.ROOT), loadComponent: () => import("../../pages/admin/platform/platform-landing.component")
-        .then(m => m.PlatformLandingComponent),
+      path: rp(AdminPlatformPath.ROOT), loadComponent: () => import("../../pages/admin/platform/platform-admin-landing.component")
+        .then(m => m.PlatformAdminLandingComponent),
       canActivate: [SystemHealthyGuard, EnvironmentAdminGuard]
     },
-    { path: "environment-management", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT), pathMatch: "full" },
+    ...entries(LEGACY_PLATFORM_PATH_REDIRECTS).map(([legacy, current]) => ({path: rp(legacy), redirectTo: rp(current), pathMatch: "full" as const})),
+    { path: "environment-management", redirectTo: rp(AdminPlatformPath.ROOT), pathMatch: "full" },
     { path: "environment-management/setup", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_SETUP), pathMatch: "full" },
     { path: "environment-management/backup", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_BACKUP), pathMatch: "full" },
     { path: "environment-management/migration", redirectTo: rp(AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MIGRATION), pathMatch: "full" },

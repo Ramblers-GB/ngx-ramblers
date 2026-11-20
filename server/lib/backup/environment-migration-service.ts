@@ -42,7 +42,7 @@ import { waitForMongoLogin } from "../environment-setup/mongo-database-user";
 import { restartCurrentMachine, setCurrentMachineSecrets } from "../fly/fly-machines";
 import { FlyTargetApp } from "../../../projects/ngx-ramblers/src/app/models/health.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
-import { secretsAfterMongoRotation, storedMongoUriConflict } from "./environment-migration-mongo-target";
+import { secretsAfterRotation, storedMongoUriConflict } from "./environment-migration-mongo-target";
 
 const debugLog = debug(envConfig.logNamespace("environment-migration-service"));
 debugLog.enabled = true;
@@ -332,10 +332,10 @@ export class EnvironmentMigrationService {
             db: migration.targetMongo.db,
             username: migration.targetMongo.username,
             password: targetMongo.password
-          },
-          secrets: secretsAfterMongoRotation(environmentConfig.secrets, this.flyCutoverSecrets(targetMongo, null)[Environment.MONGODB_URI])
+          }
         } : {}),
-        ...(destinationAws ? { aws: destinationAws } : {})
+        ...(destinationAws ? { aws: destinationAws } : {}),
+        ...(environmentConfig.secrets ? { secrets: secretsAfterRotation(environmentConfig.secrets, this.flyCutoverSecrets(targetMongo, destinationAws)) } : {})
       }
       : environmentConfig);
 

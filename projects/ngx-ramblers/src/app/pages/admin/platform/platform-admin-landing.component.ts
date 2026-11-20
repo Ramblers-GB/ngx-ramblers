@@ -18,14 +18,14 @@ import { LoginRequiredComponent } from "../../../modules/common/login-required/l
 import { DynamicContentComponent } from "../../../modules/common/dynamic-content/dynamic-content";
 
 @Component({
-  selector: "app-environment-management-landing",
+  selector: "app-platform-admin-landing",
   template: `
     <app-page>
       <app-login-required/>
       @if (loggedIn) {
         @if (!platformAdminEnabled) {
           <div class="alert alert-warning" role="alert">
-            Environment management is not available on this site. This feature is only enabled on platform admin environments.
+            Platform Admin is not available on this site. It is only switched on for platform admin environments.
           </div>
         } @else {
           <app-dynamic-content [anchor]="BuiltInAnchor.ACTION_BUTTONS" contentPathReadOnly
@@ -39,8 +39,8 @@ import { DynamicContentComponent } from "../../../modules/common/dynamic-content
   styleUrls: ["../admin/admin.component.sass"],
   imports: [PageComponent, LoginRequiredComponent, DynamicContentComponent]
 })
-export class EnvironmentManagementLandingComponent implements OnInit, OnDestroy {
-  private logger: Logger = inject(LoggerFactory).createLogger(EnvironmentManagementLandingComponent, NgxLoggerLevel.ERROR);
+export class PlatformAdminLandingComponent implements OnInit, OnDestroy {
+  private logger: Logger = inject(LoggerFactory).createLogger(PlatformAdminLandingComponent, NgxLoggerLevel.ERROR);
   private memberLoginService = inject(MemberLoginService);
   private notifierService = inject(NotifierService);
   private pageContentService = inject(PageContentService);
@@ -66,7 +66,7 @@ export class EnvironmentManagementLandingComponent implements OnInit, OnDestroy 
     this.notify = this.notifierService.createAlertInstance(this.notifyTarget);
     this.subscriptions.push(this.authService.authResponse().subscribe((loginResponse: LoginResponse) => this.setPrivileges(loginResponse)));
     this.defaultPageContent = {
-      path: PageContentPath.ENVIRONMENT_MANAGEMENT_ACTION_BUTTONS,
+      path: PageContentPath.ADMIN_PLATFORM_ACTION_BUTTONS,
       rows: [{
         maxColumns: 3,
         showSwiper: false,
@@ -140,6 +140,13 @@ export class EnvironmentManagementLandingComponent implements OnInit, OnDestroy 
             title: "System logs",
             icon: "faList",
             contentText: "Live debug log for this environment, newest first, filterable by prefix or any text",
+            accessLevel: AccessLevel.ENVIRONMENT_ADMIN
+          },
+          {
+            href: AdminPlatformPath.CLOUDFLARE_WORKERS,
+            title: "Cloudflare Workers",
+            icon: "faCloud",
+            contentText: "Inspect account-wide workers and their email routing references across accessible zones",
             accessLevel: AccessLevel.ENVIRONMENT_ADMIN
           }
         ]

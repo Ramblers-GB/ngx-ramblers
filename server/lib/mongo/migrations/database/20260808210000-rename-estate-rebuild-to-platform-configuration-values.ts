@@ -2,10 +2,10 @@ import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
 import { syncActionButtonDetailsByHref } from "../shared/page-content-actions";
 import { ESTATE_REBUILD_CAPTURE_MENU_ITEM } from "../shared/admin-menu-items";
-import { AdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
+import { LegacyAdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 
 const debugLog = createMigrationLogger("rename-estate-rebuild-to-platform-configuration-values");
-const TARGET_PATH = `${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
+const TARGET_PATH = `${LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`;
 
 export async function up(db: Db, _client: MongoClient) {
   debugLog("Renaming Estate Rebuild Capture menu item to Platform Configuration Values");

@@ -1,5 +1,5 @@
 import { isArray, isObject, isString, kebabCase, toPairs, values, escapeRegExp } from "es-toolkit/compat";
-import { ADMIN_PATH_REDIRECTS, LegacyAdminPath, AdminContentPath, AdminMembersPath, AdminPath, AdminPlatformPath, AdminProfilePath, AdminSettingsPath } from "../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
+import { ADMIN_PATH_REDIRECTS, LEGACY_PLATFORM_PATH_REDIRECTS, LegacyAdminPath, LegacyAdminPlatformPath, AdminContentPath, AdminMembersPath, AdminPath, AdminPlatformPath, AdminProfilePath, AdminSettingsPath } from "../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 import { PageContent, PageContentColumn } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { DOCUMENTATION_SITE_PLACEHOLDER, DocumentationLinkChange, DocumentationMenuLink, DocumentationSweepContext, LegacyDocumentationTab } from "../../../projects/ngx-ramblers/src/app/models/documentation-links.model";
 import { MailSettingsTab, MAIL_SETTINGS_TAB_REDIRECTS } from "../../../projects/ngx-ramblers/src/app/models/mail.model";
@@ -14,7 +14,9 @@ import { isApplicationContentPath } from "../../../projects/ngx-ramblers/src/app
 const adminPaths = [...values(AdminPath), ...values(AdminContentPath), ...values(AdminMembersPath), ...values(AdminPlatformPath), ...values(AdminProfilePath), ...values(AdminSettingsPath)];
 const platformMenuLinks: DocumentationMenuLink[] = [
   {label: "Site registrations", path: `/${AdminPlatformPath.ENVIRONMENT_MANAGEMENT_REGISTRATIONS}`},
-  {label: "Environment management", path: `/${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}`}
+  {label: "Platform Admin", path: `/${AdminPlatformPath.ROOT}`},
+  {label: "Platform", path: `/${AdminPlatformPath.ROOT}`},
+  {label: "Environment management", path: `/${AdminPlatformPath.ROOT}`}
 ];
 const proseFields = new Set(["contentText", "text", "introductoryText", "preAlbumText", "summary", "writtenDirections", "description"]);
 const protectedMarkdown = /(^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\2[^\n]*(?:\n|$)|$(?![\s\S]))|^ {4}(?![-*+]\s)[^\n]*(?:\n|$)|!?\[(?:\\.|[^\]\\])*\]\((?:\\.|[^)\\\n])*\)|<a\b[^>]*>[\s\S]*?<\/a>|<img\b[^>]*>|`+[^`\n]*`+|<[^>\n]+>)/gim;
@@ -46,7 +48,8 @@ export function canonicalDocumentationPath(path: string, pageOrigin?: string): s
   const parsed = new URL(`${parts?.pathname || "/"}${parts?.search || ""}${parts?.hash || ""}`, pageOrigin || parts?.origin || "https://localhost");
   const clean = parsed.pathname.replace(/^\//, "");
   const matching = adminPaths.filter(candidate => candidate.split("/").at(-1) === clean.slice("admin/".length));
-  const canonical = ADMIN_PATH_REDIRECTS[clean as LegacyAdminPath] ? `/${ADMIN_PATH_REDIRECTS[clean as LegacyAdminPath]}` : clean.startsWith("admin/") && !adminPaths.includes(clean as AdminPath) && matching.length === 1 ? `/${matching[0]}` : parsed.pathname;
+  const redirected = ADMIN_PATH_REDIRECTS[clean as LegacyAdminPath] || LEGACY_PLATFORM_PATH_REDIRECTS[clean as LegacyAdminPlatformPath];
+  const canonical = redirected ? `/${redirected}` : clean.startsWith("admin/") && !adminPaths.includes(clean as AdminPath) && matching.length === 1 ? `/${matching[0]}` : parsed.pathname;
   const tab = parsed.searchParams.get(StoredValue.TAB);
   const destination = {path: canonical};
   if (canonical === `/${AdminSettingsPath.SYSTEM_SETTINGS}` && tab === LegacyDocumentationTab.GROUP_DETAILS) {

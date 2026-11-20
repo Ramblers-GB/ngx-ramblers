@@ -172,6 +172,11 @@ export enum SiteUrlPreference {
   WWW = "www"
 }
 
+export interface EnvironmentSiteLink {
+  environment: string;
+  url: string;
+}
+
 export interface EnvironmentConfig {
   environment: string;
   aws?: AwsConfig;

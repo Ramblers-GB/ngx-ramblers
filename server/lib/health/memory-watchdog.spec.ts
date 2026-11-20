@@ -51,7 +51,7 @@ describe("memory watchdog restart hold", () => {
     expect(request.subject).toContain("Memory watchdog restarting the process");
     expect(request.details).toContain("loopLag 8800ms");
     expect(request.actionLabel).toEqual("Open Environments Monitoring");
-    expect(request.actionUrl).toContain("environment-management/health");
+    expect(request.actionUrl).toContain("platform-admin/health");
     sandbox.restore();
   });
 

@@ -1,4 +1,4 @@
-import { AwsRegion } from "./environment-config.model";
+import { AwsRegion, EnvironmentSiteLink } from "./environment-config.model";
 
 export enum AtlasClusterSortField {
   DEFAULT_FOR_NEW_SITES = "isDefault",
@@ -172,6 +172,7 @@ export interface AtlasNetworkAccessEntry {
 
 export interface AtlasClusterEnvironmentRow {
   environment: string;
+  siteUrl: string;
   cluster: string;
   clusterName?: string;
   projectId?: string;
@@ -199,6 +200,7 @@ export interface AtlasClusterRow {
   isDefault: boolean;
   environmentCount: number;
   environmentNames?: string;
+  sites?: EnvironmentSiteLink[];
   collectionCount: number;
   indexCount: number;
   databaseCount: number;

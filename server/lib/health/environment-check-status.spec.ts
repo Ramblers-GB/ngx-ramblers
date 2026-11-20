@@ -89,6 +89,24 @@ describe("certificateFinding", () => {
 });
 
 describe("environmentHealthFromFindings", () => {
+  it("is asleep, not degraded, when a site that sleeps when idle was not woken to check it", () => {
+    expect(environmentHealthFromFindings({
+      findings: [{name: EnvironmentHealthCheckName.MACHINE, severity: EnvironmentHealthFindingSeverity.OK, message: "Asleep"}],
+      pendingMigrations: 0,
+      failedMigrations: false,
+      asleep: true
+    })).toEqual(EnvironmentHealthCheckStatus.SLEEPING);
+  });
+
+  it("is still degraded when an asleep site has a certificate problem", () => {
+    expect(environmentHealthFromFindings({
+      findings: [{name: EnvironmentHealthCheckName.CERTIFICATE, severity: EnvironmentHealthFindingSeverity.FAIL, message: "expired"}],
+      pendingMigrations: 0,
+      failedMigrations: false,
+      asleep: true
+    })).toEqual(EnvironmentHealthCheckStatus.DEGRADED);
+  });
+
   it("is unreachable when the public hostname returns a Cloudflare 525 even if the Fly app is OK", () => {
     expect(environmentHealthFromFindings({
       findings: [{

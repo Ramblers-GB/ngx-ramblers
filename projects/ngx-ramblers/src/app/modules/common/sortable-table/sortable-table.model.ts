@@ -10,6 +10,9 @@ export interface SortableTableColumn<T = any> {
   sortKey?: string;
   align?: SortableTableAlignment;
   cellGetter?: (row: T) => any;
+  filterText?: (row: T) => string;
+  filterValues?: (row: T) => string[];
+  filterSuggestions?: boolean;
   headerClass?: string;
   cellClass?: string;
   width?: string;

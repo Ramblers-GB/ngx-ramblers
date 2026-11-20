@@ -37,7 +37,7 @@ describe("CrossEnvironmentHealthService progressive checks", () => {
     const rest = line(result("hillside")) + line(complete);
     request.event({type: HttpEventType.DownloadProgress, loaded: first.length + 5, partialText: first + rest.slice(0, 5)});
     expect(received.at(-1).response.environments.map(item => item.environment)).toEqual(["lakeside"]);
-    expect(received.at(-1).response.summary).toEqual({total: 2, healthy: 1, degraded: 0, pending: 0, unreachable: 0});
+    expect(received.at(-1).response.summary).toEqual({total: 2, healthy: 1, degraded: 0, pending: 0, unreachable: 0, sleeping: 0});
     expect(finished).not.toHaveBeenCalled();
     request.event({type: HttpEventType.DownloadProgress, loaded: first.length + rest.length, partialText: first + rest});
     request.flush(first + rest);

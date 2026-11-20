@@ -644,7 +644,6 @@ export enum BuiltInPath {
   ADMIN_CONTENT = AdminContentPath.ROOT,
   ADMIN_SETTINGS = AdminSettingsPath.ROOT,
   ADMIN_PLATFORM = AdminPlatformPath.ROOT,
-  ENVIRONMENT_MANAGEMENT = AdminPlatformPath.ENVIRONMENT_MANAGEMENT,
   HOME = "home",
 }
 
@@ -682,10 +681,6 @@ export const BuiltInContentConfigs: { [key in BuiltInPath]: BuiltInPageContentCo
     contentPath: BuiltInPath.ADMIN_PLATFORM,
     anchors: [BuiltInAnchor.ACTION_BUTTONS]
   },
-  [BuiltInPath.ENVIRONMENT_MANAGEMENT]: {
-    contentPath: BuiltInPath.ENVIRONMENT_MANAGEMENT,
-    anchors: [BuiltInAnchor.ACTION_BUTTONS]
-  },
 };
 
 export enum PageContentPath {
@@ -695,7 +690,6 @@ export enum PageContentPath {
   ADMIN_CONTENT_ACTION_BUTTONS = `${BuiltInPath.ADMIN_CONTENT}#${BuiltInAnchor.ACTION_BUTTONS}`,
   ADMIN_SETTINGS_ACTION_BUTTONS = `${BuiltInPath.ADMIN_SETTINGS}#${BuiltInAnchor.ACTION_BUTTONS}`,
   ADMIN_PLATFORM_ACTION_BUTTONS = `${BuiltInPath.ADMIN_PLATFORM}#${BuiltInAnchor.ACTION_BUTTONS}`,
-  ENVIRONMENT_MANAGEMENT_ACTION_BUTTONS = `${BuiltInPath.ENVIRONMENT_MANAGEMENT}#${BuiltInAnchor.ACTION_BUTTONS}`,
 }
 
 export enum MapEditorSection {

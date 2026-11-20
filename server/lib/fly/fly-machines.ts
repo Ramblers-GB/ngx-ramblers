@@ -1,7 +1,7 @@
 import debug from "debug";
 import { keys, toPairs } from "es-toolkit/compat";
 import { envConfig } from "../env-config/env-config";
-import { FlyMachineSummary, FlyRestartResult } from "./fly.model";
+import { FlyMachineRunState, FlyMachineSummary, FlyRestartResult } from "./fly.model";
 import { FlyMachineState, FlyTargetApp } from "../../../projects/ngx-ramblers/src/app/models/health.model";
 import { flyRuntimeConfig } from "./fly-runtime-config";
 import { flyAuthorizationHeader, MACHINES_API_BASE, missingFlyConfig } from "./fly-env";
@@ -21,6 +21,17 @@ async function listMachines(apiToken: string, appName: string): Promise<FlyMachi
     throw new Error(`Machine list failed: ${response.status}`);
   }
   return response.json();
+}
+
+const ASLEEP_MACHINE_STATES: string[] = [FlyMachineRunState.STOPPED, FlyMachineRunState.SUSPENDED];
+
+export function flyMachinesAsleep(machines: FlyMachineSummary[]): boolean {
+  return !machines.some(machine => machine.state === FlyMachineRunState.STARTED)
+    && machines.some(machine => ASLEEP_MACHINE_STATES.includes(machine.state));
+}
+
+export async function flyAppAsleep(apiToken: string, appName: string): Promise<boolean> {
+  return flyMachinesAsleep(await listMachines(apiToken, appName));
 }
 
 async function queryMachine(apiToken: string, appName: string, machineId: string): Promise<FlyMachineSummary> {

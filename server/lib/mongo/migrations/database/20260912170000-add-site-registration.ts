@@ -2,7 +2,7 @@ import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
 import { ensureActionButton } from "../shared/page-content-actions";
 import { REGISTRATIONS_MENU_ITEM } from "../shared/admin-menu-items";
-import { AdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
+import { LegacyAdminPlatformPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 import {
   AlbumIndexSortField, ContentTemplateType, IndexContentType, IndexRenderMode, MigrationTemplateSourceType, NestedRowContentSource,
   NestedRowPackingBehavior, PageContent, PageContentType, REGISTRATION_INTRO_PATH, StringMatch
@@ -28,7 +28,7 @@ export async function up(db: Db, _client: MongoClient): Promise<void> {
 }
 
 async function seedPlatformRegistration(db: Db): Promise<void> {
-  await ensureActionButton(db, `${AdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`, REGISTRATIONS_MENU_ITEM, debugLog);
+  await ensureActionButton(db, `${LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT}#action-buttons`, REGISTRATIONS_MENU_ITEM, debugLog);
   const registrationsExist = await db.listCollections({name: "siteRegistrations"}, {nameOnly: true}).hasNext();
   if (registrationsExist) {
     await db.collection("siteRegistrations").createIndex({"group.group_code": 1}, {unique: true});

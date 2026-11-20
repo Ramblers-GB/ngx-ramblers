@@ -1,4 +1,5 @@
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
+import { EnvironmentSiteLinksComponent } from "../../../modules/common/environment-site-links/environment-site-links";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -66,7 +67,8 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
     VendorBrandMarkComponent,
     ConsoleAccessLinksComponent,
     MongoClusterSelectComponent,
-    AlertPanelComponent
+    AlertPanelComponent,
+    EnvironmentSiteLinksComponent
   ],
   styles: [`
     .row-action-icon
@@ -305,6 +307,10 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
           [defaultSortKey]="clusterSortKey"
           [defaultSortDirection]="clusterSortDirection"
           [trackBy]="trackCluster"
+          filterable
+          fillWindow
+          [fillWindowGapPx]="90"
+          [filterStoredValue]="StoredValue.ATLAS_CLUSTER_FILTER"
           emptyMessage="No clusters yet. Choose Create cluster above, or existing group clusters will appear here from environment configuration."
           (sortChange)="clusterSortChanged($event)">
           <ng-template [appSortableTableCell]="AtlasClusterSortField.NAME" let-row>
@@ -332,7 +338,7 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
             <span [tooltip]="row.stateName">{{ atlasTierLabel(row.instanceSize) }}</span>
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.ENVIRONMENTS" let-row>
-            {{ row.environmentNames || "—" }}
+            <app-environment-site-links [sites]="row.sites || []"/>
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.COLLECTIONS" let-row>
             @let fullness = clusterFullness(row);
@@ -416,10 +422,13 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
           [defaultSortKey]="environmentSortKey"
           [defaultSortDirection]="environmentSortDirection"
           [trackBy]="trackEnvironment"
+          filterable
+          fillWindow
+          [filterStoredValue]="StoredValue.ATLAS_ENVIRONMENT_FILTER"
           [emptyMessage]="loading ? 'Waiting for environment data…' : 'No environments in platform configuration.'"
           (sortChange)="environmentSortChanged($event)">
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.ENVIRONMENT" let-row>
-            {{ row.environment }}
+            <app-environment-site-links [sites]="[{environment: row.environment, url: row.siteUrl}]"/>
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.CLUSTER" let-row>
             {{ row.cluster }}
@@ -523,9 +532,9 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   clusterColumns: SortableTableColumn<AtlasClusterRow>[] = [
     {key: AtlasClusterSortField.NAME, label: "Host", sortKey: AtlasClusterSortField.NAME},
     {key: AtlasClusterSortField.HOST, label: "Cluster", sortKey: AtlasClusterSortField.HOST, cellClass: "text-nowrap"},
-    {key: AtlasClusterSortField.SIZE, label: "Size", sortKey: AtlasClusterSortField.SIZE, cellClass: "text-nowrap"},
-    {key: AtlasClusterSortField.ENVIRONMENTS, label: "Sites", sortKey: AtlasClusterSortField.ENVIRONMENTS},
-    {key: AtlasClusterSortField.COLLECTIONS, label: "How full", sortKey: AtlasClusterSortField.COLLECTIONS},
+    {key: AtlasClusterSortField.SIZE, label: "Size", sortKey: AtlasClusterSortField.SIZE, cellClass: "text-nowrap", filterText: row => atlasTierLabel(row.instanceSize)},
+    {key: AtlasClusterSortField.ENVIRONMENTS, label: "Sites", sortKey: AtlasClusterSortField.ENVIRONMENTS, filterValues: row => (row.sites || []).map(site => site.environment)},
+    {key: AtlasClusterSortField.COLLECTIONS, label: "How full", sortKey: AtlasClusterSortField.COLLECTIONS, filterText: row => row.limitHeadline || "", filterSuggestions: false},
     {key: "actions", label: "", cellClass: "text-nowrap"}
   ];
 
@@ -533,7 +542,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
     {key: AtlasEnvironmentSortField.ENVIRONMENT, label: "Environment", sortKey: AtlasEnvironmentSortField.ENVIRONMENT},
     {key: AtlasEnvironmentSortField.CLUSTER, label: "Cluster", sortKey: AtlasEnvironmentSortField.CLUSTER},
     {key: AtlasEnvironmentSortField.DATABASE, label: "Database", sortKey: AtlasEnvironmentSortField.DATABASE},
-    {key: AtlasEnvironmentSortField.COLLECTIONS, label: "Usage", sortKey: AtlasEnvironmentSortField.COLLECTIONS, align: SortableTableAlignment.RIGHT, cellClass: "text-nowrap"}
+    {key: AtlasEnvironmentSortField.COLLECTIONS, label: "Usage", sortKey: AtlasEnvironmentSortField.COLLECTIONS, align: SortableTableAlignment.RIGHT, cellClass: "text-nowrap", filterText: row => row.error || `${row.collections} collections, ${row.indexes} indexes`, filterSuggestions: false}
   ];
 
   ngOnInit() {

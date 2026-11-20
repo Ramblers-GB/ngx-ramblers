@@ -6,6 +6,7 @@ import {
   AdminContentPath,
   AdminSettingsPath,
   AdminPlatformPath,
+  LegacyAdminPlatformPath,
 } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 import {
   DEFAULT_WALKS_AREA,
@@ -149,9 +150,9 @@ export const ADMIN_MENU_ITEMS: ActionButtonColumn[] = [
   },
   {
     accessLevel: "environmentAdmin",
-    title: "Environment Management",
+    title: "Platform Admin",
     icon: "faServer",
-    href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT,
+    href: AdminPlatformPath.ROOT,
     contentText: "Manage environment setup, backups, environments monitoring, and maintenance"
   },
   CONTRIBUTOR_ENVIRONMENT_MENU_ITEM,
@@ -373,7 +374,7 @@ export const ADMIN_CATEGORY_MENU_ITEMS: ActionButtonColumn[] = [
   CONTRIBUTOR_ENVIRONMENT_MENU_ITEM,
   {
     accessLevel: "environmentAdmin",
-    title: "Platform Administration",
+    title: "Platform Admin",
     icon: "faServer",
     href: AdminPlatformPath.ROOT,
     contentText: "Manage environments, backups, monitoring, contributor setup, and platform-level tools"
@@ -572,9 +573,29 @@ export const PLATFORM_MENU_ITEMS: ActionButtonColumn[] = [
     accessLevel: "environmentAdmin",
     title: "Environment Management",
     icon: "faServer",
-    href: AdminPlatformPath.ENVIRONMENT_MANAGEMENT,
+    href: LegacyAdminPlatformPath.ENVIRONMENT_MANAGEMENT,
     contentText: "Manage environment setup, backups, environments monitoring, and maintenance"
   }
+];
+
+const ENVIRONMENT_SETUP_MENU_ITEM: ActionButtonColumn = ENVIRONMENT_MANAGEMENT_MENU_ITEMS.find(item => item.href === AdminPlatformPath.ENVIRONMENT_MANAGEMENT_SETUP);
+const BACKUP_MENU_ITEM: ActionButtonColumn = ENVIRONMENT_MANAGEMENT_MENU_ITEMS.find(item => item.href === AdminPlatformPath.ENVIRONMENT_MANAGEMENT_BACKUP);
+const MONITORING_MENU_ITEM: ActionButtonColumn = ENVIRONMENT_MANAGEMENT_MENU_ITEMS.find(item => item.href === AdminPlatformPath.ENVIRONMENT_MANAGEMENT_HEALTH);
+const SYSTEM_LOGS_MENU_ITEM: ActionButtonColumn = ENVIRONMENT_MANAGEMENT_MENU_ITEMS.find(item => item.href === AdminPlatformPath.SYSTEM_LOGS);
+
+export const PLATFORM_ADMIN_MENU_ITEMS: ActionButtonColumn[] = [
+  ENVIRONMENT_SETUP_MENU_ITEM,
+  BACKUP_MENU_ITEM,
+  MONITORING_MENU_ITEM,
+  ENVIRONMENT_MIGRATION_MENU_ITEM,
+  ESTATE_REBUILD_CAPTURE_MENU_ITEM,
+  REGISTRATIONS_MENU_ITEM,
+  ATLAS_MENU_ITEM,
+  HOSTING_MENU_ITEM,
+  AWS_MENU_ITEM,
+  MOVE_BREVO_MENU_ITEM,
+  SYSTEM_LOGS_MENU_ITEM,
+  CLOUDFLARE_WORKERS_MENU_ITEM
 ];
 
 export const MAIL_PROVIDER_MENU_ITEMS: { [key: string]: ActionButtonColumn } = {

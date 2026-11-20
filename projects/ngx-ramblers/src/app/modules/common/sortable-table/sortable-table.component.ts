@@ -1,9 +1,16 @@
-import { AfterContentInit, AfterViewInit, Component, ContentChild, ContentChildren, ElementRef, EventEmitter, HostListener, Input, NgZone, OnChanges, OnDestroy, Output, QueryList, SimpleChanges, TemplateRef, ViewChild, inject } from "@angular/core";
+import { AfterContentInit, AfterViewInit, Component, ContentChild, ContentChildren, ElementRef, EventEmitter, HostListener, Input, NgZone, OnChanges, OnDestroy, OnInit, Output, QueryList, SimpleChanges, TemplateRef, ViewChild, inject } from "@angular/core";
+import { ActivatedRoute, Router } from "@angular/router";
+import { Subscription } from "rxjs";
+import { StoredValue } from "../../../models/ui-actions.model";
 import { NgTemplateOutlet } from "@angular/common";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from "@angular/cdk/drag-drop";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faChevronDown, faChevronRight, faChevronUp, faGripVertical } from "@fortawesome/free-solid-svg-icons";
+import { get, isUndefined } from "es-toolkit/compat";
+import { filterRowsByText, tableTextFilterOptions } from "../../../functions/table-text-filter";
+import { TableFilterHeading, TableTextFilterField, TableTextFilterOption } from "../../../models/table-text-filter.model";
+import { TableFilterSelectComponent } from "./table-filter-select";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { sortBy } from "../../../functions/arrays";
 import { SortableTableAlignment, SortableTableColumn, SortableTableGroup, SortableTableSortState } from "./sortable-table.model";
@@ -16,8 +23,17 @@ import {
 
 @Component({
   selector: "app-sortable-table",
-  imports: [NgTemplateOutlet, FontAwesomeModule, CdkDropList, CdkDrag, CdkDragHandle],
+  imports: [NgTemplateOutlet, FontAwesomeModule, CdkDropList, CdkDrag, CdkDragHandle, TableFilterSelectComponent],
   template: `
+    @if (filterable) {
+      <div class="sortable-table-filter mb-2">
+        <app-table-filter-select [options]="filterOptions" [headings]="filterHeadings" [query]="filterQuery" [placeholder]="filterPlaceholder"
+                                 (queryChange)="changeFilter($event)"/>
+        @if (filterQuery) {
+          <div class="form-text">{{ sortedRows.length }} of {{ (rows || []).length }} shown</div>
+        }
+      </div>
+    }
     <div #tableCard class="sortable-table-card"
          [class.sortable-table-flat]="flat"
          [class.scrollable]="!!effectiveMaxHeight || freezeFirstColumn"
@@ -60,7 +76,7 @@ import {
         <tbody cdkDropList [cdkDropListDisabled]="!reorderable || !!groupBy" (cdkDropListDropped)="onReorder($event)">
           @if (sortedRows.length === 0) {
             <tr>
-              <td [attr.colspan]="columnCount" class="text-center text-muted py-3">{{ emptyMessage }}</td>
+              <td [attr.colspan]="columnCount" class="text-center text-muted py-3">{{ filterQuery && (rows || []).length ? "Nothing matches the filter" : emptyMessage }}</td>
             </tr>
           }
           @for (group of groupedRows; track group.key) {
@@ -393,7 +409,7 @@ import {
         margin-bottom: 2px
   `]
 })
-export class SortableTableComponent implements OnChanges, AfterContentInit, AfterViewInit, OnDestroy {
+export class SortableTableComponent implements OnInit, OnChanges, AfterContentInit, AfterViewInit, OnDestroy {
 
   @Input() columns: SortableTableColumn[] = [];
   @Input() rows: any[] = [];
@@ -421,6 +437,7 @@ export class SortableTableComponent implements OnChanges, AfterContentInit, Afte
   @Input() fillWindowGapPx = 24;
   @ViewChild("tableCard") private tableCard: ElementRef<HTMLElement>;
   private zone = inject(NgZone);
+  private host: ElementRef<HTMLElement> = inject(ElementRef);
   private fillWindowHeightPx = 0;
   private fillWindowObserver: ResizeObserver | null = null;
 
@@ -429,21 +446,38 @@ export class SortableTableComponent implements OnChanges, AfterContentInit, Afte
   }
 
   ngAfterViewInit(): void {
-    if (this.fillWindow) {
+    if (this.fillWindow && !isUndefined(globalThis.ResizeObserver)) {
       this.fillWindowObserver = new ResizeObserver(() => this.zone.run(() => this.fitToWindow()));
       this.fillWindowObserver.observe(document.body);
+      this.fillWindowObserver.observe(this.host.nativeElement);
+      Array.from(this.host.nativeElement.parentElement?.children || [])
+        .filter(sibling => sibling !== this.host.nativeElement)
+        .forEach(sibling => this.fillWindowObserver.observe(sibling));
       setTimeout(() => this.fitToWindow());
+    }
+  }
+
+  ngOnInit(): void {
+    if (this.filterable && this.filterStoredValue) {
+      this.filterSubscription = this.activatedRoute.queryParams.subscribe(params => {
+        const query = params[this.filterStoredValue] || "";
+        if (query !== this.filterQuery) {
+          this.filterQuery = query;
+          this.applySort();
+        }
+      });
     }
   }
 
   ngOnDestroy(): void {
     this.fillWindowObserver?.disconnect();
+    this.filterSubscription?.unsubscribe();
   }
 
   @HostListener("window:resize")
   protected fitToWindow(): void {
     const card = this.tableCard?.nativeElement;
-    if (this.fillWindow && card) {
+    if (this.fillWindow && card && card.getClientRects().length > 0) {
       const top = card.getBoundingClientRect().top + window.scrollY;
       const available = window.innerWidth < 768 ? 0 : Math.max(240, Math.floor(window.innerHeight - top - this.fillWindowGapPx));
       if (available !== this.fillWindowHeightPx) {
@@ -451,6 +485,21 @@ export class SortableTableComponent implements OnChanges, AfterContentInit, Afte
       }
     }
   }
+  filterable = false;
+
+  @Input("filterable")
+  set filterableValue(value: boolean) {
+    this.filterable = coerceBooleanProperty(value);
+  }
+  @Input() filterQuery = "";
+  @Input() filterStoredValue: StoredValue | null = null;
+  private router = inject(Router);
+  private activatedRoute = inject(ActivatedRoute);
+  private filterSubscription: Subscription | null = null;
+  @Input() filterPlaceholder = "Filter: type to search, or pick a column";
+  protected filterOptions: TableTextFilterOption[] = [];
+  protected filterHeadings: TableFilterHeading[] = [];
+  @Output() filterChange = new EventEmitter<string>();
   @Input() defaultSortKey: string | null = null;
   @Input() defaultSortDirection: string = ASCENDING;
   @Input() emptyMessage: string = "No data to display";
@@ -512,7 +561,7 @@ export class SortableTableComponent implements OnChanges, AfterContentInit, Afte
         this.sortDirection = this.defaultSortDirection;
       }
       this.applySort();
-    } else if (changes["rows"] || changes["columns"]) {
+    } else if (changes["rows"] || changes["columns"] || changes["filterQuery"]) {
       this.applySort();
     }
   }
@@ -622,8 +671,46 @@ export class SortableTableComponent implements OnChanges, AfterContentInit, Afte
     return parts.join(" ");
   }
 
+  protected changeFilter(query: string): void {
+    this.filterQuery = query;
+    this.applySort();
+    this.filterChange.emit(query);
+    if (this.filterStoredValue) {
+      void this.router.navigate([], {
+        relativeTo: this.activatedRoute,
+        queryParams: {[this.filterStoredValue]: query || null},
+        queryParamsHandling: "merge",
+        replaceUrl: true
+      });
+    }
+  }
+
+  private filterColumns(): SortableTableColumn[] {
+    return this.columns.filter(column => column.label || column.filterText);
+  }
+
+  private columnFilterText(column: SortableTableColumn, row: any): string {
+    return String((column.filterText ? column.filterText(row) : column.cellGetter ? column.cellGetter(row) : get(row, column.sortKey || column.key)) ?? "");
+  }
+
+  private filterFields(row: any): TableTextFilterField[] {
+    return this.filterColumns().map(column => ({
+      names: [column.label, column.key, column.sortKey].filter(Boolean),
+      text: this.columnFilterText(column, row)
+    }));
+  }
+
+  private buildFilterOptions(rows: any[]): TableTextFilterOption[] {
+    const columns = this.filterColumns().filter(column => column.label && column.filterSuggestions !== false);
+    return tableTextFilterOptions(rows.map(row => columns.map(column => ({
+      heading: column.label,
+      values: column.filterValues ? column.filterValues(row) : [this.columnFilterText(column, row)],
+      partial: !!column.filterValues
+    }))));
+  }
+
   private applySort(): void {
-    const source = this.rows || [];
+    const source = this.filterable ? filterRowsByText(this.rows || [], this.filterQuery, row => this.filterFields(row)) : this.rows || [];
     if (!this.sortKey) {
       this.sortedRows = [...source];
     } else {
@@ -631,6 +718,10 @@ export class SortableTableComponent implements OnChanges, AfterContentInit, Afte
       this.sortedRows = [...source].sort(sortBy(`${prefix}${this.sortKey}`));
     }
     this.groupedRows = this.applyGrouping(this.sortedRows);
+    if (this.filterable) {
+      this.filterOptions = this.buildFilterOptions(this.sortedRows);
+      this.filterHeadings = this.filterColumns().filter(column => column.label).map(column => ({heading: column.label, suggestValues: column.filterSuggestions !== false}));
+    }
   }
 
   private applyGrouping(rows: any[]): SortableTableGroup[] {

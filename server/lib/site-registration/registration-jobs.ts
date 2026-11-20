@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { REGISTRATION_STAGE_LABELS, REGISTRATION_SYSTEM_ACTOR, RegistrationEmailType, RegistrationHistoryAction, RegistrationJobStage, RegistrationNavbarPath, RegistrationPage, RegistrationPlan, RegistrationStageKey, RegistrationState, RegistrationStep, RegistrationWalkCandidate, StoredSiteRegistration } from "../../../projects/ngx-ramblers/src/app/models/site-registration.model";
 import { createEmptySetupRequest, environmentNameForGroup, generateDestinationBucketName, prefixedEnvironmentResourceName, SetupStepStatus } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
+import { AdminPlatformPath } from "../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 import { ADMIN_SET_PASSWORD_PATH, EventPopulation, SystemConfig } from "../../../projects/ngx-ramblers/src/app/models/system.model";
 import { ensureRegistrationIndexes, recordRegistrationHistory, registrations, registrationSettings } from "./registration-store";
 import { assertRegistrationEditable } from "./registration-policy";
@@ -653,7 +654,7 @@ async function notifyReviewer(registration: StoredSiteRegistration): Promise<voi
     const settings = await registrationSettings();
     await sendRegistrationEmail(settings, RegistrationEmailType.REVIEW, settings.reviewer.email, {
       groupName: registration.group.name,
-      actionUrl: `${settings.publicUrl}/admin/platform/environment-management/registrations`, siteUrl: registration.siteUrl
+      actionUrl: `${settings.publicUrl}/${AdminPlatformPath.ENVIRONMENT_MANAGEMENT_REGISTRATIONS}`, siteUrl: registration.siteUrl
     });
   }
 }

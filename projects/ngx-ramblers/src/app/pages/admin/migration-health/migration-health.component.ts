@@ -4,6 +4,7 @@ import {
   faEllipsisVertical,
   faStop,
   faExclamationTriangle,
+  faMoon,
   faQuestionCircle,
   faRedo,
   faSpinner,
@@ -68,6 +69,11 @@ import {DisplayDateAndTimePipe} from "../../../pipes/display-date-and-time.pipe"
                     <fa-icon [icon]="faSpinner" class="me-1"/>{{ healthResponse.summary.pending }} pending
                   </span>
                 }
+                @if (healthResponse.summary.sleeping > 0) {
+                  <span class="summary-badge badge-sleeping" tooltip="These sites sleep when idle and wake on their next visit, so they were not woken to check them" container="body">
+                    <fa-icon [icon]="faMoon" class="me-1"/>{{ healthResponse.summary.sleeping }} asleep
+                  </span>
+                }
                 @if (healthResponse.summary.unreachable > 0) {
                   <span class="summary-badge badge-unreachable">
                     <fa-icon [icon]="faTimesCircle" class="me-1"/>{{ healthResponse.summary.unreachable }} unreachable
@@ -77,16 +83,6 @@ import {DisplayDateAndTimePipe} from "../../../pipes/display-date-and-time.pipe"
             }
           </div>
           <div class="health-header-actions">
-            @if (healthResponse) {
-              <div class="health-search">
-                <label class="visually-hidden" for="environment-search">Search environments</label>
-                <input id="environment-search" class="form-control" type="search"
-                       [ngModel]="search"
-                       (ngModelChange)="onSearchChange($event)"
-                       placeholder="Search environments">
-                <span class="text-muted text-nowrap">{{ filteredEnvironments().length }} of {{ healthResponse.summary.total }}</span>
-              </div>
-            }
             @if (loading) {
               <button class="btn btn-quiet" (click)="stop()">
                 <fa-icon [icon]="faStop" class="me-1"/>Stop
@@ -125,10 +121,11 @@ import {DisplayDateAndTimePipe} from "../../../pipes/display-date-and-time.pipe"
             {{ healthResponse.environments.length }} of {{ healthResponse.summary.total }} environments.
             @if (stopped) { Results received so far are retained. }
           </p>
-          <app-sortable-table [rows]="filteredEnvironments()" [columns]="columns"
+          <app-sortable-table [rows]="environmentRows" [columns]="columns"
+                              filterable fillWindow [filterStoredValue]="StoredValue.SEARCH"
                               [defaultSortKey]="sortColumn" [defaultSortDirection]="sortDirection"
                               [trackBy]="trackEnvironment" (sortChange)="sortChanged($event)"
-                              [emptyMessage]="loading ? 'Waiting for matching environments to respond…' : 'No environments match that search.'">
+                              [emptyMessage]="loading ? 'Waiting for matching environments to respond…' : 'No environments have responded yet.'">
             <ng-template appSortableTableCell="status" let-env>
               <span class="status-badge" [ngClass]="statusBadgeClass(env)"
                     [tooltip]="findingsTooltip(env)" [isDisabled]="!visibleFindings(env).length" container="body">
@@ -238,25 +235,6 @@ import {DisplayDateAndTimePipe} from "../../../pipes/display-date-and-time.pipe"
       justify-content: flex-end
       flex-wrap: wrap
 
-    .health-search
-      display: flex
-      align-items: center
-      gap: 12px
-      flex: 1 1 22rem
-      max-width: 44rem
-
-    .health-search .form-control
-      min-height: 40px
-      flex: 1 1 auto
-      min-width: 0
-
-    .health-search .form-control[type=search]
-      padding-left: 2.25rem
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%236c757d'%3E%3Cpath d='M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z'/%3E%3C/svg%3E")
-      background-repeat: no-repeat
-      background-position: 0.75rem center
-      background-size: 0.9rem 0.9rem
-
     .health-title-group
       display: flex
       flex-direction: column
@@ -296,6 +274,10 @@ import {DisplayDateAndTimePipe} from "../../../pipes/display-date-and-time.pipe"
     .badge-pending
       background-color: rgba(255, 193, 7, 0.2)
       color: #856404
+
+    .badge-sleeping
+      background-color: rgba(108, 117, 125, 0.12)
+      color: #495057
 
     .badge-unreachable
       background-color: rgba(220, 53, 69, 0.12)
@@ -420,6 +402,7 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
   faStop = faStop;
   faExclamationTriangle = faExclamationTriangle;
   faTimesCircle = faTimesCircle;
+  protected readonly faMoon = faMoon;
   faQuestionCircle = faQuestionCircle;
   faSpinner = faSpinner;
   faRedo = faRedo;
@@ -433,22 +416,25 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
   private healthSubscription: Subscription | null = null;
   private subscriptions: Subscription[] = [];
   columns: SortableTableColumn<EnvironmentHealthRow>[] = [
-    {key: "status", label: "Status", sortKey: HealthSortColumn.STATUS, width: "8rem"},
-    {key: "environment", label: "Environment", sortKey: HealthSortColumn.ENVIRONMENT},
+    {key: "status", label: "Status", sortKey: HealthSortColumn.STATUS, width: "8rem", filterText: env => this.statusLabel(env)},
+    {key: "environment", label: "Environment", sortKey: HealthSortColumn.ENVIRONMENT, filterValues: env => [env.environment],
+      filterText: env => [env.environment, env.appName, env.adminUrl, ...this.displayedHostnames(env), this.primaryFinding(env)?.message || ""].join(" ")},
     {key: "group", label: "Group", sortKey: HealthSortColumn.GROUP},
     {key: "applied", label: "Applied", sortKey: HealthSortColumn.APPLIED, align: SortableTableAlignment.CENTER, width: "5rem"},
     {key: "pending", label: "Pending", sortKey: HealthSortColumn.PENDING, align: SortableTableAlignment.CENTER, width: "5rem"},
-    {key: "failed", label: "Failed", sortKey: HealthSortColumn.FAILED, align: SortableTableAlignment.CENTER, width: "5rem"},
-    {key: "response", label: "Response", sortKey: HealthSortColumn.RESPONSE, align: SortableTableAlignment.CENTER, width: "6rem"},
+    {key: "failed", label: "Failed", sortKey: HealthSortColumn.FAILED, align: SortableTableAlignment.CENTER, width: "5rem",
+      filterText: env => env.healthResponse?.migrations ? (env.healthResponse.migrations.failed ? "Yes" : "No") : ""},
+    {key: "response", label: "Response", sortKey: HealthSortColumn.RESPONSE, align: SortableTableAlignment.CENTER, width: "6rem",
+      filterText: env => this.formatResponseTime(env.responseTimeMs), filterSuggestions: false},
     {key: "actions", label: "", align: SortableTableAlignment.RIGHT, width: "4rem"}
   ];
   trackEnvironment = (_index: number, environment: EnvironmentHealthRow): string => environment.environment;
   sortColumn: HealthSortColumn = HealthSortColumn.STATUS;
   sortDirection: string = ASCENDING;
-  search = "";
+  protected readonly StoredValue = StoredValue;
+  environmentRows: EnvironmentHealthRow[] = [];
 
   ngOnInit() {
-    this.search = this.activatedRoute.snapshot.queryParams[StoredValue.SEARCH] || "";
     const sort = this.activatedRoute.snapshot.queryParams[StoredValue.SORT];
     this.sortColumn = values(HealthSortColumn).includes(sort) ? sort : HealthSortColumn.STATUS;
     this.sortDirection = this.activatedRoute.snapshot.queryParams[StoredValue.SORT_ORDER] === DESCENDING ? DESCENDING : ASCENDING;
@@ -459,23 +445,17 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
     this.subscriptions.forEach(subscription => subscription.unsubscribe());
   }
 
-  onSearchChange(value: string): void {
-    this.search = value;
-    this.router.navigate([], {
-      queryParams: { [StoredValue.SEARCH]: value.trim() || null },
-      queryParamsHandling: "merge"
-    });
-  }
-
   refresh(): void {
     this.healthSubscription?.unsubscribe();
     this.loading = true;
     this.stopped = false;
     this.error = null;
     this.healthResponse = null;
+    this.environmentRows = [];
     this.healthSubscription = this.crossEnvironmentHealthService.progressiveHealthCheck().subscribe({
       next: progress => {
         this.healthResponse = progress.response;
+        this.environmentRows = this.rowsFor(progress.response);
         this.changeDetector.markForCheck();
       },
       error: error => {
@@ -531,6 +511,7 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
       case EnvironmentHealthCheckStatus.DEGRADED: return this.faExclamationTriangle;
       case EnvironmentHealthCheckStatus.UNREACHABLE: return this.faTimesCircle;
       case EnvironmentHealthCheckStatus.PENDING: return this.faSpinner;
+      case EnvironmentHealthCheckStatus.SLEEPING: return this.faMoon;
       default: return this.faQuestionCircle;
     }
   }
@@ -541,6 +522,7 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
       case EnvironmentHealthCheckStatus.DEGRADED: return "Degraded";
       case EnvironmentHealthCheckStatus.UNREACHABLE: return "Unreachable";
       case EnvironmentHealthCheckStatus.PENDING: return "Pending";
+      case EnvironmentHealthCheckStatus.SLEEPING: return "Asleep";
       default: return "Unknown";
     }
   }
@@ -551,6 +533,7 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
       case EnvironmentHealthCheckStatus.DEGRADED: return "bg-warning text-dark";
       case EnvironmentHealthCheckStatus.UNREACHABLE: return "bg-danger";
       case EnvironmentHealthCheckStatus.PENDING: return "bg-warning text-dark";
+      case EnvironmentHealthCheckStatus.SLEEPING: return "bg-secondary";
       default: return "bg-secondary";
     }
   }
@@ -584,28 +567,10 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
     });
   }
 
-  filteredEnvironments(): EnvironmentHealthRow[] {
-    return (this.healthResponse?.environments || [])
-      .filter(env => this.matchesSearch(env))
+  private rowsFor(response: CrossEnvironmentHealthResponse | null): EnvironmentHealthRow[] {
+    return (response?.environments || [])
       .sort((left, right) => left.environment.localeCompare(right.environment))
       .map(env => ({...env, statusRank: this.statusRank(env.checkStatus)}));
-  }
-
-  matchesSearch(env: EnvironmentHealthCheck): boolean {
-    const needle = this.search.trim().toLowerCase();
-    if (!needle) {
-      return true;
-    } else {
-      const haystack = [
-        env.environment,
-        env.appName,
-        env.adminUrl,
-        this.statusLabel(env),
-        env.healthResponse?.group?.shortName || "",
-        ...this.displayedHostnames(env)
-      ].join(" ").toLowerCase();
-      return haystack.includes(needle);
-    }
   }
 
   private statusRank(status: EnvironmentHealthCheckStatus): number {
@@ -615,8 +580,10 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
       return 1;
     } else if (status === EnvironmentHealthCheckStatus.PENDING) {
       return 2;
-    } else {
+    } else if (status === EnvironmentHealthCheckStatus.SLEEPING) {
       return 3;
+    } else {
+      return 4;
     }
   }
 

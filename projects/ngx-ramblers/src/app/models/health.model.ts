@@ -49,6 +49,7 @@ export enum EnvironmentHealthCheckStatus {
   HEALTHY = "HEALTHY",
   DEGRADED = "DEGRADED",
   PENDING = "PENDING",
+  SLEEPING = "SLEEPING",
   UNREACHABLE = "UNREACHABLE"
 }
 
@@ -104,6 +105,7 @@ export interface CrossEnvironmentHealthSummary {
   degraded: number;
   unreachable: number;
   pending: number;
+  sleeping: number;
 }
 
 export interface CrossEnvironmentHealthResponse {

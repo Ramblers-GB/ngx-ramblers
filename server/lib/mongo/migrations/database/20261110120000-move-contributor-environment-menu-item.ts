@@ -2,11 +2,11 @@ import { Db, MongoClient } from "mongodb";
 import createMigrationLogger from "../migrations-logger";
 import { ensureActionButton, removeActionButtonByHref, replaceActionButtonByHref } from "../shared/page-content-actions";
 import { CONTRIBUTOR_ENVIRONMENT_MENU_ITEM } from "../shared/admin-menu-items";
-import { AdminPath, AdminPlatformPath, LegacyAdminPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
+import { AdminPath, LegacyAdminPlatformPath, LegacyAdminPath } from "../../../../../projects/ngx-ramblers/src/app/models/admin-route-paths.model";
 
 const debugLog = createMigrationLogger("move-contributor-environment-menu-item");
 const ADMIN_PATH = `${AdminPath.ADMIN}#action-buttons`;
-const PLATFORM_PATH = `${AdminPlatformPath.ROOT}#action-buttons`;
+const PLATFORM_PATH = `${LegacyAdminPlatformPath.ROOT}#action-buttons`;
 
 export async function up(db: Db, _client: MongoClient) {
   const replaced = await replaceActionButtonByHref(db, ADMIN_PATH, LegacyAdminPath.CONTRIBUTOR_ENVIRONMENT, CONTRIBUTOR_ENVIRONMENT_MENU_ITEM, debugLog);

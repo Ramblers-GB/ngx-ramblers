@@ -3,7 +3,9 @@ import {provideNoopAnimations} from "@angular/platform-browser/animations";
 import {TestBed} from "@angular/core/testing";
 import {ActivatedRoute, Router} from "@angular/router";
 import {LoggerTestingModule} from "ngx-logger/testing";
-import {finalize, Subject} from "rxjs";
+import {BehaviorSubject, finalize, Subject} from "rxjs";
+import {By} from "@angular/platform-browser";
+import {SortableTableComponent} from "../../../modules/common/sortable-table/sortable-table.component";
 import {MigrationHealthComponent} from "./migration-health.component";
 import {PageComponent} from "../../../page/page.component";
 import {CrossEnvironmentHealthService} from "../../../services/cross-environment-health.service";
@@ -14,7 +16,7 @@ import {ASCENDING, DESCENDING} from "../../../models/table-filtering.model";
 
 function progress(): EnvironmentHealthProgress {
   return {complete: false, response: {
-    timestamp: "2026-10-01T12:00:00Z", summary: {total: 27, healthy: 1, degraded: 0, pending: 0, unreachable: 0},
+    timestamp: "2026-10-01T12:00:00Z", summary: {total: 27, healthy: 1, degraded: 0, pending: 0, unreachable: 0, sleeping: 0},
     environments: [{environment: "hillside", appName: "example-hillside", adminUrl: "https://group.example.org.uk", url: "https://example-hillside.fly.dev", checkStatus: EnvironmentHealthCheckStatus.HEALTHY, responseTimeMs: 25}]
   }};
 }
@@ -28,7 +30,7 @@ async function screen(queryParams = {}) {
     providers: [
       provideNoopAnimations(),
       {provide: CrossEnvironmentHealthService, useValue: {progressiveHealthCheck: () => results.pipe(finalize(cancelled))}},
-      {provide: ActivatedRoute, useValue: {snapshot: {queryParams}}},
+      {provide: ActivatedRoute, useValue: {snapshot: {queryParams}, queryParams: new BehaviorSubject(queryParams)}},
       {provide: Router, useValue: {navigate, createUrlTree: vi.fn(), serializeUrl: vi.fn(), events: new Subject(), url: "/"}},
       {provide: DateUtilsService, useValue: {displayDateAndTime: () => "1 October 2026"}}
     ]
@@ -54,8 +56,11 @@ describe("MigrationHealthComponent progressive monitoring", () => {
   });
 
   it("restores bookmarked search and sort, and writes changed sort to the URL", async () => {
-    const {component, navigate, fixture} = await screen({[StoredValue.SEARCH]: "hillside", [StoredValue.SORT]: HealthSortColumn.ENVIRONMENT, [StoredValue.SORT_ORDER]: DESCENDING});
-    expect(component.search).toBe("hillside");
+    const {component, navigate, fixture, results} = await screen({[StoredValue.SEARCH]: "hillside", [StoredValue.SORT]: HealthSortColumn.ENVIRONMENT, [StoredValue.SORT_ORDER]: DESCENDING});
+    results.next(progress());
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(By.directive(SortableTableComponent)).componentInstance as SortableTableComponent;
+    expect(table.filterQuery).toBe("hillside");
     expect(component.sortColumn).toBe(HealthSortColumn.ENVIRONMENT);
     expect(component.sortDirection).toBe(DESCENDING);
     component.sortChanged({key: HealthSortColumn.RESPONSE, direction: ASCENDING});
