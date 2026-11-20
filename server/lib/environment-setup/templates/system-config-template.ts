@@ -3,6 +3,7 @@ import { LinkStyle, ListStyle } from "../../../../projects/ngx-ramblers/src/app/
 import { AccessLevel } from "../../../../projects/ngx-ramblers/src/app/models/member-resource.model";
 import { RamblersGroupsApiResponse } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
 import {
+  defaultAppDownloads,
   defaultHeaderBar,
   defaultNavbar,
   defaultRamblersConfig,
@@ -115,10 +116,7 @@ export function createSystemConfig(params: SystemConfigTemplateParams): SystemCo
         { title: "Privacy Policy", href: PRIVACY_POLICY_PATH }
       ],
       pages: [],
-      appDownloads: {
-        apple: "https://apps.apple.com/gb/app/ramblers/id1356478889",
-        google: "https://play.google.com/store/apps/details?id=uk.org.ramblers.walkreg&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1"
-      }
+      appDownloads: {...defaultAppDownloads}
     },
     group: {
       longName: groupData.name,

@@ -93,23 +93,39 @@ export function projectOnSegment(point: RouteFollowPoint, start: RouteFollowPoin
   }
 }
 
-export function snapToRoute(points: RouteFollowPoint[], cumulative: number[], position: RouteFollowPoint): RouteFollowSnap | null {
-  if (points.length < 2) {
-    return null;
-  } else {
-    const snap = points.slice(1).reduce((best: RouteFollowSnap, end, offset) => {
-      const projected = end.breakBefore
-        ? {point: end, distanceMetres: Number.POSITIVE_INFINITY, alongMetres: 0}
-        : projectOnSegment(position, points[offset], end);
-      return projected.distanceMetres < best.distanceMetres ? {
+export function routeSnapCandidates(points: RouteFollowPoint[], cumulative: number[], position: RouteFollowPoint): RouteFollowSnap[] {
+  return points.slice(1)
+    .map((end, offset) => ({end, offset}))
+    .filter(segment => !segment.end.breakBefore)
+    .map(segment => {
+      const projected = projectOnSegment(position, points[segment.offset], segment.end);
+      return {
         point: projected.point,
-        index: offset,
+        index: segment.offset,
         distanceMetres: projected.distanceMetres,
-        progressMetres: cumulative[offset] + projected.alongMetres
-      } : best;
-    }, {point: points[0], index: 0, distanceMetres: Number.POSITIVE_INFINITY, progressMetres: 0});
-    return Number.isFinite(snap.distanceMetres) ? snap : null;
+        progressMetres: cumulative[segment.offset] + projected.alongMetres
+      };
+    })
+    .filter(snap => Number.isFinite(snap.distanceMetres));
+}
+
+function nearestSnap(candidates: RouteFollowSnap[]): RouteFollowSnap | null {
+  return candidates.reduce((best: RouteFollowSnap | null, candidate) => !best || candidate.distanceMetres < best.distanceMetres ? candidate : best, null);
+}
+
+export function continuousSnap(candidates: RouteFollowSnap[], referenceMetres: number | null, ambiguityMetres: number): RouteFollowSnap | null {
+  const nearest = nearestSnap(candidates);
+  if (!nearest || referenceMetres === null) {
+    return nearest;
+  } else {
+    return candidates
+      .filter(candidate => candidate.distanceMetres <= nearest.distanceMetres + ambiguityMetres)
+      .reduce((best, candidate) => Math.abs(candidate.progressMetres - referenceMetres) < Math.abs(best.progressMetres - referenceMetres) ? candidate : best, nearest);
   }
+}
+
+export function snapToRoute(points: RouteFollowPoint[], cumulative: number[], position: RouteFollowPoint): RouteFollowSnap | null {
+  return points.length < 2 ? null : nearestSnap(routeSnapCandidates(points, cumulative, position));
 }
 
 export function routeSegments(points: RouteFollowPoint[]): RouteFollowPoint[][] {

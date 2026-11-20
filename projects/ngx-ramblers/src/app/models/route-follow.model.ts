@@ -6,6 +6,7 @@ import { toKebabCase } from "../functions/strings";
 import { ExtendedGroupEvent } from "./group-event.model";
 import { Difficulty, LocationDetails, Metadata } from "./ramblers-walks-manager.model";
 import { Feature } from "./walk-feature.model";
+import { DistanceUnit } from "./walk.model";
 import { PageContentColumn, PageContentRow } from "./content-text.model";
 export enum AppPath {
   ROOT = "app",
@@ -552,6 +553,12 @@ export interface RouteFollowPoint {
   elevation?: number | null;
 }
 
+export interface RouteFollowRememberedProgress {
+  routeKey: string;
+  completedMetres: number;
+  savedAt: number;
+}
+
 export interface RouteFollowSnap {
   point: RouteFollowPoint;
   index: number;
@@ -744,6 +751,16 @@ export function firstCompleted<T>(promise: Promise<T>, timeoutMs: number, timeou
 export const ROUTE_FOLLOW_APPROACH_METRES = 40;
 export const ROUTE_FOLLOW_NUDGE_METRES = 50;
 export const ROUTE_FOLLOW_OFF_ROUTE_METRES = 50;
+export const ROUTE_FOLLOW_SNAP_AMBIGUITY_METRES = 40;
+export const ROUTE_FOLLOW_PROGRESS_MEMORY_HOURS = 12;
+export const ROUTE_FOLLOW_PATH_ROUTER_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/foot";
+export const ROUTE_FOLLOW_PATH_TIMEOUT_MS = 8000;
+
+export interface RouteFollowPathPlacement {
+  afterIndex: number;
+  atStart: boolean;
+  atEnd: boolean;
+}
 export const ROUTE_FOLLOW_WALKING_METRES_PER_MINUTE = 75;
 export const ROUTE_FOLLOW_ARROW_SPACING_METRES = 220;
 export const ROUTE_FOLLOW_RECORD_MIN_POINT_METRES = 8;
@@ -829,6 +846,26 @@ const FOLLOW_MAP_SCALE_CHOICES: FollowMapScaleBarChoice[] = [
   {metres: 5 * METRES_PER_MILE, label: "5 miles"},
   {metres: 10 * METRES_PER_MILE, label: "10 miles"}
 ];
+
+const FOLLOW_MAP_METRIC_SCALE_CHOICES: FollowMapScaleBarChoice[] = [
+  {metres: 2, label: "2 m"},
+  {metres: 5, label: "5 m"},
+  {metres: 10, label: "10 m"},
+  {metres: 20, label: "20 m"},
+  {metres: 50, label: "50 m"},
+  {metres: 100, label: "100 m"},
+  {metres: 200, label: "200 m"},
+  {metres: 500, label: "500 m"},
+  {metres: 1000, label: "1 km"},
+  {metres: 2000, label: "2 km"},
+  {metres: 5000, label: "5 km"},
+  {metres: 10000, label: "10 km"},
+  {metres: 20000, label: "20 km"}
+];
+
+export function followDistanceUnitFrom(value: string | null): DistanceUnit {
+  return value === DistanceUnit.KILOMETRES ? DistanceUnit.KILOMETRES : DistanceUnit.MILES;
+}
 
 interface FollowMapScaleBarChoice {
   metres: number;
@@ -924,13 +961,15 @@ export function compassHeadingLabel(degrees: number): string {
 
 export function followMapScaleBar(
   metresPerPixel: number,
+  unit: DistanceUnit = DistanceUnit.MILES,
   targetPx = FOLLOW_MAP_SCALE_TARGET_PX,
   maxPx = FOLLOW_MAP_SCALE_MAX_PX
 ): FollowMapScaleBar {
   if (!Number.isFinite(metresPerPixel) || metresPerPixel <= 0) {
     return {label: "", midLabel: "", widthPx: 0};
   } else {
-    const scored = FOLLOW_MAP_SCALE_CHOICES.map(choice => {
+    const choices = unit === DistanceUnit.KILOMETRES ? FOLLOW_MAP_METRIC_SCALE_CHOICES : FOLLOW_MAP_SCALE_CHOICES;
+    const scored = choices.map(choice => {
       const widthPx = choice.metres / metresPerPixel;
       return {choice, widthPx, score: Math.abs(widthPx - targetPx)};
     });
@@ -950,13 +989,15 @@ export function followScaleDisplayLabel(label: string): string {
 }
 
 export function followScaleHalfLabel(label: string): string {
-  const match = label.match(/^([\d.]+)\s*(ft|miles|mile)$/);
+  const match = label.match(/^([\d.]+)\s*(ft|miles|mile|m|km)$/);
   if (!match) {
     return "";
   } else {
     const value = Number(match[1]) / 2;
-    if (match[2] === "ft") {
-      return `${Math.round(value)} ft`;
+    if (match[2] === "ft" || match[2] === "m") {
+      return `${Math.round(value)} ${match[2]}`;
+    } else if (match[2] === "km") {
+      return value >= 1 ? `${value} km` : `${Math.round(value * 1000)} m`;
     } else {
       const miles = value >= 1 ? (value >= 10 ? value.toFixed(0) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")) : String(value);
       return Number(miles) === 1 ? "1 mile" : `${miles} miles`;

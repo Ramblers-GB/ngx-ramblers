@@ -274,6 +274,13 @@ export interface Footer {
   };
 }
 
+export const defaultAppDownloads: Footer["appDownloads"] = {
+  apple: "https://apps.apple.com/gb/app/ngx-ramblers/id6821450594",
+  google: "https://play.google.com/store/apps/details?id=org.ngxramblers.walking",
+  appleShowInFooter: true,
+  googleShowInFooter: true
+};
+
 export interface ExternalSystem {
   groupUrl?: string;
   showFooterLink?: boolean;

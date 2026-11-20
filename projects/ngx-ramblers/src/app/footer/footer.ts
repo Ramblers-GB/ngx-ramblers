@@ -53,19 +53,19 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
                           <p class="h5 mb-2 mb-lg-5 text-green">Download the app</p>
                           @if (appleVisible) {
                             <li placement="left"
-                              tooltip="Download the Ramblers app on the Apple App Store (opens a new browser tab)">
+                              tooltip="Download the NGX Ramblers app on the Apple App Store (opens a new browser tab)">
                             <a [href]="footer.appDownloads.apple"
                               target="_blank" class="brand-badge"><img
-                              alt="Download the Ramblers app on the Apple App Store (opens a new browser tab)"
+                              alt="Download the NGX Ramblers app on the Apple App Store (opens a new browser tab)"
                             src="/assets/images/local/apple-badge.svg" class="app-download-image"></a>
                           </li>
                         }
                         @if (googleVisible) {
                           <li placement="left"
-                            tooltip="Download the Ramblers app on Google Play (opens a new browser tab)">
+                            tooltip="Download the NGX Ramblers app on Google Play (opens a new browser tab)">
                             <a [href]="footer.appDownloads.google"
                               class="brand-badge"><img
-                              alt="Download the Ramblers app on Google Play (opens a new browser tab)"
+                              alt="Download the NGX Ramblers app on Google Play (opens a new browser tab)"
                               src="/assets/images/local/google-play-badge.png" class="app-download-image">
                             </a>
                           </li>

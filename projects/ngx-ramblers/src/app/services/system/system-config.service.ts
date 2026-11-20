@@ -5,6 +5,7 @@ import { shareReplay } from "rxjs/operators";
 import { NamedEvent, NamedEventType } from "../../models/broadcast.model";
 import { ConfigKey } from "../../models/config.model";
 import {
+  defaultAppDownloads,
   defaultHeaderBar,
   defaultNavbar,
   defaultRamblersConfig,
@@ -330,7 +331,7 @@ export class SystemConfigService {
   }
 
   public appDownloadsDefaults(): Footer["appDownloads"] {
-    return {apple: null, google: null};
+    return {...defaultAppDownloads};
   }
 
   public footerDefaults(): Footer {
