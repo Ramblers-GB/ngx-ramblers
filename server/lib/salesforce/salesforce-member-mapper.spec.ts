@@ -59,6 +59,16 @@ describe("salesforce-member-mapper", () => {
     expect(result.canViewVolunteerData).toEqual(true);
   });
 
+  it("treats null view permissions from Head office as not granted", () => {
+    const result = mapSalesforceMemberToRamblersMember(supporter({
+      canViewMemberData: null,
+      canViewVolunteerData: null,
+    }));
+
+    expect(result.canViewMemberData).toEqual(false);
+    expect(result.canViewVolunteerData).toEqual(false);
+  });
+
   it("keeps a non-member supporter stable without a membership number", () => {
     const result = mapSalesforceMemberToRamblersMember(supporter({
       membershipNo: null,

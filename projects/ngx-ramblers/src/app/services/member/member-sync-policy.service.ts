@@ -6,6 +6,7 @@ import { ConfigKey } from "../../models/config.model";
 import { NamedEventType } from "../../models/broadcast.model";
 import {
   DEFAULT_MEMBER_SYNC_POLICY,
+  effectiveSyncMode,
   MemberSyncPolicy,
   MemberSyncPolicyMode
 } from "../../models/member-sync-policy.model";
@@ -75,7 +76,7 @@ export class MemberSyncPolicyService {
   }
 
   effectiveModeFor(policy: MemberSyncPolicy, fieldName: string): MemberSyncPolicyMode {
-    return policy?.overrides?.[fieldName] ?? policy?.defaultMode ?? DEFAULT_MEMBER_SYNC_POLICY.defaultMode;
+    return effectiveSyncMode(policy, fieldName);
   }
 
   async save(value: MemberSyncPolicy): Promise<MemberSyncPolicy> {

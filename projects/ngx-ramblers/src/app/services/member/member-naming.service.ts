@@ -2,6 +2,15 @@ import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { abbreviatedWalksManagerContactName, firstAndLastNameFrom, memberFullName } from "../../functions/member-names";
 import { defaultDisplayName } from "../../functions/walks/ramblers-event.mapper";
+import {
+  createDisplayNameFromMember,
+  createUniqueDisplayName,
+  createUniqueUserName,
+  createUniqueValueFrom,
+  createUserName,
+  removeCharactersNotPartOfName,
+  removeSpacesAndLower
+} from "../../functions/member-naming";
 import { FirstAndLastName, HasEmailFirstAndLastName, Member, RamblersMember } from "../../models/member.model";
 import { Logger, LoggerFactory } from "../logger-factory.service";
 
@@ -29,57 +38,31 @@ export class MemberNamingService {
   }
 
   createUniqueUserName(member: RamblersMember | Member, members: Member[]) {
-    return this.createUniqueValueFrom(this.createUserName(member), "userName", members);
+    return createUniqueUserName(member, members);
   }
 
   createUniqueDisplayName(member: HasEmailFirstAndLastName, members: Member[]) {
-    return this.createUniqueValueFrom(this.createDisplayNameFromMember(member), "displayName", members);
+    return createUniqueDisplayName(member, members);
   }
 
   public createUniqueValueFrom(value: string, field: string, members: Member[]) {
-    const candidate = (attempt: number) => `${value}${attempt === 0 ? "" : attempt}`;
-    const maxAttempts = members.length + 1;
-    return Array.from({length: maxAttempts}, (_, i) => candidate(i))
-      .find(name => !this.memberFieldExists(field, name, members)) ?? candidate(maxAttempts);
+    return createUniqueValueFrom(value, field, members);
   }
 
   public createUserName(member: RamblersMember | Member): string {
-    const firstName = this.removeCharactersNotPartOfName(this.removeSpacesAndLower(member?.firstName || member.title));
-    const lastName = this.removeCharactersNotPartOfName(this.removeSpacesAndLower(member?.lastName));
-    if (firstName && lastName) {
-      return `${firstName}.${lastName}`;
-    } else if (firstName) {
-      return firstName;
-    } else if (lastName) {
-      return lastName;
-    } else {
-      return "";
-    }
+    return createUserName(member);
   }
 
   public removeSpacesAndLower(value: string): string {
-    return value ? value.replace(/[ ]/, "").trim().toLowerCase() : "";
+    return removeSpacesAndLower(value);
   }
 
   public removeCharactersNotPartOfName(value: string): string {
-    return value ? value.replace(/\s+$/, "").replace(/\.$/, "").trim() : "";
+    return removeCharactersNotPartOfName(value);
   }
 
   public createDisplayNameFromMember(member: Member): string {
-    const lastName = member.lastName;
-    const firstName = member.firstName;
-    return this.createDisplayName(firstName, lastName);
-  }
-
-  private createDisplayName(firstName: string, lastName: string): string {
-    return (`${(firstName || "").trim()} ${(lastName || "").trim().substring(0, 1).toUpperCase()}`).trim();
-  }
-
-  private memberFieldExists(field: string, value: string, members: Member[]) {
-    const member = members.find(member => member[field] === value);
-    const returnValue = member && member[field];
-    this.logger.debug("field", field, "matching", value, member, "->", returnValue);
-    return returnValue;
+    return createDisplayNameFromMember(member);
   }
 
 }

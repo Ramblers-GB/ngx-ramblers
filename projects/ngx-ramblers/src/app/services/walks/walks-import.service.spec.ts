@@ -129,17 +129,11 @@ describe("WalksImportService Walks Manager matching", () => {
     };
 
     const memberBulkLoadService = {
-        bulkLoadMemberAndMatchFor: vi.fn().mockName("MemberBulkLoadService.bulkLoadMemberAndMatchFor")
+        existingMemberMatchFor: vi.fn().mockName("MemberBulkLoadService.existingMemberMatchFor")
     };
-    memberBulkLoadService.bulkLoadMemberAndMatchFor.mockImplementation((ramblersMemberAndContact: any, existingMembers: Member[]) => {
+    memberBulkLoadService.existingMemberMatchFor.mockImplementation((ramblersMemberAndContact: any, existingMembers: Member[]) => {
         const matchedMember = existingMembers.find(member => member.displayName === ramblersMemberAndContact?.contact?.name);
-        return {
-            memberMatch: matchedMember ? MemberAction.found : MemberAction.created,
-            memberMatchType: matchedMember ? "contact name" : null,
-            member: matchedMember || {id: null},
-            ramblersMember: ramblersMemberAndContact?.ramblersMember,
-            contact: ramblersMemberAndContact?.contact
-        };
+        return {member: matchedMember, memberMatchType: matchedMember ? "contact name" : null};
     });
 
     const memberService = {

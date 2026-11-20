@@ -1007,6 +1007,20 @@ export interface EmailComposerRecipientEntry {
   external?: ComposerExternalRecipient;
 }
 
+export interface UnavailableRecipient {
+  member: Member;
+  reason: string;
+}
+
+export interface UnavailableRecipientsSnapshot {
+  entries: EmailComposerRecipientEntry[];
+  key: string;
+  unavailable: UnavailableRecipient[];
+  reasons: Record<string, string>;
+}
+
+export const NO_UNAVAILABLE_RECIPIENTS: UnavailableRecipientsSnapshot = {entries: [], key: "", unavailable: [], reasons: {}};
+
 export enum EmailComposerDraftingMode {
   INTRO = "intro",
   EVENT_SETTINGS = "event-settings"

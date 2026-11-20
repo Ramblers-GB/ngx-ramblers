@@ -459,7 +459,83 @@ export interface VolunteerSettingsConfig {
   supporterEmailDomain?: string;
   supporterReferencePrefix?: string;
   contactRetentionDays?: number;
+  roleCategories?: VolunteerRoleCategory[];
 }
+
+export interface VolunteerRoleCategory {
+  name: string;
+  roles: string[];
+}
+
+export interface VolunteerRoleCount {
+  role: string;
+  memberCount: number;
+}
+
+export interface VolunteerRoleRow extends VolunteerRoleCount {
+  category: string;
+}
+
+export enum VolunteerRoleField {
+  ROLE = "role",
+  MEMBER_COUNT = "memberCount",
+  CATEGORY = "category"
+}
+
+export enum VolunteerRoleCategoriesSubTab {
+  CATEGORIES = "categories",
+  ROLES = "roles"
+}
+
+export enum VolunteerRoleCategoryField {
+  NAME = "name",
+  ROLES = "roles",
+  ACTIONS = "actions"
+}
+
+export interface VolunteerRoleGroup {
+  heading: string;
+  roles: string[];
+  categorised: boolean;
+}
+
+export const UNCATEGORISED_VOLUNTEER_ROLES_HEADING = "Volunteer Roles";
+
+export interface VolunteerRoleCategoryRule {
+  name: string;
+  roles?: string[];
+  keywords: string[];
+}
+
+export const KNOWN_RAMBLERS_VOLUNTEER_ROLES: string[] = [
+  "Acting Public Rights of Way Manager",
+  "Area Chair",
+  "Area Committee Member",
+  "Area Environmental Protection Volunteer",
+  "Area Membership Recruitment Coordinator",
+  "Area Membership Secretary",
+  "Area Newsletter Editor",
+  "Area Publicity Officer",
+  "Area Secretary",
+  "Area Solar Arrays Coordinator",
+  "Area Treasurer",
+  "Area Vice Chairman",
+  "Area Webpage Editor",
+  "Footpath Officer",
+  "Footpath Warden",
+  "Membership Secretary Support",
+  "Public Rights of Way Manager",
+  "Web Editor"
+];
+
+export const DEFAULT_VOLUNTEER_ROLE_CATEGORY_RULES: VolunteerRoleCategoryRule[] = [
+  {name: "Footpaths and rights of way", keywords: ["footpath", "rights of way", "path"]},
+  {name: "Walks", keywords: ["walk"]},
+  {name: "Membership", keywords: ["membership", "welcome"]},
+  {name: "Communications", keywords: ["newsletter", "publicity", "web", "social media", "press", "communication", "editor"]},
+  {name: "Environment", keywords: ["environment", "conservation", "solar", "climate"]},
+  {name: "Committee", keywords: ["chair", "secretary", "treasurer", "committee", "president", "vice"]}
+];
 
 export interface GoogleAnalyticsConfig {
   trackingId: string;

@@ -5,6 +5,8 @@ import { ActivatedRoute, RouterLink } from "@angular/router";
 import { faEnvelopesBulk, faSearch, faCloudArrowDown, faTrash, faPaperPlane, faCircleExclamation, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { first, isArray, isNumber, isString, groupBy, map, max, min, reduce, kebabCase, values } from "es-toolkit/compat";
 import { extractErrorMessage } from "../../../functions/strings";
+import { MemberBulkApplyResult } from "../../../models/member-bulk-apply.model";
+import { sortDirectionParam } from "../../../functions/sort-direction";
 import { enumKeyValues, KeyValue } from "../../../functions/enums";
 import { FileUploader, FileUploadModule } from "ng2-file-upload";
 import { BsModalService } from "ngx-bootstrap/modal";
@@ -30,10 +32,12 @@ import {
   StatusMessage
 } from "../../../models/member.model";
 import { MailProvider, SystemConfig } from "../../../models/system.model";
+import { areaSite as isAreaSite } from "../../../functions/site-membership";
 import {
   ASCENDING,
   DESCENDING,
   MemberBulkLoadUploadedTableFilter,
+  MEMBER_ADMIN_PAGE_SIZE,
   MemberUpdateAuditTableFilter
 } from "../../../models/table-filtering.model";
 import { SortDirection } from "../../../models/sort.model";
@@ -61,7 +65,7 @@ import { SystemConfigService } from "../../../services/system/system-config.serv
 import { UrlService } from "../../../services/url.service";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { MemberAdminModalComponent } from "../member-admin-modal/member-admin-modal.component";
-import { SalesforceConfig, memberBulkLoadSourceLabel } from "../../../models/salesforce.model";
+import { SalesforceAreaQueryMode, SalesforceConfig, memberBulkLoadSourceLabel } from "../../../models/salesforce.model";
 import { SalesforceConfigService } from "../../../services/salesforce/salesforce-config.service";
 import { SalesforceSyncService } from "../../../services/salesforce/salesforce-sync.service";
 import { EmailAddress, MailMessagingConfig } from "../../../models/mail.model";
@@ -264,6 +268,23 @@ export enum MemberBulkLoadSubTab {
                               for inspection after the run.
                             </li>
                           </ul>
+                          @if (areaSite()) {
+                            <div class="mt-2">
+                              <div class="form-check form-check-inline">
+                                <input type="radio" class="form-check-input" id="area-query-mode-area-code" name="area-query-mode"
+                                       [checked]="!queryByGroupCodes()" [disabled]="salesforceSyncing"
+                                       (change)="setAreaQueryMode(SalesforceAreaQueryMode.AREA_CODE)">
+                                <label class="form-check-label" for="area-query-mode-area-code">Query by area code ({{ systemConfig?.area?.groupCode }})</label>
+                              </div>
+                              <div class="form-check form-check-inline">
+                                <input type="radio" class="form-check-input" id="area-query-mode-group-codes" name="area-query-mode"
+                                       [checked]="queryByGroupCodes()" [disabled]="salesforceSyncing"
+                                       (change)="setAreaQueryMode(SalesforceAreaQueryMode.GROUP_CODES)">
+                                <label class="form-check-label" for="area-query-mode-group-codes">Query by group code</label>
+                              </div>
+                              <div class="form-text">Querying by group code calls every group in the area, then the area itself for anyone not in a group, and records which groups each member belongs to. It needs a Ramblers Team Emails key for every group.</div>
+                            </div>
+                          }
                           <button type="button"
                                   class="btn btn-primary mt-2"
                                   [disabled]="salesforceSyncing"
@@ -513,6 +534,7 @@ export enum MemberBulkLoadSubTab {
                             <app-sortable-table
                               [columns]="uploadedMemberColumns"
                               [rows]="filters.membersUploaded.results"
+                              [pageSize]="pageSize"
                               [defaultSortKey]="uploadedMembersSortKey"
                               [defaultSortDirection]="uploadedMembersSortDirection"
                               [trackBy]="trackUploadedMember"
@@ -533,6 +555,7 @@ export enum MemberBulkLoadSubTab {
                             <app-sortable-table
                               [columns]="memberAuditColumns"
                               [rows]="filters.memberUpdateAudit.results"
+                              [pageSize]="pageSize"
                               [defaultSortKey]="memberAuditSortKey"
                               [defaultSortDirection]="memberAuditSortDirection"
                               [trackBy]="trackMemberAudit"
@@ -734,6 +757,7 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
   private pendingHistoryTo: string | null = null;
   protected readonly memberBulkLoadSourceLabel = memberBulkLoadSourceLabel;
   protected readonly MemberBulkLoadHistoryPreset = MemberBulkLoadHistoryPreset;
+  protected readonly pageSize = MEMBER_ADMIN_PAGE_SIZE;
   public uploadSessionStatuses: SessionStatus[] = [
     {title: "All"},
     {status: MemberAction.created, title: "Created"},
@@ -806,6 +830,7 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
   salesforceSyncing = false;
   salesforceSyncAuditLog: StatusMessage[] = [];
   protected readonly MemberBulkLoadTab = MemberBulkLoadTab;
+  protected readonly SalesforceAreaQueryMode = SalesforceAreaQueryMode;
   protected readonly MemberBulkLoadSubTab = MemberBulkLoadSubTab;
   protected readonly ALERT_WARNING = ALERT_WARNING;
   adminSettingsSystemSettingsPath = AdminSettingsPath.SYSTEM_SETTINGS;
@@ -881,24 +906,7 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
       } else {
         const memberBulkLoadAuditApiResponse: MemberBulkLoadAuditApiResponse = JSON.parse(response);
         this.logger.info("received response", memberBulkLoadAuditApiResponse);
-        const memberBulkLoadResponse = memberBulkLoadAuditApiResponse.response as MemberBulkLoadAudit;
-        this.memberBulkLoadService.processResponse(this.mailMessagingConfig, this.systemConfig, memberBulkLoadResponse, this.members, this.notify)
-          .then(() => this.refreshMemberBulkLoadAudit())
-          .then(() => {
-            const created = this.memberBulkLoadAudits.find(session => session.id === memberBulkLoadResponse.id);
-            if (created) {
-              created.members = memberBulkLoadResponse.members || [];
-              created.memberCount = memberBulkLoadSessionMemberCount(memberBulkLoadResponse);
-              this.uploadSession = created;
-            }
-          })
-          .then(() => this.refreshMemberUpdateAudit())
-          .then(() => this.validateBulkUploadProcessing(memberBulkLoadAuditApiResponse))
-          .then((validationSuccessful) => this.sendSubscriptionUpdates(validationSuccessful))
-          .finally(async () => {
-            await this.refreshMembers();
-            this.clearBusy();
-          });
+        void this.applyUploadedFile(memberBulkLoadAuditApiResponse);
       }
     }));
 
@@ -1177,6 +1185,27 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
     this.selectedHistorySessionIds = this.selectedHistorySessionIds.filter(id => visibleIds.includes(id));
   }
 
+  areaSite(): boolean {
+    return isAreaSite(this.systemConfig);
+  }
+
+  queryByGroupCodes(): boolean {
+    return this.salesforceConfig?.areaQueryMode === SalesforceAreaQueryMode.GROUP_CODES;
+  }
+
+  private supporterRequestScope(): string {
+    const groupCount = this.systemConfig?.area?.groups?.length ?? 0;
+    if (this.areaSite() && this.queryByGroupCodes()) {
+      return `for ${this.stringUtils.pluraliseWithCount(groupCount, "group")} in ${this.systemConfig?.area?.groupCode} and the area itself`;
+    } else {
+      return `for ${this.systemConfig?.group?.groupCode}`;
+    }
+  }
+
+  async setAreaQueryMode(areaQueryMode: SalesforceAreaQueryMode) {
+    this.salesforceConfig = await this.salesforceConfigService.save({...this.salesforceConfig, areaQueryMode});
+  }
+
   async triggerSalesforceSync() {
     if (this.salesforceSyncing) {
       return;
@@ -1185,9 +1214,13 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
     this.salesforceSyncAuditLog = [];
     this.notify.setBusy();
     try {
+      this.notify.progress({title: "Ramblers Team Emails sync", message: `Requested supporters from Ramblers Team Emails ${this.supporterRequestScope()}. Waiting for Head office to respond`}, true);
       const apiResponse = await this.salesforceSyncService.sync(true);
       const audit = apiResponse?.response;
       this.salesforceSyncAuditLog = audit?.auditLog ?? [];
+      if (audit && !apiResponse?.error) {
+        this.notify.progress({title: "Ramblers Team Emails sync", message: `Received ${this.stringUtils.pluraliseWithCount(audit.members?.length ?? 0, "supporter")} from Ramblers Team Emails`}, true);
+      }
       if (apiResponse?.error) {
         this.notify.error({title: "Ramblers Team Emails sync failed", message: this.salesforceErrorText(apiResponse.error)});
         if (audit) {
@@ -1201,14 +1234,17 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
         this.notify.error({title: "Ramblers Team Emails sync failed", message: "Sync returned no result."});
         return;
       }
-      const members = await this.refreshMembers();
-      await this.memberBulkLoadService.processResponse(this.mailMessagingConfig, this.systemConfig, audit, members, this.notify);
+      const applyResult = await this.memberBulkLoadService.processResponse(audit, this.notify);
       await this.refreshMemberBulkLoadAudit();
+      this.uploadSession = this.memberBulkLoadAudits.find(session => session.id === applyResult.uploadSessionId) ?? this.uploadSession;
       await this.refreshMemberUpdateAudit();
       const validationSuccessful = await this.validateBulkUploadProcessing({action: null, request: null, response: audit});
-      await this.sendSubscriptionUpdates(validationSuccessful);
+      const emailListsSummary = validationSuccessful ? await this.sendSubscriptionUpdates() : "";
       await this.refreshMembers();
       await this.salesforceConfigService.refresh();
+      if (validationSuccessful) {
+        this.notifyLoadFinished(applyResult, emailListsSummary);
+      }
     } catch (error) {
       this.logger.error("Ramblers Team Emails sync error", error);
       this.notify.error({title: "Ramblers Team Emails sync failed", message: this.salesforceErrorText(error)});
@@ -1223,7 +1259,10 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
       return error;
     }
     const record = error as Record<string, string>;
-    return record?.errorMessage || record?.errorCode || extractErrorMessage(error);
+    const unreachable = (error as { status?: number; url?: string })?.status === 0;
+    return unreachable
+      ? `The browser could not reach the server while calling ${(error as { url?: string }).url || "the API"}. The request was never answered, so nothing more is known about it.`
+      : record?.errorMessage || record?.errorCode || extractErrorMessage(error);
   }
 
   private filterLists() {
@@ -1271,9 +1310,9 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
       [StoredValue.SESSION]: this.sessionToUrlParam(this.uploadSession?.createdDate) || null,
       [StoredValue.STATUS]: isDefaultStatus ? null : kebabCase(statusTitle),
       [StoredValue.SORT]: this.uploadedMembersSortIsDefault() ? null : this.uploadedMembersSortKey,
-      [StoredValue.SORT_ORDER]: this.uploadedMembersSortIsDefault() ? null : this.sortDirectionParam(this.uploadedMembersSortDirection),
+      [StoredValue.SORT_ORDER]: this.uploadedMembersSortIsDefault() ? null : sortDirectionParam(this.uploadedMembersSortDirection),
       [StoredValue.AUDIT_SORT]: this.memberAuditSortIsDefault() ? null : this.memberAuditSortKey,
-      [StoredValue.AUDIT_SORT_ORDER]: this.memberAuditSortIsDefault() ? null : this.sortDirectionParam(this.memberAuditSortDirection),
+      [StoredValue.AUDIT_SORT_ORDER]: this.memberAuditSortIsDefault() ? null : sortDirectionParam(this.memberAuditSortDirection),
       [StoredValue.DATE_RANGE_PRESET]: null,
       [StoredValue.DATE_FROM]: null,
       [StoredValue.DATE_TO]: null
@@ -1510,10 +1549,6 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
 
   private memberAuditSortIsDefault(): boolean {
     return this.memberAuditSortKey === "updateTime" && this.memberAuditSortDirection === DESCENDING;
-  }
-
-  private sortDirectionParam(direction: string): SortDirection {
-    return direction === ASCENDING ? SortDirection.ASC : SortDirection.DESC;
   }
 
   private applySortFromQueryParams(params: Record<string, string>): void {
@@ -1801,22 +1836,48 @@ export class MemberBulkLoadComponent implements OnInit, OnDestroy {
     }
   }
 
-  async sendSubscriptionUpdates(validationSuccessful: boolean) {
-    if (validationSuccessful) {
-      const groupMembers = (await this.memberService.allPages()).filter(this.memberService.filterFor.GROUP_MEMBERS);
-      this.logger.info("about to update", this.systemConfig?.mailDefaults?.mailProvider, "mail lists for", this.stringUtils.pluraliseWithCount(groupMembers.length, "member"));
-      switch (this.systemConfig?.mailDefaults?.mailProvider) {
-        case MailProvider.BREVO:
-          return this.mailListUpdaterService.updateMailLists(this.notify, groupMembers);
-        case MailProvider.MAILCHIMP:
-          return this.mailchimpListUpdaterService.updateMailchimpLists(this.notify, groupMembers);
-        default:
-          return Promise.resolve();
+  private async applyUploadedFile(memberBulkLoadAuditApiResponse: MemberBulkLoadAuditApiResponse) {
+    const memberBulkLoadResponse = memberBulkLoadAuditApiResponse.response as MemberBulkLoadAudit;
+    try {
+      const applyResult = await this.memberBulkLoadService.processResponse(memberBulkLoadResponse, this.notify);
+      await this.refreshMemberBulkLoadAudit();
+      const created = this.memberBulkLoadAudits.find(session => session.id === applyResult.uploadSessionId);
+      if (created) {
+        created.members = memberBulkLoadResponse.members || [];
+        created.memberCount = memberBulkLoadSessionMemberCount(memberBulkLoadResponse);
+        this.uploadSession = created;
       }
-    } else {
-      return Promise.resolve();
+      await this.refreshMemberUpdateAudit();
+      const validationSuccessful = await this.validateBulkUploadProcessing(memberBulkLoadAuditApiResponse);
+      const emailListsSummary = validationSuccessful ? await this.sendSubscriptionUpdates() : "";
+      await this.refreshMembers();
+      if (validationSuccessful) {
+        this.notifyLoadFinished(applyResult, emailListsSummary);
+      }
+    } catch (error) {
+      this.logger.error("applyUploadedFile error", error);
+      this.notify.error({title: "Bulk member load failed", message: extractErrorMessage(error)});
+    } finally {
+      this.clearBusy();
     }
+  }
 
+  private notifyLoadFinished(applyResult: MemberBulkApplyResult, emailListsSummary: string) {
+    const message = [this.memberBulkLoadService.finishedMessage(applyResult), emailListsSummary].filter(part => !!part).join(". ");
+    this.notify.success({title: "Bulk member load", message});
+  }
+
+  async sendSubscriptionUpdates(): Promise<string> {
+    const groupMembers = (await this.memberService.allPages()).filter(this.memberService.filterFor.GROUP_MEMBERS);
+    this.logger.info("about to update", this.systemConfig?.mailDefaults?.mailProvider, "mail lists for", this.stringUtils.pluraliseWithCount(groupMembers.length, "member"));
+    switch (this.systemConfig?.mailDefaults?.mailProvider) {
+      case MailProvider.BREVO:
+        return this.mailListUpdaterService.updateMailLists(this.notify, groupMembers);
+      case MailProvider.MAILCHIMP:
+        return this.mailchimpListUpdaterService.updateMailchimpLists(this.notify, groupMembers).then(() => "");
+      default:
+        return "";
+    }
   }
 
   clearBusy() {

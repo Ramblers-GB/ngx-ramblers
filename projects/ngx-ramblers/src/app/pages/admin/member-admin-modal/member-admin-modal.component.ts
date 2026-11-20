@@ -10,6 +10,7 @@ import { AlertTarget } from "../../../models/alert-target.model";
 import { DateValue } from "../../../models/date.model";
 import { MailchimpConfig } from "../../../models/mailchimp.model";
 import { HEAD_OFFICE_SUPPORTER_FIELDS, Member, MemberTerm, MemberUpdateAudit } from "../../../models/member.model";
+import { siteMemberLabel } from "../../../functions/site-membership";
 import { SalesforceConfig } from "../../../models/salesforce.model";
 import { MailProvider, SystemConfig } from "../../../models/system.model";
 import { EditMode, StoredValue } from "../../../models/ui-actions.model";
@@ -137,6 +138,10 @@ export class MemberAdminModalComponent implements OnInit, OnDestroy {
   protected readonly InputSize = InputSize;
   protected isLifeMember(): boolean {
     return (this.member?.memberTerm?.toString()?.toLowerCase() === MemberTerm.LIFE);
+  }
+
+  siteMemberLabel(): string {
+    return siteMemberLabel(this.systemConfig);
   }
 
   ngOnInit() {

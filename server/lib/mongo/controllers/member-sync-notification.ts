@@ -92,27 +92,31 @@ async function processCandidate(candidate: MemberSyncNotificationCandidate, sync
   }
 }
 
-export async function reconcile(req: Request, res: Response): Promise<void> {
-  const request: MemberSyncNotificationReconcileRequest = req.body;
+export async function reconcileMemberSyncNotifications(request: MemberSyncNotificationReconcileRequest): Promise<MemberSyncNotificationReconcileResult> {
   const syncRunAt = request?.syncRunAt || dateTimeNowAsValue();
   const candidates: MemberSyncNotificationCandidate[] = request?.candidates || [];
   const processedMemberIds: string[] = request?.processedMemberIds || [];
+  const outcomes = await Promise.all(candidates.map(candidate => processCandidate(candidate, syncRunAt)));
+  const staleResolved = processedMemberIds.length > 0
+    ? await memberSyncNotification.find({
+      memberId: {$in: processedMemberIds},
+      status: MemberSyncNotificationStatus.PENDING,
+      lastSeenInSyncRunAt: {$ne: syncRunAt}
+    })
+    : [];
+  await Promise.all(staleResolved.map(row => memberSyncNotification.updateOne({_id: row._id}, {status: MemberSyncNotificationStatus.SUPERSEDED})));
+  const result: MemberSyncNotificationReconcileResult = {
+    inserted: outcomes.filter(outcome => outcome === "inserted" || outcome === "superseded-and-inserted").length,
+    updated: outcomes.filter(outcome => outcome === "updated").length,
+    superseded: outcomes.filter(outcome => outcome === "superseded-and-inserted").length + staleResolved.length
+  };
+  debugLog("reconcile:result", result);
+  return result;
+}
+
+export async function reconcile(req: Request, res: Response): Promise<void> {
   try {
-    const outcomes = await Promise.all(candidates.map(candidate => processCandidate(candidate, syncRunAt)));
-    const staleResolved = processedMemberIds.length > 0
-      ? await memberSyncNotification.find({
-        memberId: {$in: processedMemberIds},
-        status: MemberSyncNotificationStatus.PENDING,
-        lastSeenInSyncRunAt: {$ne: syncRunAt}
-      })
-      : [];
-    await Promise.all(staleResolved.map(row => memberSyncNotification.updateOne({_id: row._id}, {status: MemberSyncNotificationStatus.SUPERSEDED})));
-    const result: MemberSyncNotificationReconcileResult = {
-      inserted: outcomes.filter(outcome => outcome === "inserted" || outcome === "superseded-and-inserted").length,
-      updated: outcomes.filter(outcome => outcome === "updated").length,
-      superseded: outcomes.filter(outcome => outcome === "superseded-and-inserted").length + staleResolved.length
-    };
-    debugLog("reconcile:result", result);
+    const result = await reconcileMemberSyncNotifications(req.body);
     res.status(200).json({action: ApiAction.UPDATE, response: result});
   } catch (error) {
     debugLog("reconcile:error", error);

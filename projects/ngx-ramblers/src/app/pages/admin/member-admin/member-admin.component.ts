@@ -2,8 +2,8 @@ import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { cloneDeep } from "es-toolkit/compat";
 import { sortBy } from "es-toolkit/compat";
 import { isNull } from "es-toolkit/compat";
-import { isString } from "es-toolkit/compat";
 import { BsModalService } from "ngx-bootstrap/modal";
+import { PageChangedEvent, PaginationComponent } from "ngx-bootstrap/pagination";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
@@ -21,6 +21,7 @@ import {
   ALL_MEMBERS_FILTER_TITLE,
   WALK_LEADER_FILTER_TITLE,
   MEMBER_SORT,
+  MEMBER_ADMIN_PAGE_SIZE,
   MemberTableFilter,
   NOT_RECEIVED_IN_LAST_RAMBLERS_BULK_LOAD,
   SELECT_ALL,
@@ -29,6 +30,10 @@ import {
 import { SortDirection } from "../../../models/sort.model";
 import { Confirm, ConfirmType, EditMode, StoredValue } from "../../../models/ui-actions.model";
 import { SearchFilterPipe } from "../../../pipes/search-filter.pipe";
+import { ignoredMember } from "../../../functions/team-emails-membership";
+
+const GROUPS_FILTER_GROUP = "Groups";
+const MEMBERSHIP_FILTER_GROUP = "Membership";
 import { ApiResponseProcessor } from "../../../services/api-response-processor.service";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
@@ -39,7 +44,7 @@ import { MemberAdminModalComponent } from "../member-admin-modal/member-admin-mo
 import { ProfileService } from "../profile/profile.service";
 import { WalksAndEventsService } from "../../../services/walks-and-events/walks-and-events.service";
 import { SystemConfigService } from "../../../services/system/system-config.service";
-import { MailProvider, SystemConfig } from "../../../models/system.model";
+import { MailProvider, SystemConfig, UNCATEGORISED_VOLUNTEER_ROLES_HEADING } from "../../../models/system.model";
 import { ListInfo, MailMessagingConfig, MemberAdminModalTab, UnsubscribeHistoryEntry } from "../../../models/mail.model";
 import { MailMessagingService } from "../../../services/mail/mail-messaging.service";
 import { MailService } from "../../../services/mail/mail.service";
@@ -57,7 +62,7 @@ import {
 import { MemberDefaultsService } from "../../../services/member/member-defaults.service";
 import { MailchimpConfig } from "../../../models/mailchimp.model";
 import { MailchimpConfigService } from "../../../services/mailchimp-config.service";
-import { faCopy, faEnvelope, faPhone, faComment, faShareNodes, faUserCheck, faUserXmark } from "@fortawesome/free-solid-svg-icons";
+import { faUserPlus, faArrowsRotate, faTrashCan, faXmark, faCheckDouble, faSquareMinus, faAnglesLeft, faAngleLeft, faAngleRight, faAnglesRight, faCopy, faEnvelope, faPhone, faComment, faShareNodes, faUserCheck, faUserXmark } from "@fortawesome/free-solid-svg-icons";
 import { faWhatsapp } from "@fortawesome/free-brands-svg-icons";
 import { ContactAction, ContactActionDropdownComponent } from "../../../modules/common/contact-action-dropdown/contact-action-dropdown";
 import { ClipboardService } from "../../../services/clipboard.service";
@@ -76,8 +81,11 @@ import { UrlService } from "../../../services/url.service";
 import { PathSegment } from "../../../models/content-text.model";
 import { UiActionsService } from "../../../services/ui-actions.service";
 import { MemberTerm } from "../../../models/member.model";
+import { siteMemberLabel } from "../../../functions/site-membership";
+import { volunteerRoleGroups, volunteerRoleList, volunteerWithoutRole } from "../../../functions/volunteer-roles";
 import { MessageType, ProgressResponse } from "../../../models/websocket.model";
 import { WebSocketClientService } from "../../../services/websockets/websocket-client.service";
+import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { SearchInputComponent } from "../../../modules/common/search-input/search-input";
 
 
@@ -85,7 +93,7 @@ import { SearchInputComponent } from "../../../modules/common/search-input/searc
     selector: "app-member-admin",
     templateUrl: "./member-admin.component.html",
     styleUrls: ["./member-admin.component.sass"],
-    imports: [PageComponent, FontAwesomeModule, FormsModule, NgClass, SwitchIconComponent, TitleCasePipe, DisplayDateNoDayPipe, ContactActionDropdownComponent, NgSelectComponent, NgOptgroupTemplateDirective, SearchInputComponent]
+    imports: [PageComponent, FontAwesomeModule, FormsModule, NgClass, SwitchIconComponent, TitleCasePipe, DisplayDateNoDayPipe, ContactActionDropdownComponent, NgSelectComponent, NgOptgroupTemplateDirective, SearchInputComponent, PaginationComponent, TooltipDirective]
 })
 export class MemberAdminComponent implements OnInit, OnDestroy {
 
@@ -128,6 +136,11 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
   public bulkDeleteMarkedMemberIds: string[] = [];
   private unsubscribeHistoryByMemberId = new Map<string, Set<number>>();
   public quickSearch = "";
+  public showIgnoredMembers = false;
+  public ignoredMembersCount = 0;
+  public currentPageMembers: Member[] = [];
+  public pageNumber = 1;
+  public readonly pageSize = MEMBER_ADMIN_PAGE_SIZE;
   public memberFilter: MemberTableFilter;
   filters: any;
   private subscriptions: Subscription[] = [];
@@ -140,6 +153,16 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
   protected readonly faUserXmark = faUserXmark;
   protected readonly faUserCheck = faUserCheck;
   protected readonly faEnvelope = faEnvelope;
+  protected readonly faUserPlus = faUserPlus;
+  protected readonly faArrowsRotate = faArrowsRotate;
+  protected readonly faTrashCan = faTrashCan;
+  protected readonly faXmark = faXmark;
+  protected readonly faCheckDouble = faCheckDouble;
+  protected readonly faSquareMinus = faSquareMinus;
+  protected readonly faAnglesLeft = faAnglesLeft;
+  protected readonly faAngleLeft = faAngleLeft;
+  protected readonly faAngleRight = faAngleRight;
+  protected readonly faAnglesRight = faAnglesRight;
   protected readonly MemberTerm = MemberTerm;
   private storedSortField = "";
   private storedSortDescending = false;
@@ -178,6 +201,10 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
       const storedSortOrder = sortOrderParam || this.uiActionsService.initialValueFor(StoredValue.SORT_ORDER, "") as string;
       this.storedSortParamField = sortFieldParam || "";
       this.parseStoredSort(storedSortField, storedSortOrder);
+      const showIgnoredParam = params.get(this.stringUtilsService.kebabCase(StoredValue.SHOW_IGNORED_MEMBERS));
+      this.showIgnoredMembers = isNull(showIgnoredParam)
+        ? this.uiActionsService.initialBooleanValueFor(StoredValue.SHOW_IGNORED_MEMBERS, false)
+        : showIgnoredParam === "true";
       this.storedFilterTitleParam = params.get(this.stringUtilsService.kebabCase(StoredValue.FILTER)) || "";
       this.applySelectedFilterFromParam();
     }));
@@ -186,6 +213,7 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
     this.subscriptions.push(this.systemConfigService.events().subscribe((systemConfig: SystemConfig) => {
       this.systemConfig = systemConfig;
       this.logger.debug("retrieved systemConfig", systemConfig);
+      this.generateFilters();
     }));
     this.subscriptions.push(this.profileService.subscribeToLogout(this.logger));
     this.logger.off("ngOnInit");
@@ -193,7 +221,7 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
     this.today = this.dateUtils.dateTimeNowNoTime().toMillis();
     this.subscriptions.push(this.searchChangeObservable.pipe(debounceTime(250))
       .pipe(distinctUntilChanged())
-      .subscribe(searchTerm => this.applyFilterToMembers(searchTerm)));
+      .subscribe(searchTerm => this.applyFilterFromFirstPage(searchTerm)));
     this.memberLoginService.showLoginPromptWithRouteParameter("expenseId");
     this.logger.off("this.memberFilter:", this.memberFilter);
     this.generateFilters();
@@ -248,10 +276,7 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
         title: ALL_MEMBERS_FILTER_TITLE, filter: SELECT_ALL
       },
       {
-        title: "Active Group Member", group: "Group Settings", filter: this.memberService.filterFor.GROUP_MEMBERS
-      },
-      {
-        title: "Active Social Member", group: "Group Settings", filter: this.memberService.filterFor.SOCIAL_MEMBERS
+        title: `Active ${this.siteMemberLabel()}`, group: MEMBERSHIP_FILTER_GROUP, filter: this.memberService.filterFor.GROUP_MEMBERS
       }];
     const filter2: TableFilterItem[] = this.subscribedToLists();
     const filter3: TableFilterItem[] = [
@@ -334,26 +359,8 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
       {
         title: "Volunteer Admin", group: "Administrators", filter: (member: Member) => member.volunteerAdmin
       },
-      {
-        title: "Rights of Way Volunteer (any role)", group: "Rights of Way Volunteers",
-        filter: (member: Member) => this.hasAnyVolunteerRole(member)
-      },
-      {
-        title: "Local Footpath Officer", group: "Rights of Way Volunteers",
-        filter: (member: Member) => this.hasVolunteerRole(member, "Local Footpath Officer")
-      },
-      {
-        title: "Parish Footpath Observer", group: "Rights of Way Volunteers",
-        filter: (member: Member) => this.hasVolunteerRole(member, "Parish Footpath Observer")
-      },
-      {
-        title: "Group Coordinator", group: "Rights of Way Volunteers",
-        filter: (member: Member) => this.hasVolunteerRole(member, "Group Coordinator")
-      },
-      {
-        title: "Rights of Way Contact (organisation)", group: "Rights of Way Volunteers",
-        filter: (member: Member) => this.hasVolunteerRole(member, "Rights of Way Contact")
-      },
+      ...this.groupFilters(),
+      ...this.volunteerRoleFilters(),
       {
         title: "Walk Change Notifications",
         group: "Administrators",
@@ -488,12 +495,32 @@ export class MemberAdminComponent implements OnInit, OnDestroy {
       const filter = this.memberFilter?.selectedFilter?.filter;
       const sort = this.memberFilter.sortFunction;
       this.logger.off("applyFilterToMembers:filter:", filter, "sort:", sort, "reverseSort:", this.memberFilter.reverseSort);
-      const members = sortBy(this.searchFilterPipe.transform(this.members.filter(filter), this.quickSearch), sort);
+      const members = sortBy(this.searchFilterPipe.transform(this.visibleMembers().filter(filter), this.quickSearch), sort);
       this.memberFilter.results = this.memberFilter.reverseSort ? members.reverse() : members;
+      this.ignoredMembersCount = this.members.filter(member => ignoredMember(member)).length;
+      this.showCurrentPage();
       this.logger.off("applyFilterToMembers:searchTerm:", searchTerm, "filterParameters.quickSearch:", this.quickSearch, "filtered", this.members.length, "members ->", this.memberFilter.results.length, "sort", sort, "this.memberFilter.reverseSort", this.memberFilter.reverseSort);
       this.notify.clearBusy();
       this.persistFilters();
     }
+  }
+
+  applyFilterFromFirstPage(searchTerm?: string) {
+    this.pageNumber = 1;
+    this.applyFilterToMembers(searchTerm);
+  }
+
+  pageChanged(event: PageChangedEvent) {
+    this.pageNumber = event.page;
+    this.showCurrentPage();
+  }
+
+  private showCurrentPage() {
+    const results = this.memberFilter?.results ?? [];
+    const pageCount = Math.max(1, Math.ceil(results.length / this.pageSize));
+    this.pageNumber = Math.min(Math.max(1, this.pageNumber), pageCount);
+    const startIndex = (this.pageNumber - 1) * this.pageSize;
+    this.currentPageMembers = results.slice(startIndex, startIndex + this.pageSize);
   }
 
   private openPendingMemberIfReady(): void {
@@ -603,7 +630,7 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
     filterSource.reverseSort = !filterSource.reverseSort;
     filterSource.sortDirection = filterSource.reverseSort ? DESCENDING : ASCENDING;
     this.logger.off("sorting by field", field, "new value of filterSource", filterSource);
-    this.applyFilterToMembers();
+    this.applyFilterFromFirstPage();
   }
 
   private deriveSortFunction(field: string) {
@@ -645,7 +672,7 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
   onFilterChange(memberFilter: TableFilterItem) {
     if (memberFilter) {
       this.memberFilter.selectedFilter = memberFilter;
-      this.applyFilterToMembers();
+      this.applyFilterFromFirstPage();
     } else {
       this.clearSearchAndFilter();
     }
@@ -655,7 +682,7 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
     this.quickSearch = "";
     this.searchChangeObservable.next("");
     this.memberFilter.selectedFilter = this.allMembersFilter();
-    this.applyFilterToMembers();
+    this.applyFilterFromFirstPage();
   }
 
   searchOrFilterActive(): boolean {
@@ -686,6 +713,7 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
         this.members = refreshedMembers;
         this.lastLoginIndex = latestLoginIndex;
         this.membersLoaded = true;
+        this.generateFilters();
         this.logger.off("refreshMembers:found", refreshedMembers.length, "members");
         this.applyFilterToMembers();
         this.openPendingMemberIfReady();
@@ -835,17 +863,46 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
     return lastLoginTimeFor(member, this.lastLoginIndex);
   }
 
-  private volunteerRolesOf(member: Member): string {
-    const roles = member.volunteerRoles;
-    return isString(roles) && roles !== "[object Object]" ? roles : "";
+  private groupFilters(): TableFilterItem[] {
+    const groupNames = new Map((this.systemConfig?.area?.groups ?? []).map(group => [group.groupCode, group.name]));
+    const codes = uniq(this.visibleMembers().flatMap(member => member.groupCodes ?? [])).sort();
+    return codes.map(code => ({
+      title: groupNames.get(code) ? `${code} ${groupNames.get(code)}` : code,
+      group: GROUPS_FILTER_GROUP,
+      filter: (member: Member) => (member.groupCodes ?? []).includes(code)
+    }));
   }
 
-  hasVolunteerRole(member: Member, role: string): boolean {
-    return this.volunteerRolesOf(member).includes(role);
+  private volunteerRoleFilters(): TableFilterItem[] {
+    const roles = uniq(this.visibleMembers().flatMap(member => volunteerRoleList(member))).sort();
+    const anyRole: TableFilterItem[] = roles.length === 0 ? [] : [
+      {title: "Any volunteer role", group: UNCATEGORISED_VOLUNTEER_ROLES_HEADING, filter: (member: Member) => volunteerRoleList(member).length > 0}
+    ];
+    const noRole: TableFilterItem[] = this.visibleMembers().some(member => volunteerWithoutRole(member)) ? [
+      {title: "No assigned role", group: UNCATEGORISED_VOLUNTEER_ROLES_HEADING, filter: (member: Member) => volunteerWithoutRole(member)}
+    ] : [];
+    return [
+      ...anyRole,
+      ...noRole,
+      ...volunteerRoleGroups(roles, this.systemConfig?.volunteers?.roleCategories).flatMap(group => [
+        ...(group.categorised ? [{title: `Any ${group.heading} role`, group: group.heading, filter: (member: Member) => volunteerRoleList(member).some(role => group.roles.includes(role))}] : []),
+        ...group.roles.map(role => ({title: role, group: group.heading, filter: (member: Member) => volunteerRoleList(member).includes(role)}))
+      ])
+    ];
   }
 
-  hasAnyVolunteerRole(member: Member): boolean {
-    return !!this.volunteerRolesOf(member);
+  private visibleMembers(): Member[] {
+    return this.showIgnoredMembers ? this.members : this.members.filter(member => !ignoredMember(member));
+  }
+
+  toggleShowIgnoredMembers() {
+    this.showIgnoredMembers = !this.showIgnoredMembers;
+    this.generateFilters();
+    this.applyFilterFromFirstPage();
+  }
+
+  siteMemberLabel(): string {
+    return siteMemberLabel(this.systemConfig);
   }
 
   memberLabel(member: Member): string {
@@ -926,11 +983,13 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
     this.uiActionsService.saveValueFor(StoredValue.SORT, sortField);
     this.uiActionsService.saveValueFor(StoredValue.SORT_ORDER, sortOrder);
     this.uiActionsService.saveValueFor(StoredValue.FILTER, filterTitleKebab);
+    this.uiActionsService.saveValueFor(StoredValue.SHOW_IGNORED_MEMBERS, this.showIgnoredMembers);
     this.replaceQueryParams({
       [this.stringUtilsService.kebabCase(StoredValue.SEARCH)]: this.quickSearch || null,
       [this.stringUtilsService.kebabCase(StoredValue.SORT)]: this.stringUtilsService.kebabCase(sortField) || null,
       [this.stringUtilsService.kebabCase(StoredValue.SORT_ORDER)]: sortOrder,
-      [this.stringUtilsService.kebabCase(StoredValue.FILTER)]: filterTitleKebab || null
+      [this.stringUtilsService.kebabCase(StoredValue.FILTER)]: filterTitleKebab || null,
+      [this.stringUtilsService.kebabCase(StoredValue.SHOW_IGNORED_MEMBERS)]: this.showIgnoredMembers ? "true" : null
     });
   }
 
@@ -949,8 +1008,7 @@ applySortTo(field: string, filterSource: MemberTableFilter) {
       "profileSettingsConfirmedAt",
       "membershipExpiryDate",
       "receivedInLastBulkLoad",
-      "groupMember",
-      "socialMember"
+      "groupMember"
     ];
     const defaultMatch = defaultFields.find(field => this.stringUtilsService.kebabCase(field) === candidate);
     if (defaultMatch) {

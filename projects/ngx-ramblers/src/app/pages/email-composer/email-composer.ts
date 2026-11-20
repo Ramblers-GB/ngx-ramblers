@@ -56,6 +56,10 @@ import {
   UNBRANDED_HARD_CAP_RECIPIENTS,
   UNBRANDED_LONG_BODY_CHAR_THRESHOLD,
   UNBRANDED_RECIPIENT_LIST_ERROR,
+  EmailComposerRecipientEntry,
+  NO_UNAVAILABLE_RECIPIENTS,
+  UnavailableRecipient,
+  UnavailableRecipientsSnapshot,
   ValidationError,
   ValidationErrorWithLink,
   VOLUNTEER_MERGE_FIELD_CATALOGUE
@@ -165,6 +169,7 @@ import { NotifierService } from "../../services/notifier.service";
 import { ComposerLeaveCheck } from "../../guards/composer-leave-guard";
 import { PageComponent } from "../../page/page.component";
 import { Member, MemberBulkLoadDateMap } from "../../models/member.model";
+import { siteMemberLabel } from "../../functions/site-membership";
 import { MemberBulkLoadAuditService } from "../../services/member/member-bulk-load-audit.service";
 import {
   appendUniqueRecipients,
@@ -536,7 +541,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                                    title="This email workflow disables its recipients">
 
                   <div>
-                    The "{{ state.notificationConfig?.subject?.text }}" email type will remove its recipients from the group (unticking Approved Group Member) once the email has gone out. {{ stringUtils.pluraliseWithCount(bulkDeletionMemberCount(), "member") }} will be disabled after the send.
+                    The "{{ state.notificationConfig?.subject?.text }}" email type will untick Approved {{ siteMemberLabel() }} for its recipients once the email has gone out. {{ stringUtils.pluraliseWithCount(bulkDeletionMemberCount(), "member") }} will be disabled after the send.
                   </div>
 
                 </app-alert-message>
@@ -2922,20 +2927,40 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
   }
 
-  private unavailableSelectedMembers() {
-    return this.recipientSources.workflowRemovesRecipients() ? [] : this.blockedSelectedMembers();
+  private unavailableRecipientsSnapshot: UnavailableRecipientsSnapshot | null = null;
+  private unavailableRecipients(): UnavailableRecipientsSnapshot {
+    return this.recipientSources.workflowRemovesRecipients() ? NO_UNAVAILABLE_RECIPIENTS : this.unavailableSendRecipients();
+  }
+
+  private unavailableSendRecipients(): UnavailableRecipientsSnapshot {
+    const entries = this.recipientResolution.uniqueSendEntries();
+    const committeeEmails = this.recipients.committeeCcEmails();
+    const key = [this.recipientSources.respectsBlocks(), this.recipientSources.requiresConsent(),
+      this.recipientSources.unsubscribeReferenceListId(), committeeEmails.join(",")].join("|");
+    const snapshot = this.unavailableRecipientsSnapshot;
+    if (!snapshot || snapshot.entries !== entries || snapshot.key !== key) {
+      const unavailable = this.blockedSelectedMembers(entries, committeeEmails);
+      this.unavailableRecipientsSnapshot = {
+        entries,
+        key,
+        unavailable,
+        reasons: Object.fromEntries(unavailable.map(entry => [(entry.member.email ?? "").toLowerCase(), entry.reason]))
+      };
+    }
+    return this.unavailableRecipientsSnapshot;
+  }
+
+  private unavailableSelectedMembers(): UnavailableRecipient[] {
+    return this.unavailableRecipients().unavailable;
   }
 
   protected unavailableRecipientReasons(): Record<string, string> {
-    return this.unavailableSelectedMembers().reduce((reasons, entry) => ({...reasons, [(entry.member.email ?? "").toLowerCase()]: entry.reason}), {});
+    return this.unavailableRecipients().reasons;
   }
 
-  private blockedSelectedMembers(): {
-    member: Member;
-    reason: string;
-  }[] {
-    const committeeEmails = new Set(this.recipients.committeeCcEmails());
-    return this.recipientResolution.uniqueSendEntries()
+  private blockedSelectedMembers(entries: EmailComposerRecipientEntry[], committeeCcEmails: string[]): UnavailableRecipient[] {
+    const committeeEmails = new Set(committeeCcEmails);
+    return entries
       .filter(entry => {
         const email = (entry.external?.email || entry.member?.email || "").toLowerCase();
         return !committeeEmails.has(email);
@@ -2943,10 +2968,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       .map(entry => entry.member)
       .filter((member): member is Member => !!member)
       .map(member => ({member, reason: this.memberSendBlockReason(member)}))
-      .filter((entry): entry is {
-        member: Member;
-        reason: string;
-      } => !!entry.reason);
+      .filter((entry): entry is UnavailableRecipient => !!entry.reason);
   }
 
   protected clearForcedMember(): void {
@@ -2960,6 +2982,10 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
 
   protected dismissPostSendActionWarning(): void {
     this.postSendActionWarningDismissed = true;
+  }
+
+  protected siteMemberLabel(): string {
+    return siteMemberLabel(this.session.systemConfig);
   }
 
   protected bulkDeletionMemberCount(): number {

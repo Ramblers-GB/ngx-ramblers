@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
+import { isArray, isNumber } from "es-toolkit/compat";
 import debug from "debug";
 import {
   supporterUpdateErrorSchema,
@@ -62,6 +63,17 @@ function errorResult<T>(status: number, body: unknown, latencyMs: number): Sales
   };
 }
 
+function invalidSupporterSummary(issues: { path: PropertyKey[]; message: string }[], body: unknown): string {
+  const first = issues[0];
+  const recordIndex = isNumber(first?.path?.[0]) ? first.path[0] as number : null;
+  const record = recordIndex !== null && isArray(body) ? body[recordIndex] : null;
+  const membershipNo = record?.membershipNo ? ` (membership no. ${record.membershipNo})` : "";
+  const field = first?.path?.slice(recordIndex !== null ? 1 : 0).map(String).join(".") || "response";
+  const where = recordIndex !== null ? `supporter ${recordIndex + 1}${membershipNo} ${field}` : field;
+  const more = issues.length > 1 ? ` (${issues.length} problems in total)` : "";
+  return `${where}: ${first?.message ?? "does not match the contract"}${more}.`;
+}
+
 function networkError<T>(error: unknown, startedAt: number): SalesforceClientResult<T> {
   const axiosError = error as AxiosError;
   return {
@@ -97,17 +109,17 @@ export async function fetchSalesforceMembers(
     const latencyMs = dateTimeNowAsValue() - startedAt;
     if (response.status >= 200 && response.status < 300) {
       const parsed = supportersResponseSchema.safeParse(response.data);
-      if (parsed.success) {
-        return { status: response.status, data: parsed.data, latencyMs };
-      }
-      return {
-        status: response.status,
-        errorCode: "INVALID_RESPONSE",
-        errorMessage: "Ramblers Team Emails returned an invalid supporter response.",
-        latencyMs,
-      };
+      return parsed.success
+        ? { status: response.status, data: parsed.data, latencyMs }
+        : {
+          status: response.status,
+          errorCode: "INVALID_RESPONSE",
+          errorMessage: `Ramblers Team Emails returned an invalid supporter response: ${invalidSupporterSummary(parsed.error.issues, response.data)}`,
+          latencyMs,
+        };
+    } else {
+      return errorResult(response.status, response.data, latencyMs);
     }
-    return errorResult(response.status, response.data, latencyMs);
   } catch (error) {
     return networkError(error, startedAt);
   }

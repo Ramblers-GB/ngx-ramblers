@@ -5,8 +5,6 @@ import {Member, MemberTerm} from "../../models/member.model";
 import {BrandingMode, EmailComposerRecipientEntry, ComposerExternalRecipient, RecipientAddressMode, RecipientMode, RECIPIENT_PRE_FILTERS} from "../../models/email-composer.model";
 import {COMPOSER_EVERYONE_FILTER_EMAIL, composerCampaignListId, composerCommitteeRoleSendOffered, composerNeedsPerMemberSend, composerRecipientFromMember, composerRecipientIsExpandableSet, composerRecipientsForAddressMode, composerSelectedMembersAreCommitteeAudience, composerSendsAsCampaign, composerWholeMailingListSelected, memberIsCoveredByComposerHeaders} from "../../functions/email-composer";
 import {MemberSelection} from "../../models/mail.model";
-import {MailListUpdaterService} from "../mail/mail-list-updater.service";
-import {MemberService} from "../member/member.service";
 import {StringUtilsService} from "../string-utils.service";
 import {DateUtilsService} from "../date-utils.service";
 import {CommitteeMember, roleEmailAddresses} from "../../models/committee.model";
@@ -14,13 +12,15 @@ import {DateRangeUnit, NO_DATE_FILTER} from "../../models/search.model";
 import {Injectable} from "@angular/core";
 import {EmailComposerSessionService} from "./email-composer-session.service";
 import {EmailComposerRecipientSourcesService} from "./email-composer-recipient-sources.service";
+import {ListSubscriberService} from "../mail/list-subscriber.service";
 
 @Injectable()
 export class EmailComposerRecipientResolutionService {
   private session = inject(EmailComposerSessionService);
   pool = inject(EmailComposerRecipientSourcesService);
-  private mailListUpdaterService = inject(MailListUpdaterService);
-  private memberService = inject(MemberService);
+  private listSubscriberService = inject(ListSubscriberService);
+  private campaignEntriesBySubscribers = new WeakMap<Member[], EmailComposerRecipientEntry[]>();
+  private memberIndexes = new WeakMap<Member[], {byId: Map<string, Member>; byEmail: Map<string, Member>}>();
   protected stringUtils = inject(StringUtilsService);
   protected dateUtils = inject(DateUtilsService);
 
@@ -36,8 +36,8 @@ export class EmailComposerRecipientResolutionService {
     const listId = this.campaignListId();
     const subscribedMemberIds = listId === null
       ? []
-      : this.pool.members
-        .filter(member => this.mailListUpdaterService.memberSubscribed(member, listId) && !!member.id && !!(member.email || "").trim())
+      : this.listSubscriberService.subscribers(this.pool.members, listId)
+        .filter(member => !!member.id && !!(member.email || "").trim())
         .map(member => member.id as string);
     return composerWholeMailingListSelected({
       listId,
@@ -198,7 +198,7 @@ export class EmailComposerRecipientResolutionService {
     const headers = this.expandedHeaderRecipients(this.headerRecipients());
     const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
     return (this.session.state.selectedMemberIds ?? [])
-      .map(id => this.pool.allMembers.find(member => member.id === id))
+      .map(id => this.memberIndex().byId.get(id))
       .filter((member): member is Member => !!member)
       .filter(member => !memberIsCoveredByComposerHeaders(member, headers, roles))
       .length;
@@ -239,7 +239,7 @@ export class EmailComposerRecipientResolutionService {
       const listId = this.session.state.selectedListId;
       return listId === null
         ? []
-        : this.pool.members.filter(member => this.mailListUpdaterService.memberSubscribed(member, listId));
+        : this.listSubscriberService.subscribers(this.pool.members, listId);
     } else if (this.session.state.brandingMode === BrandingMode.UNBRANDED) {
       return this.membersInHeader([
         ...(this.session.state.externalRecipients ?? []),
@@ -267,15 +267,12 @@ export class EmailComposerRecipientResolutionService {
       .some(recipient => !composerRecipientIsExpandableSet(recipient));
     const campaignListId = this.campaignListId();
     if (this.sendingAsCampaign() && campaignListId !== null && !namedPeopleOnTo) {
-      return this.pool.members
-        .filter(this.memberService.filterFor.GROUP_MEMBERS)
-        .filter(member => this.mailListUpdaterService.memberSubscribed(member, campaignListId))
-        .map(member => ({ name: this.previewMemberName(member), member }));
+      return this.campaignEntriesFor(this.listSubscriberService.subscribers(this.pool.members, campaignListId));
     } else if (fromTo.length > 0) {
       return fromTo;
     } else {
       return (this.session.state.selectedMemberIds ?? [])
-        .map(id => this.pool.allMembers.find(member => member.id === id))
+        .map(id => this.memberIndex().byId.get(id))
         .filter((member): member is Member => !!member)
         .map(member => ({ name: this.previewMemberName(member), member }));
     }
@@ -285,35 +282,54 @@ export class EmailComposerRecipientResolutionService {
     const headers = this.expandedHeaderRecipients(list);
     const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
     const seenEmails = new Set<string>();
-    return headers.reduce<EmailComposerRecipientEntry[]>((entries, external) => {
-      const email = (external.email || "").toLowerCase();
-      const member = this.memberMatchingHeader(external, roles);
-      if (email && seenEmails.has(email)) {
-        return entries;
-      } else {
-        if (email) seenEmails.add(email);
-        return [...entries, {
+    return headers
+      .filter(external => {
+        const email = (external.email || "").toLowerCase();
+        const firstSeen = !email || !seenEmails.has(email);
+        seenEmails.add(email);
+        return firstSeen;
+      })
+      .map(external => {
+        const member = this.memberMatchingHeader(external, roles);
+        return {
           name: external.name?.trim() || (member ? this.previewMemberName(member) : external.email),
           member: member ?? undefined,
           external
-        }];
-      }
-    }, []);
+        };
+      });
   }
 
   memberMatchingHeader(header: ComposerExternalRecipient, roles: CommitteeMember[]): Member | null {
     if (header.memberId) {
-      return this.pool.allMembers.find(member => member.id === header.memberId) ?? null;
+      return this.memberIndex().byId.get(header.memberId) ?? null;
     } else {
       const email = (header.email || "").toLowerCase();
-      const byPersonal = this.pool.allMembers.find(member => (member.email || "").toLowerCase() === email) ?? null;
+      const byPersonal = this.memberIndex().byEmail.get(email) ?? null;
       if (byPersonal) {
         return byPersonal;
       } else {
         const role = roles.find(candidate => roleEmailAddresses(candidate).some(address => address.toLowerCase() === email));
-        return role?.memberId ? this.pool.allMembers.find(member => member.id === role.memberId) ?? null : null;
+        return role?.memberId ? this.memberIndex().byId.get(role.memberId) ?? null : null;
       }
     }
+  }
+
+  private campaignEntriesFor(subscribers: Member[]): EmailComposerRecipientEntry[] {
+    if (!this.campaignEntriesBySubscribers.has(subscribers)) {
+      this.campaignEntriesBySubscribers.set(subscribers, subscribers.map(member => ({name: this.previewMemberName(member), member})));
+    }
+    return this.campaignEntriesBySubscribers.get(subscribers);
+  }
+
+  private memberIndex(): {byId: Map<string, Member>; byEmail: Map<string, Member>} {
+    const members = this.pool.allMembers ?? [];
+    if (!this.memberIndexes.has(members)) {
+      this.memberIndexes.set(members, {
+        byId: new Map(members.filter(member => member.id).map(member => [member.id, member])),
+        byEmail: new Map([...members].reverse().filter(member => member.email).map(member => [member.email.toLowerCase(), member]))
+      });
+    }
+    return this.memberIndexes.get(members);
   }
 
   previewMemberName(member: Member): string {
@@ -351,8 +367,8 @@ export class EmailComposerRecipientResolutionService {
       } else if (!recipient.listId) {
         return [recipient];
       } else {
-        return this.pool.members
-          .filter(member => this.mailListUpdaterService.memberSubscribed(member, recipient.listId!) && !!(member.email || "").trim())
+        return this.listSubscriberService.subscribers(this.pool.members, recipient.listId)
+          .filter(member => !!(member.email || "").trim())
           .map(member => composerRecipientFromMember(member))
           .filter((item): item is ComposerExternalRecipient => !!item)
           .map(person => ({...person, fromBulkAudience: true}));

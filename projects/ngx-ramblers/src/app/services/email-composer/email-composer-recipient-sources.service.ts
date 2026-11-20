@@ -30,7 +30,7 @@ export class EmailComposerRecipientSourcesService {
     }
     committeeOnlyLists(): ListInfo[] {
         return this.nonEmptyLists().filter(list => {
-            const members = this.allMembers.filter(member => this.mailListUpdaterService.memberSubscribed(member, list.id));
+            const members = this.listSubscriberService.subscribers(this.allMembers, list.id);
             return composerSelectedMembersAreCommitteeAudience(members, members.length);
         });
     }

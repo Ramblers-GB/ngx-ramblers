@@ -76,6 +76,7 @@ type MemberBulkLoadDateMapResult = {
 export async function memberBulkLoadDateMap(req: Request, res: Response) {
   try {
     const pipeline: PipelineStage[] = [
+      {$project: {createdDate: 1, "members.membershipNumber": 1}},
       {$sort: {createdDate: -1}},
       {$unwind: "$members"},
       {$match: {

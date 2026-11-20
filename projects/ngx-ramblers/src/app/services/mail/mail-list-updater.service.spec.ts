@@ -121,13 +121,16 @@ describe("MailListUpdaterService", () => {
         } as any;
 
         it("subscribes only lists whose create-time defaults say yes", () => {
-            mailMessagingServiceSpy.subscribed.mockImplementation((listSetting: ListSetting) => listSetting?.id === 2);
+            const onlyListTwoByDefault = {
+                ...mailMessagingConfig,
+                mailConfig: {listSettings: [{id: 2, autoSubscribeNewMembers: true, requiresMemberEmailMarketingConsent: false}, {id: 4, autoSubscribeNewMembers: false, requiresMemberEmailMarketingConsent: false}]}
+            };
             const existing = member({
                 emailMarketingConsent: true,
                 mail: mailWith({id: 2, subscribed: false}, {id: 4, subscribed: false})
             });
 
-            const changed = service.applyAutoSubscribeDefaults(existing, mailMessagingConfig);
+            const changed = service.applyAutoSubscribeDefaults(existing, onlyListTwoByDefault);
 
             expect(changed).toBe(true);
             expect(service.subscriptionFor(existing, 2).subscribed).toBe(true);

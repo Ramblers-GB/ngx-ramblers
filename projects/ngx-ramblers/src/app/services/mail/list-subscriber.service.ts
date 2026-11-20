@@ -11,12 +11,20 @@ export class ListSubscriberService {
   private mailListUpdaterService = inject(MailListUpdaterService);
   private stringUtils = inject(StringUtilsService);
 
-  private subscribedMembers(members: Member[], listId: number): Member[] {
-    return this.mailListUpdaterService.subscribedMembers(members, listId);
+  private subscribedByMembers = new WeakMap<Member[], Map<number, Member[]>>();
+
+  subscribers(members: Member[], listId: number): Member[] {
+    const source = members ?? [];
+    const byList = this.subscribedByMembers.get(source) ?? new Map<number, Member[]>();
+    if (!byList.has(listId)) {
+      byList.set(listId, this.mailListUpdaterService.subscribedMembers(source, listId));
+      this.subscribedByMembers.set(source, byList);
+    }
+    return byList.get(listId);
   }
 
   subscriberCount(members: Member[], listId: number): number {
-    return this.subscribedMembers(members, listId).length;
+    return this.subscribers(members, listId).length;
   }
 
   subscriberCountLabel(members: Member[], listId: number): string {
@@ -24,7 +32,7 @@ export class ListSubscriberService {
   }
 
   subscriberNamesTooltip(members: Member[], listId: number): string {
-    const names = this.subscribedMembers(members, listId)
+    const names = this.subscribers(members, listId)
       .map(member => `${member.firstName ?? ""} ${member.lastName ?? ""}`.trim())
       .filter(name => name.length > 0)
       .sort();

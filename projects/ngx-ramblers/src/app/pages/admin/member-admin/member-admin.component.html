@@ -40,45 +40,62 @@
                 {{ stringUtilsService.pluraliseWithCount(memberFilter.results.length, 'member') }}
               }
             </p>
+            @if (membersLoaded && ignoredMembersCount > 0) {
+              <div class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" id="show-ignored-members"
+                       [checked]="showIgnoredMembers" (change)="toggleShowIgnoredMembers()">
+                <label class="form-check-label" for="show-ignored-members"
+                       [tooltip]="'Members in the Ramblers feed who would not be on Insight Hub. They are not ' + siteMemberLabel().toLowerCase() + 's, so they get no emails and cannot log in.'">
+                  Show {{ stringUtilsService.pluraliseWithCount(ignoredMembersCount, 'ignored member') }}
+                </label>
+              </div>
+            }
           </div>
           <div class="rsm-form-actions" style="justify-content: flex-start;">
             @if (!confirm.bulkDeleteOutstanding()) {
-              <input [disabled]="notifyTarget.busy" type="submit" value="Add New Member"
-                     (click)="addMember()" title="Add New Member"
-                     class="rsm-btn-cta">
+              <button [disabled]="notifyTarget.busy" type="button"
+                     (click)="addMember()" tooltip="Add New Member"
+                     class="rsm-btn-cta"><fa-icon [icon]="faUserPlus" class="me-2"/>Add member</button>
               @if (systemConfig?.mailDefaults?.mailProvider !== MailProvider.NONE) {
-                <input [disabled]="notifyTarget.busy" type="submit" value="Send Emails"
-                       (click)="showSendEmailsDialog()" title="Send Emails"
-                       class="rsm-btn-ghost">
-                <input [disabled]="notifyTarget.busy" type="submit"
-                       [value]="updateListsTitle()"
-                       (click)="updateLists()"
-                       class="rsm-btn-ghost">
+                <button [disabled]="notifyTarget.busy" type="button"
+                       (click)="showSendEmailsDialog()" tooltip="Send Emails"
+                       class="rsm-btn-ghost"><fa-icon [icon]="faEnvelope" class="me-2"/>Email</button>
+                <button [disabled]="notifyTarget.busy" type="button"
+                       (click)="updateLists()" [tooltip]="updateListsTitle()"
+                       class="rsm-btn-ghost"><fa-icon [icon]="faArrowsRotate" class="me-2"/>{{ updateListsTitle().replace(' with ', ' ') }}</button>
               }
-              <input [disabled]="notifyTarget.busy" type="submit"
-                     [value]="'Begin Bulk Member Delete'"
-                     (click)="beginBulkMemberDelete()"
-                     class="rsm-btn-danger">
+              <button [disabled]="notifyTarget.busy" type="button"
+                     (click)="beginBulkMemberDelete()" tooltip="Select members for deletion, then review and confirm"
+                     class="rsm-btn-danger"><fa-icon [icon]="faTrashCan" class="me-2"/>Begin bulk delete</button>
             }
             @if (confirm.bulkDeleteOutstanding()) {
-              <input [disabled]="notifyTarget.busy" type="submit"
-                     [value]="'Cancel'"
+              <button [disabled]="notifyTarget.busy" type="button"
                      (click)="cancelBulkDelete()"
-                     class="rsm-btn-ghost">
-              <input
+                     class="rsm-btn-ghost"><fa-icon [icon]="faXmark" class="me-2"/>Cancel</button>
+              <button
                 [disabled]="notifyTarget.busy || bulkDeleteMarkedMemberIds.length === memberFilter.results.length"
-                type="submit"
-                [value]="'Select All ' + memberFilter.results.length + ' members'"
+                type="button"
                 (click)="selectAllForBulkDelete()"
-                class="rsm-btn-ghost">
-              <input [disabled]="notifyTarget.busy || bulkDeleteMarkedMemberIds.length===0" type="submit"
-                     [value]="'Deselect All ' + memberFilter.results.length + ' members'"
+                class="rsm-btn-ghost"><fa-icon [icon]="faCheckDouble" class="me-2"/>Select all</button>
+              <button [disabled]="notifyTarget.busy || bulkDeleteMarkedMemberIds.length===0" type="button"
                      (click)="deselectAllForBulkDelete()"
-                     class="rsm-btn-ghost">
-              <input [disabled]="notifyTarget.busy || bulkDeleteMarkedMemberIds.length === 0" type="submit"
-                     [value]="'Confirm Deletion of ' + bulkDeleteMarkedMemberIds.length + ' members'"
+                     class="rsm-btn-ghost"><fa-icon [icon]="faSquareMinus" class="me-2"/>Deselect all</button>
+              <button [disabled]="notifyTarget.busy || bulkDeleteMarkedMemberIds.length === 0" type="button"
                      (click)="confirmBulkDelete()"
-                     class="rsm-btn-danger">
+                     class="rsm-btn-danger"><fa-icon [icon]="faTrashCan" class="me-2"/>Delete {{ bulkDeleteMarkedMemberIds.length }} members</button>
+            }
+            @if (memberFilter.results.length > pageSize) {
+              <div class="ms-auto">
+                <pagination class="pagination rounded mb-0 pagination-navigation-only" [boundaryLinks]="true" [rotate]="true" [maxSize]="1"
+                            [totalItems]="memberFilter.results.length" [itemsPerPage]="pageSize" [(ngModel)]="pageNumber"
+                            (pageChanged)="pageChanged($event)"
+                            [customFirstTemplate]="firstPage" [customPreviousTemplate]="previousPage"
+                            [customNextTemplate]="nextPage" [customLastTemplate]="lastPage"/>
+                <ng-template #firstPage><span tooltip="First page"><fa-icon [icon]="faAnglesLeft" class="me-2"/>First</span></ng-template>
+                <ng-template #previousPage><span tooltip="Previous page"><fa-icon [icon]="faAngleLeft" class="me-2"/>Previous</span></ng-template>
+                <ng-template #nextPage><span tooltip="Next page">Next<fa-icon [icon]="faAngleRight" class="ms-2"/></span></ng-template>
+                <ng-template #lastPage><span tooltip="Last page">Last<fa-icon [icon]="faAnglesRight" class="ms-2"/></span></ng-template>
+              </div>
             }
           </div>
           @if (notifyTarget.showAlert) {
@@ -144,14 +161,8 @@
                   <span class="nowrap">Last Bulk Load @if (showMembersColumn('receivedInLastBulkLoad')) {<span class="sorting-header">{{ memberFilter.sortDirection }}</span>}
                   </span>
                 </th>
-                <th (click)="sortMembersBy('groupMember')">Group Member
+                <th (click)="sortMembersBy('groupMember')">{{ siteMemberLabel() }}
                   @if (showMembersColumn('groupMember')) {
-                    <span class="sorting-header">
-                      {{ memberFilter.sortDirection }}</span>
-                  }
-                </th>
-                <th (click)="sortMembersBy('socialMember')">Social Member
-                  @if (showMembersColumn('socialMember')) {
                     <span class="sorting-header">
                       {{ memberFilter.sortDirection }}</span>
                   }
@@ -191,7 +202,7 @@
               </tr>
               </thead>
               <tbody>
-                @for (member of memberFilter.results; track member.id) {
+                @for (member of currentPageMembers; track member.id) {
                   <tr>
                     @if (!confirm.bulkDeleteOutstanding()) {
                       <td data-label="Action" class="rsm-cell-actions">
@@ -217,6 +228,9 @@
                       @if (memberAlias(member); as alias) {
                         <div class="member-alias text-muted small">{{ alias }}</div>
                       }
+                      @if (member.teamEmailsIgnoredReason) {
+                        <div class="text-muted small">Ignored: {{ member.teamEmailsIgnoredReason }}</div>
+                      }
                     </td>
                     <td data-label="Mobile">
                       @if (member.mobileNumber) {
@@ -239,11 +253,8 @@
                     <td data-label="Last Bulk Load">
                       <app-switch-icon [on]="receivedInLastBulkLoad(member)"/>
                     </td>
-                    <td data-label="Group Member">
+                    <td [attr.data-label]="siteMemberLabel()">
                       <app-switch-icon [on]="member.groupMember"/>
-                    </td>
-                    <td data-label="Social Member">
-                      <app-switch-icon [on]="member.socialMember"/>
                     </td>
                     @if (systemConfig?.mailDefaults?.mailProvider == MailProvider.MAILCHIMP) {
                       @if (mailchimpConfig?.lists?.walks) {
