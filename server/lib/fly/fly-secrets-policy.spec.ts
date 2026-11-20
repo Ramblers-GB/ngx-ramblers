@@ -16,6 +16,18 @@ describe("fly-secrets-policy", () => {
     expect(isAllowedSiteFlySecret("ATLAS_CONFIG")).toEqual(false);
   });
 
+  it("keeps the platform admin AWS setup keys so a deploy does not point the AWS page back at the old account", () => {
+    expect(filterSecretsForSiteFlyDeploy({
+      SETUP_AWS_ACCESS_KEY_ID: "fictional-key",
+      SETUP_AWS_SECRET_ACCESS_KEY: "fictional-secret",
+      SETUP_AWS_REGION: "eu-west-2"
+    })).toEqual({
+      SETUP_AWS_ACCESS_KEY_ID: "fictional-key",
+      SETUP_AWS_SECRET_ACCESS_KEY: "fictional-secret",
+      SETUP_AWS_REGION: "eu-west-2"
+    });
+  });
+
   it("rejects legacy application config env vars", () => {
     expect(isAllowedSiteFlySecret("GOOGLE_MAPS_APIKEY")).toEqual(false);
     expect(isAllowedSiteFlySecret("OS_MAPS_API_KEY")).toEqual(false);
