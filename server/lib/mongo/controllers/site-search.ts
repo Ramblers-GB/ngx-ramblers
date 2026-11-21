@@ -1,3 +1,6 @@
+import { accessLevelPermitted } from "../../../../projects/ngx-ramblers/src/app/functions/access-level";
+import { Environment } from "../../../../projects/ngx-ramblers/src/app/models/environment.model";
+import { booleanOf } from "../../shared/string-utils";
 import { Request, Response } from "express";
 import debug from "debug";
 import { envConfig } from "../../env-config/env-config";
@@ -12,7 +15,7 @@ import { extendedGroupEvent } from "../models/extended-group-event";
 import { PageContent } from "../../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { EventSource, ExtendedGroupEvent } from "../../../../projects/ngx-ramblers/src/app/models/group-event.model";
 import { RamblersEventType } from "../../../../projects/ngx-ramblers/src/app/models/ramblers-walks-manager.model";
-import { AccessLevel } from "../../../../projects/ngx-ramblers/src/app/models/member-resource.model";
+import { AccessLevel, generalAccessLevels } from "../../../../projects/ngx-ramblers/src/app/models/member-resource.model";
 import {
   PageEntry,
   SiteSearchRelevance,
@@ -73,23 +76,7 @@ let searchIndexBuilding: Promise<SearchIndex | null> | null = null;
 let searchIndexFailedAt: number | null = null;
 
 function accessibleLevels(user: any): AccessLevel[] {
-  const levels = [AccessLevel.PUBLIC];
-  if (user) {
-    levels.push(AccessLevel.LOGGED_IN_MEMBER);
-    if (user.committee) {
-      levels.push(AccessLevel.COMMITTEE);
-    }
-    if (user.memberAdmin) {
-      levels.push(AccessLevel.MEMBER_ADMIN);
-    }
-    const admin = user.contentAdmin || user.memberAdmin || user.financeAdmin || user.treasuryAdmin || user.fileAdmin || user.walkAdmin || user.socialAdmin;
-    if (admin) {
-      levels.push(AccessLevel.ENVIRONMENT_ADMIN);
-    }
-  } else {
-    levels.push(AccessLevel.NOT_LOGGED_IN);
-  }
-  return levels;
+  return generalAccessLevels().filter(level => accessLevelPermitted(level, user, booleanOf(process.env[Environment.PLATFORM_ADMIN_ENABLED])));
 }
 
 function pageVisible(entry: PageEntry, levels: AccessLevel[]): boolean {

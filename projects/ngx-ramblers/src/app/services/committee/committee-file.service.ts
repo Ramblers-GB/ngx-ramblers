@@ -1,9 +1,10 @@
+import { downloadBlob } from "../../functions/file-download";
 import { HttpClient } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
-import { Observable, Subject } from "rxjs";
+import { firstValueFrom, Observable, Subject } from "rxjs";
 import { DataQueryOptions } from "../../models/api-request.model";
-import { CommitteeFile, CommitteeFileApiResponse } from "../../models/committee.model";
+import { CommitteeAttachmentLinkResponse, CommitteeFile, CommitteeFileApiResponse } from "../../models/committee.model";
 import { CommitteeDocumentsPageChoice, PageContent, PageContentType } from "../../models/content-text.model";
 import {
   addCommitteeFileIdToPage,
@@ -33,6 +34,20 @@ export class CommitteeFileService {
 
   notifications(): Observable<CommitteeFileApiResponse> {
     return this.committeeFileNotifications.asObservable();
+  }
+
+  async attachmentLink(file: CommitteeFile): Promise<string> {
+    const result = await firstValueFrom(this.http.get<CommitteeAttachmentLinkResponse>(`${this.BASE_URL}/${file.id}/attachment-link`));
+    return result.response.url;
+  }
+
+  attachment(file: CommitteeFile): Promise<Blob> {
+    return firstValueFrom(this.http.get(`${this.BASE_URL}/${file.id}/attachment`, {responseType: "blob"}));
+  }
+
+  async downloadAttachment(file: CommitteeFile): Promise<void> {
+    const blob = await this.attachment(file);
+    downloadBlob(blob, file.fileNameData?.originalFileName || file.fileNameData?.awsFileName || "document");
   }
 
   async all(dataQueryOptions?: DataQueryOptions): Promise<CommitteeFile[]> {

@@ -1,14 +1,15 @@
+import { ThumbnailHeadingFrameComponent } from "../thumbnail-heading-frame/thumbnail-heading-frame";
+import { MemberResourcesReferenceDataService } from "../../../services/member/member-resources-reference-data.service";
 import { Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import { first, last } from "es-toolkit/compat";
-import { faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faCaretDown, faFileImport, faPrint, faEye, faCalendarDays } from "@fortawesome/free-solid-svg-icons";
-import { BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective } from "ngx-bootstrap/dropdown";
+import { faAdd, faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faCaretDown, faFileImport, faPrint, faEye, faCalendarDays } from "@fortawesome/free-solid-svg-icons";
 import { AuthService } from "../../../auth/auth.service";
-import { CommitteeDocumentEditMode, CommitteeFile, CommitteeFileEmailAction } from "../../../models/committee.model";
+import { CommitteeDocumentEditMode, CommitteeFileAction, CommitteeFile, CommitteeFileEmailAction } from "../../../models/committee.model";
 import { ButtonDropdownComponent } from "../button-dropdown/button-dropdown";
-import { ButtonDropdownItem } from "../../../models/button-dropdown.model";
+import { ButtonDropdownItemType, ButtonDropdownItem } from "../../../models/button-dropdown.model";
 import { NamedEventType } from "../../../models/broadcast.model";
 import { CommitteeDocumentsData, PageContent, PageContentRow, PathSegment } from "../../../models/content-text.model";
 import { SortDirection } from "../../../models/sort.model";
@@ -50,124 +51,38 @@ import { UIDateFormat } from "../../../models/date-format.model";
             <div class="card-title mb-4 d-flex align-items-center justify-content-between">
               <h4 class="mb-0">{{ headingText }}</h4>
               @if (display.allowAddCommitteeFile() && committeeDocumentsConfig?.showFileActions && !editingFile) {
-                <input (click)="addCommitteeFile()"
-                       class="btn btn-primary btn-sm" title="Add new File" type="submit"
-                       value="Add File">
+                <button (click)="addCommitteeFile()" class="btn btn-primary btn-sm" type="button">
+                  <fa-icon [icon]="faAdd" class="me-2"/>Add file
+                </button>
               }
             </div>
             @if (notifyTarget.showAlert) {
               <div class="alert {{ notifyTarget.alert.class }} mb-3">
                 <fa-icon [icon]="notifyTarget.alert.icon"></fa-icon>
-                @if (notifyTarget.alertTitle) {
-                  <strong>{{ notifyTarget.alertTitle }}: </strong>
-                }
+                <strong>{{ notifyTarget.alertTitle || "Committee documents" }}: </strong>
                 {{ notifyTarget.alertMessage }}
               </div>
             }
             @if (editingFile) {
-              <div class="card bg-light mb-3">
-                <div class="card-body">
-                  <h5 class="card-title mb-3">{{ editingFileIsNew ? "Add" : "Edit" }} Committee File</h5>
+              <app-thumbnail-heading-frame [heading]="(editingFileIsNew ? 'Add' : 'Edit') + ' committee file'" class="mb-3">
                   <app-committee-file-editor
                     [committeeFile]="editingFile"
                     [previewing]="previewingDocument"
                     (previewingChange)="previewingDocumentChanged($event)"
                     (saved)="onFileSaved($event)"
                     (cancelled)="cancelEdit()"/>
-                </div>
-              </div>
+              </app-thumbnail-heading-frame>
             }
             @for (committeeFile of committeeFiles; track committeeFile.id) {
               <div class="file-item"
                    (mouseover)="selectCommitteeFile(committeeFile)">
                 @if (committeeFile.fileNameData || committeeFile.document) {
                   <div class="file-download">
-                    <div class="file-actions" dropdown container="body" placement="bottom right">
-                      <a dropdownToggle role="button" class="file-actions-toggle">
-                        <img [alt]="display.iconFile(committeeFile)"
-                             [src]="'assets/images/ramblers/' + display.iconFile(committeeFile)"
-                             class="icon"/>
-                        <fa-icon [icon]="faCaretDown" class="file-actions-caret"/>
-                      </a>
-                      <ul *dropdownMenu class="dropdown-menu dropdown-menu-end file-actions-menu" role="menu">
-                        <li class="file-actions-heading">
-                          <span class="file-actions-type">{{ committeeFile.fileType }}</span>
-                          {{ display.fileTitle(committeeFile) }}
-                        </li>
-                        <li><hr class="dropdown-divider my-1"></li>
-                        @if (display.canViewInBrowser(committeeFile)) {
-                          <li>
-                            <a class="dropdown-item" role="button" (click)="viewInThisTab(committeeFile)">
-                              <fa-icon [icon]="faEye" class="fa-icon me-2"/>Preview
-                            </a>
-                          </li>
-                          <li>
-                            <a class="dropdown-item" target="_blank" rel="noopener"
-                               [href]="display.viewUrl(committeeFile, documentsSourcePath)">
-                              <fa-icon [icon]="faUpRightFromSquare" class="fa-icon me-2"/>View in new tab
-                            </a>
-                          </li>
-                        }
-                        @if (display.isComposedDocument(committeeFile)) {
-                          <li>
-                            <a class="dropdown-item" target="_blank" rel="noopener"
-                               [href]="display.composedDocumentPrintUrl(committeeFile, documentsSourcePath)">
-                              <fa-icon [icon]="faPrint" class="fa-icon me-2"/>Print / A4
-                            </a>
-                          </li>
-                        } @else {
-                          <li>
-                            <a class="dropdown-item" target="_blank" rel="noopener"
-                               [href]="display.fileUrl(committeeFile, documentsSourcePath)">
-                              <fa-icon [icon]="faDownload" class="fa-icon me-2"/>Download
-                            </a>
-                          </li>
-                        }
-                        @if (display.allowEditCommitteeFile(committeeFile) && display.canConvertToComposedDocument(committeeFile)) {
-                          <li><hr class="dropdown-divider my-1"></li>
-                          <li>
-                            <a class="dropdown-item" role="button"
-                               title="Create an editable, re-themeable document from this file - the original is kept"
-                               (click)="convertToComposedDocument(committeeFile)">
-                              <fa-icon [icon]="faFileImport" class="fa-icon me-2"/>Convert to editable document
-                            </a>
-                          </li>
-                        }
-                        @if (allowFileActions(committeeFile)) {
-                          <li class="d-sm-none"><hr class="dropdown-divider my-1"></li>
-                          @if (display.allowEditCommitteeFile(committeeFile)) {
-                            <li class="d-sm-none">
-                              <a class="dropdown-item" role="button"
-                                 (click)="editCommitteeFile(committeeFile)">
-                                <fa-icon [icon]="faEdit" class="fa-icon me-2"/>Edit
-                              </a>
-                            </li>
-                            <li class="d-sm-none">
-                              <a class="dropdown-item" role="button"
-                                 (click)="sendNotification(committeeFile)">
-                                <fa-icon [icon]="faEnvelope" class="fa-icon me-2"/>{{ canSendMeetingInvite(committeeFile) ? "Write an email" : "Send Email" }}
-                              </a>
-                            </li>
-                            @if (canSendMeetingInvite(committeeFile)) {
-                              <li class="d-sm-none">
-                                <a class="dropdown-item" role="button"
-                                   (click)="sendMeetingInvite(committeeFile)">
-                                  <fa-icon [icon]="faCalendarDays" class="fa-icon me-2"/>Send a meeting invite
-                                </a>
-                              </li>
-                            }
-                          }
-                          @if (display.allowDeleteCommitteeFile(committeeFile)) {
-                            <li class="d-sm-none">
-                              <a class="dropdown-item" role="button"
-                                 (click)="requestDeleteCommitteeFile(committeeFile)">
-                                <fa-icon [icon]="faTrash" class="fa-icon me-2"/>Delete
-                              </a>
-                            </li>
-                          }
-                        }
-                      </ul>
-                    </div>
+                    <img [alt]="display.iconFile(committeeFile)"
+                         [src]="'assets/images/ramblers/' + display.iconFile(committeeFile)" class="icon"/>
+                    <app-button-dropdown compact [icon]="faCaretDown" buttonClass="btn btn-quiet btn-sm"
+                                         ariaLabel="Document actions" [items]="fileActionItems(committeeFile)"
+                                         (itemSelect)="onFileAction($event, committeeFile)"/>
                   </div>
                 }
                 <div class="file-detail">
@@ -240,7 +155,7 @@ import { UIDateFormat } from "../../../models/date-format.model";
       </div>
     </div>`,
   styleUrls: ["./committee-documents-row.sass"],
-  imports: [CommitteeFileEditor, FontAwesomeModule, BsDropdownDirective, BsDropdownMenuDirective, BsDropdownToggleDirective, ButtonDropdownComponent]
+  imports: [ThumbnailHeadingFrameComponent, CommitteeFileEditor, FontAwesomeModule, ButtonDropdownComponent]
 })
 export class CommitteeDocumentsRow implements OnInit, OnDestroy {
 
@@ -250,14 +165,11 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
   faTrash = faTrash;
   faCheck = faCheck;
   faBan = faBan;
-  faDownload = faDownload;
-  faUpRightFromSquare = faUpRightFromSquare;
   faEye = faEye;
+  protected readonly faAdd = faAdd;
   faCaretDown = faCaretDown;
   faFileImport = faFileImport;
-  faPrint = faPrint;
-  faCalendarDays = faCalendarDays;
-  protected readonly CommitteeFileEmailAction = CommitteeFileEmailAction;
+  private memberResourcesReferenceData = inject(MemberResourcesReferenceDataService);
   memberLoginService = inject(MemberLoginService);
   display = inject(CommitteeDisplayService);
   private authService = inject(AuthService);
@@ -305,6 +217,7 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.notify = this.notifierService.createAlertInstance(this.notifyTarget);
+    this.subscriptions.push(this.memberResourcesReferenceData.platformAdminEnabledChanges().subscribe(() => this.loadFiles()));
     this.initialised = true;
     this.applyRowData();
     this.subscriptions.push(this.authService.authResponse().subscribe(() => this.loadFiles()));
@@ -382,9 +295,7 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
   private applyVisibleFiles(files: CommitteeFile[]): void {
     const sortPrefix = this.committeeDocumentsConfig?.sortDirection === SortDirection.ASC ? "" : "-";
     this.committeeFiles = files
-      .filter(file => this.display.committeeReferenceData?.isPublic(file.fileType)
-        || this.memberLoginService.allowCommittee()
-        || this.memberLoginService.allowFileAdmin())
+      .filter(file => this.display.committeeReferenceData?.isVisible(file.fileType, this.memberResourcesReferenceData.platformAdminOn()))
       .sort(sortBy(`${sortPrefix}eventDate`, `${sortPrefix}createdDate`));
     this.logger.info("loadFiles:loaded", this.committeeFiles.length, "visible files of", files.length, "total");
     this.restoreDocumentEditState();
@@ -639,6 +550,42 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
 
   canSendMeetingInvite(committeeFile: CommitteeFile): boolean {
     return !!(committeeFile?.id && committeeFile?.eventDate && committeeFile?.meeting);
+  }
+
+  fileActionItems(file: CommitteeFile): ButtonDropdownItem[] {
+    return [
+      {id: CommitteeFileAction.HEADING, label: file.fileType, extraLabel: this.display.fileTitle(file), type: ButtonDropdownItemType.HEADER},
+      {id: CommitteeFileAction.PREVIEW, label: "Preview", icon: faEye, hidden: !this.display.canViewInBrowser(file)},
+      {id: CommitteeFileAction.NEW_TAB, label: "View in new tab", icon: faUpRightFromSquare, href: this.display.viewUrl(file, this.documentsSourcePath), target: "_blank", rel: "noopener", hidden: !this.display.canViewInBrowser(file)},
+      {id: CommitteeFileAction.PRINT, label: "Print / A4", icon: faPrint, href: this.display.composedDocumentPrintUrl(file, this.documentsSourcePath), target: "_blank", rel: "noopener", hidden: !this.display.isComposedDocument(file)},
+      {id: CommitteeFileAction.DOWNLOAD, label: "Download", icon: faDownload, hidden: this.display.isComposedDocument(file)},
+      {id: CommitteeFileAction.CONVERT, label: "Convert to editable document", icon: faFileImport, hidden: !this.display.allowEditCommitteeFile(file) || !this.display.canConvertToComposedDocument(file)},
+      {id: CommitteeFileAction.EDIT, label: "Edit", icon: faEdit, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file)},
+      {id: CommitteeFileAction.SEND_EMAIL, label: this.canSendMeetingInvite(file) ? "Write an email" : "Send Email", icon: faEnvelope, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file)},
+      {id: CommitteeFileAction.SEND_INVITE, label: "Send a meeting invite", icon: faCalendarDays, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file) || !this.canSendMeetingInvite(file)},
+      {id: CommitteeFileAction.DELETE, label: "Delete", icon: faTrash, danger: true, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowDeleteCommitteeFile(file)}
+    ];
+  }
+
+  onFileAction(action: string, file: CommitteeFile): void {
+    if (action === CommitteeFileAction.PREVIEW) {
+      this.viewInThisTab(file);
+    } else if (action === CommitteeFileAction.DOWNLOAD) {
+      this.committeeFileService.downloadAttachment(file).catch(error => {
+        this.logger.error("could not download document", error);
+        this.notify.error({title: "Download unavailable", message: "The document could not be downloaded. Please try again."});
+      });
+    } else if (action === CommitteeFileAction.CONVERT) {
+      this.convertToComposedDocument(file);
+    } else if (action === CommitteeFileAction.EDIT) {
+      this.editCommitteeFile(file);
+    } else if (action === CommitteeFileAction.SEND_EMAIL) {
+      this.sendNotification(file);
+    } else if (action === CommitteeFileAction.SEND_INVITE) {
+      this.sendMeetingInvite(file);
+    } else if (action === CommitteeFileAction.DELETE) {
+      this.requestDeleteCommitteeFile(file);
+    }
   }
 
   sendEmailItems(committeeFile: CommitteeFile): ButtonDropdownItem[] {

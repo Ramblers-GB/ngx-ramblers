@@ -1,3 +1,5 @@
+import { accessLevelPermitted } from "../functions/access-level";
+import { MemberResourcesReferenceDataService } from "./member/member-resources-reference-data.service";
 import { inject, Injectable } from "@angular/core";
 import { AccessLevel } from "../models/member-resource.model";
 import { Link } from "../models/page.model";
@@ -8,6 +10,7 @@ import { MemberLoginService } from "./member/member-login.service";
 })
 export class AccessLevelService {
 
+  private memberResourcesReferenceData = inject(MemberResourcesReferenceDataService);
   private memberLoginService = inject(MemberLoginService);
 
   hasAccess(link: Link): boolean {
@@ -15,21 +18,6 @@ export class AccessLevelService {
   }
 
   hasAccessLevel(accessLevel: AccessLevel): boolean {
-    const level = accessLevel || AccessLevel.PUBLIC;
-    if (level === AccessLevel.PUBLIC) {
-      return true;
-    } else if (level === AccessLevel.LOGGED_IN_MEMBER) {
-      return this.memberLoginService.memberLoggedIn();
-    } else if (level === AccessLevel.NOT_LOGGED_IN) {
-      return !this.memberLoginService.memberLoggedIn();
-    } else if (level === AccessLevel.COMMITTEE) {
-      return this.memberLoginService.allowCommittee();
-    } else if (level === AccessLevel.MEMBER_ADMIN) {
-      return this.memberLoginService.allowMemberAdminEdits();
-    } else if (level === AccessLevel.HIDDEN || level === AccessLevel.EVENT_ADMIN || level === AccessLevel.EVENT_LEADER) {
-      return false;
-    } else {
-      return true;
-    }
+    return accessLevelPermitted(accessLevel || AccessLevel.PUBLIC, this.memberLoginService.loggedInMember(), this.memberResourcesReferenceData.platformAdminOn());
   }
 }

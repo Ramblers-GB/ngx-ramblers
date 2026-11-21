@@ -1,3 +1,6 @@
+import { officeViewerEmbedUrl, officeViewerUrl } from "../../../functions/office-viewer";
+import { AuthService } from "../../../auth/auth.service";
+import { MemberResourcesReferenceDataService } from "../../../services/member/member-resources-reference-data.service";
 import { Component, inject, NgZone, OnDestroy, OnInit, Renderer2, ViewChild } from "@angular/core";
 import { DOCUMENT } from "@angular/common";
 import { ActivatedRoute, Router } from "@angular/router";
@@ -10,7 +13,6 @@ import { CommitteeFile } from "../../../models/committee.model";
 import { StoredValue } from "../../../models/ui-actions.model";
 import { CommitteeFileService } from "../../../services/committee/committee-file.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
-import { MemberLoginService } from "../../../services/member/member-login.service";
 import { CommitteeDisplayService } from "../committee-display.service";
 import { CommitteeReferenceData } from "../../../services/committee/committee-reference-data";
 import { CommitteeDocumentEditor } from "./committee-document-editor";
@@ -29,7 +31,7 @@ const PRINT_MODE_BODY_CLASS = "committee-document-print-mode";
       @if (committeeFile && allowViewing) {
         @if (display.isComposedDocument(committeeFile)) {
           <app-committee-document-editor [committeeFile]="committeeFile" [editable]="false">
-            <button type="button" class="btn btn-secondary" (click)="navigateBack()">
+            <button type="button" class="btn btn-quiet" (click)="navigateBack()">
               <fa-icon [icon]="faArrowLeft" class="me-1"/>
               Back
             </button>
@@ -55,21 +57,25 @@ const PRINT_MODE_BODY_CLASS = "committee-document-print-mode";
           }
         } @else {
           <div class="d-flex justify-content-between gap-2 mb-3">
-            <button type="button" class="btn btn-secondary btn-sm" (click)="navigateBack()">
+            <button type="button" class="btn btn-quiet btn-sm" (click)="navigateBack()">
               <fa-icon [icon]="faArrowLeft" class="me-1"/>
               Back
             </button>
-            <a class="btn btn-sunset btn-sm" target="_blank" rel="noopener"
-               [href]="display.fileUrl(committeeFile)">
+            <button class="btn btn-primary btn-sm" type="button" (click)="downloadAttachment()">
               <fa-icon [icon]="faDownload" class="me-1"/>
               Download
-            </a>
+            </button>
           </div>
-          @if (embedUrl) {
+          @if (attachmentError) {
+            <app-alert-panel title="Download unavailable">{{ attachmentError }}</app-alert-panel>
+          }
+          @if (attachmentLoading) {
+            <p>Loading document…</p>
+          } @else if (embedUrl) {
             @if (mobileViewport && display.isOfficeViewable(committeeFile)) {
               <p>This document is best viewed full screen on a phone.</p>
               <a class="btn btn-primary" target="_blank" rel="noopener"
-                 [href]="display.directViewUrl(committeeFile)">
+                 [href]="fullScreenUrl">
                 <fa-icon [icon]="faUpRightFromSquare" class="me-1"/>
                 View document
               </a>
@@ -101,6 +107,7 @@ const PRINT_MODE_BODY_CLASS = "committee-document-print-mode";
 export class CommitteeDocumentPage implements OnInit, OnDestroy {
 
   private logger: Logger = inject(LoggerFactory).createLogger("CommitteeDocumentPage", NgxLoggerLevel.ERROR);
+  private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private fileLoadSequence = 0;
@@ -108,7 +115,7 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   private documentRef = inject(DOCUMENT);
   private sanitizer = inject(DomSanitizer);
   private committeeFileService = inject(CommitteeFileService);
-  private memberLoginService = inject(MemberLoginService);
+  private memberResourcesReferenceData = inject(MemberResourcesReferenceDataService);
   private videoMeetingsService = inject(VideoMeetingsService);
   display = inject(CommitteeDisplayService);
   private subscriptions: Subscription[] = [];
@@ -116,6 +123,10 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   @ViewChild(CommitteeDocumentEditor) private documentEditor: CommitteeDocumentEditor;
   public committeeFile: CommitteeFile;
   public embedUrl: SafeResourceUrl;
+  protected fullScreenUrl: string = null;
+  protected attachmentLoading = false;
+  protected attachmentError: string = null;
+  private attachmentObjectUrl: string = null;
   public allowViewing = false;
   public notFound = false;
   private autoPrintTriggered = false;
@@ -161,12 +172,21 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.subscriptions.push(this.memberResourcesReferenceData.platformAdminEnabledChanges().subscribe(() => this.refreshVisibility()));
     this.mobileViewport = this.mobileViewportQuery.matches;
     this.mobileViewportQuery.addEventListener("change", this.mobileViewportListener);
     this.renderer.addClass(this.documentRef.body, PRINT_MODE_BODY_CLASS);
     this.subscriptions.push(this.display.configEvents().subscribe(data => {
       this.committeeReferenceData = data;
       this.refreshVisibility();
+    }));
+    this.subscriptions.push(this.authService.authResponse().subscribe(() => {
+      const queryParamMap = this.route.snapshot.queryParamMap;
+      const documentSlug = queryParamMap.get(StoredValue.DOCUMENT);
+      const slug = documentSlug || queryParamMap.get(StoredValue.FILE);
+      if (slug) {
+        this.loadCommitteeFile(slug, !!documentSlug);
+      }
     }));
     this.subscriptions.push(this.route.queryParamMap.subscribe(queryParamMap => {
       const documentSlug = queryParamMap.get(StoredValue.DOCUMENT);
@@ -180,6 +200,8 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.fileLoadSequence++;
+    this.releaseAttachment();
     this.mobileViewportQuery.removeEventListener("change", this.mobileViewportListener);
     this.renderer.removeClass(this.documentRef.body, PRINT_MODE_BODY_CLASS);
     this.subscriptions.forEach(subscription => subscription.unsubscribe());
@@ -194,7 +216,10 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
     this.committeeFile = null;
     this.allowViewing = false;
     this.notFound = false;
+    this.releaseAttachment();
     this.embedUrl = null;
+    this.attachmentLoading = false;
+    this.attachmentError = null;
     this.committeeFileService.all()
       .then(committeeFiles => {
         if (sequence === this.fileLoadSequence) {
@@ -205,7 +230,7 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
             this.showTranscript = false;
             this.transcript = "";
             if (!expectComposed && this.display.canViewInBrowser(committeeFile)) {
-              this.embedUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.display.attachmentEmbedUrl(committeeFile));
+              void this.loadAttachment(committeeFile, sequence);
             }
             this.refreshVisibility();
           } else {
@@ -221,11 +246,53 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
       });
   }
 
+  protected async downloadAttachment(): Promise<void> {
+    try {
+      await this.committeeFileService.downloadAttachment(this.committeeFile);
+      this.attachmentError = null;
+    } catch (error) {
+      this.logger.error("could not download document", error);
+      this.attachmentError = "The document could not be downloaded. Please try again.";
+    }
+  }
+
+  private releaseAttachment(): void {
+    if (this.attachmentObjectUrl) {
+      URL.revokeObjectURL(this.attachmentObjectUrl);
+      this.attachmentObjectUrl = null;
+    }
+  }
+
+  private async loadAttachment(file: CommitteeFile, sequence: number): Promise<void> {
+    this.attachmentLoading = true;
+    try {
+      if (this.display.isOfficeViewable(file)) {
+        const path = await this.committeeFileService.attachmentLink(file);
+        if (sequence === this.fileLoadSequence) {
+          const url = new URL(path, window.location.origin).href;
+          this.fullScreenUrl = officeViewerUrl(url);
+          this.embedUrl = this.sanitizer.bypassSecurityTrustResourceUrl(officeViewerEmbedUrl(url));
+        }
+      } else {
+        const blob = await this.committeeFileService.attachment(file);
+        if (sequence === this.fileLoadSequence) {
+          this.attachmentObjectUrl = URL.createObjectURL(blob);
+          this.fullScreenUrl = this.attachmentObjectUrl;
+          this.embedUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.attachmentObjectUrl);
+        }
+      }
+    } catch (error) {
+      this.logger.error("could not preview document", error);
+    } finally {
+      if (sequence === this.fileLoadSequence) {
+        this.attachmentLoading = false;
+      }
+    }
+  }
+
   private refreshVisibility(): void {
     if (this.committeeFile && this.committeeReferenceData) {
-      this.allowViewing = this.committeeReferenceData.isPublic(this.committeeFile.fileType)
-        || this.memberLoginService.allowCommittee()
-        || this.memberLoginService.allowFileAdmin();
+      this.allowViewing = this.committeeReferenceData.isVisible(this.committeeFile.fileType, this.memberResourcesReferenceData.platformAdminOn());
       this.notFound = !this.allowViewing;
       if (this.allowViewing && !this.autoPrintTriggered
         && this.display.isComposedDocument(this.committeeFile)

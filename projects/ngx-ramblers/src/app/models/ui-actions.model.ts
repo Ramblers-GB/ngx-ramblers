@@ -100,6 +100,8 @@ export enum StoredValue {
   COLLECTION_CLEANUP_CLUSTER = "collection-cleanup-cluster",
   COLLECTION_CLEANUP_SORT = "collection-cleanup-sort",
   COLLECTION_CLEANUP_SORT_ORDER = "collection-cleanup-sort-order",
+  COMMITTEE_FILE_TYPE_SORT = "committee-file-type-sort",
+  COMMITTEE_FILE_TYPE_SORT_ORDER = "committee-file-type-sort-order",
   COMPOSITION_SORT = "composition-sort",
   COMPOSITION_SORT_ORDER = "composition-sort-order",
   CONFIDENCE = "confidence",

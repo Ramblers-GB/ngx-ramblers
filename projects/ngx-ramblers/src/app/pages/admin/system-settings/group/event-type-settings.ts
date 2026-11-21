@@ -12,7 +12,7 @@ import { RamblersEventType } from "../../../../models/ramblers-walks-manager.mod
 import { CommitteeConfigService } from "../../../../services/committee/commitee-config.service";
 import { CommitteeMember } from "../../../../models/committee.model";
 import { CommitteeReferenceData } from "../../../../services/committee/committee-reference-data";
-import { AccessLevel, EVENT_ACTION_ACCESS_LEVELS, generalAccessLevels } from "../../../../models/member-resource.model";
+import { ACCESS_LEVEL_LABELS, AccessLevel, EVENT_ACTION_ACCESS_LEVELS, generalAccessLevels } from "../../../../models/member-resource.model";
 import {
   ContactAccessLevelFieldKeys,
   migrateContactAccessLevels,
@@ -222,17 +222,7 @@ export class EventTypeSettingsComponent implements OnInit, OnDestroy {
   committeeRoles: CommitteeMember[] = [];
   accessLevels: AccessLevel[] = generalAccessLevels();
   eventActionAccessLevels: AccessLevel[] = EVENT_ACTION_ACCESS_LEVELS;
-  accessLevelDescriptions: Record<AccessLevel, string> = {
-    [AccessLevel.HIDDEN]: "No access",
-    [AccessLevel.ENVIRONMENT_ADMIN]: "Environment admin",
-    [AccessLevel.MEMBER_ADMIN]: "Member admin",
-    [AccessLevel.EVENT_ADMIN]: "Walk or event admin",
-    [AccessLevel.EVENT_LEADER]: "Event leader or organiser",
-    [AccessLevel.COMMITTEE]: "Committee",
-    [AccessLevel.LOGGED_IN_MEMBER]: "Logged-in member",
-    [AccessLevel.NOT_LOGGED_IN]: "Not logged in",
-    [AccessLevel.PUBLIC]: "Public"
-  };
+  accessLevelDescriptions = ACCESS_LEVEL_LABELS;
 
   @Input() config: SystemConfig;
   @Input() eventType: RamblersEventType;

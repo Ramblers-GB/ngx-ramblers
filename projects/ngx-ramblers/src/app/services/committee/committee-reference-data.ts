@@ -1,3 +1,5 @@
+import { committeeFileVisible, committeeFileAccessLevel } from "../../functions/committee-file-access";
+import { AccessLevel } from "../../models/member-resource.model";
 import { BuiltInRole, CommitteeConfig, CommitteeMember, ExpensesConfig, RoleType, roleRecipientMemberIds } from "../../models/committee.model";
 import { committeeRoleForMemberId } from "../../functions/committee-members";
 import { MemberLoginService } from "../member/member-login.service";
@@ -128,8 +130,13 @@ export class CommitteeReferenceData {
     return this.contactUsField(role, "fullName");
   }
 
+  isVisible(fileTypeDescription: string, platformAdminEnabled = false): boolean {
+    const fileType = this.fileTypes()?.find(candidate => candidate.description === fileTypeDescription);
+    return committeeFileVisible(fileType, this.memberLoginService.loggedInMember(), platformAdminEnabled);
+  }
+
   isPublic(fileTypeDescription: string): boolean {
     const found = this.fileTypes()?.find(fileType => fileType.description === fileTypeDescription);
-    return found && found.public;
+    return !!found && committeeFileAccessLevel(found) === AccessLevel.PUBLIC;
   }
 }

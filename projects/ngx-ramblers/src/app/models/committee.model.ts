@@ -1,3 +1,4 @@
+import { AccessLevel } from "./member-resource.model";
 import { map } from "es-toolkit/compat";
 import { addressOnDomain, emailDomain, emailLocalPart, fitEmailLocalPart, normaliseEmail, toDotCase, toKebabCase, validEmailLocalPart } from "../functions/strings";
 import { DateRangeUnit } from "./search.model";
@@ -154,6 +155,17 @@ export enum CommitteeMemberTab {
   CONTACT_US = "Contact Us",
   EMAIL_LOGS = "Email Logs"
 }
+
+export enum CommitteeSettingsTab {
+  COMMITTEE_MEMBERS = "committee-members",
+  EMAIL_LOGS = "email-logs",
+  FILE_TYPES = "file-types",
+  DOCUMENTS_PAGE = "documents-page",
+  MEETING_FREQUENCY = "meeting-frequency",
+  EXPENSES = "expenses"
+}
+
+export const LEGACY_COMMITTEE_CONFIGURATION_TAB = "configuration";
 
 
 export interface DocumentConversionResponse {
@@ -596,6 +608,7 @@ export enum CommitteeFileMeetingRole {
 export const OTHER_MEETING_CATEGORY = "Other";
 
 export interface CommitteeFileType {
+  accessLevel?: AccessLevel;
   description: string;
   public?: boolean;
   meetingRole?: CommitteeFileMeetingRole;
@@ -744,4 +757,33 @@ export interface ValidateTokenResponse {
 
 export interface ValidateTokenApiResponse extends ApiResponse {
   response?: ValidateTokenResponse;
+}
+
+export enum CommitteeFileAction {
+  HEADING = "heading",
+  NEW_TAB = "new-tab",
+  PRINT = "print",
+  PREVIEW = "preview",
+  DOWNLOAD = "download",
+  CONVERT = "convert",
+  EDIT = "edit",
+  SEND_EMAIL = "send-email",
+  SEND_INVITE = "send-invite",
+  DELETE = "delete"
+}
+
+export enum CommitteeFileTypeField {
+  DESCRIPTION = "description",
+  MEETING_ROLE = "meetingRole",
+  MEETING_CATEGORY = "meetingCategory",
+  ACCESS_LEVEL = "accessLevel",
+  ACTIONS = "actions"
+}
+
+export enum CommitteeAttachmentPurpose {
+  PREVIEW = "committee-attachment-preview"
+}
+
+export interface CommitteeAttachmentLinkResponse extends ApiResponse {
+  response: {url: string};
 }

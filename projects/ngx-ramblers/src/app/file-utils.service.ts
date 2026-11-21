@@ -1,3 +1,5 @@
+import { nativeApiUrl } from "./functions/native-walking";
+import { HttpClient } from "@angular/common/http";
 import { firstValueFrom, from, timeout } from "rxjs";
 import { inject, Injectable } from "@angular/core";
 import { chunk, first, isEmpty, last } from "es-toolkit/compat";
@@ -31,6 +33,7 @@ export class FileUtilsService {
   private static readonly IMAGE_OPERATION_TIMEOUT_MS = 30000;
   private logger: Logger = inject(LoggerFactory).createLogger("FileUtilsService", NgxLoggerLevel.ERROR);
   protected dateUtils = inject(DateUtilsService);
+  private http = inject(HttpClient);
   private urlService = inject(UrlService);
   private stringUtils = inject(StringUtilsService);
   private imageDuplicatesService = inject(ImageDuplicatesService);
@@ -304,7 +307,11 @@ export class FileUtilsService {
 
   async localUrlToBlob(url: string): Promise<Blob> {
     const urlPath = this.urlService.resourceRelativePathForAWSFileName(url);
-    const blob = await (await fetch(urlPath)).blob();
+    const imageUrl = new URL(urlPath, window.location.href);
+    const apiUrl = new URL(nativeApiUrl("/api/"), window.location.href);
+    const blob = imageUrl.origin === apiUrl.origin && imageUrl.pathname.startsWith(apiUrl.pathname)
+      ? await firstValueFrom(this.http.get(urlPath, {responseType: "blob"}))
+      : await (await fetch(urlPath)).blob();
     this.logger.info("localUrlToBlob:url:", url, "urlPath:", urlPath, "blob:", blob);
     return blob;
   }

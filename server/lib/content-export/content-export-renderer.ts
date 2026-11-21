@@ -1,3 +1,4 @@
+import { accessLevelPermitted } from "../../../projects/ngx-ramblers/src/app/functions/access-level";
 import { PageContentColumn, PageContentRow } from "../../../projects/ngx-ramblers/src/app/models/content-text.model";
 import { AccessLevel } from "../../../projects/ngx-ramblers/src/app/models/member-resource.model";
 import { S3_BASE_URL } from "../../../projects/ngx-ramblers/src/app/models/content-metadata.model";
@@ -9,7 +10,7 @@ const DESCRIPTION_MAX_LENGTH = 160;
 
 function publicColumn(column: PageContentColumn): boolean {
   const level = column.accessLevel || AccessLevel.PUBLIC;
-  return level === AccessLevel.PUBLIC || level === AccessLevel.NOT_LOGGED_IN;
+  return accessLevelPermitted(level, null);
 }
 
 function imageMarkdownFrom(column: PageContentColumn): string {
