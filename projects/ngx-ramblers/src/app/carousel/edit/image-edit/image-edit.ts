@@ -72,7 +72,6 @@ import { YoutubeInputComponent } from "../../../modules/common/youtube-input/you
               <div class="col-sm-12 mb-3">
                 @if (!item.youtubeId) {
                   <app-image-cropper-and-resizer nonDestructive
-                                                 [allowPermanentSave]="false"
                                                  [selectAspectRatio]="contentMetadata?.aspectRatio"
                                                  [rootFolder]="contentMetadataService.rootFolderAndName(contentMetadata?.rootFolder, contentMetadata?.name)"
                                                  [preloadImage]="imageSourceOrPreview()"

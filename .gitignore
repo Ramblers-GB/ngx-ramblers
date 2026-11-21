@@ -16,8 +16,7 @@
 /bazel-out
 
 # dependencies
-/node_modules
-/projects/ngx-ramblers/node_modules/
+node_modules/
 
 # profiling files
 chrome-profiler-events.json
@@ -47,7 +46,6 @@ testem.log
 Thumbs.db
 /non-vcs/
 /server/scripts/*
-/server/node_modules/
 /server/target/
 /server/upload-errors-source.html
 /data/scripts/
