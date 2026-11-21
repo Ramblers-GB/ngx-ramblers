@@ -96,7 +96,7 @@ export class ImageCropperAndResizerComponent implements OnInit, AfterViewInit, O
     public hideFileSelection: boolean;
     public hideActionButtons: boolean;
     public nonDestructive = true;
-    public allowPermanentSave = true;
+    public allowPermanentSave = false;
     public cropOnlyMode = false;
     private noImageSave: boolean;
     private subscriptions: Subscription[] = [];
