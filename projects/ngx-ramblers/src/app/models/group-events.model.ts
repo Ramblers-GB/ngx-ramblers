@@ -48,11 +48,31 @@ export interface EventsDataAllows {
   allowSortChange?: boolean;
 }
 
+export enum EventsView {
+  CARDS = "cards",
+  ACTION_BUTTONS = "action-buttons"
+}
+
+export interface EventCardDisplayOptions {
+  showImage?: boolean;
+  showDate?: boolean;
+  showDifficulty?: boolean;
+  showDistance?: boolean;
+  showAscent?: boolean;
+  showLocation?: boolean;
+  showGroup?: boolean;
+  showContact?: boolean;
+}
+
 export interface EventsData extends HasColumnRange {
   filterCriteria: FilterCriteria;
   sortOrder: SortOrder;
   allow: EventsDataAllows;
   eventTypes: RamblersEventType[];
+  includeUpcomingCancellations?: boolean;
+  view?: EventsView;
+  compact?: boolean;
+  cardDisplay?: EventCardDisplayOptions;
   savedCriteria?: SavedSearchCriteria;
   fromDate?: number;
   toDate?: number;

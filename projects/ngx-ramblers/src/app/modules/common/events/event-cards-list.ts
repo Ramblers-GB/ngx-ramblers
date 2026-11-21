@@ -1,7 +1,15 @@
+import { DistanceValidationService } from "../../../services/walks/distance-validation.service";
+import { isEqual } from "es-toolkit/compat";
+import { PageContent, PageContentType } from "../../../models/content-text.model";
+import { ActionButtons } from "../action-buttons/action-buttons";
+import { DisplayTimePipe } from "../../../pipes/display-time.pipe";
+import { EventDatesAndTimesPipe } from "../../../pipes/event-times-and-dates.pipe";
+import { GroupEventDisplayService } from "../../../pages/group-events/group-event-display.service";
+import { WalkStatus } from "../../../models/ramblers-walks-manager.model";
 import { Component, inject, Input } from "@angular/core";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
 import { AlertTarget } from "../../../models/alert-target.model";
-import { EventsData } from "../../../models/group-events.model";
+import { EventsData, EventsView } from "../../../models/group-events.model";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { AlertInstance } from "../../../services/notifier.service";
 import { GroupEventCard } from "../../../pages/group-events/group-event-card/group-event-card";
@@ -14,21 +22,28 @@ import { StringUtilsService } from "../../../services/string-utils.service";
 @Component({
   selector: "app-event-cards-list",
   template: `
+    @if (eventsData?.view === EventsView.ACTION_BUTTONS) {
+      <div [class.opacity-50]="notifyTarget?.busy" [class.pe-none]="notifyTarget?.busy">
+        <app-action-buttons [pageContent]="actionButtonContent()" [rowIndex]="0" presentationMode/>
+      </div>
+    } @else {
     <div class="event-cards" [style.--event-cols]="columnCount()" [class.opacity-50]="notifyTarget?.busy"
          [class.pe-none]="notifyTarget?.busy">
       @for (extendedGroupEvent of currentPageFilteredEvents; track eventKey(extendedGroupEvent); let index = $index) {
         <div class="event-card-slot">
           @if (extendedGroupEvent.groupEvent.item_type === RamblersEventType.GROUP_EVENT) {
-            <app-group-event-card [groupEvent]="extendedGroupEvent" [maxColumns]="eventsData?.maxColumns"/>
+            <app-group-event-card [groupEvent]="extendedGroupEvent" [maxColumns]="eventsData?.maxColumns" [cardDisplay]="eventsData?.cardDisplay"/>
           } @else {
             <app-walk-card-view mapClass="map-card-image-events" cardImageClass="card-img-fixed-height" [index]="index"
                                 class="card shadow clickable h-100" [maxColumns]="eventsData?.maxColumns"
+                                [compact]="eventsData?.compact" [cardDisplay]="eventsData?.cardDisplay"
                                 navigateOnCardClick
                                 [displayedWalk]="walkDisplayService.toDisplayedWalk(extendedGroupEvent)"/>
           }
         </div>
       }
-    </div>`,
+    </div>
+    }`,
   styles: [`
     :host
       display: block
@@ -45,9 +60,45 @@ import { StringUtilsService } from "../../../services/string-utils.service";
       .event-cards
         grid-template-columns: repeat(var(--event-cols, 1), minmax(0, 1fr))
   `],
-  imports: [GroupEventCard, WalkCardViewComponent]
+  providers: [EventDatesAndTimesPipe, DisplayTimePipe],
+  imports: [GroupEventCard, WalkCardViewComponent, ActionButtons]
 })
 export class EventCardsList {
+
+  protected readonly EventsView = EventsView;
+  private distanceValidation = inject(DistanceValidationService);
+  private eventDates = inject(EventDatesAndTimesPipe);
+  private groupDisplay = inject(GroupEventDisplayService);
+  private actionContent: PageContent = null;
+
+  actionButtonContent(): PageContent {
+    const columns = (this.currentPageFilteredEvents || []).map(event => {
+      const details = event.groupEvent;
+      const options = this.eventsData?.cardDisplay;
+      const cancelled = details.status === WalkStatus.CANCELLED;
+      const contentText = [
+        options?.showDate !== false ? this.eventDates.transform(details) : null,
+        cancelled ? `Cancelled${details.cancellation_reason ? ": " + details.cancellation_reason : ""}` : null,
+        options?.showDistance !== false && details.distance_miles ? this.distanceValidation.walkDistances(event) : null
+      ].filter(Boolean).join("\n\n");
+      return {
+        title: details.title,
+        href: details.item_type === RamblersEventType.GROUP_EVENT
+          ? this.groupDisplay.groupEventLink(event, true) : this.walkDisplayService.walkRouterLink(event),
+        contentText,
+        icon: cancelled ? "faCircleExclamation" : "faCalendarDays",
+        showPlaceholderImage: false
+      };
+    });
+    const next: PageContent = {
+      path: "event-actions",
+      rows: [{type: PageContentType.ACTION_BUTTONS, maxColumns: this.columnCount(), showSwiper: false, columns}]
+    };
+    if (!isEqual(this.actionContent, next)) {
+      this.actionContent = next;
+    }
+    return this.actionContent;
+  }
 
   walkDisplayService = inject(WalkDisplayService);
   private stringUtils = inject(StringUtilsService);

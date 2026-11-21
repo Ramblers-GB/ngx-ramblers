@@ -1,7 +1,7 @@
 import { Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, ParamMap } from "@angular/router";
 import { range } from "es-toolkit";
-import { keys } from "es-toolkit/compat";
+import { keys, orderBy, uniqBy } from "es-toolkit/compat";
 import { PageChangedEvent } from "ngx-bootstrap/pagination";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
@@ -28,7 +28,7 @@ import { WalksConfig } from "../../../models/walks-config.model";
 import { WalksConfigService } from "../../../services/system/walks-config.service";
 import { ExtendedGroupEvent, InputSource } from "../../../models/group-event.model";
 import { WalksAndEventsService } from "../../../services/walks-and-events/walks-and-events.service";
-import { EventQueryParameters, RamblersEventType } from "../../../models/ramblers-walks-manager.model";
+import { EventQueryParameters, RamblersEventType, WalkStatus } from "../../../models/ramblers-walks-manager.model";
 import { DateFilterParameters } from "../../../models/search.model";
 import { MongoSort } from "../../../models/mongo.model";
 import {GroupEventField} from "../../../models/walk.model";
@@ -159,7 +159,8 @@ export class Events implements OnInit, OnDestroy {
         eventIds,
         tagsAny,
         tagsExclude,
-        eventsData.allow?.viewSelector ? "selector" : "list"
+        eventsData.allow?.viewSelector ? "selector" : "list",
+        eventsData.includeUpcomingCancellations ? "cancellations" : "selected"
       ].join("|");
     }
   }
@@ -170,10 +171,10 @@ export class Events implements OnInit, OnDestroy {
       this.notify.progress({title: "Events", message: "Querying events"}, true);
       const dataQueryOptions: DataQueryOptions = {criteria: this.criteria(), sort: this.sort()};
       this.logger.info("refreshEvents:dataQueryOptions", dataQueryOptions, "eventIds:", this?.eventsData?.eventIds);
-      this.queryAndReturnEvents(dataQueryOptions)
+      this.eventsForDisplay(dataQueryOptions)
         .then((extendedGroupEvents: ExtendedGroupEvent[]) => {
           this.display.confirm.clear();
-          this.extendedGroupEvents = this.filterByEventIds(extendedGroupEvents);
+          this.extendedGroupEvents = extendedGroupEvents;
           this.logger.info("received extendedGroupEvents:", extendedGroupEvents.length, "after filtering by eventIds:", this.extendedGroupEvents.length);
           this.applyFilterToGroupEvents();
         })
@@ -199,8 +200,26 @@ export class Events implements OnInit, OnDestroy {
     });
   }
 
-  private queryAndReturnEvents(dataQueryOptions: DataQueryOptions): Promise<ExtendedGroupEvent[]> {
-    const ids = this?.eventsData?.eventIds || [];
+  async eventsForDisplay(dataQueryOptions: DataQueryOptions): Promise<ExtendedGroupEvent[]> {
+    const selectedEvents = this.queryAndReturnEvents(dataQueryOptions).then(events => this.filterByEventIds(events));
+    if (this.eventsData?.includeUpcomingCancellations) {
+      const cancellationQuery: DataQueryOptions = {
+        criteria: {
+          [GroupEventField.STATUS]: WalkStatus.CANCELLED,
+          [GroupEventField.START_DATE]: {$gte: this.dateUtils.isoDateTimeStartOfDay()}
+        },
+        sort: this.sort()
+      };
+      const [selected, cancellations] = await Promise.all([selectedEvents, this.queryAndReturnEvents(cancellationQuery, [])]);
+      const combined = uniqBy([...selected, ...cancellations], event => event.groupEvent?.id || event.id);
+      return orderBy(combined, event => event.groupEvent.start_date_time,
+        this.resolvedSortOrder() === SortOrder.DATE_DESCENDING ? "desc" : "asc");
+    } else {
+      return selectedEvents;
+    }
+  }
+
+  private queryAndReturnEvents(dataQueryOptions: DataQueryOptions, ids = this.eventsData?.eventIds || []): Promise<ExtendedGroupEvent[]> {
     const eventQueryParameters: EventQueryParameters = {
       inputSource: this.walkDisplayService.walkPopulationLocal() ? InputSource.MANUALLY_CREATED : InputSource.WALKS_MANAGER_CACHE,
       suppressEventLinking: false,
