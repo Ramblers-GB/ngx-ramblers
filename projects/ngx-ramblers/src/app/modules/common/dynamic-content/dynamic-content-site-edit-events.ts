@@ -10,7 +10,7 @@ import { NumberUtilsService } from "../../../services/number-utils.service";
 import { PageContentService } from "../../../services/page-content.service";
 import { ContentMetadataService } from "../../../services/content-metadata.service";
 import { UrlService } from "../../../services/url.service";
-import { enumValues, KeyValue } from "../../../functions/enums";
+import { enumValues, KeyValue, TypedKeyValue } from "../../../functions/enums";
 import { FormsModule } from "@angular/forms";
 import { EventsRow } from "../events/events-row";
 import { DatePicker } from "../../../date-and-time/date-picker";
@@ -20,7 +20,7 @@ import { NgSelectComponent } from "@ng-select/ng-select";
 import { DynamicContentMaxColumnsEditorComponent } from "./dynamic-content-max-columns-editor";
 import { BroadcastService } from "../../../services/broadcast-service";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
-import { DateRangeMode, EventsData, EventsDataAllows } from "../../../models/group-events.model";
+import { DateRangeMode, EventCardDisplayOptions, EventsData, EventsDataAllows, EventsView } from "../../../models/group-events.model";
 import { DYNAMIC_CONTENT_FILTER_OPTIONS, FilterCriteria, SortOrder } from "../../../models/api-request.model";
 import { GroupEventDisplayService } from "../../../pages/group-events/group-event-display.service";
 import { HasStartAndEndTime } from "../../../models/group-event.model";
@@ -123,6 +123,39 @@ import { TagEditorComponent } from "../../../pages/tag/tag-editor.component";
       </div>
 
       @if (!row.events.allow.viewSelector) {
+        <div class="thumbnail-heading-frame mb-3">
+          <div class="thumbnail-heading">Event presentation</div>
+          <div class="form-group mb-3">
+            <label [for]="id + '-events-view'">View</label>
+            <select class="form-control" [id]="id + '-events-view'"
+                    [ngModel]="row.events.view || EventsView.CARDS"
+                    (ngModelChange)="row.events.view = $event; broadcastChange()">
+              <option [ngValue]="EventsView.CARDS">Cards</option>
+              <option [ngValue]="EventsView.ACTION_BUTTONS">Action buttons</option>
+            </select>
+          </div>
+          <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" [id]="id + '-include-cancellations'"
+                   [(ngModel)]="row.events.includeUpcomingCancellations" (ngModelChange)="broadcastChange()">
+            <label class="form-check-label" [for]="id + '-include-cancellations'">Automatically include all upcoming cancellations</label>
+            <div class="form-text">Add cancelled events from today onwards for the selected event types, even outside this block's date or tag filters. Each event appears once.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="btn btn-primary" (click)="applyCardDetail(false)">Full details</button>
+            <button type="button" class="btn btn-primary" (click)="applyCardDetail(true)">Compact summary</button>
+          </div>
+          <p class="form-text">Choose which details appear on this events block. Titles and cancellation notices are always shown. Select a title to read the full event. Action buttons use the column settings below to form a grid.</p>
+          <div class="d-flex flex-wrap gap-3">
+            @for (option of visibleCardDetailOptions(); track option.key) {
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" [id]="id + '-' + option.key"
+                       [ngModel]="row.events.cardDisplay?.[option.key] !== false"
+                       (ngModelChange)="changeCardDetail(option.key, $event)">
+                <label class="form-check-label" [for]="id + '-' + option.key">{{ option.value }}</label>
+              </div>
+            }
+          </div>
+        </div>
         <div class="row align-items-end mb-3 d-flex">
           <div class="col-md-4">
             <div class="form-group">
@@ -329,6 +362,45 @@ export class DynamicContentSiteEditEvents implements OnInit {
     key: item,
     value: this.stringUtils.asTitle(item)
   }));
+
+  protected readonly EventsView = EventsView;
+
+  visibleCardDetailOptions(): TypedKeyValue<keyof EventCardDisplayOptions, string>[] {
+    return this.row.events.view === EventsView.ACTION_BUTTONS
+      ? this.cardDetailOptions.filter(option => option.key === "showDate" || option.key === "showDistance")
+      : this.cardDetailOptions;
+  }
+
+  readonly cardDetailOptions: TypedKeyValue<keyof EventCardDisplayOptions, string>[] = [
+    {key: "showImage", value: "Images and maps"},
+    {key: "showDate", value: "Date and time"},
+    {key: "showDifficulty", value: "Difficulty"},
+    {key: "showDistance", value: "Distance"},
+    {key: "showAscent", value: "Ascent"},
+    {key: "showLocation", value: "Start postcode"},
+    {key: "showGroup", value: "Group"},
+    {key: "showContact", value: "Leader or coordinator"}
+  ];
+
+  applyCardDetail(compact: boolean): void {
+    this.row.events.compact = compact;
+    this.row.events.cardDisplay = {
+      showImage: !compact,
+      showDate: true,
+      showDifficulty: !compact,
+      showDistance: true,
+      showAscent: !compact,
+      showLocation: !compact,
+      showGroup: !compact,
+      showContact: !compact
+    };
+    this.broadcastChange();
+  }
+
+  changeCardDetail(key: keyof EventCardDisplayOptions, visible: boolean): void {
+    this.row.events.cardDisplay = {...this.row.events.cardDisplay, [key]: visible};
+    this.broadcastChange();
+  }
 
   async ngOnInit() {
     this.initialiseRowForEvents(this.row);

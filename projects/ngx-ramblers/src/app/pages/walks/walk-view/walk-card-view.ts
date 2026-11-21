@@ -1,3 +1,4 @@
+import { EventCardDisplayOptions } from "../../../models/group-events.model";
 import { booleanAttribute, Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
@@ -12,7 +13,7 @@ import { SystemConfigService } from "../../../services/system/system-config.serv
 import { SystemConfig } from "../../../models/system.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { MediaQueryService } from "../../../services/committee/media-query.service";
-import { faEnvelope, faEye, faPencil, faPhone } from "@fortawesome/free-solid-svg-icons";
+import { faCircleExclamation, faEnvelope, faEye, faPencil, faPhone } from "@fortawesome/free-solid-svg-icons";
 import { WalkGradingComponent } from "./walk-grading";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { RelatedLinkComponent } from "../../../modules/common/related-links/related-link";
@@ -36,27 +37,34 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
   selector: "app-walk-card-view",
   template: `
     <div (click)="toggleView()">
-      <app-card-image-or-map [displayedWalk]="displayedWalk" [notify]="notify" [maxColumns]="maxColumns"/>
-      <div class="card-body">
+      @if (cardDisplay?.showImage !== false) {
+        <app-card-image-or-map [displayedWalk]="displayedWalk" [notify]="notify" [maxColumns]="maxColumns"/>
+      }
+      <div class="card-body" [class.compact]="compact">
         <h3 class="card-title">
           <a (click)="ignoreClicks($event)" [routerLink]="display.walkRouterLink(displayedWalk?.walk)" class="rams-text-decoration-pink active">
             {{ displayedWalk.walk?.groupEvent?.title || displayedWalk.latestEventType.description }}
           </a>
         </h3>
         @if (displayedWalk.walk?.groupEvent?.status === WalkStatus.CANCELLED) {
-          <div class="alert alert-warning mb-2">
-            <strong>This walk has been cancelled</strong>
-            @if (displayedWalk.walk?.groupEvent?.cancellation_reason) {
-              <p class="mb-0 mt-1">{{ displayedWalk.walk?.groupEvent?.cancellation_reason }}</p>
-            }
+          <div class="alert alert-warning mb-2 d-flex align-items-start gap-2">
+            <fa-icon [icon]="faCircleExclamation"/>
+            <div>
+              <strong>This walk has been cancelled</strong>
+              @if (displayedWalk.walk?.groupEvent?.cancellation_reason) {
+                <p class="mb-0 mt-1">{{ displayedWalk.walk?.groupEvent?.cancellation_reason }}</p>
+              }
+            </div>
           </div>
         }
+        @if (cardDisplay?.showDate !== false) {
         <dl class="d-flex mb-2">
           <dt class="font-weight-bold me-2">Start:</dt>
           <time>{{ displayedWalk.walk?.groupEvent?.start_date_time | displayDate }} {{ displayedWalk.walk?.groupEvent?.start_date_time | displayTime }}</time>
         </dl>
+        }
         @if (display.notAwaitingLeader(displayedWalk.walk)) {
-          @if (eventHasWalkWorkflow(displayedWalk.walk?.groupEvent?.item_type) && displayedWalk.walk?.groupEvent?.difficulty) {
+          @if (cardDisplay?.showDifficulty !== false && eventHasWalkWorkflow(displayedWalk.walk?.groupEvent?.item_type) && displayedWalk.walk?.groupEvent?.difficulty) {
             <dl class="d-flex mb-1">
               <dt class="font-weight-bold me-2">Difficulty:</dt>
               <dd>
@@ -64,19 +72,19 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
               </dd>
             </dl>
           }
-          @if (displayedWalk.walk?.groupEvent?.distance_miles) {
+          @if (cardDisplay?.showDistance !== false && displayedWalk.walk?.groupEvent?.distance_miles) {
             <dl class="d-flex mb-1">
               <dt class="font-weight-bold me-2">Distance:</dt>
               <dd>{{ distanceValidationService.walkDistances(displayedWalk.walk) }}</dd>
             </dl>
           }
-          @if (displayedWalk?.walk?.groupEvent?.ascent_feet) {
+          @if (cardDisplay?.showAscent !== false && displayedWalk?.walk?.groupEvent?.ascent_feet) {
             <dl class="d-flex mb-1">
               <dt class="font-weight-bold me-2">Ascent:</dt>
               <dd>{{ ascentValidationService.walkAscents(displayedWalk.walk) }}</dd>
             </dl>
           }
-          @if (displayedWalk?.walk?.groupEvent?.start_location?.postcode) {
+          @if (cardDisplay?.showLocation !== false && displayedWalk?.walk?.groupEvent?.start_location?.postcode) {
             <dl (click)="ignoreClicks($event)" class="d-flex mb-1">
               <dt class="font-weight-bold me-2">Postcode:</dt>
               <dd><a class="rams-text-decoration-pink"
@@ -85,7 +93,7 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
                 {{ displayedWalk?.walk?.groupEvent?.start_location?.postcode }}</a></dd>
             </dl>
           }
-          @if (displayedWalk?.walk?.groupEvent?.group_code) {
+          @if (cardDisplay?.showGroup !== false && displayedWalk?.walk?.groupEvent?.group_code) {
             <dl (click)="ignoreClicks($event)" class="d-flex mb-1">
               <dt class="font-weight-bold me-2">Group:</dt>
               <dd>
@@ -93,7 +101,7 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
               </dd>
             </dl>
           }
-          @if (display.hasVisibleLeaderContactDetails(displayedWalk.walk)) {
+          @if (cardDisplay?.showContact !== false && display.hasVisibleLeaderContactDetails(displayedWalk.walk)) {
             <dl (click)="ignoreClicks($event)" class="d-flex mb-1">
               <dt class="font-weight-bold me-2">Leader:</dt>
               <dd>
@@ -154,6 +162,8 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
       min-width: 0
       padding-bottom: 50px
       overflow-wrap: break-word
+    .card-body.compact
+      padding-bottom: var(--bs-card-spacer-y, 1rem)
     .card-title
       min-width: 0
       overflow-wrap: break-word
@@ -192,8 +202,11 @@ export class WalkCardViewComponent implements OnInit, OnDestroy {
   @Input() cardImageClass: string;
   @Input() mapClass: string;
   @Input() maxColumns!: number;
+  @Input({transform: booleanAttribute}) compact = false;
+  @Input() cardDisplay: EventCardDisplayOptions;
   @Input({transform: booleanAttribute}) navigateOnCardClick = false;
   private router = inject(Router);
+  protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faPhone = faPhone;
   protected readonly faEnvelope = faEnvelope;
   protected readonly faEye = faEye;
