@@ -14,7 +14,7 @@ describe("composer reply paste", () => {
       clearRecipientSelection: vi.fn(() => EmailComposerRecipientsService.prototype.clearRecipientSelection.call({
         session: {state, syncStateToUrl: vi.fn()},
         expandedRecipientListIds: new Set(), expandedRecipientFilterKeys: new Set(),
-        pool: {recomputeCandidateMembers: vi.fn()},
+        pool: {},
         setRecipientMode: (mode: RecipientMode) => state.recipientMode = mode
       } as unknown as EmailComposerRecipientsService))
     };

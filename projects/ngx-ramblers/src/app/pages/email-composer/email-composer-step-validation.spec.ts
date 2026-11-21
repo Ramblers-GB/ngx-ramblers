@@ -70,6 +70,28 @@ describe("composer step validation", () => {
     ]);
   });
 
+  it("groups recipients blocked for the same reason into one message", () => {
+    const state = defaultEmailComposerState();
+    state.recipientMode = RecipientMode.SELECTED_MEMBERS;
+    state.externalRecipients = [{email: "alice@example.com", name: "Alice"}];
+    const instance = Object.create(EmailComposer.prototype);
+    Object.assign(instance, {
+      session: {state},
+      recipientSources: {workflowRemovesRecipients: () => false},
+      unavailableSelectedMembers: () => [
+        {member: {firstName: "Alice Roberts"}, reason: "has not given Head Office marketing consent"},
+        {member: {firstName: "Alice Taylor"}, reason: "has not given Head Office marketing consent"},
+        {member: {firstName: "Alice Thomas"}, reason: "has not given Head Office marketing consent"},
+        {member: {firstName: "Bob"}, reason: "is blocked from email"}
+      ],
+      memberFullName: (member: Member) => member.firstName
+    });
+    expect(instance.recipientsStepErrors()).toEqual([
+      "Alice Roberts, Alice Taylor, Alice Thomas have not given Head Office marketing consent and cannot be emailed — remove these members from the recipients to continue",
+      "Bob is blocked from email and cannot be emailed — remove this member from the recipients to continue"
+    ]);
+  });
+
   it("does not treat Bcc-only as a valid recipient step", () => {
     const state = defaultEmailComposerState();
     state.recipientMode = RecipientMode.SELECTED_MEMBERS;

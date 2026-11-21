@@ -1,6 +1,8 @@
+import { memberRecordsForBatch, resolveBatchRecipientAudiences } from "./batch-recipient-audiences";
+import { batchSendJobs, publishBatchProgress } from "./batch-send-progress";
 import { Request, Response } from "express";
 import debug from "debug";
-import { isArray, isString, uniq, uniqBy } from "es-toolkit/compat";
+import { chunk, isArray, isString, uniq, uniqBy } from "es-toolkit/compat";
 import { envConfig } from "../../env-config/env-config";
 import { dateTimeFromMillis, dateTimeNow } from "../../shared/dates";
 import { UIDateFormat } from "../../../../projects/ngx-ramblers/src/app/models/date-format.model";
@@ -30,9 +32,11 @@ import {
   UNBRANDED_RECIPIENT_LIST_ERROR,
   ResolvedSenderAddresses
 } from "../../../../projects/ngx-ramblers/src/app/models/email-composer.model";
+import { MEMBER_SEND_BLOCK_REASON_DESCRIPTIONS, MemberSendBlockReason } from "../../../../projects/ngx-ramblers/src/app/models/email-composer.model";
+import { emailComposerAllowed, memberSendBlockReason } from "../../../../projects/ngx-ramblers/src/app/functions/member-send-eligibility";
 import { BrandingMode, PostSendActionsResult, SendPurpose, WorkflowAction } from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
 import { recordMemberEmailSends } from "../../mongo/controllers/member-email-send";
-import { Member, MemberEmailBlock } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
+import { Member, MemberCookie, MemberEmailBlock } from "../../../../projects/ngx-ramblers/src/app/models/member.model";
 import { applyPostSendActionsToMembers } from "../../mongo/controllers/member-bulk-delete";
 import { CommitteeConfig, CommitteeMember, committeeRoleMatchingEmail, roleEmailAddresses, roleRecipientMemberIds } from "../../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { outboundEmailForMember } from "../../../../projects/ngx-ramblers/src/app/functions/committee-members";
@@ -94,7 +98,7 @@ const writebackErrorLog = createErrorDebugLog("inbox-writeback");
 const SEND_DELAY_MS = 400;
 const JOB_RETENTION_MS = 30 * 60 * 1000;
 const MAX_RETAINED_JOBS = 100;
-const jobs: Map<string, BatchSendProgress> = new Map();
+const jobs = batchSendJobs;
 const cancelled: Set<string> = new Set();
 
 function forgetJob(jobId: string): void {
@@ -231,22 +235,6 @@ function blockSkipReason(emailBlock: MemberEmailBlock): string {
   return emailBlock.reasonMessage ? `${label} - "${emailBlock.reasonMessage}"` : label;
 }
 
-function memberSuppressionReason(member: Member, referenceListId: number | null): string | null {
-  if (member.emailBlock) {
-    return blockSkipReason(member.emailBlock);
-  }
-  const subscriptions = member.mail?.subscriptions ?? [];
-  if (referenceListId !== null) {
-    return subscriptions.some(subscription => subscription.id === referenceListId && !subscription.subscribed && !!subscription.unsubscribedAt)
-      ? "Already unsubscribed from this mailing list"
-      : null;
-  }
-  const hasGenuineUnsubscribe = subscriptions.some(subscription => !subscription.subscribed && !!subscription.unsubscribedAt);
-  return hasGenuineUnsubscribe && !subscriptions.some(subscription => subscription.subscribed)
-    ? "Already unsubscribed from all mailing lists"
-    : null;
-}
-
 function keepPersonalAddress(notifConfig: NotificationConfig | null): boolean {
   return !!notifConfig?.preSendActions?.includes(WorkflowAction.GENERATE_GROUP_MEMBER_PASSWORD_RESET_ID);
 }
@@ -297,16 +285,12 @@ function applyMemberSendEligibility(
 }
 
 function memberSkipReason(member: Member, referenceListId: number | null, respectEmailBlocks: boolean, respectHeadOfficeConsent: boolean): string | null {
-  if (respectEmailBlocks) {
-    const suppressionReason = memberSuppressionReason(member, referenceListId);
-    if (suppressionReason) {
-      return suppressionReason;
-    }
+  const reason = memberSendBlockReason(member, {respectEmailBlocks, respectHeadOfficeConsent, referenceListId});
+  if (reason === MemberSendBlockReason.BLOCKED) {
+    return blockSkipReason(member.emailBlock);
+  } else {
+    return reason ? MEMBER_SEND_BLOCK_REASON_DESCRIPTIONS[reason] : null;
   }
-  if (respectHeadOfficeConsent && member.emailMarketingConsent === false) {
-    return "No Head Office marketing consent";
-  }
-  return null;
 }
 
 function externalRecipientName(recipient: ComposerExternalRecipient): { full: string; first: string; last: string } {
@@ -575,13 +559,7 @@ function contentNeedsPasswordResetLink(request: BatchTransactionalSendRequest): 
 }
 
 function uniqueMembers(members: Member[]): Member[] {
-  return members.reduce((acc: Member[], member) => {
-    if (!member.id || acc.some(item => item.id === member.id)) {
-      return acc;
-    } else {
-      return [...acc, member];
-    }
-  }, []);
+  return uniqBy(members.filter(member => !!member.id), member => member.id);
 }
 
 async function resolveMembersForBatchSend(request: BatchTransactionalSendRequest): Promise<{
@@ -596,10 +574,10 @@ async function resolveMembersForBatchSend(request: BatchTransactionalSendRequest
     ? []
     : suppliedExternal.filter(item => !item.memberId && !composerRecipientKeepsRoleMailbox(item)).map(item => item.email.trim());
   const [byId, byEmail] = await Promise.all([
-    memberIds.length ? memberModel.find({_id: {$in: memberIds}}).lean() : Promise.resolve([]),
+    memberRecordsForBatch(memberIds),
     emailsToMatch.length ? memberModel.find({email: {$in: emailsToMatch}}).lean() : Promise.resolve([])
   ]);
-  const members = uniqueMembers([...(byId as any[]), ...(byEmail as any[])].map(transforms.toObjectWithId) as Member[]);
+  const members = uniqueMembers([...byId, ...(byEmail as any[]).map(transforms.toObjectWithId)] as Member[]);
   const matchedIds = new Set(members.map(member => member.id).filter(Boolean));
   const matchedEmails = new Set(members.map(member => (member.email || "").trim().toLowerCase()).filter(Boolean));
   const externalRecipients = suppliedExternal.filter(item => {
@@ -652,7 +630,10 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
     const generatePasswordResetIds = !!notifConfig?.preSendActions?.includes(WorkflowAction.GENERATE_GROUP_MEMBER_PASSWORD_RESET_ID)
       || contentNeedsPasswordResetLink(request);
     const memberDocs: Member[] = generatePasswordResetIds
-      ? await Promise.all(resolvedRecipients.members.map(async doc => (doc.id ? (await generatePasswordResetIdForMemberId(doc.id)) ?? doc : doc)))
+      ? await chunk(resolvedRecipients.members, 10).reduce(async (pending, batch) => [
+        ...await pending,
+        ...await Promise.all(batch.map(async doc => doc.id ? (await generatePasswordResetIdForMemberId(doc.id)) ?? doc : doc))
+      ], Promise.resolve([] as Member[]))
       : resolvedRecipients.members;
     const membersById = new Map(memberDocs.map(item => [item.id ?? "", item]));
     const addresses = resolveSenderAddresses(request, committeeRoles, notifConfig, currentMemberId);
@@ -698,6 +679,8 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
     ];
 
     progress.entries = [...memberEntries, ...externalEntries];
+    progress.totalRecipients = progress.entries.length;
+    publishBatchProgress(jobId);
     progress.startedAt = dateTimeNow().toMillis();
     const sentCopyAttachments = await inboxAttachmentsStoredForSentCopy(inboxAttachmentsFromComposer(request.attachments));
     const referenceListId = request.narrowListId ?? notifConfig?.defaultListId ?? null;
@@ -809,9 +792,11 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
         progress.status = BatchSendStatus.CANCELLED;
         progress.completedAt = dateTimeNow().toMillis();
         cancelled.delete(jobId);
-        return;
+        break;
       } else {
       const entry = item.entry;
+      progress.currentEntry = entry;
+      publishBatchProgress(jobId);
       const skippedMember = item.kind === "member"
         && !applyMemberSendEligibility(entry, membersById.get(entry.memberId), committeeRoles, notifConfig, useCommitteeRoleAddresses, referenceListId, respectEmailBlocks, respectHeadOfficeConsent, progress);
       if (item.kind === "external" && !item.recipient.email) {
@@ -886,7 +871,11 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
         debugLog("send to", entry.email, "failed:", entry.errorMessage, "raw:", error);
         progress.failedCount += 1;
       }
+      publishBatchProgress(jobId, entry);
       await delay(SEND_DELAY_MS);
+      }
+      if (skippedMember) {
+        publishBatchProgress(jobId, entry);
       }
       }
     }
@@ -908,16 +897,20 @@ async function processBatch(jobId: string, request: BatchTransactionalSendReques
       }))
     });
     const otherEntries = memberEntries.filter(entry => entry.status !== BatchSendEntryStatus.Sent);
-    const postSendMemberIds = Array.from(new Set(memberEntries.map(entry => entry.memberId)));
+    const postSendMemberIds = progress.status === BatchSendStatus.CANCELLED ? sentMemberIds : Array.from(new Set(memberEntries.map(entry => entry.memberId)));
     const postSendResult = await applyPostSendActions(notifConfig, postSendMemberIds, currentMemberId, debugLog);
     annotateWorkflowActionNotes(sentEntries, notifConfig, generatePasswordResetIds, postSendResult);
     annotateWorkflowActionNotes(otherEntries, notifConfig, false, postSendResult);
     progress.completedAt = dateTimeNow().toMillis();
-    progress.status = progress.failedCount === 0 ? BatchSendStatus.COMPLETED : BatchSendStatus.COMPLETED_WITH_ERRORS;
+    progress.status = progress.status === BatchSendStatus.CANCELLED ? BatchSendStatus.CANCELLED
+      : progress.failedCount === 0 ? BatchSendStatus.COMPLETED : BatchSendStatus.COMPLETED_WITH_ERRORS;
   } catch (error: any) {
     progress.status = BatchSendStatus.FAILED;
     progress.errorMessage = error?.message ?? String(error);
     progress.completedAt = dateTimeNow().toMillis();
+  } finally {
+    progress.currentEntry = null;
+    publishBatchProgress(jobId);
   }
 }
 
@@ -925,10 +918,17 @@ export async function startBatchTransactionalSend(req: Request, res: Response): 
   const request: BatchTransactionalSendRequest = req.body;
   const unresolvedRecipients = [...(request?.externalRecipients ?? []), ...(request?.ccRecipients ?? []), ...(request?.bccRecipients ?? [])]
     .some(composerRecipientIsExpandableSet);
-  if (unresolvedRecipients) {
+  if (request?.audiences && !emailComposerAllowed(req.user as MemberCookie)) {
+    res.status(403).json({request: {messageType}, error: {message: "Email composer access required"}});
+  } else if (unresolvedRecipients) {
     res.status(400).json({request: {messageType}, error: {message: "Recipient lists and filters must be expanded into individual addresses before sending"}});
   } else {
-    await startValidatedBatchTransactionalSend(req, res);
+    try {
+      req.body = await resolveBatchRecipientAudiences(request);
+      await startValidatedBatchTransactionalSend(req, res);
+    } catch (error) {
+      handleError(req, res, messageType, debugLog, error);
+    }
   }
 }
 
@@ -1022,6 +1022,9 @@ async function startValidatedBatchTransactionalSend(req: Request, res: Response)
       }
       const jobId = randomUUID();
       const progress: BatchSendProgress = {
+        ccRecipients: request.ccRecipients ?? [],
+        bccRecipients: request.bccRecipients ?? [],
+        requestedBy: currentMemberIdForValidation,
         jobId,
         status: BatchSendStatus.RUNNING,
         totalRecipients,

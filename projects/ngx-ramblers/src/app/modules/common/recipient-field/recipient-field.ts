@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, inject, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild } from "@angular/core";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
+import { isNumber } from "es-toolkit/compat";
+import { from, of, Subject, Subscription } from "rxjs";
+import { debounceTime, distinctUntilChanged, switchMap } from "rxjs/operators";
 import { FormsModule } from "@angular/forms";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
@@ -29,6 +32,11 @@ import { composerMemberIdentityRecipients, composerRecipientFromMember, composer
   template: `
     <div class="recipient-field" [class.is-plain]="plain" [class.is-unframed]="unframed">
       @for (field of fields; track field.key) {
+        @if (isVisible(field.key) && error[field.key]) {
+          <p class="recipient-error">{{ error[field.key] }}</p>
+        }
+      }
+      @for (field of fields; track field.key) {
         @if (isVisible(field.key)) {
           <div class="recipient-line"
                [attr.data-recipient-field]="field.key"
@@ -50,7 +58,7 @@ import { composerMemberIdentityRecipients, composerRecipientFromMember, composer
                       (dragend)="onDragEnd()"
                       [tooltip]="chipTooltip(recipient)"
                       placement="bottom">
-                  <button type="button" class="recipient-chip-label" (click)="setCanExpand(recipient) ? expandList.emit({field: field.key, recipient}) : expandableSet(recipient) ? null : openEditor(field.key, idx)">
+                  <button type="button" class="recipient-chip-label" (click)="onChipClick(field.key, recipient, idx)">
                     <span class="recipient-chip-name">{{ displayName(recipient) }}</span>
                     @if (unavailableReasons[recipient.email.toLowerCase()]; as reason) {
                       <span class="recipient-chip-qualifier">{{ reason }}</span>
@@ -270,9 +278,6 @@ import { composerMemberIdentityRecipients, composerRecipientFromMember, composer
               }
             </div>
           </div>
-          @if (error[field.key]) {
-            <p class="recipient-error">{{ error[field.key] }}</p>
-          }
         }
       }
       @if (!plain && !knownOnly) {
@@ -299,6 +304,7 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
   @Input() bcc: ComposerExternalRecipient[] = [];
   @Input() savedRecipients: ExternalRecipient[] = [];
   @Input() members: Member[] = [];
+  @Input() memberSearch: ((search: string) => Promise<ComposerExternalRecipient[]>) | null = null;
   @Input() knownMembers: Member[] | null = null;
   @Input() committeeAddresses: ComposerExternalRecipient[] = [];
   @Input() listRecipients: ComposerExternalRecipient[] = [];
@@ -341,6 +347,7 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
   @Output() activeFieldChange = new EventEmitter<RecipientField | null>();
   @Input() bulkSourceName: string | null = null;
   @Output() addAll = new EventEmitter<RecipientField>();
+  @Output() warning = new EventEmitter<string>();
   @Output() expandList = new EventEmitter<{field: RecipientField; recipient: ComposerExternalRecipient}>();
 
   protected readonly RecipientField = RecipientField;
@@ -381,12 +388,26 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
   private memberById = new Map<string, Member>();
   private qualifierByEmail = new Map<string, string>();
   private cachedMemberEntries: ComposerExternalRecipient[] = [];
+  private searchedMemberEntries: ComposerExternalRecipient[] = [];
+  private knownSearchEntries = new Map<string, ComposerExternalRecipient>();
+  private memberSearchQueries = new Subject<string>();
+  private memberSearchSubscription: Subscription = this.memberSearchQueries.pipe(
+    debounceTime(250),
+    distinctUntilChanged(),
+    switchMap(query => query.trim() && this.memberSearch ? from(this.memberSearch(query.trim())) : of([] as ComposerExternalRecipient[]))
+  ).subscribe(entries => {
+    this.searchedMemberEntries = entries;
+    entries.forEach(entry => this.knownSearchEntries.set(entry.email.toLowerCase(), entry));
+    this.refreshVisibleSuggestions();
+    this.changeDetector.markForCheck();
+  });
   protected visibleMemberSuggestions: ComposerExternalRecipient[] = [];
   protected visibleWithoutConsentSuggestions: ComposerExternalRecipient[] = [];
   protected visibleSavedSuggestions: ExternalRecipient[] = [];
 
   ngOnDestroy(): void {
     this.clearTouchDrag();
+    this.memberSearchSubscription.unsubscribe();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -663,6 +684,20 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
     return composerRecipientSetCanExpand(recipient);
   }
 
+  protected onChipClick(field: RecipientField, recipient: ComposerExternalRecipient, index: number): void {
+    if (this.setCanExpand(recipient)) {
+      this.expandList.emit({field, recipient});
+    } else if (this.expandableSet(recipient)) {
+      this.warning.emit(this.largeSetMessage(recipient));
+    } else {
+      this.openEditor(field, index);
+    }
+  }
+
+  private largeSetMessage(recipient: ComposerExternalRecipient): string {
+    return `${recipient.name || "This set"} has ${recipient.listCount ?? 0} people, too many to list one by one. Choose a smaller mailing list or member filter to remove individuals.`;
+  }
+
   protected suggestionShowsEmail(recipient: ComposerExternalRecipient): boolean {
     return composerSuggestionShowsEmail(recipient);
   }
@@ -671,7 +706,7 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
     if (this.setCanExpand(recipient)) {
       return "Click to show each member so you can remove individuals";
     } else if (this.expandableSet(recipient)) {
-      return `This set of ${recipient.listCount ?? 0} people is too large to list one by one. Choose a mailing list or narrow the audience to remove individuals.`;
+      return this.largeSetMessage(recipient);
     } else {
       const reason = this.unavailableReasons[recipient.email.toLowerCase()];
       return reason ? `${recipient.email}: ${reason}` : recipient.email;
@@ -775,6 +810,9 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
 
   protected onDraftChange(field: RecipientField, value: string): void {
     this.draft[field] = value ?? "";
+    if (this.memberSearch) {
+      this.memberSearchQueries.next(this.draft[field]);
+    }
     this.activeSuggestionIndex = -1;
     this.suggestionsSuppressed = false;
     if (this.error[field]) {
@@ -945,7 +983,7 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
       this.visibleWithoutConsentSuggestions = [];
       this.visibleSavedSuggestions = [];
     } else {
-      const matches = this.matchingSuggestions(field, this.cachedMemberEntries);
+      const matches = this.matchingSuggestions(field, this.suggestionEntries());
       this.visibleMemberSuggestions = matches.filter(item => !this.lacksMarketingConsent(item)).slice(0, 50);
       this.visibleWithoutConsentSuggestions = matches.filter(item => this.lacksMarketingConsent(item)).slice(0, 50);
       const knownEmails = new Set([
@@ -1015,11 +1053,17 @@ export class RecipientFieldComponent implements OnChanges, OnDestroy {
 
   private isKnownAddress(email: string): boolean {
     const wanted = (email || "").trim().toLowerCase();
-    return !!wanted && this.cachedMemberEntries.some(item => item.email.toLowerCase() === wanted);
+    return !!wanted && (this.knownSearchEntries.has(wanted) || this.cachedMemberEntries.some(item => item.email.toLowerCase() === wanted));
   }
 
   private memberEntries(): ComposerExternalRecipient[] {
-    return this.cachedMemberEntries;
+    return [...this.cachedMemberEntries, ...this.knownSearchEntries.values()];
+  }
+
+  private suggestionEntries(): ComposerExternalRecipient[] {
+    return this.memberSearch
+      ? [...this.cachedMemberEntries.filter(entry => isNumber(entry.listId) || !!entry.committeeRoleLabel), ...this.searchedMemberEntries]
+      : this.cachedMemberEntries;
   }
 
   private nameDirectory(): {name?: string; email: string}[] {

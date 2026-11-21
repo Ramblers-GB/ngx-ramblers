@@ -1,9 +1,30 @@
 import {inject} from "@angular/core";
-import {memberHoldsCommitteeRole} from "../../functions/committee-members";
-import {isNumber, values} from "es-toolkit/compat";
-import {Member, MemberTerm} from "../../models/member.model";
-import {BrandingMode, EmailComposerRecipientEntry, ComposerExternalRecipient, RecipientAddressMode, RecipientMode, RECIPIENT_PRE_FILTERS} from "../../models/email-composer.model";
-import {COMPOSER_EVERYONE_FILTER_EMAIL, composerCampaignListId, composerCommitteeRoleSendOffered, composerNeedsPerMemberSend, composerRecipientFromMember, composerRecipientIsExpandableSet, composerRecipientsForAddressMode, composerSelectedMembersAreCommitteeAudience, composerSendsAsCampaign, composerWholeMailingListSelected, memberIsCoveredByComposerHeaders} from "../../functions/email-composer";
+import {isNumber, uniq} from "es-toolkit/compat";
+import {Member} from "../../models/member.model";
+import {
+  BrandingMode,
+  BatchRecipientSelection,
+  ComposerAudienceDefinition,
+  ComposerAudienceScope,
+  COMPOSER_MEMBER_LOOKUP_LIMIT,
+  ComposerExternalRecipient,
+  ComposerHeaderExpansion,
+  EmailComposerRecipientEntry,
+  RECIPIENT_PRE_FILTERS,
+  RecipientMode
+} from "../../models/email-composer.model";
+import {
+  COMPOSER_EVERYONE_FILTER_EMAIL,
+  composerCampaignListId,
+  composerCommitteeRoleSendOffered,
+  composerNeedsPerMemberSend,
+  composerRecipientFromMember,
+  composerRecipientIsExpandableSet,
+  composerRecipientsForAddressMode,
+  composerSelectedMembersAreCommitteeAudience,
+  composerSendsAsCampaign,
+  composerWholeMailingListSelected
+} from "../../functions/email-composer";
 import {MemberSelection} from "../../models/mail.model";
 import {StringUtilsService} from "../string-utils.service";
 import {DateUtilsService} from "../date-utils.service";
@@ -12,14 +33,12 @@ import {DateRangeUnit, NO_DATE_FILTER} from "../../models/search.model";
 import {Injectable} from "@angular/core";
 import {EmailComposerSessionService} from "./email-composer-session.service";
 import {EmailComposerRecipientSourcesService} from "./email-composer-recipient-sources.service";
-import {ListSubscriberService} from "../mail/list-subscriber.service";
+import {RecipientAddressMode} from "../../models/email-composer.model";
 
 @Injectable()
 export class EmailComposerRecipientResolutionService {
   private session = inject(EmailComposerSessionService);
   pool = inject(EmailComposerRecipientSourcesService);
-  private listSubscriberService = inject(ListSubscriberService);
-  private campaignEntriesBySubscribers = new WeakMap<Member[], EmailComposerRecipientEntry[]>();
   private memberIndexes = new WeakMap<Member[], {byId: Map<string, Member>; byEmail: Map<string, Member>}>();
   protected stringUtils = inject(StringUtilsService);
   protected dateUtils = inject(DateUtilsService);
@@ -34,28 +53,26 @@ export class EmailComposerRecipientResolutionService {
 
   wholeMailingListSelected(): boolean {
     const listId = this.campaignListId();
-    const subscribedMemberIds = listId === null
-      ? []
-      : this.listSubscriberService.subscribers(this.pool.members, listId)
-        .filter(member => !!member.id && !!(member.email || "").trim())
-        .map(member => member.id as string);
     return composerWholeMailingListSelected({
       listId,
       preFilterKey: this.session.state.preFilterKey,
       selectedMemberIds: this.session.state.selectedMemberIds ?? [],
-      subscribedMemberIds,
+      subscribedMemberIds: listId === null ? [] : this.pool.knownListMemberIds(listId) ?? [],
       toRecipients: this.session.state.externalRecipients ?? []
     });
   }
 
   committeeOnlyAudience(): boolean {
     const listId = this.campaignListId();
-    if (listId !== null && (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST || this.wholeMailingListSelected())) {
-      const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
+    const expansion = this.expandHeaders(this.headerRecipients());
+    const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
+    if (expansion.unresolvedMemberIds.length > 0) {
+      return false;
+    } else if (listId !== null && (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST || this.wholeMailingListSelected())) {
       return this.pool.committeeOnlyLists().some(list => list.id === listId)
-        && this.expandedHeaderRecipients(this.headerRecipients()).every(header => !!this.memberMatchingHeader(header, roles)?.committee);
+        && expansion.recipients.every(header => !!this.memberMatchingHeader(header, roles)?.committee);
     } else {
-      const headers = this.expandedHeaderRecipients(this.headerRecipients());
+      const headers = expansion.recipients;
       const members = this.recipientsForAddressMode();
       const memberChips = headers.filter(header => header.memberId && !header.committeeRoleType);
       const people = memberChips.length > 0
@@ -63,7 +80,7 @@ export class EmailComposerRecipientResolutionService {
         : members;
       const roleChipCount = headers.filter(header => !!header.committeeRoleType).length;
       const headerCount = headers.length;
-      const recipientCount = headerCount > 0 ? headerCount : people.length;
+      const recipientCount = headerCount > 0 ? headerCount : people.length + this.unresolvedSelectedMemberIds().length;
       return composerSelectedMembersAreCommitteeAudience(people, recipientCount, roleChipCount);
     }
   }
@@ -120,47 +137,7 @@ export class EmailComposerRecipientResolutionService {
   }
 
   headerEmailSet(): Set<string> {
-    return new Set(this.expandedHeaderRecipients([
-      ...(this.session.state.externalRecipients ?? []),
-      ...(this.session.state.ccRecipients ?? []),
-      ...(this.session.state.bccRecipients ?? [])
-    ]).map(recipient => recipient.email.toLowerCase()));
-  }
-
-  memberMatchesPreFilter(member: Member, key: MemberSelection): boolean {
-    const amount = this.session.state.notificationConfig?.monthsInPast;
-    const months = isNumber(amount) ? amount : 1;
-    const timeUnit = this.session.state.notificationConfig?.timeUnit ?? DateRangeUnit.MONTHS;
-    const noDateFilter = timeUnit === NO_DATE_FILTER;
-    const windowStart = noDateFilter
-      ? 0
-      : this.dateUtils.dateTimeNowNoTime().minus({[timeUnit]: months} as {[unit: string]: number}).toMillis();
-    if (key === MemberSelection.RECENTLY_ADDED) {
-      return !!(member.groupMember && member.createdDate && (noDateFilter || member.createdDate >= windowStart));
-    } else if (key === MemberSelection.EXPIRED_MEMBERS) {
-      const memberStatus = member.memberStatus?.toLowerCase();
-      const lifeMember = member.memberTerm === MemberTerm.LIFE;
-      if (!member.groupMember || !member.membershipExpiryDate || memberStatus === "payment pending" || lifeMember) {
-        return false;
-      } else if (noDateFilter) {
-        return member.membershipExpiryDate < this.dateUtils.dateTimeNowNoTime().toMillis();
-      } else {
-        const recentlyLoaded = !!member.createdDate && member.createdDate >= windowStart;
-        const recentlyUpdated = !!member.updatedDate && member.updatedDate >= windowStart;
-        return member.membershipExpiryDate < windowStart && !recentlyLoaded && !recentlyUpdated;
-      }
-    } else if (key === MemberSelection.MISSING_FROM_BULK_LOAD_MEMBERS) {
-      const lastBulkLoadDate = member.membershipNumber ? this.pool.memberBulkLoadDateMap?.[member.membershipNumber] : null;
-      return !!(member.groupMember && member.membershipNumber && lastBulkLoadDate && (noDateFilter || lastBulkLoadDate < windowStart));
-    } else if (key === MemberSelection.ADDED_IN_LAST_BULK_LOAD_MEMBERS) {
-      const dates = values(this.pool.memberBulkLoadDateMap ?? {});
-      const latestBulkLoadDate = dates.length ? Math.max(...dates) : undefined;
-      const memberBulkLoadDate = member.membershipNumber ? this.pool.memberBulkLoadDateMap?.[member.membershipNumber] : undefined;
-      return !!(member.groupMember && member.membershipNumber && latestBulkLoadDate && memberBulkLoadDate === latestBulkLoadDate
-        && member.createdDate && member.createdDate >= latestBulkLoadDate);
-    } else {
-      return false;
-    }
+    return new Set(this.expandedHeaderRecipients(this.headerRecipients()).map(recipient => recipient.email.toLowerCase()));
   }
 
   memberSelectionChipLabel(key: MemberSelection): string {
@@ -183,31 +160,15 @@ export class EmailComposerRecipientResolutionService {
   }
 
   memberRecipientsForIds(ids: string[]): ComposerExternalRecipient[] {
-    const idSet = new Set(ids);
-    return this.pool.allMembers
-      .filter(member => idSet.has(member.id ?? ""))
+    return this.pool.membersForIds(uniq(ids ?? []))
       .map(member => composerRecipientFromMember(member))
       .filter((recipient): recipient is ComposerExternalRecipient => !!recipient);
-  }
-
-  memberEmailsForIds(ids: string[]): string[] {
-    return this.memberRecipientsForIds(ids).map(recipient => recipient.email.toLowerCase());
-  }
-
-  selectedMembersOutsideHeadersCount(): number {
-    const headers = this.expandedHeaderRecipients(this.headerRecipients());
-    const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
-    return (this.session.state.selectedMemberIds ?? [])
-      .map(id => this.memberIndex().byId.get(id))
-      .filter((member): member is Member => !!member)
-      .filter(member => !memberIsCoveredByComposerHeaders(member, headers, roles))
-      .length;
   }
 
   committeeRoleSendOffered(): boolean {
     return composerCommitteeRoleSendOffered({
       recipients: this.expandedHeaderRecipients(this.headerRecipients()),
-      members: this.pool.allMembers,
+      members: this.pool.members(),
       roles: this.pool.committeeReferenceData?.committeeMembers() ?? [],
       committeeOnlyAudience: this.committeeOnlyAudience(),
       recipientCount: this.totalRecipientCount(),
@@ -215,17 +176,11 @@ export class EmailComposerRecipientResolutionService {
     });
   }
 
-  allSelectedMembersHoldCommitteeRoles(): boolean {
-    const members = this.recipientsForAddressMode();
-    const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
-    return members.length > 0 && members.every(member => memberHoldsCommitteeRole(member, roles));
-  }
-
   membersInHeader(list: ComposerExternalRecipient[]): Member[] {
     const expanded = this.expandedHeaderRecipients(list);
     const emails = new Set(expanded.map(recipient => recipient.email.toLowerCase()));
     const ids = new Set(expanded.map(recipient => recipient.memberId).filter((id): id is string => !!id));
-    return this.pool.allMembers.filter(member =>
+    return this.pool.members().filter(member =>
       (member.id && ids.has(member.id)) || (!!member.email && emails.has(member.email.toLowerCase()))
     );
   }
@@ -237,18 +192,11 @@ export class EmailComposerRecipientResolutionService {
   recipientsForAddressMode(): Member[] {
     if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST) {
       const listId = this.session.state.selectedListId;
-      return listId === null
-        ? []
-        : this.listSubscriberService.subscribers(this.pool.members, listId);
+      return listId === null ? [] : this.listMembersKnown(listId);
     } else if (this.session.state.brandingMode === BrandingMode.UNBRANDED) {
-      return this.membersInHeader([
-        ...(this.session.state.externalRecipients ?? []),
-        ...(this.session.state.ccRecipients ?? []),
-        ...(this.session.state.bccRecipients ?? [])
-      ]);
+      return this.membersInHeader(this.headerRecipients());
     } else {
-      const ids = new Set(this.session.state.selectedMemberIds ?? []);
-      return this.pool.allMembers.filter(member => ids.has(member.id));
+      return this.selectedMembersKnown();
     }
   }
 
@@ -257,24 +205,84 @@ export class EmailComposerRecipientResolutionService {
       const list = this.pool.availableLists().find(item => item.id === this.session.state.selectedListId);
       return list ? this.pool.subscribedMemberCount(list) : 0;
     } else {
-      return this.uniqueSendEntries().length;
+      return this.sendEntryCount();
     }
   }
 
+  sendEntryCount(): number {
+    return this.uniqueSendEntries().length + this.unresolvedSendMemberIds().length;
+  }
+
   uniqueSendEntries(): EmailComposerRecipientEntry[] {
-    const fromTo = this.uniqueEntriesFrom(this.session.state.externalRecipients ?? []);
+    const campaignListId = this.campaignListId();
+    if (this.campaignEntriesApply(campaignListId)) {
+      return this.listMembersKnown(campaignListId).map(member => ({name: this.previewMemberName(member), member}));
+    } else {
+      const fromTo = this.uniqueEntriesFrom(this.session.state.externalRecipients ?? []);
+      return fromTo.length > 0
+        ? fromTo
+        : this.selectedMembersKnown().map(member => ({name: this.previewMemberName(member), member}));
+    }
+  }
+
+  private previewInputs: unknown[] = [];
+  private previewEntriesCache: EmailComposerRecipientEntry[] = [];
+
+  previewSendEntries(): EmailComposerRecipientEntry[] {
+    const listId = this.campaignListId();
+    const listIds = this.headerRecipients().map(recipient => recipient.listId).filter(isNumber);
+    const inputs = [this.pool.members(), this.session.state.selectedMemberIds, this.session.state.externalRecipients,
+      this.session.state.ccRecipients, this.session.state.bccRecipients, this.session.state.recipientMode,
+      this.session.state.brandingMode, this.session.state.recipientAddressMode, this.session.state.preFilterKey,
+      this.session.state.notificationConfig, listId, listId === null ? null : this.pool.knownListMemberIds(listId),
+      ...listIds.map(id => this.pool.knownListMemberIds(id))];
+    if (inputs.length !== this.previewInputs.length || inputs.some((input, index) => input !== this.previewInputs[index])) {
+      this.previewInputs = inputs;
+      this.previewEntriesCache = [...this.uniqueSendEntries(), ...this.unresolvedSendMemberIds().map(id => ({name: "", member: {id} as Member}))];
+    }
+    return this.previewEntriesCache;
+  }
+
+  unresolvedSendMemberIds(): string[] {
+    const campaignListId = this.campaignListId();
+    if (this.campaignEntriesApply(campaignListId)) {
+      return this.idsWithoutRecords(this.pool.knownListMemberIds(campaignListId) ?? []);
+    } else {
+      const toExpansion = this.expandHeaders(this.session.state.externalRecipients ?? []);
+      return toExpansion.recipients.length > 0 || toExpansion.unresolvedMemberIds.length > 0
+        ? toExpansion.unresolvedMemberIds
+        : this.unresolvedSelectedMemberIds();
+    }
+  }
+
+  private campaignEntriesApply(campaignListId: number | null): boolean {
     const namedPeopleOnTo = (this.session.state.externalRecipients ?? [])
       .some(recipient => !composerRecipientIsExpandableSet(recipient));
-    const campaignListId = this.campaignListId();
-    if (this.sendingAsCampaign() && campaignListId !== null && !namedPeopleOnTo) {
-      return this.campaignEntriesFor(this.listSubscriberService.subscribers(this.pool.members, campaignListId));
-    } else if (fromTo.length > 0) {
-      return fromTo;
-    } else {
-      return (this.session.state.selectedMemberIds ?? [])
-        .map(id => this.memberIndex().byId.get(id))
-        .filter((member): member is Member => !!member)
-        .map(member => ({ name: this.previewMemberName(member), member }));
+    return this.sendingAsCampaign() && campaignListId !== null && !namedPeopleOnTo;
+  }
+
+  private listMembersKnown(listId: number): Member[] {
+    const ids = this.pool.knownListMemberIds(listId) ?? [];
+    return this.pool.membersForIds(ids);
+  }
+
+  private selectedMembersKnown(): Member[] {
+    const ids = this.session.state.selectedMemberIds ?? [];
+    this.requestRecords(ids);
+    return this.pool.membersForIds(ids);
+  }
+
+  private unresolvedSelectedMemberIds(): string[] {
+    return this.idsWithoutRecords(this.session.state.selectedMemberIds ?? []);
+  }
+
+  private idsWithoutRecords(ids: string[]): string[] {
+    return uniq(ids.filter(id => !!id && !this.pool.memberById(id)));
+  }
+
+  private requestRecords(ids: string[]): void {
+    if (ids.length > 0 && ids.length <= COMPOSER_MEMBER_LOOKUP_LIMIT && !this.pool.hasAllIds(ids)) {
+      void this.pool.ensureMembers(ids);
     }
   }
 
@@ -314,15 +322,8 @@ export class EmailComposerRecipientResolutionService {
     }
   }
 
-  private campaignEntriesFor(subscribers: Member[]): EmailComposerRecipientEntry[] {
-    if (!this.campaignEntriesBySubscribers.has(subscribers)) {
-      this.campaignEntriesBySubscribers.set(subscribers, subscribers.map(member => ({name: this.previewMemberName(member), member})));
-    }
-    return this.campaignEntriesBySubscribers.get(subscribers);
-  }
-
   private memberIndex(): {byId: Map<string, Member>; byEmail: Map<string, Member>} {
-    const members = this.pool.allMembers ?? [];
+    const members = this.pool.members();
     if (!this.memberIndexes.has(members)) {
       this.memberIndexes.set(members, {
         byId: new Map(members.filter(member => member.id).map(member => [member.id, member])),
@@ -351,30 +352,78 @@ export class EmailComposerRecipientResolutionService {
     }
   }
 
-  expandedHeaderRecipients(list: ComposerExternalRecipient[]): ComposerExternalRecipient[] {
-    const expanded = (list ?? []).flatMap(recipient => {
-      if (recipient.filterKey || recipient.email === COMPOSER_EVERYONE_FILTER_EMAIL) {
-        const ids = (this.session.state.selectedMemberIds ?? []).filter(Boolean);
-        if (ids.length > 0) {
-          return this.memberRecipientsForIds(ids).map(person => ({...person, fromBulkAudience: true}));
-        } else {
-          return this.memberRecipientsForIds(
-            this.pool.members
-              .filter(member => member.id && !!(member.email || "").trim())
-              .map(member => member.id as string)
-          ).map(person => ({...person, fromBulkAudience: true}));
-        }
-      } else if (!recipient.listId) {
-        return [recipient];
-      } else {
-        return this.listSubscriberService.subscribers(this.pool.members, recipient.listId)
-          .filter(member => !!(member.email || "").trim())
-          .map(member => composerRecipientFromMember(member))
-          .filter((item): item is ComposerExternalRecipient => !!item)
-          .map(person => ({...person, fromBulkAudience: true}));
-      }
-    });
-    return composerRecipientsForAddressMode(expanded, this.pool.allMembers,
-      this.pool.committeeReferenceData?.committeeMembers() ?? [], this.session.state.recipientAddressMode);
+  setMemberIds(recipient: ComposerExternalRecipient): string[] | null {
+    if (recipient.filterKey || recipient.email === COMPOSER_EVERYONE_FILTER_EMAIL) {
+      const selected = (this.session.state.selectedMemberIds ?? []).filter(Boolean);
+      return selected.length > 0 ? selected : this.pool.knownEveryoneMemberIds();
+    } else if (isNumber(recipient.listId)) {
+      return this.pool.knownListMemberIds(recipient.listId);
+    } else {
+      return null;
+    }
   }
+
+  headerSetMemberIds(list: ComposerExternalRecipient[]): string[] {
+    return uniq((list ?? []).filter(composerRecipientIsExpandableSet).flatMap(recipient => this.setMemberIds(recipient) ?? []));
+  }
+
+  expandHeaders(list: ComposerExternalRecipient[]): ComposerHeaderExpansion {
+    const recipients = list ?? [];
+    const setIds = recipients.filter(composerRecipientIsExpandableSet).map(recipient => this.setMemberIds(recipient) ?? []);
+    const pendingSets = recipients.filter(composerRecipientIsExpandableSet).some(recipient => this.setMemberIds(recipient) === null);
+    this.requestHeaderPeople(recipients.filter(recipient => !composerRecipientIsExpandableSet(recipient)));
+    const expanded = recipients.flatMap(recipient => composerRecipientIsExpandableSet(recipient)
+      ? this.setRecipients(this.setMemberIds(recipient) ?? [])
+      : [recipient]);
+    return {
+      recipients: composerRecipientsForAddressMode(expanded, this.pool.members(),
+        this.pool.committeeReferenceData?.committeeMembers() ?? [], this.session.state.recipientAddressMode),
+      unresolvedMemberIds: this.idsWithoutRecords(setIds.flat()),
+      pendingSets
+    };
+  }
+
+  private requestHeaderPeople(people: ComposerExternalRecipient[]): void {
+    const ids = people.map(recipient => recipient.memberId).filter((id): id is string => !!id);
+    const emails = people.filter(recipient => !recipient.memberId && !recipient.committeeRoleType).map(recipient => recipient.email);
+    const missingIds = ids.filter(id => !this.pool.hasAllIds([id]));
+    const missingEmails = emails.filter(email => !!email && !this.pool.memberByEmail(email));
+    if (missingIds.length > 0 || missingEmails.length > 0) {
+      void this.pool.ensureMembers(missingIds, missingEmails);
+    }
+  }
+
+  private setRecipients(ids: string[]): ComposerExternalRecipient[] {
+    this.requestRecords(ids);
+    return this.memberRecipientsForIds(ids).map(person => ({...person, fromBulkAudience: true}));
+  }
+
+  expandedHeaderRecipients(list: ComposerExternalRecipient[]): ComposerExternalRecipient[] {
+    return this.expandHeaders(list).recipients;
+  }
+
+  batchRecipientSelection(): BatchRecipientSelection {
+    const definitionFor = (recipient: ComposerExternalRecipient): ComposerAudienceDefinition => isNumber(recipient.listId)
+      ? {scope: ComposerAudienceScope.MAILING_LIST, recipientMode: this.session.state.recipientMode, listId: recipient.listId}
+      : {scope: ComposerAudienceScope.NAMED_MEMBERS, recipientMode: this.session.state.recipientMode, memberIds: this.session.state.selectedMemberIds ?? []};
+    const to = this.session.state.externalRecipients ?? [];
+    const cc = this.session.state.ccRecipients ?? [];
+    const bcc = this.session.state.bccRecipients ?? [];
+    const hasHeaders = to.length > 0 || cc.length > 0 || bcc.length > 0;
+    const fallback = this.session.state.recipientMode === RecipientMode.ENTIRE_LIST && this.session.state.selectedListId !== null
+      ? [{scope: ComposerAudienceScope.MAILING_LIST, recipientMode: this.session.state.recipientMode, listId: this.session.state.selectedListId}]
+      : [{scope: ComposerAudienceScope.NAMED_MEMBERS, recipientMode: this.session.state.recipientMode, memberIds: this.session.state.selectedMemberIds ?? []}];
+    return {
+      audiences: {
+        to: hasHeaders ? to.filter(composerRecipientIsExpandableSet).map(definitionFor) : fallback,
+        cc: cc.filter(composerRecipientIsExpandableSet).map(definitionFor),
+        bcc: bcc.filter(composerRecipientIsExpandableSet).map(definitionFor)
+      },
+      memberIds: [],
+      externalRecipients: to.filter(recipient => !composerRecipientIsExpandableSet(recipient)),
+      ccRecipients: cc.filter(recipient => !composerRecipientIsExpandableSet(recipient)),
+      bccRecipients: bcc.filter(recipient => !composerRecipientIsExpandableSet(recipient))
+    };
+  }
+
 }

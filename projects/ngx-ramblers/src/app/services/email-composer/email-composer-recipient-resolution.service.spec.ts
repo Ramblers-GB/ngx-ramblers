@@ -11,6 +11,7 @@ import {defaultEmailComposerState} from "../../functions/email-composer";
 import {MemberSelection} from "../../models/mail.model";
 import {DateRangeUnit, NO_DATE_FILTER} from "../../models/search.model";
 import {StringUtilsService} from "../string-utils.service";
+import {fakeComposerSources} from "../../testing/fake-composer-sources";
 
 describe("composer send copies", () => {
   it("does not treat Bcc committee members as personalised send copies", () => {
@@ -32,11 +33,7 @@ describe("composer send copies", () => {
       providers: [
         EmailComposerRecipientResolutionService,
         {provide: EmailComposerSessionService, useValue: {state}},
-        {provide: EmailComposerRecipientSourcesService, useValue: {
-          members: [toMember, bccMember],
-          allMembers: [toMember, bccMember],
-          committeeReferenceData: {committeeMembers: () => [{type: "membership", memberId: bccMember.id, email: "membership@group.example.org.uk"}]}
-        }},
+        {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members: [toMember, bccMember], committeeReferenceData: {committeeMembers: () => [{type: "membership", memberId: bccMember.id, email: "membership@group.example.org.uk"}]} as any})},
         {provide: MailListUpdaterService, useValue: {memberSubscribed: () => false}},
         {provide: MemberService, useValue: {filterFor: {GROUP_MEMBERS: () => true}}}
       ]
@@ -62,7 +59,7 @@ describe("composer send copies", () => {
         EmailComposerRecipientResolutionService,
         StringUtilsService,
         {provide: EmailComposerSessionService, useValue: {state}},
-        {provide: EmailComposerRecipientSourcesService, useValue: {members: [], allMembers: [], committeeReferenceData: null}},
+        {provide: EmailComposerRecipientSourcesService, useValue: {members: () => [], committeeReferenceData: null}},
         {provide: MailListUpdaterService, useValue: {memberSubscribed: () => false}},
         {provide: MemberService, useValue: {filterFor: {GROUP_MEMBERS: () => true}}}
       ]

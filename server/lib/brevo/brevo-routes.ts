@@ -1,3 +1,4 @@
+import { requireBatchSendOwner } from "./transactional-mail/batch-send-progress-controllers";
 import express from "express";
 import { sendTransactionalMail } from "./transactional-mail/send-transactional-mail";
 import { batchTransactionalStatus, cancelBatchTransactional, startBatchTransactionalSend } from "./transactional-mail/batch-transactional-send";
@@ -96,8 +97,8 @@ router.put("/senders/:senderId", authConfig.authenticate(), updateSender);
 router.delete("/senders/:senderId", authConfig.authenticate(), deleteSender);
 router.post("/transactional/send", authConfig.authenticate(), sendTransactionalMail);
 router.post("/transactional/batch/start", authConfig.authenticate(), startBatchTransactionalSend);
-router.get("/transactional/batch/:jobId", authConfig.authenticate(), batchTransactionalStatus);
-router.post("/transactional/batch/:jobId/cancel", authConfig.authenticate(), cancelBatchTransactional);
+router.get("/transactional/batch/:jobId", authConfig.authenticate(), requireBatchSendOwner, batchTransactionalStatus);
+router.post("/transactional/batch/:jobId/cancel", authConfig.authenticate(), requireBatchSendOwner, cancelBatchTransactional);
 router.post("/transactional/forgot-password", sendForgotPasswordEmail);
 router.post("/transactional/resolve-tracking-url", authConfig.authenticate(), resolveTrackingUrl);
 router.post("/campaign/create", authConfig.authenticate(), createCampaign);

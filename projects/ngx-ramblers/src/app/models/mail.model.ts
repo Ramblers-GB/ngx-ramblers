@@ -159,6 +159,8 @@ export enum MemberSelection {
   MAILING_LIST = "mailing-list",
 }
 
+export const BULK_LOAD_MEMBER_SELECTIONS: MemberSelection[] = [MemberSelection.ADDED_IN_LAST_BULK_LOAD_MEMBERS, MemberSelection.MISSING_FROM_BULK_LOAD_MEMBERS];
+
 export enum WorkflowAction {
   GENERATE_GROUP_MEMBER_PASSWORD_RESET_ID = "generate-group-member-password-reset-id",
   DISABLE_GROUP_MEMBER = "disable-group-member",

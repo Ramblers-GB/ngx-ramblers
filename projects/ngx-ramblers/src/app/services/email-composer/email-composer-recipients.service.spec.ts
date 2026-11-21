@@ -2,7 +2,8 @@ import {DateTime} from "luxon";
 import {TestBed} from "@angular/core/testing";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {composerCommitteeRoleSendOffered, composerListToken, composerRecipientFromMember, composerSharesRecipientHeaders, defaultEmailComposerState} from "../../functions/email-composer";
-import {BrandingMode, ComposerExternalRecipient, RecipientAddressMode, RecipientField, RecipientMode, SendingChannel} from "../../models/email-composer.model";
+import {BrandingMode, ComposerExternalRecipient, ComposerFilterSelectionRequest, RecipientAddressMode, RecipientField, RecipientMode, SendingChannel} from "../../models/email-composer.model";
+import {fakeComposerSources} from "../../testing/fake-composer-sources";
 import {StoredValue} from "../../models/ui-actions.model";
 import {CommitteeMember} from "../../models/committee.model";
 import {Member} from "../../models/member.model";
@@ -15,13 +16,15 @@ import {EmailComposerRecipientsService} from "./email-composer-recipients.servic
 
 function resolverPrototype(): EmailComposerRecipientResolutionService {
   const resolver = Object.create(EmailComposerRecipientResolutionService.prototype);
-  return Object.assign(resolver, {
-    memberIndexes: new WeakMap(),
-    campaignEntriesBySubscribers: new WeakMap(),
-    listSubscriberService: {
-      subscribers: (members: Member[], listId: number) => (members ?? []).filter(member => resolver.mailListUpdaterService.memberSubscribed(member, listId))
-    }
-  });
+  return Object.assign(resolver, {memberIndexes: new WeakMap()});
+}
+
+function flush(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function recentlyAdded(members: Member[], since: number): (request: ComposerFilterSelectionRequest) => string[] {
+  return request => members.filter(member => !request.preFilterKey || (member.createdDate ?? 0) >= since).map(member => member.id);
 }
 
 describe("composer list expansion", () => {
@@ -34,11 +37,7 @@ describe("composer list expansion", () => {
     state.brandingMode = BrandingMode.UNBRANDED;
     const list = {id: 7, name: "Committee"} as ListInfo;
     const members = ["alex", "sam", "casey"].map(id => ({id, email: `${id}@example.com`, committee: true} as Member));
-    const pool = {
-      members, allMembers: members,
-      nonEmptyLists: () => [list], unbrandedCommitteeLists: () => [list], committeeOnlyLists: () => [list],
-      availableLists: () => [list], subscribedMemberCount: () => members.length
-    };
+    const pool = fakeComposerSources({members, lists: [list], subscribed: () => true, committeeOnlyListIds: [list.id]});
     const updater = {memberSubscribed: () => true};
     const session = {state, inboxReplyContext: null, syncStateToUrl: vi.fn()};
     const resolver = resolverPrototype();
@@ -89,12 +88,11 @@ describe("composer list expansion", () => {
     state.ccRecipients = [{email: "alex.reed@example.com"}];
     state.bccRecipients = [{email: "sam@example.com"}];
     const syncStateToUrl = vi.fn();
-    const recomputeCandidateMembers = vi.fn();
     TestBed.configureTestingModule({providers: [
       EmailComposerRecipientsService,
       {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl}},
       {provide: MailListUpdaterService, useValue: {}},
-      {provide: EmailComposerRecipientSourcesService, useValue: {allMembers: [], recomputeCandidateMembers}},
+      {provide: EmailComposerRecipientSourcesService, useValue: {members: () => []}},
       {provide: EmailComposerRecipientResolutionService, useValue: {
         sendingAsCampaign: () => false, committeeRoleSendOffered: () => false, committeeOnlyAudience: () => false
       }}
@@ -118,7 +116,6 @@ describe("composer list expansion", () => {
     expect(service.expandedRecipientListIds.size).toBe(0);
     expect(service.expandedRecipientFilterKeys.size).toBe(0);
     expect(service.expandedEveryoneSet).toBe(false);
-    expect(recomputeCandidateMembers).toHaveBeenCalledOnce();
     expect(syncStateToUrl).toHaveBeenCalledWith({[StoredValue.LIST_ID]: null});
     expect(syncStateToUrl).toHaveBeenCalledWith({[StoredValue.EMAIL_TYPE]: "selected-members", [StoredValue.PRE_FILTER]: null});
   });
@@ -132,11 +129,7 @@ describe("composer list expansion", () => {
     const resolver = resolverPrototype();
     Object.assign(resolver, {
       session: {state},
-      pool: {
-        allMembers: [{id: "alex", email: "alex.reed@example.com", committee: true}],
-        committeeOnlyLists: () => [{id: 7}]
-      },
-      expandedHeaderRecipients: recipients => recipients
+      pool: fakeComposerSources({members: [{id: "alex", email: "alex.reed@example.com", committee: true} as Member], lists: [{id: 7, name: "Committee"} as ListInfo], subscribed: () => true, committeeOnlyListIds: [7]})
     });
 
     expect(resolver.committeeOnlyAudience()).toBe(false);
@@ -160,7 +153,7 @@ describe("composer list expansion", () => {
     expect(resolver.unbrandedListsAllowed()).toBe(true);
   });
 
-  it("keeps a mailing-list pill until expanded, then keeps its individual recipients through picker updates", () => {
+  it("keeps a mailing-list pill until expanded, then keeps its individual recipients through picker updates", async () => {
     const members = [...new Set([..."abcdefghijkl"])].map(id => ({id, firstName: "Alex", lastName: id, email: `${id}@example.com`} as Member));
     const outside = {id: "outside", email: "outside@example.com"} as Member;
     const list = {id: 42, name: "Group members"} as ListInfo;
@@ -175,10 +168,7 @@ describe("composer list expansion", () => {
       EmailComposerRecipientsService,
       {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl: vi.fn()}},
       {provide: MailListUpdaterService, useValue: {memberSubscribed: (member: Member) => member.id !== outside.id}},
-      {provide: EmailComposerRecipientSourcesService, useValue: {
-        members: [...members, outside], allMembers: [...members, outside], committeeReferenceData: null,
-        nonEmptyLists: () => [list], unbrandedCommitteeLists: () => [], subscribedMemberCount: () => members.length
-      }},
+      {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members: [...members, outside], lists: [list], subscribed: member => member.id !== outside.id})},
       {provide: EmailComposerRecipientResolutionService, useValue: {
         committeeRoleSendOffered: () => false,
         committeeOnlyAudience: () => false,
@@ -188,11 +178,11 @@ describe("composer list expansion", () => {
       }}
     ]});
     const service = TestBed.inject(EmailComposerRecipientsService);
-    service.onFilteredMemberIdsChange(ids);
+    await service.onFilteredMemberIdsChange(ids);
     expect(state.externalRecipients).toHaveLength(1);
     expect(state.externalRecipients[0].listId).toBe(list.id);
-    service.expandListToken(RecipientField.TO, state.externalRecipients[0]);
-    service.onFilteredMemberIdsChange(ids);
+    await service.expandListToken(RecipientField.TO, state.externalRecipients[0]);
+    await service.onFilteredMemberIdsChange(ids);
     expect(state.externalRecipients.map(recipient => recipient.email)).toEqual(members.map(member => member.email));
     expect(state.externalRecipients.every(recipient => !recipient.listId && !recipient.filterKey)).toBe(true);
     expect(state.externalRecipients.some(recipient => recipient.email === outside.email)).toBe(false);
@@ -213,15 +203,7 @@ describe("composer list expansion", () => {
       EmailComposerRecipientsService,
       {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl: vi.fn()}},
       {provide: MailListUpdaterService, useValue: {memberSubscribed: () => true}},
-      {provide: EmailComposerRecipientSourcesService, useValue: {
-        members,
-        allMembers: members,
-        committeeReferenceData: null,
-        candidateMembers: () => members,
-        nonEmptyLists: () => [],
-        unbrandedCommitteeLists: () => [],
-        subscribedMemberCount: () => members.length
-      }},
+      {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members, subscribed: () => true})},
       {provide: EmailComposerRecipientResolutionService, useValue: {
         committeeRoleSendOffered: () => false,
         committeeOnlyAudience: () => false,
@@ -250,15 +232,7 @@ describe("composer list expansion", () => {
       EmailComposerRecipientsService,
       {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl: vi.fn()}},
       {provide: MailListUpdaterService, useValue: {memberSubscribed: () => true}},
-      {provide: EmailComposerRecipientSourcesService, useValue: {
-        members,
-        allMembers: members,
-        committeeReferenceData: {committeeMembers: () => []},
-        candidateMembers: () => members,
-        nonEmptyLists: () => [list],
-        unbrandedCommitteeLists: () => [list],
-        subscribedMemberCount: () => members.length
-      }},
+      {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members, lists: [list], subscribed: () => true, committeeOnlyListIds: [list.id], committeeReferenceData: {committeeMembers: () => []} as any})},
       {provide: EmailComposerRecipientResolutionService, useValue: {
         committeeRoleSendOffered: () => false,
         committeeOnlyAudience: () => false,
@@ -291,15 +265,7 @@ describe("composer list expansion", () => {
       EmailComposerRecipientsService,
       {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl: vi.fn()}},
       {provide: MailListUpdaterService, useValue: {memberSubscribed: () => true}},
-      {provide: EmailComposerRecipientSourcesService, useValue: {
-        members,
-        allMembers: members,
-        committeeReferenceData: {committeeMembers: () => []},
-        candidateMembers: () => members,
-        nonEmptyLists: () => [list],
-        unbrandedCommitteeLists: () => [],
-        subscribedMemberCount: () => members.length
-      }},
+      {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members, lists: [list], subscribed: () => true, committeeReferenceData: {committeeMembers: () => []} as any})},
       {provide: EmailComposerRecipientResolutionService, useValue: {
         committeeRoleSendOffered: () => false,
         committeeOnlyAudience: () => false,
@@ -316,7 +282,7 @@ describe("composer list expansion", () => {
     expect(state.externalRecipients.some(recipient => recipient.email === person.email)).toBe(true);
   });
 
-  it("loads only members added within the welcome configuration's one-month window on a fresh composition", () => {
+  it("loads only members added within the welcome configuration's one-month window on a fresh composition", async () => {
     const now = DateTime.fromMillis(1800000000000);
     const members = Array.from({length: 137}, (_, index) => ({
       id: `member-${index}`, email: `member-${index}@example.com`, groupMember: true,
@@ -326,10 +292,7 @@ describe("composer list expansion", () => {
     const config = {id: "welcome", defaultMemberSelection: MemberSelection.RECENTLY_ADDED, monthsInPast: 1} as NotificationConfig;
     state.notificationConfig = config;
     const session = {state, inboxReplyContext: null, syncStateToUrl: vi.fn()};
-    const pool = {
-      members, allMembers: members, candidateMembers: () => members,
-      nonEmptyLists: () => [], unbrandedCommitteeLists: () => [], committeeReferenceData: null
-    };
+    const pool = fakeComposerSources({members, selection: recentlyAdded(members, now.minus({months: 1}).toMillis())});
     const resolver = resolverPrototype();
     Object.assign(resolver, {session, pool, dateUtils: {dateTimeNowNoTime: () => now}});
     vi.spyOn(resolver, "committeeRoleSendOffered").mockReturnValue(false);
@@ -342,6 +305,7 @@ describe("composer list expansion", () => {
       {provide: EmailComposerRecipientResolutionService, useValue: resolver}
     ]});
     TestBed.inject(EmailComposerRecipientsService).applyRecipientDefaultsFrom(config);
+    await flush();
     expect(state.recipientMode).toBe(RecipientMode.SELECTED_MEMBERS);
     expect(state.preFilterKey).toBe(MemberSelection.RECENTLY_ADDED);
     expect(state.selectedListId).toBeNull();
@@ -367,15 +331,7 @@ describe("composer list expansion", () => {
       EmailComposerRecipientsService,
       {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl: vi.fn()}},
       {provide: MailListUpdaterService, useValue: {memberSubscribed: () => true}},
-      {provide: EmailComposerRecipientSourcesService, useValue: {
-        members,
-        allMembers: members,
-        committeeReferenceData: null,
-        candidateMembers: () => members,
-        nonEmptyLists: () => [list, {id: 1, name: "All Members"} as ListInfo],
-        unbrandedCommitteeLists: () => [],
-        subscribedMemberCount: () => members.length
-      }},
+      {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members, lists: [list, {id: 1, name: "All Members"} as ListInfo], subscribed: () => true})},
       {provide: EmailComposerRecipientResolutionService, useValue: {
         committeeRoleSendOffered: () => false,
         committeeOnlyAudience: () => false,
@@ -406,15 +362,7 @@ describe("composer list expansion", () => {
       EmailComposerRecipientsService,
       {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl: vi.fn()}},
       {provide: MailListUpdaterService, useValue: {memberSubscribed: () => true}},
-      {provide: EmailComposerRecipientSourcesService, useValue: {
-        members,
-        allMembers: members,
-        committeeReferenceData: null,
-        candidateMembers: () => members,
-        nonEmptyLists: () => [list],
-        unbrandedCommitteeLists: () => [],
-        subscribedMemberCount: () => members.length
-      }},
+      {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members, lists: [list], subscribed: () => true})},
       {provide: EmailComposerRecipientResolutionService, useValue: {
         committeeRoleSendOffered: () => false,
         committeeOnlyAudience: () => false,
@@ -430,7 +378,7 @@ describe("composer list expansion", () => {
     expect(state.sendingChannel).toBe(SendingChannel.TRANSACTIONAL_BATCH);
   });
 
-  it("replaces a default mailing list when a filter email type is auto-applied", () => {
+  it("replaces a default mailing list when a filter email type is auto-applied", async () => {
     const now = DateTime.fromMillis(1800000000000);
     const members = Array.from({length: 137}, (_, index) => ({
       id: `member-${index}`, email: `member-${index}@example.com`, groupMember: true,
@@ -444,10 +392,7 @@ describe("composer list expansion", () => {
     state.externalRecipients = [{email: "list@example.com", listId: list.id} as any];
     const config = {id: "welcome", defaultMemberSelection: MemberSelection.RECENTLY_ADDED, monthsInPast: 1} as NotificationConfig;
     const session = {state, inboxReplyContext: null, syncStateToUrl: vi.fn()};
-    const pool = {
-      members, allMembers: members, candidateMembers: () => members,
-      nonEmptyLists: () => [list], unbrandedCommitteeLists: () => [], committeeReferenceData: null
-    };
+    const pool = fakeComposerSources({members, lists: [list], selection: recentlyAdded(members, now.minus({months: 1}).toMillis())});
     const resolver = resolverPrototype();
     Object.assign(resolver, {session, pool, dateUtils: {dateTimeNowNoTime: () => now}});
     vi.spyOn(resolver, "committeeRoleSendOffered").mockReturnValue(false);
@@ -461,13 +406,14 @@ describe("composer list expansion", () => {
     ]});
     const service = TestBed.inject(EmailComposerRecipientsService);
     service.applyRecipientDefaultsFrom(config);
+    await flush();
     expect(state.recipientMode).toBe(RecipientMode.SELECTED_MEMBERS);
     expect(state.preFilterKey).toBe(MemberSelection.RECENTLY_ADDED);
     expect(state.selectedListId).toBeNull();
     expect(state.selectedMemberIds).toEqual(["member-0", "member-1"]);
   });
 
-  it("replaces an existing mailing list when the user chooses a type with a member filter", () => {
+  it("replaces an existing mailing list when the user chooses a type with a member filter", async () => {
     const now = DateTime.fromMillis(1800000000000);
     const members = Array.from({length: 137}, (_, index) => ({
       id: `member-${index}`, email: `member-${index}@example.com`, groupMember: true,
@@ -481,10 +427,7 @@ describe("composer list expansion", () => {
     state.externalRecipients = [{email: "list@example.com", listId: list.id} as any];
     const config = {id: "welcome", defaultMemberSelection: MemberSelection.RECENTLY_ADDED, monthsInPast: 1} as NotificationConfig;
     const session = {state, inboxReplyContext: null, syncStateToUrl: vi.fn()};
-    const pool = {
-      members, allMembers: members, candidateMembers: () => members,
-      nonEmptyLists: () => [list], unbrandedCommitteeLists: () => [], committeeReferenceData: null
-    };
+    const pool = fakeComposerSources({members, lists: [list], selection: recentlyAdded(members, now.minus({months: 1}).toMillis())});
     const resolver = resolverPrototype();
     Object.assign(resolver, {session, pool, dateUtils: {dateTimeNowNoTime: () => now}});
     vi.spyOn(resolver, "committeeRoleSendOffered").mockReturnValue(false);
@@ -498,6 +441,7 @@ describe("composer list expansion", () => {
     ]});
     const service = TestBed.inject(EmailComposerRecipientsService);
     service.applyRecipientDefaultsFrom(config, true);
+    await flush();
     expect(state.recipientMode).toBe(RecipientMode.SELECTED_MEMBERS);
     expect(state.preFilterKey).toBe(MemberSelection.RECENTLY_ADDED);
     expect(state.selectedListId).toBeNull();
@@ -517,7 +461,7 @@ describe("mixed unbranded committee recipients", () => {
     Object.assign(instance, {
       recipientAddressModeTouched: false,
       session: {state, inboxReplyContext: null},
-      pool: {allMembers: [member], committeeReferenceData: {committeeMembers: () => roles}},
+      pool: fakeComposerSources({members: [member], lists: [{id: 7, name: "Committee"} as ListInfo], subscribed: () => true, committeeOnlyListIds: [7], committeeReferenceData: {committeeMembers: () => roles} as any}),
       resolver: {
         committeeRoleSendOffered: () => composerCommitteeRoleSendOffered({
           recipients: [...state.externalRecipients, ...state.ccRecipients, ...state.bccRecipients],
@@ -554,7 +498,6 @@ describe("mixed unbranded committee recipients", () => {
 
   it.each([RecipientField.CC, RecipientField.BCC])("offers and defaults role addresses for a committee list on %s beside a guest on To", field => {
     const {instance, state} = service();
-    instance.pool.members = [member];
     const resolver = resolverPrototype();
     Object.assign(resolver, {
       session: {state},
@@ -576,5 +519,52 @@ describe("mixed unbranded committee recipients", () => {
     expect(state.externalRecipients[0].email).toBe("guest@example.com");
     instance.onSendToCommitteeRoleAddressesChange({target: {checked: false}} as unknown as Event);
     expect(resolver.expandedHeaderRecipients(recipients)[0].email).toBe(member.email);
+  });
+});
+
+describe("recipient selection without every member in the browser", () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  function recipientsService(members: Member[], configure: (state: ReturnType<typeof defaultEmailComposerState>) => void) {
+    const state = defaultEmailComposerState();
+    state.brandingMode = BrandingMode.BRANDED;
+    state.recipientMode = RecipientMode.SELECTED_MEMBERS;
+    configure(state);
+    const list = {id: 3, name: "All members"} as ListInfo;
+    TestBed.configureTestingModule({providers: [
+      EmailComposerRecipientsService,
+      {provide: EmailComposerSessionService, useValue: {state, inboxReplyContext: null, syncStateToUrl: vi.fn()}},
+      {provide: MailListUpdaterService, useValue: {}},
+      {provide: EmailComposerRecipientSourcesService, useValue: fakeComposerSources({members, lists: [list], loadedIds: [], subscribed: member => member.id !== "outside"})},
+      {provide: EmailComposerRecipientResolutionService, useValue: {
+        committeeRoleSendOffered: () => false, committeeOnlyAudience: () => false, sendingAsCampaign: () => false,
+        headerEmailSet: () => new Set(), memberSelectionChipLabel: () => "Added in last month",
+        memberRecipientsForIds: () => []
+      }}
+    ]});
+    return {state, service: TestBed.inject(EmailComposerRecipientsService), list};
+  }
+
+  const many = Array.from({length: 1200}, (_, index) => ({id: `member-${index}`, email: `member-${index}@example.com`, groupMember: true} as Member));
+
+  it("keeps every id from a large filter result and shows it as one filter chip, with no member records loaded", async () => {
+    const ids = many.map(member => member.id);
+    const {state, service} = recipientsService(many, composerState => {
+      composerState.preFilterKey = MemberSelection.RECENTLY_ADDED;
+    });
+    await service.onFilteredMemberIdsChange(ids);
+    expect(state.selectedMemberIds).toEqual(ids);
+    expect(state.externalRecipients).toHaveLength(1);
+    expect(state.externalRecipients[0].filterKey).toBe(MemberSelection.RECENTLY_ADDED);
+  });
+
+  it("adds everyone on a chosen list, even when none of their records were loaded beforehand", async () => {
+    const people = [...many.slice(0, 3), {id: "outside", email: "outside@example.com", groupMember: true} as Member];
+    const {state, service, list} = recipientsService(people, composerState => {
+      composerState.selectedMemberIds = ["member-0", "outside"];
+    });
+    await service.setNarrowListId(list.id);
+    expect(state.selectedMemberIds).toEqual(["member-0", "member-1", "member-2"]);
+    expect(state.externalRecipients.map(recipient => recipient.memberId)).toEqual(["member-0", "member-1", "member-2"]);
   });
 });

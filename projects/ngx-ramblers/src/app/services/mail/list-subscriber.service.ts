@@ -36,12 +36,17 @@ export class ListSubscriberService {
       .map(member => `${member.firstName ?? ""} ${member.lastName ?? ""}`.trim())
       .filter(name => name.length > 0)
       .sort();
-    if (names.length === 0) {
-      return "No members subscribed";
-    }
+    return this.namesTooltip(names, names.length);
+  }
+
+  namesTooltip(names: string[], total: number): string {
     const preview = names.slice(0, TOOLTIP_NAME_PREVIEW_LIMIT).join(", ");
-    return names.length > TOOLTIP_NAME_PREVIEW_LIMIT
-      ? `${preview} and ${names.length - TOOLTIP_NAME_PREVIEW_LIMIT} more`
-      : preview;
+    if (total === 0 || names.length === 0) {
+      return "No members subscribed";
+    } else if (total > TOOLTIP_NAME_PREVIEW_LIMIT) {
+      return `${preview} and ${total - TOOLTIP_NAME_PREVIEW_LIMIT} more`;
+    } else {
+      return preview;
+    }
   }
 }

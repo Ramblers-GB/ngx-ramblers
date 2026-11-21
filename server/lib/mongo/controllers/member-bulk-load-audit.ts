@@ -73,36 +73,39 @@ type MemberBulkLoadDateMapResult = {
   dateMap: MemberBulkLoadDateMap;
 };
 
+export async function memberBulkLoadDateMapValue(): Promise<MemberBulkLoadDateMap> {
+  const pipeline: PipelineStage[] = [
+    {$project: {createdDate: 1, "members.membershipNumber": 1}},
+    {$sort: {createdDate: -1}},
+    {$unwind: "$members"},
+    {$match: {
+      "members.membershipNumber": {$type: "string", $ne: ""}
+    }},
+    {$group: {
+      _id: "$members.membershipNumber",
+      lastBulkLoadDate: {$first: "$createdDate"}
+    }},
+    {$group: {
+      _id: null,
+      entries: {
+        $push: {
+          k: "$_id",
+          v: "$lastBulkLoadDate"
+        }
+      }
+    }},
+    {$project: {
+      _id: 0,
+      dateMap: {$arrayToObject: "$entries"}
+    }}
+  ];
+  const results = await memberBulkLoadAudit.aggregate<MemberBulkLoadDateMapResult>(pipeline);
+  return results[0]?.dateMap || {};
+}
+
 export async function memberBulkLoadDateMap(req: Request, res: Response) {
   try {
-    const pipeline: PipelineStage[] = [
-      {$project: {createdDate: 1, "members.membershipNumber": 1}},
-      {$sort: {createdDate: -1}},
-      {$unwind: "$members"},
-      {$match: {
-        "members.membershipNumber": {$type: "string", $ne: ""}
-      }},
-      {$group: {
-        _id: "$members.membershipNumber",
-        lastBulkLoadDate: {$first: "$createdDate"}
-      }},
-      {$group: {
-        _id: null,
-        entries: {
-          $push: {
-            k: "$_id",
-            v: "$lastBulkLoadDate"
-          }
-        }
-      }},
-      {$project: {
-        _id: 0,
-        dateMap: {$arrayToObject: "$entries"}
-      }}
-    ];
-    const results = await memberBulkLoadAudit.aggregate<MemberBulkLoadDateMapResult>(pipeline);
-    const dateMap = results[0]?.dateMap || {};
-    res.json(dateMap);
+    res.json(await memberBulkLoadDateMapValue());
   } catch (error) {
     debugLog("memberBulkLoadDateMap failed:", error);
     res.status(500).json({message: "Failed to build member bulk load date map"});

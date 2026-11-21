@@ -1,3 +1,4 @@
+import { handleBatchSendProgress } from "../brevo/transactional-mail/batch-send-progress-ws-handler";
 import WebSocket, { Server as WebSocketServer } from "ws";
 import debug from "debug";
 import { envConfig } from "../env-config/env-config";
@@ -73,6 +74,7 @@ const messageHandlers: MessageHandlers = {
   [EventType.SYSTEM_LOGS]: async (ws: WebSocket, data: any, authToken: string) => handleSystemLogsWebSocket(ws, data, authToken),
   [EventType.SCHEDULED_TASK_EVENTS]: async (ws: WebSocket, data: any) => handleScheduledTaskEventsWebSocket(ws, data),
   [EventType.SOCIAL_PUBLISH_ALBUM]: async (ws: WebSocket, data: any) => handleSocialPublishAlbum(ws, data),
+  [EventType.BATCH_SEND_PROGRESS]: (ws, data, authToken) => { void handleBatchSendProgress(ws, data, authToken); },
   [EventType.PING]: (ws: WebSocket) => {
     ws.send(JSON.stringify({ type: "pong", data: {} }));
   },

@@ -465,7 +465,8 @@ export interface RecipientFilterDecision {
 }
 
 export interface PriorSendExclusion {
-  member: Member;
+  memberId: string;
+  name: string;
   sentAt: number;
 }
 
@@ -634,7 +635,22 @@ export interface ResolvedSenderAddresses {
   senderRoleType: string | null;
 }
 
+export interface BatchRecipientAudiences {
+  to: ComposerAudienceDefinition[];
+  cc: ComposerAudienceDefinition[];
+  bcc: ComposerAudienceDefinition[];
+}
+
+export interface BatchRecipientSelection {
+  audiences: BatchRecipientAudiences;
+  memberIds: string[];
+  externalRecipients: ComposerExternalRecipient[];
+  ccRecipients: ComposerExternalRecipient[];
+  bccRecipients: ComposerExternalRecipient[];
+}
+
 export interface BatchTransactionalSendRequest {
+  audiences?: BatchRecipientAudiences;
   recipientListIds?: number[];
   preFilterKey?: MemberSelection | null;
   notificationConfigId?: string;
@@ -709,7 +725,31 @@ export interface BatchSendProgressEntry {
   notEmailable?: boolean;
 }
 
+export interface BatchSendProgressWatch {
+  jobId: string;
+  unsubscribe?: boolean;
+}
+
+export interface BatchSendProgressEvent {
+  jobId: string;
+  progress?: BatchSendProgress;
+  snapshot: boolean;
+  error?: {status: number; message: string};
+}
+
+export interface BatchSendDetailRow {
+  id: string;
+  fullName: string;
+  email: string;
+  status: string;
+  notes: string;
+}
+
 export interface BatchSendProgress {
+  ccRecipients?: ComposerExternalRecipient[];
+  bccRecipients?: ComposerExternalRecipient[];
+  requestedBy?: string | null;
+  currentEntry?: BatchSendProgressEntry | null;
   jobId: string;
   status: BatchSendStatus;
   totalRecipients: number;
@@ -1032,4 +1072,190 @@ export interface ParsedEmailPaste {
   subject: string | null;
   body: string;
   forwardedHeaderLines: string[];
+}
+
+export enum MemberSendBlockReason {
+  BLOCKED = "blocked",
+  UNSUBSCRIBED_FROM_LIST = "unsubscribed-from-list",
+  UNSUBSCRIBED_FROM_ALL = "unsubscribed-from-all",
+  NO_MARKETING_CONSENT = "no-marketing-consent"
+}
+
+export interface MemberSendRules {
+  respectEmailBlocks: boolean;
+  respectHeadOfficeConsent: boolean;
+  referenceListId: number | null;
+}
+
+export const MEMBER_SEND_BLOCK_REASON_DESCRIPTIONS: Record<MemberSendBlockReason, string> = {
+  [MemberSendBlockReason.BLOCKED]: "Blocked from email",
+  [MemberSendBlockReason.UNSUBSCRIBED_FROM_LIST]: "Already unsubscribed from this mailing list",
+  [MemberSendBlockReason.UNSUBSCRIBED_FROM_ALL]: "Already unsubscribed from all mailing lists",
+  [MemberSendBlockReason.NO_MARKETING_CONSENT]: "No Head Office marketing consent"
+};
+
+export const MEMBER_SEND_BLOCK_REASON_LABELS: Record<MemberSendBlockReason, string> = {
+  [MemberSendBlockReason.BLOCKED]: "is blocked from email",
+  [MemberSendBlockReason.UNSUBSCRIBED_FROM_LIST]: "has unsubscribed from email",
+  [MemberSendBlockReason.UNSUBSCRIBED_FROM_ALL]: "has unsubscribed from email",
+  [MemberSendBlockReason.NO_MARKETING_CONSENT]: "has not given Head Office marketing consent"
+};
+
+export interface MemberSelectionWindow {
+  noDateFilter: boolean;
+  windowStart: number;
+  today: number;
+}
+
+export enum ComposerAudienceScope {
+  EVERYONE = "everyone",
+  MAILING_LIST = "mailing-list",
+  MEMBER_FILTER = "member-filter",
+  NAMED_MEMBERS = "named-members"
+}
+
+export interface ComposerAudienceDefinition {
+  scope: ComposerAudienceScope;
+  recipientMode: RecipientMode;
+  notificationConfigId?: string | null;
+  listId?: number | null;
+  preFilterKey?: MemberSelection | null;
+  narrowListId?: number | null;
+  memberIds?: string[];
+  excludedMemberIds?: string[];
+}
+
+export interface ComposerAudienceUnavailableCount {
+  reason: MemberSendBlockReason;
+  count: number;
+}
+
+export interface ComposerAudienceSummary {
+  total: number;
+  sendable: number;
+  unavailable: ComposerAudienceUnavailableCount[];
+}
+
+export enum ComposerAudienceSortField {
+  NAME = "name",
+  EMAIL = "email"
+}
+
+export interface ComposerAudiencePageRequest {
+  definition: ComposerAudienceDefinition;
+  page: number;
+  pageSize: number;
+  search?: string;
+  sortField?: ComposerAudienceSortField;
+  sortDescending?: boolean;
+}
+
+export interface ComposerAudienceRow {
+  memberId: string;
+  name: string;
+  email: string;
+  unavailableReason: MemberSendBlockReason | null;
+}
+
+export interface ComposerAudiencePage {
+  rows: ComposerAudienceRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ComposerMemberSearchResult {
+  memberId: string;
+  name: string;
+  email: string;
+}
+
+export interface ComposerListCount {
+  listId: number;
+  subscriberCount: number;
+  committeeOnly: boolean;
+}
+
+export const COMPOSER_AUDIENCE_MAX_PAGE_SIZE = 200;
+export const COMPOSER_MEMBER_SEARCH_LIMIT = 20;
+
+export interface ComposerMemberSearchResponse extends ApiResponse {
+  response: ComposerMemberSearchResult[];
+}
+
+export interface ComposerFilterSelectionRequest {
+  notificationConfigId?: string | null;
+  recipientMode: RecipientMode;
+  preFilterKey?: MemberSelection | null;
+  narrowListId?: number | null;
+  includeAlreadySent?: boolean;
+  keepMemberIds?: string[];
+}
+
+export type ComposerFilterSelectionSettings = Partial<Pick<NotificationConfig, "defaultMemberSelection" | "postSendActions">>;
+
+export interface ComposerFilterSelection {
+  candidateCount: number;
+  memberIds: string[];
+  keptMemberIds: string[];
+  priorSendExclusions: PriorSendExclusion[];
+}
+
+export interface ComposerFilterSelectionResponse extends ApiResponse {
+  response: ComposerFilterSelection;
+}
+
+export interface ComposerListCountsResponse extends ApiResponse {
+  response: ComposerListCount[];
+}
+
+export const COMPOSER_MEMBER_FIELDS: Record<string, 1> = {
+  firstName: 1,
+  lastName: 1,
+  displayName: 1,
+  nameAlias: 1,
+  userName: 1,
+  email: 1,
+  groupMember: 1,
+  committee: 1,
+  contactId: 1,
+  emailBlock: 1,
+  emailMarketingConsent: 1,
+  "mail.subscriptions": 1,
+  createdDate: 1,
+  updatedDate: 1,
+  membershipExpiryDate: 1,
+  membershipNumber: 1,
+  memberStatus: 1,
+  memberTerm: 1
+};
+
+export const COMPOSER_MEMBER_LOOKUP_LIMIT = 1000;
+
+export interface ComposerMemberLookupRequest {
+  memberIds?: string[];
+  emails?: string[];
+  committee?: boolean;
+}
+
+export interface ComposerMembersResponse extends ApiResponse {
+  response: Member[];
+}
+
+export interface ComposerMemberIdsResponse extends ApiResponse {
+  response: string[];
+}
+
+export interface ComposerAudienceSummaryResponse extends ApiResponse {
+  response: ComposerAudienceSummary;
+}
+
+export interface ComposerAudiencePageResponse extends ApiResponse {
+  response: ComposerAudiencePage;
+}
+
+export interface ComposerHeaderExpansion {
+  recipients: ComposerExternalRecipient[];
+  unresolvedMemberIds: string[];
+  pendingSets: boolean;
 }

@@ -2,63 +2,65 @@ import {TestBed} from "@angular/core/testing";
 import {LoggerTestingModule} from "ngx-logger/testing";
 import {EmailComposerMemberFilterComponent} from "./email-composer-member-filter";
 import {EmailComposerRecipientResolutionService} from "../../services/email-composer/email-composer-recipient-resolution.service";
-import {MemberEmailSendService} from "../../services/member-email-send/member-email-send.service";
+import {EmailComposerRecipientSourcesService} from "../../services/email-composer/email-composer-recipient-sources.service";
 import {MemberSelection} from "../../models/mail.model";
+import {ComposerFilterSelectionRequest} from "../../models/email-composer.model";
 
-describe("composer member filters without the legacy picker", () => {
+describe("composer member filters worked out on the server", () => {
+  const exclusion = {memberId: "already-sent", name: "Sam Taylor", sentAt: 100};
+
   async function setup() {
+    const filterSelection = vi.fn(async (request: ComposerFilterSelectionRequest) => ({
+      candidateCount: 7,
+      memberIds: request.includeAlreadySent ? ["available", "also-recent", "already-sent"] : ["available", "also-recent"],
+      keptMemberIds: (request.keepMemberIds ?? []).filter(id => id !== "no-consent"),
+      priorSendExclusions: request.preFilterKey ? [exclusion] : []
+    }));
     await TestBed.configureTestingModule({
       imports: [EmailComposerMemberFilterComponent, LoggerTestingModule],
       providers: [
-        {provide: EmailComposerRecipientResolutionService, useValue: {
-          memberMatchesPreFilter: (member: {id: string}) => member.id !== "outside-filter",
-          memberSelectionChipLabel: () => "Recently added members"
-        }},
-        {provide: MemberEmailSendService, useValue: {list: async () => [{memberId: "already-sent", sentAt: 100}]}}
+        {provide: EmailComposerRecipientResolutionService, useValue: {memberSelectionChipLabel: () => "Recently added members"}},
+        {provide: EmailComposerRecipientSourcesService, useValue: {filterSelection}}
       ]
     }).compileComponents();
     const fixture = TestBed.createComponent(EmailComposerMemberFilterComponent);
-    fixture.componentRef.setInput("members", [
-      {id: "available", email: "alex.reed@example.com"},
-      {id: "already-sent", email: "sam.taylor@example.com"},
-      {id: "also-recent", email: "jordan.reed@example.com"},
-      {id: "outside-filter", email: "casey.reed@example.com"},
-      {id: "no-consent", email: "morgan.reed@example.com", emailMarketingConsent: false},
-      {id: "unsubscribed", email: "robin.reed@example.com"},
-      {id: "missing-email"}
-    ]);
+    const selected = vi.fn();
+    const exclusions = vi.fn();
+    fixture.componentInstance.selectedIdsChange.subscribe((ids: string[]) => {
+      selected(ids);
+      fixture.componentRef.setInput("selectedIds", ids);
+    });
+    fixture.componentInstance.priorSendExclusionsChange.subscribe(exclusions);
+    fixture.componentRef.setInput("selectedIds", ["available", "no-consent"]);
     fixture.componentRef.setInput("notificationConfig", {id: "notification", defaultMemberSelection: MemberSelection.RECENTLY_ADDED});
-    fixture.componentRef.setInput("requireConsent", true);
-    fixture.componentRef.setInput("respectBlocks", true);
-    fixture.componentRef.setInput("unsubscribedDates", {unsubscribed: 50});
     fixture.detectChanges();
     await fixture.whenStable();
-    return fixture;
+    return {fixture, filterSelection, selected, exclusions};
   }
 
-  it("renders only the retained filter controls and does not select members on opening", async () => {
-    const fixture = await setup();
+  it("drops people who can no longer be emailed without selecting anyone else on opening", async () => {
+    const {fixture, filterSelection, selected} = await setup();
     expect(fixture.nativeElement.querySelectorAll("input[type=radio]").length).toBe(1);
-    expect(fixture.nativeElement.querySelector("ng-select")).toBeNull();
-    expect(fixture.componentInstance.selectedIds).toEqual([]);
+    expect(filterSelection.mock.calls[0][0]).toEqual(expect.objectContaining({notificationConfigId: "notification", preFilterKey: null, keepMemberIds: ["available", "no-consent"]}));
+    expect(selected).toHaveBeenCalledWith(["available"]);
   });
 
-  it("preserves eligibility and prior-send exclusions when applying a filter", async () => {
-    const fixture = await setup();
-    const exclusions = vi.fn();
-    fixture.componentInstance.priorSendExclusionsChange.subscribe(exclusions);
+  it("applies the server selection and its prior-send exclusions when a filter is chosen", async () => {
+    const {fixture, selected, exclusions} = await setup();
     fixture.componentInstance.applyPreFilter(MemberSelection.RECENTLY_ADDED);
-    expect(fixture.componentInstance.selectedIds).toEqual(["available", "also-recent"]);
-    expect(exclusions).toHaveBeenCalledWith([expect.objectContaining({member: expect.objectContaining({id: "already-sent"}), sentAt: 100})]);
-    fixture.componentRef.setInput("includeAlreadySent", true);
-    fixture.detectChanges();
-    expect(fixture.componentInstance.selectedIds).toEqual(["available", "also-recent", "already-sent"]);
+    await fixture.whenStable();
+    expect(selected).toHaveBeenLastCalledWith(["available", "also-recent"]);
+    expect(exclusions).toHaveBeenCalledWith([exclusion]);
   });
 
   it("toggles already-sent members without reselecting people the user had removed", async () => {
-    const fixture = await setup();
+    const {fixture} = await setup();
     fixture.componentInstance.applyPreFilter(MemberSelection.RECENTLY_ADDED);
-    fixture.componentInstance.selectedIds = ["available"];
+    await fixture.whenStable();
+    fixture.componentRef.setInput("preFilterKey", MemberSelection.RECENTLY_ADDED);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.componentRef.setInput("selectedIds", ["available"]);
     fixture.componentRef.setInput("includeAlreadySent", true);
     fixture.detectChanges();
     expect(fixture.componentInstance.selectedIds).toEqual(["available", "already-sent"]);
