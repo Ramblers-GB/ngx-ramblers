@@ -57,3 +57,20 @@ describe("recipient chip identity", () => {
     expect(instance.canEditRecipientAddress({email: "", name: "New"})).toBe(true);
   });
 });
+
+
+describe("recipient set expansion warning", () => {
+  it("emits the large-set warning without adding an error below the field", () => {
+    const instance = Object.create(RecipientFieldComponent.prototype);
+    const warning = {emit: vi.fn()};
+    Object.assign(instance, {
+      warning,
+      error: {to: null},
+      setCanExpand: () => false,
+      expandableSet: () => true
+    });
+    instance.onChipClick("to", {name: "Recent members", listCount: 3500}, 0);
+    expect(warning.emit).toHaveBeenCalledWith("Recent members has 3500 people, too many to list one by one. Choose a smaller mailing list or member filter to remove individuals.");
+    expect(instance.error.to).toBeNull();
+  });
+});

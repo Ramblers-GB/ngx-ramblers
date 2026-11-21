@@ -1,11 +1,9 @@
 import {Component, EventEmitter, inject, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
-import {isNumber} from "es-toolkit/compat";
 import {NgxLoggerLevel} from "ngx-logger";
-import {Member, MemberBulkLoadDateMap} from "../../models/member.model";
-import {MemberSelection, NotificationConfig, WorkflowAction} from "../../models/mail.model";
-import {PriorSendExclusion, RECIPIENT_PRE_FILTERS, RecipientPreFilter} from "../../models/email-composer.model";
+import {MemberSelection, NotificationConfig} from "../../models/mail.model";
+import {ComposerFilterSelection, PriorSendExclusion, RECIPIENT_PRE_FILTERS, RecipientMode, RecipientPreFilter} from "../../models/email-composer.model";
 import {LoggerFactory} from "../../services/logger-factory.service";
-import {MemberEmailSendService} from "../../services/member-email-send/member-email-send.service";
+import {EmailComposerRecipientSourcesService} from "../../services/email-composer/email-composer-recipient-sources.service";
 import {EmailComposerRecipientResolutionService} from "../../services/email-composer/email-composer-recipient-resolution.service";
 
 @Component({
@@ -29,16 +27,14 @@ import {EmailComposerRecipientResolutionService} from "../../services/email-comp
 })
 export class EmailComposerMemberFilterComponent implements OnChanges {
   private logger = inject(LoggerFactory).createLogger("EmailComposerMemberFilterComponent", NgxLoggerLevel.ERROR);
-  private memberEmailSendService = inject(MemberEmailSendService);
+  private recipientSources = inject(EmailComposerRecipientSourcesService);
   private resolution = inject(EmailComposerRecipientResolutionService);
-  @Input() members: Member[] = [];
   @Input() selectedIds: string[] = [];
   @Input() preFilterKey: MemberSelection | null = null;
   @Input() notificationConfig: NotificationConfig | null = null;
-  @Input() memberBulkLoadDateMap: MemberBulkLoadDateMap | null = null;
-  @Input() requireConsent = false;
-  @Input() respectBlocks = false;
-  @Input() unsubscribedDates: Record<string, number> = {};
+  @Input() narrowListId: number | null = null;
+  @Input() recipientMode: RecipientMode = RecipientMode.SELECTED_MEMBERS;
+  @Input() membersRevision = 0;
   @Input() includeAlreadySent = false;
   @Output() selectedIdsChange = new EventEmitter<string[]>();
   @Output() preFilterKeyChange = new EventEmitter<MemberSelection | null>();
@@ -46,8 +42,8 @@ export class EmailComposerMemberFilterComponent implements OnChanges {
   protected activePreFilterKey: MemberSelection | null = null;
   protected manualMode = true;
   private priorSendExclusions: PriorSendExclusion[] = [];
-  private priorSendDateMap: Record<string, number> = {};
-  private priorSendFetchToken = 0;
+  private selectionToken = 0;
+  private selectionPending = false;
 
   protected applicablePreFilters(): RecipientPreFilter[] {
     const selection = this.notificationConfig?.defaultMemberSelection;
@@ -55,18 +51,11 @@ export class EmailComposerMemberFilterComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes["members"] || changes["preFilterKey"] || changes["requireConsent"] || changes["respectBlocks"]
-      || changes["unsubscribedDates"] || changes["notificationConfig"] || changes["memberBulkLoadDateMap"]) {
-      if (changes["notificationConfig"]) {
-        this.priorSendDateMap = {};
-      }
+    if (changes["preFilterKey"] || changes["notificationConfig"] || changes["narrowListId"] || changes["recipientMode"] || changes["membersRevision"]) {
       this.activePreFilterKey = this.preFilterKey;
       this.manualMode = !this.preFilterKey;
-      this.refreshExclusions();
-      this.dropUnavailableSelectedIds();
-      if (changes["notificationConfig"]) {
-        void this.refreshPriorSendMap();
-      }
+      this.selectionPending = this.selectionPending || (!!changes["notificationConfig"] && !this.manualMode);
+      void this.refreshSelection();
     }
     if (changes["includeAlreadySent"] && !changes["includeAlreadySent"].firstChange && !this.manualMode) {
       this.applyAlreadySentDelta();
@@ -76,121 +65,73 @@ export class EmailComposerMemberFilterComponent implements OnChanges {
   applyPreFilter(key: MemberSelection | null): void {
     this.activePreFilterKey = key;
     this.manualMode = false;
+    this.selectionPending = true;
     this.preFilterKeyChange.emit(key);
-    this.refreshExclusions();
-    this.applySelection();
+    void this.refreshSelection();
   }
 
-  private async refreshPriorSendMap(): Promise<void> {
-    const token = ++this.priorSendFetchToken;
-    const configId = this.notificationConfig?.id ?? null;
-    if (!configId) {
-      this.priorSendDateMap = {};
+  private async refreshSelection(): Promise<void> {
+    const token = ++this.selectionToken;
+    const applySelection = this.selectionPending;
+    const sentIds = applySelection ? [] : this.selectedIds;
+    try {
+      const selection = await this.recipientSources.filterSelection({
+        notificationConfigId: this.notificationConfig?.id ?? null,
+        recipientMode: this.recipientMode,
+        preFilterKey: this.activePreFilterKey,
+        narrowListId: this.narrowListId,
+        includeAlreadySent: this.includeAlreadySent,
+        keepMemberIds: sentIds
+      });
+      if (token === this.selectionToken) {
+        this.applyServerSelection(selection, applySelection, sentIds);
+      }
+    } catch (error) {
+      if (token === this.selectionToken) {
+        this.logger.warn("Could not work out the member filter selection:", error);
+      }
+    }
+  }
+
+  private applyServerSelection(selection: ComposerFilterSelection, applySelection: boolean, sentIds: string[]): void {
+    this.refreshExclusions(this.manualMode ? [] : selection.priorSendExclusions);
+    if (applySelection) {
+      this.selectionPending = false;
+      this.selectedIdsChange.emit(selection.memberIds);
     } else {
-      try {
-        const sends = await this.memberEmailSendService.list(configId);
-        if (token === this.priorSendFetchToken) {
-          this.priorSendDateMap = sends.reduce((dates, send) => ({
-            ...dates,
-            [send.memberId]: Math.max(dates[send.memberId] ?? 0, send.sentAt)
-          }), {} as Record<string, number>);
-        }
-      } catch (error) {
-        if (token === this.priorSendFetchToken) {
-          this.logger.warn("Could not load prior sends:", error);
-          this.priorSendDateMap = {};
-        }
-      }
-      if (token === this.priorSendFetchToken) {
-        this.refreshExclusions();
-        if (!this.manualMode) {
-          this.applySelection();
-        }
+      const kept = new Set(selection.keptMemberIds);
+      const dropped = new Set(sentIds.filter(id => !kept.has(id)));
+      const remaining = this.selectedIds.filter(id => !dropped.has(id));
+      if (remaining.length !== this.selectedIds.length) {
+        this.selectedIdsChange.emit(remaining);
       }
     }
   }
 
-  private dropUnavailableSelectedIds(): void {
-    const availableIds = new Set(this.members.filter(member => !this.memberDisabled(member)).map(member => member.id));
-    const selected = this.selectedIds.filter(id => availableIds.has(id));
-    if (selected.length !== this.selectedIds.length) {
-      this.selectedIds = selected;
-      this.selectedIdsChange.emit(selected);
-    }
-  }
-
-  private priorSendExclusionApplies(): boolean {
-    const selection = this.notificationConfig?.defaultMemberSelection;
-    return !!selection && this.activePreFilterKey === selection && RECIPIENT_PRE_FILTERS.some(filter => filter.key === selection);
-  }
-
-  private refreshExclusions(): void {
-    const exclusions = this.manualMode || !this.priorSendExclusionApplies() ? [] : this.members
-      .filter(member => !this.memberDisabled(member) && this.matchesCriteria(member))
-      .map(member => ({member, sentAt: this.priorSendDateFor(member)}))
-      .filter((entry): entry is PriorSendExclusion => isNumber(entry.sentAt) && entry.sentAt > 0)
-      .sort((a, b) => b.sentAt - a.sentAt);
+  private refreshExclusions(exclusions: PriorSendExclusion[]): void {
     const changed = exclusions.length !== this.priorSendExclusions.length
-      || exclusions.some((entry, index) => entry.member.id !== this.priorSendExclusions[index]?.member.id || entry.sentAt !== this.priorSendExclusions[index]?.sentAt);
+      || exclusions.some((entry, index) => entry.memberId !== this.priorSendExclusions[index]?.memberId || entry.sentAt !== this.priorSendExclusions[index]?.sentAt);
     this.priorSendExclusions = exclusions;
     if (changed) {
       this.priorSendExclusionsChange.emit(exclusions);
     }
   }
 
-  private applySelection(): void {
-    this.selectedIds = this.members
-      .filter(member => !this.memberDisabled(member) && this.matchesCriteria(member))
-      .filter(member => this.includeAlreadySent || !this.priorSendExclusionApplies() || !this.priorSendDateFor(member))
-      .map(member => member.id);
-    this.selectedIdsChange.emit(this.selectedIds);
-  }
-
-  private alreadySentIds(): string[] {
-    return this.priorSendExclusions
-      .map(entry => entry.member.id)
-      .filter((id): id is string => !!id);
-  }
-
   private applyAlreadySentDelta(): void {
-    const alreadySent = this.alreadySentIds();
+    const alreadySent = this.priorSendExclusions.map(entry => entry.memberId);
     if (this.includeAlreadySent) {
       const selected = new Set(this.selectedIds);
       const additions = alreadySent.filter(id => !selected.has(id));
       if (additions.length > 0) {
-        this.selectedIds = [...this.selectedIds, ...additions];
-        this.selectedIdsChange.emit(this.selectedIds);
+        this.selectedIdsChange.emit([...this.selectedIds, ...additions]);
       }
     } else {
       const drop = new Set(alreadySent);
       const next = this.selectedIds.filter(id => !drop.has(id));
       if (next.length !== this.selectedIds.length) {
-        this.selectedIds = next;
         this.selectedIdsChange.emit(next);
       }
     }
-  }
-
-  private memberDisabled(member: Member): boolean {
-    const unsubscribed = !!member.id && isNumber(this.unsubscribedDates[member.id]);
-    return !this.deliverabilityOptional() && (!member.email
-      || (this.respectBlocks && (!!member.emailBlock || unsubscribed))
-      || (this.requireConsent && member.emailMarketingConsent === false));
-  }
-
-  private deliverabilityOptional(): boolean {
-    const actions = this.notificationConfig?.postSendActions ?? [];
-    return this.activePreFilterKey === MemberSelection.MISSING_FROM_BULK_LOAD_MEMBERS
-      || actions.includes(WorkflowAction.BULK_DELETE_GROUP_MEMBER) || actions.includes(WorkflowAction.DISABLE_GROUP_MEMBER);
-  }
-
-  private matchesCriteria(member: Member): boolean {
-    return (this.deliverabilityOptional() || !!member.email)
-      && (!this.activePreFilterKey || this.resolution.memberMatchesPreFilter(member, this.activePreFilterKey));
-  }
-
-  private priorSendDateFor(member: Member): number | null {
-    return member.id ? this.priorSendDateMap[member.id] ?? null : null;
   }
 
   protected labelFor(filter: RecipientPreFilter): string {

@@ -214,12 +214,21 @@ describe("composer branding mode", () => {
         resolvedUnbrandedSenderEmail: () => "secretary@group.example.org.uk"
       },
       recipientResolution: {
+        batchRecipientSelection: () => ({
+          audiences: {to: [], cc: [], bcc: []},
+          memberIds: [],
+          externalRecipients: instance.session.state.externalRecipients,
+          ccRecipients: instance.session.state.ccRecipients,
+          bccRecipients: instance.session.state.bccRecipients
+        }),
         recipientListIds: () => [],
         totalRecipientCount: () => 4,
         committeeOnlyAudience: () => recipientMode === RecipientMode.ENTIRE_LIST,
         sendingAsCampaign: () => false,
         uniqueSendEntries: () => [{name: "chair@group.example.org.uk"}, {name: "guest@example.com"}],
+        sendEntryCount: () => 2,
         expandedHeaderRecipients: recipients => recipients,
+        expandHeaders: recipients => ({recipients, unresolvedMemberIds: [], pendingSets: false}),
         uniqueEntriesFrom: recipients => recipients.map(recipient => ({name: recipient.email})),
         useCommitteeRoleAddresses: () => true
       },
@@ -234,7 +243,8 @@ describe("composer branding mode", () => {
       ccRecipients: [{email: "alex.reed@example.com"}],
       bccRecipients: [{email: "sam.taylor@example.com"}]
     });
-    await instance.startBatchTransactionalSend([]);
+    instance.session.syncStateToUrl = vi.fn().mockResolvedValue(true);
+    await instance.startBatchTransactionalSend();
     expect(startBatch).toHaveBeenCalledWith(expect.objectContaining({
       sharedToRecipients: true,
       useCommitteeRoleAddresses: true,
@@ -253,6 +263,8 @@ describe("composer branding mode", () => {
       recipientResolution: {
         sendingAsCampaign: () => false,
         uniqueSendEntries: () => [{name: "Alex Reed", member: {id: "alex"}}],
+        previewSendEntries: () => [{name: "Alex Reed", member: {id: "alex"}}],
+        sendEntryCount: () => 1,
         totalRecipientCount: () => 1,
         committeeOnlyAudience: () => false
       },

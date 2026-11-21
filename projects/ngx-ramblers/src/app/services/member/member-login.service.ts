@@ -7,6 +7,7 @@ import { UrlService } from "../url.service";
 import { MemberCookie } from "../../models/member.model";
 import { volunteerAdminAllowed } from "../../functions/volunteer-management";
 import { ViewAsService } from "./view-as.service";
+import { emailComposerAllowed } from "../../functions/member-send-eligibility";
 
 @Injectable({
   providedIn: "root"
@@ -73,7 +74,7 @@ export class MemberLoginService {
   }
 
   allowEmailComposer(): boolean {
-    return this.allowCommittee() || this.allowSocialAdminEdits() || this.allowWalkAdminEdits();
+    return emailComposerAllowed(this.loggedInMember());
   }
 
   isAdmin(): boolean {

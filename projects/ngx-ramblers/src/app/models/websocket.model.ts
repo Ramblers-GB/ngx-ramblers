@@ -24,6 +24,7 @@ export interface RamblersUploadAuditProgressResponse {
 export enum EventType {
   BACKUP_EVENTS = "backup-events",
   BACKUP_RESTORE = "backup-restore",
+  BATCH_SEND_PROGRESS = "batch-send-progress",
   CAMPAIGN_RECIPIENT_EXPORT = "campaign-recipient-export",
   CONTENT_MIGRATION_CANCEL = "content-migration-cancel",
   CONTENT_MIGRATION_EXECUTE = "content-migration-execute",
@@ -55,6 +56,7 @@ export enum MessageType {
   BACKUP_MANIFEST_CREATED = "backup-manifest-created",
   BACKUP_MANIFEST_DELETED = "backup-manifest-deleted",
   BACKUP_SESSION_UPDATED = "backup-session-updated",
+  BATCH_SEND_PROGRESS = "batch-send-progress",
   CANCELLED = "cancelled",
   COMPLETE = "complete",
   CONFIG_UPDATED = "config-updated",

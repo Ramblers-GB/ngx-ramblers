@@ -121,7 +121,7 @@ describe("composer personal settings", () => {
         expandedEveryoneSet: true
       },
       rememberBranding: false,
-      recipientSources: {mailMessagingConfig: null, recomputeCandidateMembers: vi.fn()},
+      recipientSources: {mailMessagingConfig: null},
       session: {
         state: {...defaultEmailComposerState(), subject: "old newsletter", introMarkdown: "Old introduction", articleBlocks: [{id: "old"}], attachments: [{filename: "old.pdf"}], selectedMemberIds: ["old-member"], externalRecipients: [{email: "old@example.com"}], ccRecipients: [{email: "cc@example.com"}], bccRecipients: [{email: "bcc@example.com"}], bannerId: "old-banner", brandedSenderEmail: "old-sender@example.com"},
         currentDraftId: "draft-1",

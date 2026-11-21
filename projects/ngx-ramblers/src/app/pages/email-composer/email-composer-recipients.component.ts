@@ -1,7 +1,7 @@
 import {Component, EventEmitter, Input, OnInit, Output, inject} from "@angular/core";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
 import {faAddressCard, faChevronDown, faChevronRight} from "@fortawesome/free-solid-svg-icons";
-import {BrandingMode, RecipientMode, RecipientAddressMode, PriorSendExclusion} from "../../models/email-composer.model";
+import {BrandingMode, ComposerExternalRecipient, RecipientMode, RecipientAddressMode, PriorSendExclusion} from "../../models/email-composer.model";
 import {Member} from "../../models/member.model";
 import {ExternalRecipient} from "../../models/external-recipient.model";
 import {MailingListRadiosComponent} from "../../modules/common/mail/mailing-list-radios";
@@ -12,6 +12,7 @@ import {EmailComposerRecipientSourcesService} from "../../services/email-compose
 import {EmailComposerRecipientResolutionService} from "../../services/email-composer/email-composer-recipient-resolution.service";
 import {EmailComposerRecipientsService} from "../../services/email-composer/email-composer-recipients.service";
 import {everyoneOnSiteLabel} from "../../functions/site-membership";
+import {EmailComposerAudienceService} from "../../services/email-composer/email-composer-audience.service";
 
 
 @Component({
@@ -75,7 +76,7 @@ import {everyoneOnSiteLabel} from "../../functions/site-membership";
                 <label>Choose a list:</label>
                 <app-mailing-list-radios
                   [lists]="recipientSources.nonEmptyLists()"
-                  [members]="recipientSources.members"
+                  [members]="recipientSources.members()"
                   groupName="send-list"
                   idPrefix="send-list"
                   [selectedId]="state.selectedListId"
@@ -86,7 +87,7 @@ import {everyoneOnSiteLabel} from "../../functions/site-membership";
                     <div class="fw-semibold mb-1">Member audience</div>
                     <app-mailing-list-radios
                       [lists]="recipientSources.nonEmptyLists()"
-                      [members]="recipientSources.members"
+                      [members]="recipientSources.members()"
                       [noneSelected]="!state.preFilterKey"
                       groupName="narrow-list"
                       idPrefix="narrow-list"
@@ -98,14 +99,12 @@ import {everyoneOnSiteLabel} from "../../functions/site-membership";
                   </div>
                   <div class="col-12 col-lg-6">
                     <app-email-composer-member-filter
-                      [members]="recipientSources.candidateMembers()"
                       [selectedIds]="state.selectedMemberIds"
                       [preFilterKey]="state.preFilterKey"
                       [notificationConfig]="state.notificationConfig"
-                      [memberBulkLoadDateMap]="recipientSources.memberBulkLoadDateMap"
-                      [requireConsent]="recipientSources.requiresConsent()"
-                      [respectBlocks]="recipientSources.respectsBlocks()"
-                      [unsubscribedDates]="recipientSources.unsubscribedMemberDates()"
+                      [narrowListId]="state.narrowListId"
+                      [recipientMode]="state.recipientMode"
+                      [membersRevision]="recipientSources.membersRevision"
                       [includeAlreadySent]="includeAlreadySent"
                       (selectedIdsChange)="recipients.onFilteredMemberIdsChange($event)"
                       (preFilterKeyChange)="recipients.onPreFilterKeyChange($event)"
@@ -135,7 +134,7 @@ import {everyoneOnSiteLabel} from "../../functions/site-membership";
               <div [class.d-none]="!recipients.narrowMembersExpanded">
                 <app-mailing-list-radios
                   [lists]="recipientSources.unbrandedCommitteeLists()"
-                  [members]="recipientSources.members"
+                  [members]="recipientSources.members()"
                   groupName="unbranded-recipient-list"
                   idPrefix="unbranded-recipient-list"
                   [selectedId]="recipientResolution.unbrandedSelectedListId()"
@@ -154,7 +153,8 @@ import {everyoneOnSiteLabel} from "../../functions/site-membership";
                 [cc]="state.ccRecipients" (ccChange)="recipients.onUnbrandedCcChange($event)"
                 [bcc]="state.bccRecipients" (bccChange)="recipients.onUnbrandedBccChange($event)"
                 [members]="recipients.unbrandedSuggestionMembers()"
-                [knownMembers]="recipientSources.allMembers"
+                [memberSearch]="memberSearch"
+                [knownMembers]="recipientSources.members()"
                 [committeeAddresses]="state.brandingMode === BrandingMode.UNBRANDED && recipientResolution.unbrandedSelectedListId() ? [] : recipientResolution.committeeRecipientAddresses()"
                 [listRecipients]="recipientResolution.unbrandedSelectedListId() ? [] : recipients.unbrandedCommitteeListRecipients()"
                 [ccAllowedEmails]="session.inboxReplyContext || state.brandingMode === BrandingMode.UNBRANDED ? null : recipients.committeeCcEmails()"
@@ -168,6 +168,7 @@ import {everyoneOnSiteLabel} from "../../functions/site-membership";
                 (openMember)="openMember.emit($event)"
                 (openSavedAddress)="openSavedAddress.emit($event)"
                 (addAll)="recipients.addAllFromSelectedList($event)"
+                (warning)="session.notify.warning({title: 'Recipient list too large', message: $event})"
                 (expandList)="recipients.expandListToken($event.field, $event.recipient)"
                 (activeFieldChange)="recipients.onUnbrandedActiveFieldChange($event)"/>
               @if (recipientResolution.committeeRoleSendOffered()) {
@@ -190,6 +191,9 @@ import {everyoneOnSiteLabel} from "../../functions/site-membership";
 })
 export class EmailComposerRecipientsComponent implements OnInit {
   protected session = inject(EmailComposerSessionService);
+  private audienceService = inject(EmailComposerAudienceService);
+  protected readonly memberSearch = (search: string): Promise<ComposerExternalRecipient[]> => this.audienceService.searchMembers(search)
+    .then(results => results.map(result => ({email: result.email, name: result.name, memberId: result.memberId})));
 
   protected everyoneOnSiteLabel(): string {
     return everyoneOnSiteLabel(this.session.systemConfig);

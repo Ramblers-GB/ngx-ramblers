@@ -1,9 +1,11 @@
+import * as composerAudiences from "../../mongo/controllers/email-composer-audience";
+import { batchSendJobs, observeBatchProgress } from "./batch-send-progress";
 import expect from "expect";
 import {afterEach, beforeEach, describe, it} from "mocha";
 import sinon from "sinon";
 import {keys} from "es-toolkit/compat";
 import {Request, Response} from "express";
-import {startBatchTransactionalSend} from "./batch-transactional-send";
+import {cancelBatchTransactional, startBatchTransactionalSend} from "./batch-transactional-send";
 import * as transactionalMail from "./send-transactional-mail";
 import * as config from "../../mongo/controllers/config";
 import * as permissions from "../send-permission";
@@ -17,7 +19,7 @@ import {banner} from "../../mongo/models/banner";
 import {notificationConfig} from "../../mongo/models/notification-config";
 import {member} from "../../mongo/models/member";
 import {BrandingMode, MemberSelection, MergeFieldParamsGroup, SendSmtpEmailRequest} from "../../../../projects/ngx-ramblers/src/app/models/mail.model";
-import {AddresseeType, BatchTransactionalSendRequest, EmailCompositionKind, RecipientMode} from "../../../../projects/ngx-ramblers/src/app/models/email-composer.model";
+import {AddresseeType, BatchSendStatus, ComposerAudienceScope, BatchTransactionalSendRequest, EmailCompositionKind, RecipientMode} from "../../../../projects/ngx-ramblers/src/app/models/email-composer.model";
 import {ConfigKey} from "../../../../projects/ngx-ramblers/src/app/models/config.model";
 import {composerFilterToken, composerListToken} from "../../../../projects/ngx-ramblers/src/app/functions/email-composer";
 import {InboxAliasConfig} from "../../../../projects/ngx-ramblers/src/app/models/inbox.model";
@@ -75,11 +77,77 @@ describe("composer batch delivery and sent inbox headers", () => {
       ...overrides
     };
     const response = {json: sandbox.spy(), status: sandbox.stub().returnsThis()};
-    await startBatchTransactionalSend({body: request, user: {memberId: senderId}, protocol: "https", get: () => "group.example.org.uk"} as unknown as Request, response as unknown as Response);
+    await startBatchTransactionalSend({body: request, user: {memberId: senderId, committee: true}, protocol: "https", get: () => "group.example.org.uk"} as unknown as Request, response as unknown as Response);
     expect(response.status.calledOnceWithExactly(200)).toBe(true);
     await completion;
     return sent;
   }
+
+  it("requires composer access before resolving an audience definition", async () => {
+    const resolve = sandbox.stub(composerAudiences, "memberIdsForAudience");
+    const response = {json: sandbox.spy(), status: sandbox.stub().returnsThis()};
+    await startBatchTransactionalSend({body: {
+      memberIds: [], audiences: {to: [{scope: ComposerAudienceScope.EVERYONE}], cc: [], bcc: []}
+    }, user: {memberId: senderId}} as unknown as Request, response as unknown as Response);
+    expect(response.status.calledWith(403)).toBe(true);
+    expect(resolve.called).toBe(false);
+  });
+
+  [null, 5].forEach(cancelAfter => {
+    it(cancelAfter ? "cancels an 8000-person job without sending the remaining recipients" : "resolves and personalises 8000 recipients on the server, with bounded reads and incremental progress", async () => {
+      const clock: any = sandbox.useFakeTimers({toFake: ["setTimeout"]});
+      clock.loopLimit = 20000;
+      const people = Array.from({length: 8000}, (_, index) => ({
+        _id: index.toString(16).padStart(24, "0"),
+        firstName: `Alex ${index}`,
+        lastName: "Reed",
+        email: `alex.${index}@example.com`,
+        groupMember: true
+      }));
+      const byId = new Map(people.map(person => [person._id, person]));
+      sandbox.stub(composerAudiences, "memberIdsForAudience").resolves(people.map(person => person._id));
+      const reads: number[] = [];
+      (member.find as sinon.SinonStub).callsFake(criteria => {
+        const ids = criteria._id?.$in ?? [];
+        reads.push(ids.length);
+        return {lean: async () => ids.map(id => byId.get(id)).filter(Boolean)};
+      });
+      const jobIdsBefore = new Set(batchSendJobs.keys());
+      const delivery = send({
+        brandingMode: BrandingMode.BRANDED,
+        sharedToRecipients: false,
+        memberIds: [],
+        audiences: {to: [{scope: ComposerAudienceScope.MAILING_LIST, recipientMode: RecipientMode.SELECTED_MEMBERS, listId: 7}], cc: [], bcc: []},
+        externalRecipients: [], ccRecipients: [], bccRecipients: []
+      });
+      await clock.tickAsync(0);
+      const jobId = [...batchSendJobs.keys()].find(id => !jobIdsBefore.has(id));
+      const updates: number[] = [];
+      const stop = observeBatchProgress(jobId, event => {
+        if (!event.snapshot) {
+          updates.push(event.progress.entries.length);
+          if (cancelAfter && event.progress.sentCount === cancelAfter) {
+            void cancelBatchTransactional({params: {jobId}} as any, {status: sandbox.stub().returnsThis(), json: sandbox.spy()} as any);
+          }
+        }
+      });
+      await clock.runAllAsync();
+      const sent = await delivery;
+      stop();
+      expect(sent).toHaveLength(cancelAfter ?? 8000);
+      expect(sent[0].to[0].email).toBe("alex.0@example.com");
+      const lastIndex = (cancelAfter ?? 8000) - 1;
+      expect(sent[lastIndex].to[0].email).toBe(`alex.${lastIndex}@example.com`);
+      expect(sent[0].params.memberMergeFields).not.toEqual(sent[lastIndex].params.memberMergeFields);
+      expect(reads).toHaveLength(16);
+      expect(Math.max(...reads)).toBe(500);
+      expect(updates.length).toBeGreaterThan(cancelAfter ?? 8000);
+      expect(Math.max(...updates)).toBe(1);
+      expect(batchSendJobs.get(jobId).status).toBe(cancelAfter ? BatchSendStatus.CANCELLED : BatchSendStatus.COMPLETED);
+      expect(batchSendJobs.get(jobId).sentCount).toBe(cancelAfter ?? 8000);
+      expect((sentHistory.recordMemberEmailSends as sinon.SinonStub).firstCall.args[0].entries).toHaveLength(cancelAfter ?? 8000);
+    }).timeout(30000);
+  });
 
   [BrandingMode.BRANDED, BrandingMode.UNBRANDED].forEach(brandingMode => {
     [composerListToken(7, "Committee", 2), composerFilterToken(MemberSelection.RECENTLY_ADDED, "All members", 2)].forEach(token => {

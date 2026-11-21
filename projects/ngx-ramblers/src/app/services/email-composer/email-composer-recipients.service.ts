@@ -25,7 +25,7 @@ export class EmailComposerRecipientsService {
     recipientAddressModeTouched = false;
     userPickedRecipientMode = false;
     applyDefaultListIfNeeded(): void {
-        if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST && this.pool.members.length > 0) {
+        if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST && this.pool.audienceFactsLoaded()) {
             this.session.state.preFilterKey = null;
             const lists = this.pool.nonEmptyLists();
             const selectionStillValid = this.session.state.selectedListId != null
@@ -41,7 +41,7 @@ export class EmailComposerRecipientsService {
         const listId = this.session.state.recipientMode === RecipientMode.ENTIRE_LIST
             ? this.session.state.selectedListId
             : this.session.state.narrowListId;
-        if (listId !== null && this.pool.members.length > 0) {
+        if (listId !== null && this.pool.audienceFactsLoaded()) {
             const lists = this.session.state.brandingMode === BrandingMode.UNBRANDED
                 ? this.pool.unbrandedCommitteeLists()
                 : this.pool.nonEmptyLists();
@@ -70,7 +70,7 @@ export class EmailComposerRecipientsService {
         }
     }
     unbrandedSuggestionMembers(): Member[] {
-        return this.pool.members;
+        return this.pool.members();
     }
     unbrandedSuggestionSavedRecipients(): ExternalRecipient[] {
         if (this.session.state.brandingMode !== BrandingMode.UNBRANDED || this.resolver.unbrandedSelectedListId() !== null) {
@@ -115,8 +115,7 @@ export class EmailComposerRecipientsService {
         const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
         return listId === null
             ? []
-            : this.pool.members
-                .filter(member => this.mailListUpdaterService.memberSubscribed(member, listId))
+            : this.pool.membersForIds(this.pool.knownListMemberIds(listId) ?? [])
                 .filter(member => committeeRoleEmailDiffersFromPersonal(member, roles));
     }
     narrowMembersExpanded: boolean = false;
@@ -167,7 +166,7 @@ export class EmailComposerRecipientsService {
         else {
             const list = this.pool.nonEmptyLists().find(item => item.id === this.session.state.narrowListId);
             const selected = this.session.state.selectedMemberIds?.length ?? 0;
-            const pool = this.pool.candidateMembers().length;
+            const pool = this.pool.filterCandidateCount ?? 0;
             const selectedPhrase = `${selected} of ${pool} selected`;
             const key = this.session.state.preFilterKey;
             if (key) {
@@ -199,7 +198,7 @@ export class EmailComposerRecipientsService {
             if (list) {
                 return list.name;
             }
-            else if (this.pool.candidateMembers().length > 0) {
+            else if ((this.pool.filterCandidateCount ?? 0) > 0) {
                 return "members";
             }
             else {
@@ -207,25 +206,26 @@ export class EmailComposerRecipientsService {
             }
         }
     }
-    addAllFromSelectedList(field: RecipientField, replaceExisting = false): void {
+    async addAllFromSelectedList(field: RecipientField, replaceExisting = false): Promise<void> {
         const listId = this.session.state.recipientMode === RecipientMode.ENTIRE_LIST
             ? this.session.state.selectedListId
             : this.session.state.narrowListId;
         const list = this.pool.nonEmptyLists().find(item => item.id === listId);
-        const sourceMembers = this.session.state.recipientMode === RecipientMode.ENTIRE_LIST && listId !== null
-            ? this.pool.members.filter(member => this.mailListUpdaterService.memberSubscribed(member, listId))
-            : this.pool.candidateMembers();
-        const people = sourceMembers
-            .map(member => composerRecipientFromMember(member))
-            .filter((recipient): recipient is ComposerExternalRecipient => !!recipient);
-        if (people.length > 0) {
-            const filterIds = this.session.state.preFilterKey ? this.session.state.selectedMemberIds : [];
-            const filterToken = this.filterTokenForIds(filterIds);
+        const memberIds = listId !== null ? await this.pool.listMemberIdsForList(listId) : await this.pool.everyoneMemberIds();
+        const filterIds = this.session.state.preFilterKey ? this.session.state.selectedMemberIds : [];
+        const filterToken = this.filterTokenForIds(filterIds);
+        const listToken = !filterToken && !!list && (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST
+            || memberIds.length >= COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT);
+        const people = filterToken || listToken
+            ? []
+            : (await this.pool.loadRecordsFor(memberIds))
+                .map(member => composerRecipientFromMember(member))
+                .filter((recipient): recipient is ComposerExternalRecipient => !!recipient);
+        if (memberIds.length > 0) {
             const addition = filterToken
                 ? [filterToken]
-                : (list && (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST
-                    || people.length >= COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT)
-                    ? [composerListToken(list.id, list.name, people.length)]
+                : (listToken && list
+                    ? [composerListToken(list.id, list.name, memberIds.length)]
                     : people.map(person => ({...person, fromBulkAudience: true})));
             const existingRecipients = (recipients: ComposerExternalRecipient[]) => replaceExisting
                 ? []
@@ -263,7 +263,7 @@ export class EmailComposerRecipientsService {
             this.session.state.ccRecipients = [];
         }
     }
-    expandListToken(field: RecipientField, token: ComposerExternalRecipient): void {
+    async expandListToken(field: RecipientField, token: ComposerExternalRecipient): Promise<void> {
         if (composerRecipientSetCanExpand(token) && (token.filterKey || token.email === COMPOSER_EVERYONE_FILTER_EMAIL)) {
             if (token.filterKey) {
                 this.expandedRecipientFilterKeys.add(token.filterKey);
@@ -271,6 +271,7 @@ export class EmailComposerRecipientsService {
             else {
                 this.expandedEveryoneSet = true;
             }
+            await this.pool.ensureMembers(this.session.state.selectedMemberIds);
             const people = this.resolver.memberRecipientsForIds(this.session.state.selectedMemberIds)
                 .map(person => ({...person, fromBulkAudience: true}));
             const replace = (list: ComposerExternalRecipient[]) => this.mergeRecipients(list.filter(item => item.email.toLowerCase() !== token.email.toLowerCase()), people);
@@ -286,14 +287,14 @@ export class EmailComposerRecipientsService {
         }
         else if (composerRecipientSetCanExpand(token) && token.listId) {
             this.expandedRecipientListIds.add(token.listId);
-            const people = this.pool.members
-                .filter(member => this.mailListUpdaterService.memberSubscribed(member, token.listId!) && !!(member.email || "").trim())
+            const people = (await this.pool.listMembers(token.listId))
+                .filter(member => !!(member.email || "").trim())
                 .map(member => composerRecipientFromMember(member))
                 .filter((recipient): recipient is ComposerExternalRecipient => !!recipient)
                 .map(person => ({...person, fromBulkAudience: true}));
             const replace = (list: ComposerExternalRecipient[]) => this.mergeRecipients(list.filter(item => item.email.toLowerCase() !== token.email.toLowerCase()), people);
             if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST) {
-                this.promoteEntireListToSpecificMembers(token.listId);
+                await this.promoteEntireListToSpecificMembers(token.listId);
             }
             if (field === RecipientField.TO) {
                 this.onUnbrandedToChange(replace(this.session.state.externalRecipients ?? []));
@@ -306,8 +307,9 @@ export class EmailComposerRecipientsService {
             }
         }
     }
-    promoteEntireListToSpecificMembers(listId: number): void {
+    async promoteEntireListToSpecificMembers(listId: number): Promise<void> {
         if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST) {
+            const selectedMemberIds = await this.pool.listMemberIdsForList(listId);
             if (this.session.state.brandingMode === BrandingMode.UNBRANDED) {
                 this.session.state.externalRecipients = this.expandListChipsWhenMixedWithPeople(this.session.state.externalRecipients ?? []);
                 this.userPickedRecipientMode = true;
@@ -316,9 +318,7 @@ export class EmailComposerRecipientsService {
                 this.session.syncStateToUrl({[StoredValue.LIST_ID]: null});
             } else {
                 this.session.state.narrowListId = listId;
-                this.session.state.selectedMemberIds = this.pool.members
-                    .filter(member => this.mailListUpdaterService.memberSubscribed(member, listId) && !!member.id && !!(member.email || "").trim())
-                    .map(member => member.id as string);
+                this.session.state.selectedMemberIds = selectedMemberIds;
                 this.userPickedRecipientMode = true;
                 this.setRecipientMode(RecipientMode.SELECTED_MEMBERS);
                 this.session.syncStateToUrl({[StoredValue.LIST_ID]: listId.toString()});
@@ -404,25 +404,35 @@ export class EmailComposerRecipientsService {
     expandListChipsWhenMixedWithPeople(recipients: ComposerExternalRecipient[]): ComposerExternalRecipient[] {
         const listChips = recipients.filter(recipient => isNumber(recipient.listId));
         const others = recipients.filter(recipient => !recipient.listId);
-        if (listChips.length === 0 || others.length === 0 || this.pool.members.length === 0) {
+        const listIds = listChips.map(token => this.pool.knownListMemberIds(token.listId!));
+        const listsReady = listIds.every(ids => !!ids && this.pool.hasAllIds(ids));
+        if (listChips.length === 0 || others.length === 0) {
+            return recipients;
+        }
+        else if (!listsReady) {
+            void this.expandListChipsOnceLoaded(listChips);
             return recipients;
         }
         else {
-            const fromLists = listChips.flatMap(token => this.pool.members
-                .filter(member => this.mailListUpdaterService.memberSubscribed(member, token.listId!) && !!(member.email || "").trim())
-                .map(member => composerRecipientFromMember(member))
-                .filter((item): item is ComposerExternalRecipient => !!item)
+            const fromLists = listIds.flatMap(ids => this.resolver.memberRecipientsForIds(ids ?? [])
                 .map(person => ({...person, fromBulkAudience: true})));
             return this.mergeRecipients(fromLists, others);
         }
     }
-    maybePromoteEntireListAfterHeaderEdit(): void {
+    private async expandListChipsOnceLoaded(listChips: ComposerExternalRecipient[]): Promise<void> {
+        await Promise.all(listChips.map(token => this.pool.listMembers(token.listId!)));
+        const current = this.session.state.externalRecipients ?? [];
+        if (listChips.some(token => current.some(recipient => recipient.listId === token.listId))) {
+            this.onUnbrandedToChange(current);
+        }
+    }
+    async maybePromoteEntireListAfterHeaderEdit(): Promise<void> {
         const recipients = this.session.state.externalRecipients ?? [];
         if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST
             && this.session.state.selectedListId !== null
             && recipients.some(recipient => !recipient.listId)
             && recipients.some(recipient => !!recipient.listId)) {
-            this.promoteEntireListToSpecificMembers(this.session.state.selectedListId);
+            await this.promoteEntireListToSpecificMembers(this.session.state.selectedListId);
         }
     }
     onUnbrandedCcChange(recipients: ComposerExternalRecipient[]): void {
@@ -453,7 +463,7 @@ export class EmailComposerRecipientsService {
     committeeCcEmails(): string[] {
         const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
         const roleEmails = composerCommitteeRecipients(roles).map(recipient => recipient.email.toLowerCase());
-        const memberEmails = this.pool.allMembers
+        const memberEmails = this.pool.members()
             .filter(member => member.committee || memberHoldsCommitteeRole(member, roles))
             .map(member => (member.email || "").toLowerCase())
             .filter(email => !!email);
@@ -508,7 +518,7 @@ export class EmailComposerRecipientsService {
             }
         }
     }
-    applyPreFilterAudienceToTo(): void {
+    async applyPreFilterAudienceToTo(): Promise<void> {
         if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST) {
             this.applyDefaultListIfNeeded();
         }
@@ -517,18 +527,27 @@ export class EmailComposerRecipientsService {
         }
         else {
             const key = this.session.state.preFilterKey;
-            const ids = this.pool.candidateMembers()
-                .filter(member => (!key || this.resolver.memberMatchesPreFilter(member, key)) && !!member.id && !!(member.email || "").trim())
-                .map(member => member.id as string);
-            if (key) {
-                this.expandedRecipientFilterKeys.delete(key);
+            const token = ++this.preFilterAudienceToken;
+            const selection = await this.pool.filterSelection({
+                notificationConfigId: this.session.state.notificationConfig?.id ?? null,
+                recipientMode: this.session.state.recipientMode,
+                preFilterKey: key,
+                narrowListId: this.session.state.narrowListId,
+                includeAlreadySent: false,
+                keepMemberIds: []
+            });
+            if (token === this.preFilterAudienceToken && key === this.session.state.preFilterKey) {
+                if (key) {
+                    this.expandedRecipientFilterKeys.delete(key);
+                }
+                else {
+                    this.expandedEveryoneSet = false;
+                }
+                await this.onFilteredMemberIdsChange(selection.memberIds);
             }
-            else {
-                this.expandedEveryoneSet = false;
-            }
-            this.onFilteredMemberIdsChange(ids);
         }
     }
+    private preFilterAudienceToken = 0;
     clearRecipientSelection(): void {
         this.session.state.selectedListId = null;
         this.session.state.narrowListId = null;
@@ -542,7 +561,6 @@ export class EmailComposerRecipientsService {
         this.expandedEveryoneSet = false;
         this.recipientAddressModeTouched = false;
         this.userPickedRecipientMode = true;
-        this.pool.recomputeCandidateMembers();
         this.setRecipientMode(RecipientMode.SELECTED_MEMBERS);
         this.session.syncStateToUrl({[StoredValue.LIST_ID]: null});
     }
@@ -554,8 +572,7 @@ export class EmailComposerRecipientsService {
         this.session.state.ccRecipients = strip(this.session.state.ccRecipients);
         this.session.state.bccRecipients = strip(this.session.state.bccRecipients);
     }
-    applyUnbrandedListToBcc(): void {
-        this.pool.recomputeCandidateMembers();
+    async applyUnbrandedListToBcc(): Promise<void> {
         if (this.session.state.narrowListId === null) {
             this.session.state.selectedMemberIds = this.resolver.membersInHeader([
                 ...(this.session.state.externalRecipients ?? []),
@@ -564,7 +581,9 @@ export class EmailComposerRecipientsService {
             ]).map(member => member.id).filter((id): id is string => !!id);
         }
         else {
-            const recipients = this.pool.cachedCandidateMembers
+            const narrowListId = this.session.state.narrowListId;
+            const subscribed = await this.pool.listMembers(narrowListId);
+            const recipients = subscribed
                 .map(member => composerRecipientFromMember(member))
                 .filter((recipient): recipient is ComposerExternalRecipient => !!recipient);
             if (this.unbrandedPopulateField === RecipientField.TO) {
@@ -576,7 +595,7 @@ export class EmailComposerRecipientsService {
             else {
                 this.session.state.bccRecipients = recipients;
             }
-            this.session.state.selectedMemberIds = this.pool.cachedCandidateMembers
+            this.session.state.selectedMemberIds = subscribed
                 .map(member => member.id)
                 .filter((id): id is string => !!id);
         }
@@ -584,7 +603,7 @@ export class EmailComposerRecipientsService {
     syncUnbrandedHeadersIntoPicker(): void {
         if (this.session.state.brandingMode === BrandingMode.UNBRANDED && !this.syncingUnbrandedRecipients) {
             const emails = this.resolver.headerEmailSet();
-            const ids = this.pool.allMembers
+            const ids = this.pool.members()
                 .filter(member => member.id && member.email && emails.has(member.email.toLowerCase()))
                 .map(member => member.id as string);
             const unchanged = ids.length === this.session.state.selectedMemberIds.length
@@ -597,17 +616,19 @@ export class EmailComposerRecipientsService {
             }
         }
     }
-    chooseMemberAudience(listId: number | null): void {
-        this.setNarrowListId(listId);
+    async chooseMemberAudience(listId: number | null): Promise<void> {
+        await this.setNarrowListId(listId);
         this.onPreFilterKeyChange(null);
     }
-    setNarrowListId(listId: number | null): void {
+    async setNarrowListId(listId: number | null): Promise<void> {
         this.session.state.narrowListId = listId;
         this.expandedRecipientListIds.clear();
-        this.pool.recomputeCandidateMembers();
-        this.session.state.selectedMemberIds = this.session.state.selectedMemberIds.filter(id => this.pool.cachedCandidateMembers.some(member => member.id === id));
+        const listMemberIds = listId === null ? null : new Set(await this.pool.listMemberIdsForList(listId));
+        this.session.state.selectedMemberIds = listMemberIds === null
+            ? this.session.state.selectedMemberIds
+            : this.session.state.selectedMemberIds.filter(id => listMemberIds.has(id));
         if (this.session.state.recipientMode === RecipientMode.SELECTED_MEMBERS && listId !== null) {
-            this.addAllFromSelectedList(this.unbrandedPopulateField, true);
+            await this.addAllFromSelectedList(this.unbrandedPopulateField, true);
         }
         this.session.syncStateToUrl({ [StoredValue.LIST_ID]: listId?.toString() ?? null });
     }
@@ -650,9 +671,9 @@ export class EmailComposerRecipientsService {
     applyChipSendAddresses(): void {
         const roles = this.pool.committeeReferenceData?.committeeMembers() ?? [];
         const mode = this.session.state.recipientAddressMode;
-        this.session.state.externalRecipients = composerRecipientsForAddressMode(this.session.state.externalRecipients, this.pool.allMembers, roles, mode);
-        this.session.state.ccRecipients = composerRecipientsForAddressMode(this.session.state.ccRecipients, this.pool.allMembers, roles, mode);
-        this.session.state.bccRecipients = composerRecipientsForAddressMode(this.session.state.bccRecipients, this.pool.allMembers, roles, mode);
+        this.session.state.externalRecipients = composerRecipientsForAddressMode(this.session.state.externalRecipients, this.pool.members(), roles, mode);
+        this.session.state.ccRecipients = composerRecipientsForAddressMode(this.session.state.ccRecipients, this.pool.members(), roles, mode);
+        this.session.state.bccRecipients = composerRecipientsForAddressMode(this.session.state.bccRecipients, this.pool.members(), roles, mode);
     }
     applyReplyCcSuggestion(single?: ComposerExternalRecipient): void {
         const toApply = single ? [single] : this.replyCcSuggestion;
@@ -681,10 +702,17 @@ export class EmailComposerRecipientsService {
         this.session.state.selectedMemberIds = ids;
         this.syncRecipientAddressMode();
     }
-    onFilteredMemberIdsChange(ids: string[]): void {
+    private filteredIdsToken = 0;
+    async onFilteredMemberIdsChange(ids: string[]): Promise<void> {
         const current = this.session.state.selectedMemberIds ?? [];
-        if (!(ids.length === current.length && ids.every((id, index) => id === current[index]))) {
-        const recipients = this.resolver.memberRecipientsForIds(ids);
+        const token = ++this.filteredIdsToken;
+        const showsPeople = ids.length < COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT;
+        if (showsPeople) {
+            await this.pool.ensureMembers(ids);
+        }
+        if (token === this.filteredIdsToken && !(ids.length === current.length && ids.every((id, index) => id === current[index]))) {
+        const recipients = showsPeople ? this.resolver.memberRecipientsForIds(ids) : [];
+        const recipientCount = showsPeople ? recipients.length : ids.length;
         const listId = this.session.state.recipientMode === RecipientMode.ENTIRE_LIST
             ? this.session.state.selectedListId
             : this.session.state.narrowListId;
@@ -696,7 +724,7 @@ export class EmailComposerRecipientsService {
         const compactListSelected = listAllowed
             && this.session.state.preFilterKey === null
             && !!list
-            && recipients.length >= COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT
+            && recipientCount >= COMPOSER_VISIBLE_RECIPIENT_CHIP_LIMIT
             && !this.expandedRecipientListIds.has(list.id);
         const filterToken = list && this.session.state.preFilterKey === null ? null : this.filterTokenForIds(ids);
         if (unbranded && !listAllowed) {
@@ -711,7 +739,7 @@ export class EmailComposerRecipientsService {
             const displayedRecipients = filterToken
                 ? [filterToken]
                 : (compactListSelected && list
-                    ? [composerListToken(list.id, list.name, recipients.length)]
+                    ? [composerListToken(list.id, list.name, recipientCount)]
                     : recipients);
             if (this.unbrandedPopulateField === RecipientField.TO) {
                 this.onUnbrandedToChange(displayedRecipients);
@@ -729,9 +757,9 @@ export class EmailComposerRecipientsService {
     }
     onPreFilterKeyChange(key: MemberSelection | null): void {
         this.session.state.preFilterKey = key;
+        void this.pool.loadMemberBulkLoadDateMapIfNeeded();
         if (key && this.session.state.narrowListId !== null) {
             this.session.state.narrowListId = null;
-            this.pool.recomputeCandidateMembers();
             this.session.syncStateToUrl({[StoredValue.LIST_ID]: null});
         }
         this.expandedRecipientFilterKeys.clear();
@@ -800,6 +828,7 @@ export class EmailComposerRecipientsService {
             this.session.state.sendingChannel = SendingChannel.TRANSACTIONAL_BATCH;
             this.session.state.preFilterKey = null;
             this.session.state.selectedMemberIds = [this.forcedMemberId];
+            void this.pool.ensureMembers([this.forcedMemberId]);
         }
     }
 }

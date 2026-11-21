@@ -1,6 +1,7 @@
 import { inject, Injectable } from "@angular/core";
 import { applyAutoSubscribeDefaults, initialiseSubscriptionsFromLists, mailContextFrom, marketingConsentBlocksSubscribeToList, setSubscription, subscriptionFor, unsubscribeFromAllLists } from "../../functions/mail-subscription-defaults";
 import { MemberApplyMailContext } from "../../models/member-bulk-apply.model";
+import { fullyUnsubscribedAt, listUnsubscribedAt, memberSubscribedToAnyList, memberSubscribedToList } from "../../functions/member-send-eligibility";
 import { HttpClient } from "@angular/common/http";
 import { NgxLoggerLevel } from "ngx-logger";
 import { firstValueFrom } from "rxjs";
@@ -369,29 +370,19 @@ export class MailListUpdaterService {
   }
 
   public memberSubscribed(member: Member, listId: number): boolean {
-    const subscriptionCount = member?.mail?.subscriptions?.filter((mailSubscription) => mailSubscription.id === listId && mailSubscription.subscribed)?.length;
-    const subscribed = member?.groupMember && !!(member?.email) && subscriptionCount > 0;
-    return subscribed;
+    return memberSubscribedToList(member, listId);
   }
 
   public memberSubscribedToAnyList(member: Member): boolean {
-    const subscriptionCount = member?.mail?.subscriptions?.filter((mailSubscription) => mailSubscription.subscribed)?.length;
-    const subscribed = member?.groupMember && !!(member?.email) && subscriptionCount > 0;
-    return subscribed;
+    return memberSubscribedToAnyList(member);
   }
 
   public listUnsubscribedAt(member: Member, listId: number): number | null {
-    const subscription = member?.mail?.subscriptions?.find(item => item.id === listId && !item.subscribed && isNumber(item.unsubscribedAt));
-    return subscription?.unsubscribedAt ?? null;
+    return listUnsubscribedAt(member, listId);
   }
 
   public fullyUnsubscribedAt(member: Member): number | null {
-    const subscriptions = member?.mail?.subscriptions ?? [];
-    if (subscriptions.some(item => item.subscribed)) {
-      return null;
-    }
-    const unsubscribeDates = subscriptions.filter(item => isNumber(item.unsubscribedAt)).map(item => item.unsubscribedAt);
-    return unsubscribeDates.length > 0 ? Math.max(...unsubscribeDates) : null;
+    return fullyUnsubscribedAt(member);
   }
 
   private async withBrevoProgress<T>(notify: AlertInstance, action: () => Promise<T>): Promise<T> {

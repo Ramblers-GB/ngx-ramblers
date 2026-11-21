@@ -1,3 +1,6 @@
+import { EmailComposerSendDetailsComponent } from "./email-composer-send-details";
+import { EmailComposerMemberDirectoryService } from "../../services/email-composer/email-composer-member-directory.service";
+import { memberSendBlockReason } from "../../functions/member-send-eligibility";
 import { ComposerMessagePreferencesService } from "../../services/email-composer/composer-message-preferences.service";
 import {
   emailHeadersNearTop,
@@ -57,6 +60,7 @@ import {
   UNBRANDED_LONG_BODY_CHAR_THRESHOLD,
   UNBRANDED_RECIPIENT_LIST_ERROR,
   EmailComposerRecipientEntry,
+  MEMBER_SEND_BLOCK_REASON_LABELS,
   NO_UNAVAILABLE_RECIPIENTS,
   UnavailableRecipient,
   UnavailableRecipientsSnapshot,
@@ -113,7 +117,7 @@ import {
 import { ActivatedRoute, ParamMap, Router, RouterLink } from "@angular/router";
 import { NgClass, NgTemplateOutlet } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { firstValueFrom, Subscription, timer } from "rxjs";
+import { firstValueFrom, Subscription } from "rxjs";
 import { VolunteerManagementService } from "../../services/volunteer-management.service";
 import { volunteerAudience } from "../../functions/volunteer-audiences";
 import {
@@ -126,7 +130,6 @@ import { volunteerLetterSeed } from "../../functions/volunteer-letters";
 import { volunteerMergeFieldsFor } from "../../functions/volunteer-management";
 import { HttpClient } from "@angular/common/http";
 import { MemberResourcesReferenceDataService } from "../../services/member/member-resources-reference-data.service";
-import { switchMap } from "rxjs/operators";
 import { cloneDeep, isBoolean, isNumber, isString, kebabCase, values } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
 import {
@@ -168,13 +171,11 @@ import { Logger, LoggerFactory } from "../../services/logger-factory.service";
 import { NotifierService } from "../../services/notifier.service";
 import { ComposerLeaveCheck } from "../../guards/composer-leave-guard";
 import { PageComponent } from "../../page/page.component";
-import { Member, MemberBulkLoadDateMap } from "../../models/member.model";
+import { Member } from "../../models/member.model";
 import { siteMemberLabel } from "../../functions/site-membership";
-import { MemberBulkLoadAuditService } from "../../services/member/member-bulk-load-audit.service";
 import {
   appendUniqueRecipients,
   batchSendJobWasLost,
-  batchSendRecipientSplit,
   COMPOSER_SUBJECT_REQUIRED_MESSAGE,
   composerCommitteeRecipients,
   composerContentHasPersonalisation,
@@ -268,7 +269,6 @@ import {
   CommitteeNotificationDetailsComponent
 } from "../../notifications/committee/templates/committee-notification-details.component";
 import { DisplayDatePipe } from "../../pipes/display-date.pipe";
-import { FullNameWithAliasPipe } from "../../pipes/full-name-with-alias.pipe";
 import { Confirm, ConfirmType, EditMode, StoredValue } from "../../models/ui-actions.model";
 import { UiActionsService } from "../../services/ui-actions.service";
 import { BsModalService } from "ngx-bootstrap/modal";
@@ -297,6 +297,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
     EmailComposerDocumentsService,
     EmailComposerProgrammeService,
     EmailComposerSessionService,
+    EmailComposerMemberDirectoryService,
     EmailComposerRecipientSourcesService,
     EmailComposerRecipientResolutionService,
     EmailComposerRecipientsService,
@@ -308,6 +309,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
     ...DELAYED_TOOLTIP_PROVIDERS
   ],
   imports: [
+    EmailComposerSendDetailsComponent,
     EmailComposerDraftingComponent,
     EmailComposerDocumentComponent,
     EmailComposerProgrammeComponent,
@@ -343,7 +345,6 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
     NotificationDirective,
     CommitteeNotificationDetailsComponent,
     DisplayDatePipe,
-    FullNameWithAliasPipe,
     RouterLink,
   ],
   template: `
@@ -570,8 +571,8 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                 <div alertDetails>
                 @if (priorSendDetailsExpanded) {
                   <div>
-                    @for (exclusion of priorSendExclusions; track exclusion.member.id) {
-                      <div>{{ exclusion.member | fullNameWithAlias }} -
+                    @for (exclusion of priorSendExclusions; track exclusion.memberId) {
+                      <div>{{ exclusion.name }} -
                         sent {{ priorSendDateLabel(exclusion.sentAt) }}
                       </div>
                     }
@@ -897,7 +898,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
               </div>
             }
             @if (draftsPanelOpen || sentEmailsPanelOpen) {
-              <app-email-composition-list [records]="draftsPanelOpen ? drafts : sentEmails" [members]="recipientSources.members" [busy]="sendInProgress"
+              <app-email-composition-list [records]="draftsPanelOpen ? drafts : sentEmails" [members]="recipientSources.members()" [busy]="sendInProgress"
                                           (open)="openSavedComposition($event.id)" (deleted)="onCompositionsDeleted($event)"/>
             }
             <p-step-panels [class.d-none]="draftsPanelOpen || sentEmailsPanelOpen">
@@ -940,7 +941,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
         @if (captureDefaultEventCards && !eventsStepOmitted() && (state.eventInclusion === EventInclusionMode.AUTO_INCLUDE || state.eventInclusion === EventInclusionMode.SINGLE_EVENT) && committeeNotification) {
           <app-committee-notification-details
             [notification]="committeeNotification"
-            [members]="recipientSources.members"
+            [members]="recipientSources.members()"
             [sourcePagePath]="state.context?.sourcePagePath ?? ''"
             [sourcePageTitle]="state.context?.sourcePageTitle ?? ''"
             [betweenEventsDivider]="state.betweenEventsDivider"/>
@@ -1345,39 +1346,12 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                 }
               </div>
               @if (batchProgress.entries?.length > 0 && (batchProgress.failedCount > 0 || batchProgress.skippedCount > 0 || batchSendComplete())) {
-                <details class="mt-2">
+                <details class="mt-2" (toggle)="batchDetailsExpanded = $any($event.target).open">
                   <summary>Per-recipient detail</summary>
-                  <table class="table table-sm">
-                    <thead>
-                      <tr><th>Member</th><th>Email</th><th>Status</th><th>Notes</th></tr>
-                    </thead>
-                    <tbody>
-                      @for (entry of batchProgress.entries; track entry.memberId) {
-                        <tr>
-                          <td>{{ entry.fullName }}</td>
-                          <td>{{ entry.email || "no email address" }}</td>
-                          <td>{{ entry.notEmailable ? "not emailable" : entry.status }}</td>
-                          <td>{{ entry.errorMessage && entry.note ? (entry.errorMessage + " — " + entry.note) : (entry.note || entry.errorMessage || "") }}</td>
-                        </tr>
-                      }
-                      @for (recipient of state.ccRecipients; track recipient.email) {
-                        <tr>
-                          <td>{{ recipient.name || "" }}</td>
-                          <td>{{ recipient.email }}</td>
-                          <td>cc</td>
-                          <td>copied on every send above</td>
-                        </tr>
-                      }
-                      @for (recipient of state.bccRecipients; track recipient.email) {
-                        <tr>
-                          <td>{{ recipient.name || "" }}</td>
-                          <td>{{ recipient.email }}</td>
-                          <td>bcc</td>
-                          <td>blind copied on every send above</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
+                  @if (batchDetailsExpanded) {
+                    <app-email-composer-send-details [progress]="batchProgress"
+                                                     [cc]="state.ccRecipients" [bcc]="state.bccRecipients"/>
+                  }
                 </details>
               }
             </div>
@@ -1456,7 +1430,6 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   private mailListUpdaterService = inject(MailListUpdaterService);
   private listSubscriberService = inject(ListSubscriberService);
   private memberService = inject(MemberService);
-  private memberBulkLoadAuditService = inject(MemberBulkLoadAuditService);
   private memberLoginService = inject(MemberLoginService);
   private memberResourcesReferenceData = inject(MemberResourcesReferenceDataService);
   private changeDetector = inject(ChangeDetectorRef);
@@ -1545,6 +1518,8 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   protected postSendActionWarningDismissed = false;
   private subscriptions: Subscription[] = [];
   private pollSubscription: Subscription | null = null;
+  private resumedBatchSend = false;
+  protected batchDetailsExpanded = false;
   private userPickedEmailType = false;
   protected readonly EmailComposerStepKey = EmailComposerStepKey;
   protected readonly BatchSendStatus = BatchSendStatus;
@@ -1635,6 +1610,13 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     this.pendingDraftLoad = !!openingComposition;
     this.inboxReplyLoading = !!this.route.snapshot.queryParamMap.get(StoredValue.THREAD);
     this.session.notify = this.notifierService.createAlertInstance(this.session.notifyTarget);
+    const existingBatchJobId = this.route.snapshot.queryParamMap.get(StoredValue.BATCH_SEND_JOB_ID);
+    if (existingBatchJobId) {
+      this.resumedBatchSend = true;
+      this.batchSendJobId = existingBatchJobId;
+      this.sendInProgress = true;
+      this.pollBatchStatus(existingBatchJobId);
+    }
     this.subscriptions.push(this.session.requestStep.subscribe(key => {
       this.goToStepKey(this.canAccessStep(key) ? key : EmailComposerStepKey.RECIPIENTS);
     }));
@@ -1660,6 +1642,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }));
     this.subscriptions.push(this.committeeConfigService.committeeReferenceDataEvents().subscribe(data => {
       this.recipientSources.committeeReferenceData = data;
+      void this.recipientSources.loadCommitteeRoleHolders();
       this.recipientResolution.cachedCommitteeAddresses = composerCommitteeRecipients(data?.committeeMembers() ?? []);
       this.recipients.syncNotificationConfigBccIntoBcc();
       this.recipients.syncRecipientAddressMode();
@@ -1667,10 +1650,12 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }));
     this.subscriptions.push(this.mailMessagingService.events().subscribe(config => {
       this.recipientSources.mailMessagingConfig = config;
+      void this.recipientSources.loadListFacts();
       this.mailMessagingReady = true;
       void this.loadSendStatus();
       if (config.committeeReferenceData) {
         this.recipientSources.committeeReferenceData = config.committeeReferenceData as CommitteeReferenceData;
+        void this.recipientSources.loadCommitteeRoleHolders();
         this.recipientResolution.cachedCommitteeAddresses = composerCommitteeRecipients(this.recipientSources.committeeReferenceData.committeeMembers() ?? []);
         this.recipients.syncNotificationConfigBccIntoBcc();
       }
@@ -1709,10 +1694,9 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   private async loadMembersForComposer(): Promise<void> {
-    this.recipientSources.allMembers = await this.memberService.privilegedFields();
+    await Promise.all([this.recipientSources.loadCommitteeMembers(), this.recipientSources.loadListFacts(), this.recipientSources.loadMemberBulkLoadDateMapIfNeeded()]);
     await this.applyVolunteerAudience();
-    this.recipientSources.members = this.recipientSources.allMembers.filter(this.memberService.filterFor.GROUP_MEMBERS);
-    this.recipientSources.memberBulkLoadDateMap = await this.loadMemberBulkLoadDateMap();
+    await this.recipientSources.settled();
     this.membersLoaded = true;
     if (!this.session.currentDraftId && !this.pendingDraftLoad && !this.openingInboxReply()) {
       this.recipients.applyDefaultListIfNeeded();
@@ -1728,15 +1712,6 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
     this.recipients.syncRecipientAddressMode();
     this.changeDetector.markForCheck();
-  }
-
-  private async loadMemberBulkLoadDateMap(): Promise<MemberBulkLoadDateMap | null> {
-    try {
-      return await this.memberBulkLoadAuditService.createMemberBulkLoadDateMap();
-    } catch (error) {
-      this.logger.warn("could not load memberBulkLoadDateMap:", error);
-      return null;
-    }
   }
 
   private configById(id: string | null | undefined): NotificationConfig | null {
@@ -1768,7 +1743,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       const previousConfigId = this.session.state.notificationConfig?.id ?? null;
       await this.postSendRefresh;
       this.nextConfigAfterSend = null;
-      this.batchProgress = null;
+      this.clearBatchProgress();
       this.campaignSendComplete = false;
       this.sendConfirm.clear();
       this.session.notify.hide();
@@ -1783,10 +1758,8 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   private async refreshMembersAfterPostSendActions(): Promise<void> {
     if ((this.session.state.notificationConfig?.postSendActions ?? []).length > 0) {
       try {
-        this.recipientSources.allMembers = await this.memberService.privilegedFields();
-        this.recipientSources.members = this.recipientSources.allMembers.filter(this.memberService.filterFor.GROUP_MEMBERS);
-        this.recipientSources.memberBulkLoadDateMap = await this.loadMemberBulkLoadDateMap();
-        this.logger.info("refreshed", this.recipientSources.members.length, "group members after post-send actions");
+        await this.recipientSources.refreshAfterMemberChanges();
+        this.logger.info("refreshed audience facts after post-send actions");
       } catch (error) {
         this.logger.error("could not refresh members after post-send actions:", error);
       }
@@ -1891,10 +1864,11 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
           firstValueFrom(this.volunteerManagementService.snapshot(groupCode)),
           this.externalRecipientService.list()
         ]);
+        await this.recipientSources.ensureMembers(snapshot.assignments.map(assignment => assignment.supporterId).filter((id): id is string => !!id));
         const audience = volunteerAudience(criteria, {
           parishes: snapshot.parishes,
           assignments: snapshot.assignments,
-          members: this.recipientSources.allMembers,
+          members: this.recipientSources.members(),
           contacts
         });
         this.session.state.recipientMode = RecipientMode.SELECTED_MEMBERS;
@@ -2378,15 +2352,16 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
   }
 
-  protected openMemberRecord(member: Member): void {
+  protected async openMemberRecord(member: Member): Promise<void> {
+    const fullMember = member?.id ? await this.memberService.getById(member.id) : member;
     this.modalService.show(MemberAdminModalComponent, {
       class: "modal-xl",
       animated: false,
       show: true,
       initialState: {
         editMode: EditMode.EDIT,
-        member: cloneDeep(member),
-        members: this.recipientSources.allMembers
+        member: cloneDeep(fullMember),
+        members: this.recipientSources.members()
       }
     });
   }
@@ -2883,7 +2858,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   protected forcedMemberLabel(): string {
-    const member = this.recipientSources.members?.find(item => item.id === this.recipients.forcedMemberId);
+    const member = this.recipientSources.memberById(this.recipients.forcedMemberId);
     if (!member) {
       return "the selected member";
     } else {
@@ -2902,29 +2877,8 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   protected memberSendBlockReason(member: Member): string | null {
-    if (!member) {
-      return null;
-    } else {
-      if (this.recipientSources.respectsBlocks()) {
-        if (member.emailBlock) {
-          return "is blocked from email";
-        } else {
-          const referenceListId = this.recipientSources.unsubscribeReferenceListId();
-          const unsubscribed = isNumber(referenceListId)
-            ? isNumber(this.mailListUpdaterService.listUnsubscribedAt(member, referenceListId))
-            : isNumber(this.mailListUpdaterService.fullyUnsubscribedAt(member));
-          if (unsubscribed) {
-            return "has unsubscribed from email";
-          } else {
-          }
-        }
-      }
-      if (this.recipientSources.requiresConsent() && member.emailMarketingConsent === false) {
-        return "has not given Head Office marketing consent";
-      } else {
-        return null;
-      }
-    }
+    const reason = memberSendBlockReason(member, this.recipientSources.sendRules());
+    return reason ? MEMBER_SEND_BLOCK_REASON_LABELS[reason] : null;
   }
 
   private unavailableRecipientsSnapshot: UnavailableRecipientsSnapshot | null = null;
@@ -2990,10 +2944,8 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
 
   protected bulkDeletionMemberCount(): number {
     if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST && this.session.state.selectedListId !== null) {
-      return this.recipientSources.members
-        .filter(this.memberService.filterFor.GROUP_MEMBERS)
-        .filter(member => this.mailListUpdaterService.memberSubscribed(member, this.session.state.selectedListId!))
-        .length;
+      const list = this.recipientSources.availableLists().find(item => item.id === this.session.state.selectedListId);
+      return list ? this.recipientSources.subscribedMemberCount(list) : 0;
     } else {
       return this.session.state.selectedMemberIds?.length ?? 0;
     }
@@ -3189,7 +3141,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   estimatedSendTime(): string {
     const count = this.session.state.brandingMode === BrandingMode.UNBRANDED
       ? 1
-      : this.recipientResolution.uniqueSendEntries().length;
+      : this.recipientResolution.sendEntryCount();
     if (count === 0) {
       return "0s";
     } else {
@@ -3208,7 +3160,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       return "to the whole list";
     } else if (this.recipientAddressesArePrivate()) {
       return "to each member individually";
-    } else if (this.recipientResolution.uniqueSendEntries().length === 1) {
+    } else if (this.recipientResolution.sendEntryCount() === 1) {
       return "one email using To, Cc and Bcc";
     } else if (this.contentIsPersonalised()) {
       return "to each member individually";
@@ -3236,9 +3188,19 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
         errors.push("Add at least one To recipient");
       }
       const blockedMembers = this.unavailableSelectedMembers();
-      errors.push(...blockedMembers.map(entry => `${this.memberFullName(entry.member)} ${entry.reason} and cannot be emailed — remove this member from the recipients to continue`));
+      const reasons = Array.from(new Set(blockedMembers.map(entry => entry.reason)));
+      errors.push(...reasons.map(reason => {
+        const names = blockedMembers.filter(entry => entry.reason === reason).map(entry => this.memberFullName(entry.member));
+        return names.length === 1
+          ? `${names[0]} ${reason} and cannot be emailed — remove this member from the recipients to continue`
+          : `${names.join(", ")} ${this.pluralReason(reason)} and cannot be emailed — remove these members from the recipients to continue`;
+      }));
     }
     return errors;
+  }
+
+  private pluralReason(reason: string): string {
+    return reason.replace(/^has /, "have ").replace(/^is /, "are ");
   }
 
   recipientsStepValid(): boolean {
@@ -3826,6 +3788,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       const all = await this.compositionsService.listSummaries();
       this.drafts = all.filter(c => c.status === EmailCompositionStatus.Draft);
       this.sentEmails = all.filter(c => c.status === EmailCompositionStatus.Sent);
+      void this.recipientSources.ensureMembers(all.map(composition => composition.ownerMemberId).filter((id): id is string => !!id));
     } catch (error) {
       this.logger.error("refreshDrafts failed:", error);
       this.drafts = [];
@@ -3858,7 +3821,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   protected compositionOwnerName(composition: EmailCompositionSummary): string | null {
-    const owner = this.recipientSources.members?.find(m => m.id === composition.ownerMemberId);
+    const owner = this.recipientSources.memberById(composition.ownerMemberId);
     if (!owner) {
       return null;
     } else {
@@ -4336,7 +4299,6 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     this.recipients.expandedRecipientFilterKeys.clear();
     this.recipients.expandedEveryoneSet = false;
     this.recipients.syncedNotificationBccKey = null;
-    this.recipientSources.recomputeCandidateMembers();
     if (!config && this.rememberBranding) {
       const storedBranding = this.uiActions.initialValueFor(StoredValue.BRANDING, BrandingMode.BRANDED);
       if (storedBranding === BrandingMode.UNBRANDED) {
@@ -4360,7 +4322,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     this.lastSavedAt = null;
     this.composeShared = false;
     this.draftsPanelOpen = false;
-    this.batchProgress = null;
+    this.clearBatchProgress();
     this.batchJobLost = false;
     this.campaignSendComplete = false;
     this.nextConfigAfterSend = null;
@@ -4399,7 +4361,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     if (!this.currentComposition) {
       return "";
     } else {
-      const owner = this.recipientSources.members?.find(m => m.id === this.currentComposition!.ownerMemberId);
+      const owner = this.recipientSources.memberById(this.currentComposition!.ownerMemberId);
       const ownerName = owner ? `${owner.firstName ?? ""} ${owner.lastName ?? ""}`.trim() : null;
       const when = this.dateUtils.displayDateAndTime(this.currentComposition.savedAt);
       const verb = this.currentComposition.status === "sent" ? "Sent" : "Created";
@@ -4459,8 +4421,10 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     member?: Member;
     external?: ComposerExternalRecipient;
   }[] {
-    return this.recipientResolution.uniqueSendEntries();
+    return this.recipientResolution.previewSendEntries();
   }
+
+  private previewLoadedMember: Member | null = null;
 
   protected previewRecipientCount(): number {
     return this.previewEntries().length;
@@ -4474,7 +4438,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     } else {
       const current = Math.min(this.previewRecipientIndex + 1, count);
       const entry = entries[this.previewRecipientIndex] ?? null;
-      const name = entry?.name ?? "";
+      const name = entry?.name || (entry?.member?.id === this.previewLoadedMember?.id && this.previewLoadedMember ? this.memberFullName(this.previewLoadedMember) : "");
       return name ? `${current} of ${count} - ${name}` : `${current} of ${count}`;
     }
   }
@@ -4558,12 +4522,13 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       const entry = entries[this.previewRecipientIndex];
       const memberId = entry?.member?.id ?? null;
       const member = memberId ? await this.memberService.getById(memberId) : null;
+      this.previewLoadedMember = member;
       const params = this.mailMessagingService.createSendSmtpEmailParams(member, this.session.state.notificationConfig as NotificationConfig, combined, this.session.state.subject, "", top, bottom);
       if ((combined || "").includes("volunteerMergeFields")) {
         await this.ensureVolunteerSnapshot();
       }
       if (this.volunteerSnapshot) {
-        params.volunteerMergeFields = volunteerMergeFieldsFor(memberId, this.volunteerSnapshot.assignments, this.volunteerSnapshot.parishes, this.recipientSources.allMembers, value => this.dateUtils.displayDate(value));
+        params.volunteerMergeFields = volunteerMergeFieldsFor(memberId, this.volunteerSnapshot.assignments, this.volunteerSnapshot.parishes, this.recipientSources.members(), value => this.dateUtils.displayDate(value));
       }
       params.messageMergeFields.subject = isUnbranded ? this.session.state.subject : this.applySubjectAffixes(this.session.state.subject, params);
       const request: TemplateRenderRequest = isUnbranded
@@ -4900,7 +4865,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       if (useCampaign) {
         await this.sendCampaign();
       } else {
-        await this.startBatchTransactionalSend(this.sendMemberIds());
+        await this.startBatchTransactionalSend();
       }
     } catch (error) {
       this.logger.error("send failed", error);
@@ -4991,11 +4956,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     if (postSendActions.length === 0 || campaignListId === null) {
       return "";
     } else {
-      const listMemberIds = this.recipientSources.members
-        .filter(this.memberService.filterFor.GROUP_MEMBERS)
-        .filter(member => this.mailListUpdaterService.memberSubscribed(member, campaignListId))
-        .map(member => member.id)
-        .filter((id): id is string => !!id);
+      const listMemberIds = await this.recipientSources.listMemberIdsForList(campaignListId);
       this.logger.info("applyCampaignPostSendActions: resolved", listMemberIds.length, "list members subscribed to list", campaignListId, "for post-send actions", postSendActions);
       if (listMemberIds.length === 0) {
         this.session.notify.warning({
@@ -5042,31 +5003,15 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
   }
 
-  private sendMemberIds(): string[] {
-    if (this.session.state.recipientMode === RecipientMode.ENTIRE_LIST && this.session.state.selectedListId !== null && !this.recipientResolution.unbrandedListExpanded()) {
-      return this.recipientSources.members
-        .filter(member => this.mailListUpdaterService.memberSubscribed(member, this.session.state.selectedListId!) && !!member.id && !!(member.email || "").trim())
-        .map(member => member.id as string);
-    } else {
-      return this.session.state.selectedMemberIds;
-        }
-  }
-
-  private async startBatchTransactionalSend(memberIds: string[] = this.sendMemberIds()): Promise<void> {
+  private async startBatchTransactionalSend(memberIds: string[] | null = null): Promise<void> {
     await this.prepareDefaultEventCards();
     await this.documents.resolveCommitteeFileLinksForSend();
     const {top, bottom, combined} = this.composedBodyParts();
     const isUnbranded = this.session.state.brandingMode === BrandingMode.UNBRANDED;
-    const expandedTo = this.recipientResolution.expandedHeaderRecipients(this.session.state.externalRecipients ?? []);
-    const toRecipients = expandedTo;
-    const ccRecipients = this.recipientResolution.expandedHeaderRecipients(this.session.state.ccRecipients ?? []);
-    const bccRecipients = this.recipientResolution.expandedHeaderRecipients(this.session.state.bccRecipients ?? []);
-    const splitTo = batchSendRecipientSplit(toRecipients);
-    const headerRouting = toRecipients.length > 0 || ccRecipients.length > 0 || bccRecipients.length > 0;
-    const brandedMemberIds = splitTo.memberIds.length > 0
-      ? splitTo.memberIds
-      : (headerRouting ? [] : memberIds);
-    const brandedExternal = splitTo.externalRecipients;
+    const selection = this.recipientResolution.batchRecipientSelection();
+    const toRecipients = selection.externalRecipients;
+    const ccRecipients = selection.ccRecipients;
+    const bccRecipients = selection.bccRecipients;
     const request: BatchTransactionalSendRequest = {
       recipientListIds: this.recipientResolution.recipientListIds(),
       preFilterKey: this.session.state.preFilterKey,
@@ -5079,11 +5024,10 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       htmlBody: combined,
       htmlBodyTop: top,
       htmlBodyBottom: bottom,
-      memberIds: isUnbranded ? [] : brandedMemberIds,
+      audiences: memberIds === null ? selection.audiences : null,
+      memberIds: memberIds ?? selection.memberIds,
       narrowListId: this.session.state.narrowListId,
-      externalRecipients: (isUnbranded ? toRecipients : brandedExternal).length
-        ? (isUnbranded ? toRecipients : brandedExternal)
-        : undefined,
+      externalRecipients: memberIds === null && toRecipients.length ? toRecipients : undefined,
       ccRecipients: ccRecipients.length ? ccRecipients : undefined,
       bccRecipients: bccRecipients.length ? bccRecipients : undefined,
       senderRoleOverride: isUnbranded ? undefined : this.session.state.notificationConfig!.senderRole,
@@ -5102,6 +5046,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       attachments: this.session.state.attachments?.length ? this.session.state.attachments : undefined
     };
     const start = await this.sendService.startBatch(request);
+    this.resumedBatchSend = false;
     this.batchSendJobId = start.jobId;
     this.batchJobLost = false;
     this.batchProgress = {
@@ -5114,16 +5059,31 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       startedAt: 0,
       entries: []
     };
+    await this.session.syncStateToUrl({[StoredValue.BATCH_SEND_JOB_ID]: start.jobId});
     this.pollBatchStatus(start.jobId);
+  }
+
+  private clearBatchProgress(): void {
+    if (this.batchSendJobId) {
+      void this.session.syncStateToUrl({[StoredValue.BATCH_SEND_JOB_ID]: null});
+    }
+    this.pollSubscription?.unsubscribe();
+    this.pollSubscription = null;
+    this.batchSendJobId = null;
+    this.batchProgress = null;
+    this.resumedBatchSend = false;
+    this.batchDetailsExpanded = false;
   }
 
   private pollBatchStatus(jobId: string): void {
     this.pollSubscription?.unsubscribe();
-    this.pollSubscription = timer(0, 1500)
-      .pipe(switchMap(() => this.sendService.batchStatus(jobId)))
+    this.pollSubscription = this.sendService.batchEvents(jobId)
       .subscribe({
         next: progress => {
           this.batchProgress = progress;
+          if (this.resumedBatchSend) {
+            this.setActiveStepperTab(EmailComposerStepKey.SEND);
+          }
           if (this.batchSendComplete()) {
             this.sendInProgress = false;
             this.userHasEditedComposer = progress.status === BatchSendStatus.COMPLETED ? false : this.userHasEditedComposer;
@@ -5136,7 +5096,9 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
               });
             } else {
               this.session.notify.hide();
-              void this.recordSentToHistory(this.batchProgress?.totalRecipients);
+              if (!this.resumedBatchSend) {
+                void this.recordSentToHistory(this.batchProgress?.totalRecipients);
+              }
               this.postSendRefresh = this.refreshMembersAfterPostSendActions();
               if (progress.status === BatchSendStatus.COMPLETED || progress.status === BatchSendStatus.COMPLETED_WITH_ERRORS) {
                 this.offerNextConfigAfterSend();
@@ -5186,7 +5148,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   sendProgressDescription(): string {
-    const currentEntry = this.batchProgress?.entries.find(entry => entry.status === BatchSendEntryStatus.Pending);
+    const currentEntry = this.batchProgress?.currentEntry ?? this.batchProgress?.entries.find(entry => entry.status === BatchSendEntryStatus.Pending);
     return composerSendProgressDescription({
       sendingAsCampaign: this.recipientResolution.sendingAsCampaign(),
       oneCombinedEmail: this.canShareRecipientAddressesOnTo(),

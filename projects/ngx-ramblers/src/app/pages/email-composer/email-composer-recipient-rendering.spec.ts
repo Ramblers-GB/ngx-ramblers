@@ -1,7 +1,8 @@
+import {EmailComposerAudienceService} from "../../services/email-composer/email-composer-audience.service";
 import {TestBed} from "@angular/core/testing";
 import {By} from "@angular/platform-browser";
 import {DateTime} from "luxon";
-import {describe, expect, it, vi} from "vitest";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import {EmailComposerRecipientsComponent} from "./email-composer-recipients.component";
 import {RecipientFieldComponent} from "../../modules/common/recipient-field/recipient-field";
 import {EmailComposerSessionService} from "../../services/email-composer/email-composer-session.service";
@@ -15,6 +16,8 @@ import {Member} from "../../models/member.model";
 import {RecipientField, RecipientMode} from "../../models/email-composer.model";
 
 describe("recipient picker rendering investigation", () => {
+  afterEach(() => vi.useRealTimers());
+
   function composer() {
     const members = Array.from({length: 1000}, (_, index) => ({
       id: `member-${index}`,
@@ -32,8 +35,7 @@ describe("recipient picker rendering investigation", () => {
     const noLists: never[] = [];
     const noAddresses: never[] = [];
     const pool = {
-      members,
-      allMembers: members,
+      members: () => members,
       unbrandedCommitteeLists: () => noLists,
       requiresConsent: () => false,
       memberBulkLoadDateMap: null
@@ -65,6 +67,10 @@ describe("recipient picker rendering investigation", () => {
         {provide: EmailComposerRecipientSourcesService, useValue: pool},
         {provide: EmailComposerRecipientResolutionService, useValue: resolver},
         {provide: EmailComposerRecipientsService, useValue: recipients},
+        {provide: EmailComposerAudienceService, useValue: {searchMembers: vi.fn((search: string) => Promise.resolve(members
+          .filter(member => `${member.firstName} ${member.lastName} ${member.email}`.toLowerCase().includes(search.toLowerCase()))
+          .slice(0, 20)
+          .map(member => ({memberId: member.id, name: `${member.firstName} ${member.lastName}`, email: member.email}))))}},
         {provide: DateUtilsService, useValue: {dateTimeNowNoTime: () => DateTime.fromMillis(0), displayDate: () => "Example date"}}
       ]
     });
@@ -86,7 +92,8 @@ describe("recipient picker rendering investigation", () => {
     expect(rebuildMemberIndex).not.toHaveBeenCalled();
   });
 
-  it.each([RecipientField.TO, RecipientField.CC, RecipientField.BCC])("does not rebuild the member index for each character typed in %s", field => {
+  it.each([RecipientField.TO, RecipientField.CC, RecipientField.BCC])("does not rebuild the member index for each character typed in %s", async field => {
+    vi.useFakeTimers();
     const {fixture, picker} = composer();
     const input = fixture.nativeElement.querySelector(`[data-recipient-field="${field}"] input.recipient-input`) as HTMLInputElement;
     input.focus();
@@ -97,14 +104,21 @@ describe("recipient picker rendering investigation", () => {
       input.dispatchEvent(new Event("input", {bubbles: true}));
       fixture.detectChanges();
     }
+    await vi.advanceTimersByTimeAsync(300);
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll(".recipient-suggestion").length).toBeGreaterThan(0);
     expect(rebuildMemberIndex).not.toHaveBeenCalled();
   });
 
-  it("adds a suggested person without rebuilding the unchanged member directory", () => {
+  it("adds a suggested person without rebuilding the unchanged member directory", async () => {
+    vi.useFakeTimers();
     const {fixture, picker, session} = composer();
     const input = fixture.nativeElement.querySelector("input.recipient-input") as HTMLInputElement;
     input.focus();
+    fixture.detectChanges();
+    input.value = "Alex";
+    input.dispatchEvent(new Event("input", {bubbles: true}));
+    await vi.advanceTimersByTimeAsync(300);
     fixture.detectChanges();
     const rebuildMemberIndex = vi.spyOn(picker as any, "rebuildMemberIndex");
     fixture.nativeElement.querySelector(".recipient-suggestion").click();
