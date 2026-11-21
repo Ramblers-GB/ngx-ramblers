@@ -1,3 +1,4 @@
+import { accessLevelPermitted } from "../../functions/access-level";
 import { inject, Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { BehaviorSubject, Observable } from "rxjs";
@@ -5,6 +6,8 @@ import { NgxLoggerLevel } from "ngx-logger";
 import { MailchimpCampaign, MailchimpCampaignVersion2 } from "../../models/mailchimp.model";
 import { isUndefined } from "es-toolkit/compat";
 import {
+  ACCESS_LEVEL_DEFINITIONS,
+  generalAccessLevels,
   AccessLevel,
   AccessLevelData,
   MailchimpCampaignMixedVersion,
@@ -133,49 +136,12 @@ export class MemberResourcesReferenceDataService {
   }
 
   accessLevels(): AccessLevelData[] {
-    return [
-      {
-        id: AccessLevel.HIDDEN,
-        description: "Hidden",
-        filter: () => this.siteEditService.active() || false,
-        includeAccessLevelIds: []
-      },
-      {
-        id: AccessLevel.ENVIRONMENT_ADMIN,
-        description: "Environment Admin",
-        filter: () => this.siteEditService.active() || (this.platformAdminEnabled && this.memberLoginService.allowCommittee()),
-        includeAccessLevelIds: [AccessLevel.ENVIRONMENT_ADMIN, AccessLevel.COMMITTEE, AccessLevel.LOGGED_IN_MEMBER, AccessLevel.PUBLIC, AccessLevel.HIDDEN]
-      },
-      {
-        id: AccessLevel.MEMBER_ADMIN,
-        description: "Member Admin",
-        filter: () => this.siteEditService.active() || this.memberLoginService.allowMemberAdminEdits(),
-        includeAccessLevelIds: [AccessLevel.MEMBER_ADMIN, AccessLevel.COMMITTEE, AccessLevel.LOGGED_IN_MEMBER, AccessLevel.PUBLIC, AccessLevel.HIDDEN]
-      },
-      {
-        id: AccessLevel.COMMITTEE,
-        description: "Committee",
-        filter: () => this.siteEditService.active() || this.memberLoginService.allowCommittee(),
-        includeAccessLevelIds: [AccessLevel.COMMITTEE, AccessLevel.LOGGED_IN_MEMBER, AccessLevel.PUBLIC, AccessLevel.HIDDEN]
-      },
-      {
-        id: AccessLevel.LOGGED_IN_MEMBER,
-        description: "Logged-in member",
-        filter: () => this.siteEditService.active() || this.memberLoginService.memberLoggedIn(),
-        includeAccessLevelIds: [AccessLevel.LOGGED_IN_MEMBER]
-      },
-      {
-        id: AccessLevel.NOT_LOGGED_IN,
-        description: "Not logged in",
-        filter: () => this.siteEditService.active() || !this.memberLoginService.memberLoggedIn(),
-        includeAccessLevelIds: [AccessLevel.NOT_LOGGED_IN]
-      },
-      {
-        id: AccessLevel.PUBLIC,
-        description: "Public",
-        filter: () => true,
-        includeAccessLevelIds: [AccessLevel.PUBLIC]
-      }];
+    return generalAccessLevels().map(id => ({
+      id,
+      description: ACCESS_LEVEL_DEFINITIONS[id].description,
+      includeAccessLevelIds: ACCESS_LEVEL_DEFINITIONS[id].includeAccessLevelIds,
+      filter: () => this.siteEditService.active() || accessLevelPermitted(id, this.memberLoginService.loggedInMember(), this.platformAdminEnabled)
+    }));
   }
 
   accessLevelViewTypes(): AccessLevelData[] {

@@ -294,7 +294,7 @@ export const DEFAULT_CONTENT_ENTRIES: ContentText[] = [
   {
     category: "admin",
     name: "committee-file-types-help",
-    text: "* Enter below any file types that are to be referenced and attached as files in the Committee Pages. \n* The Visible by Public controls the visibility of items depending on whether a member is logged in. "
+    text: "* Enter below any file types that are to be referenced and attached as files in the Committee Pages. \n* Who can view sets the access level required to view documents of each file type. Choose Public, Logged-in member, Committee, Member Admin, Environment Admin or Hidden. "
   },
   COMMITTEE_EXPENSES_HELP,
   {

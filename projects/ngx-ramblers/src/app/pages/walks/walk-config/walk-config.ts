@@ -30,7 +30,7 @@ import {
   WalksConfig,
   riskAssessmentContentName
 } from "../../../models/walks-config.model";
-import { AccessLevel, generalAccessLevels } from "../../../models/member-resource.model";
+import { ACCESS_LEVEL_LABELS, AccessLevel, generalAccessLevels } from "../../../models/member-resource.model";
 import { TimePicker } from "../../../date-and-time/time-picker";
 import { UIDateFormat } from "../../../models/date-format.model";
 import { enumValues } from "../../../functions/enums";
@@ -810,17 +810,7 @@ export class WalkConfigComponent implements OnInit, OnDestroy {
   protected readonly mobileAccessLevels = [...generalAccessLevels(), AccessLevel.EVENT_ADMIN];
   protected readonly mobileAppActions = [MobileAppAction.ACCESS, MobileAppAction.FOLLOW, MobileAppAction.RECORD, MobileAppAction.IMPORT, MobileAppAction.EDIT];
   public accessLevels: AccessLevel[] = generalAccessLevels();
-  public accessLevelDescriptions: Record<AccessLevel, string> = {
-    [AccessLevel.HIDDEN]: "No access",
-    [AccessLevel.ENVIRONMENT_ADMIN]: "Environment admin",
-    [AccessLevel.MEMBER_ADMIN]: "Member admin",
-    [AccessLevel.EVENT_ADMIN]: "Walk or event admin",
-    [AccessLevel.EVENT_LEADER]: "Event leader or organiser",
-    [AccessLevel.COMMITTEE]: "Committee",
-    [AccessLevel.LOGGED_IN_MEMBER]: "Logged-in member",
-    [AccessLevel.NOT_LOGGED_IN]: "Not logged in",
-    [AccessLevel.PUBLIC]: "Public"
-  };
+  public accessLevelDescriptions = ACCESS_LEVEL_LABELS;
   defaultWalkStartTimeAsIso(): string {
     return this.dateUtils.isoDateTime(this.dateUtils.startOfTodayAt(this.walksConfig?.defaultWalkStartTime || DEFAULT_WALK_START_TIME));
   }

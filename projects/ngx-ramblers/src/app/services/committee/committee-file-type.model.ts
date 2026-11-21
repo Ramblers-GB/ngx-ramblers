@@ -1,4 +1,1 @@
-export interface FileType {
-  description: string;
-  public?: boolean;
-}
+export { CommitteeFileType as FileType } from "../../models/committee.model";

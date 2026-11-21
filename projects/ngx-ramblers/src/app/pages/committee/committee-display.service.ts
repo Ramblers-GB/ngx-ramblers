@@ -129,7 +129,7 @@ export class CommitteeDisplayService {
   }
 
   fileUrl(committeeFile: CommitteeFile, sourcePagePath?: string) {
-    if (this.isComposedDocument(committeeFile)) {
+    if (this.isComposedDocument(committeeFile) || !this.committeeReferenceData?.isPublic(committeeFile.fileType)) {
       return this.documentPageUrl(committeeFile, sourcePagePath);
     } else {
       return this.committeeFileUrl(committeeFile, FileServeDisposition.DOWNLOAD);

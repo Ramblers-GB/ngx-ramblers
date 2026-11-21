@@ -1,3 +1,7 @@
+import { SortableTableCellDirective } from "../../../../modules/common/sortable-table/sortable-table-cell.directive";
+import { MemberResourcesReferenceDataService } from "../../../../services/member/member-resources-reference-data.service";
+import { AccessLevel } from "../../../../models/member-resource.model";
+import { committeeFileAccessLevel, committeeFileTypeComplete, mapCommitteeFileTypeAccessLevels } from "../../../../functions/committee-file-access";
 import { Component, inject, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { AdminPath, AdminPlatformPath } from "../../../../models/admin-route-paths.model";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
@@ -23,6 +27,9 @@ import {
   CommitteeConfig,
   CommitteeFileMeetingRole,
   CommitteeFileType,
+  CommitteeSettingsTab,
+  LEGACY_COMMITTEE_CONFIGURATION_TAB,
+  CommitteeFileTypeField,
   CommitteeMember,
   DEFAULT_COST_PER_MILE,
   EmailDerivation,
@@ -88,7 +95,7 @@ import { filter, Subscription } from "rxjs";
 import { ConfigKey } from "../../../../models/config.model";
 import { MessageType } from "../../../../models/websocket.model";
 import { WebSocketClientService } from "../../../../services/websockets/websocket-client.service";
-import { cloneDeep, isBoolean, isEqual, isString } from "es-toolkit/compat";
+import { cloneDeep, isBoolean, isEqual, isString, values } from "es-toolkit/compat";
 import { PageComponent } from "../../../../page/page.component";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { ContentTextEditor } from "../../../../modules/common/tiptap-editor/content-text-editor";
@@ -107,8 +114,7 @@ import { AlertComponent } from "ngx-bootstrap/alert";
 import { EnvironmentSetupService } from "../../../../services/environment-setup/environment-setup.service";
 import { SortableTableComponent } from "../../../../modules/common/sortable-table/sortable-table.component";
 import { CloudflareWorkersList } from "../../../../modules/common/cloudflare-workers/cloudflare-workers-list";
-import { SortableTableColumn } from "../../../../modules/common/sortable-table/sortable-table.model";
-import { ThumbnailHeadingFrameComponent } from "../../../../modules/common/thumbnail-heading-frame/thumbnail-heading-frame";
+import { SortableTableColumn, SortableTableSortState } from "../../../../modules/common/sortable-table/sortable-table.model";
 import { DurationPickerComponent } from "../../../../modules/common/duration-picker/duration-picker";
 
 @Component({
@@ -194,8 +200,8 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
         <div class="col-sm-12">
           @if (committeeConfig) {
             <tabset class="custom-tabset">
-              <tab heading="Committee Members" [active]="tabActive('committee-members')" (selectTab)="selectTab('committee-members')">
-                @if (tabActive("committee-members")) {
+              <tab heading="Committee Members" [active]="tabActive(CommitteeSettingsTab.COMMITTEE_MEMBERS)" (selectTab)="selectTab(CommitteeSettingsTab.COMMITTEE_MEMBERS)">
+                @if (tabActive(CommitteeSettingsTab.COMMITTEE_MEMBERS)) {
                 <div class="img-thumbnail thumbnail-admin-edit">
                   <div class="col-sm-12 mt-2 mb-2">
                     <app-content-text-editor standalone category="admin" name="committee-roles-help"
@@ -629,7 +635,7 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                             @if (siteCatchAllError) {
                               <div class="alert alert-warning mt-2 mb-0">
                                 <fa-icon [icon]="ALERT_ERROR.icon"></fa-icon>
-                                <span class="ms-2">{{ siteCatchAllError }}</span>
+                                <div><strong>Could not load catch-all routing</strong><div>{{ siteCatchAllError }}</div></div>
                               </div>
                             }
                           } @else {
@@ -762,7 +768,7 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                                 <div class="col-sm-12 mt-2">
                                   <div class="alert alert-warning mb-0">
                                     <fa-icon [icon]="ALERT_ERROR.icon"></fa-icon>
-                                    <span class="ms-2">{{ catchAllError }}</span>
+                                    <div><strong>Could not update catch-all routing</strong><div>{{ catchAllError }}</div></div>
                                   </div>
                                 </div>
                               }
@@ -775,8 +781,8 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                 </div>
                 }
               </tab>
-              <tab heading="Email logs" [active]="tabActive('email-logs')" (selectTab)="selectTab('email-logs')">
-                @if (tabActive("email-logs")) {
+              <tab heading="Email logs" [active]="tabActive(CommitteeSettingsTab.EMAIL_LOGS)" (selectTab)="selectTab(CommitteeSettingsTab.EMAIL_LOGS)">
+                @if (tabActive(CommitteeSettingsTab.EMAIL_LOGS)) {
                 <div class="img-thumbnail thumbnail-admin-edit">
                   <p class="small text-muted mb-3">Inbound mail for this domain, from Cloudflare Email Routing. Includes catch-all and every role address.</p>
                   <app-email-routing-log
@@ -785,69 +791,66 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                 </div>
                 }
               </tab>
-              <tab heading="Configuration" [active]="tabActive('configuration')" (selectTab)="selectTab('configuration')">
-                @if (tabActive("configuration")) {
-                <app-thumbnail-heading-frame heading="File Types" class="mb-3">
+              <tab heading="File Types" [active]="tabActive(CommitteeSettingsTab.FILE_TYPES)" (selectTab)="selectTab(CommitteeSettingsTab.FILE_TYPES)">
+                @if (tabActive(CommitteeSettingsTab.FILE_TYPES)) {
+                <div class="img-thumbnail thumbnail-admin-edit">
                   <div class="row">
                     <div class="col-sm-12 mt-2 mb-2">
                       <app-content-text-editor standalone category="admin" name="committee-file-types-help"
                                            description="Committee file types help"/>
                     </div>
                   </div>
-                  <div class="badge-button mb-3" (click)="addFileType()"
-                       delay=500 tooltip="Add new file type">
-                    <fa-icon [icon]="faAdd"></fa-icon>
-                    Add new file type
-                  </div>
-                  @for (fileType of committeeConfig.fileTypes; track fileType; let fileTypeIndex = $index) {
-                    <div class="row align-items-end mb-2">
-                      <div class="col-sm-3">
-                        <div class="form-group mb-0">
-                          <label [for]="stringUtils.kebabCase('file-type', fileTypeIndex)">File Type</label>
-                          <input [id]="stringUtils.kebabCase('file-type', fileTypeIndex)" type="text"
-                                 class="form-control input-sm"
-                                 placeholder="Enter File Type Description" [(ngModel)]="fileType.description">
-                        </div>
-                      </div>
-                      <div class="col-sm-3">
-                        <div class="form-group mb-0">
-                          <label [for]="stringUtils.kebabCase('meeting-role', fileTypeIndex)">Meeting role</label>
-                          <select [id]="stringUtils.kebabCase('meeting-role', fileTypeIndex)" class="form-select"
-                                  [(ngModel)]="fileType.meetingRole">
-                            <option [ngValue]="undefined">Not a meeting document</option>
-                            <option [ngValue]="CommitteeFileMeetingRole.AGENDA">Agenda</option>
-                            <option [ngValue]="CommitteeFileMeetingRole.MINUTES">Minutes</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div class="col-sm-3">
-                        <div class="form-group mb-0">
-                          <label [for]="stringUtils.kebabCase('meeting-category', fileTypeIndex)">Meeting</label>
-                          <input [id]="stringUtils.kebabCase('meeting-category', fileTypeIndex)" type="text"
-                                 class="form-control input-sm" [disabled]="!fileType.meetingRole"
-                                 placeholder="e.g. AGM" [(ngModel)]="fileType.meetingCategory">
-                        </div>
-                      </div>
-                      <div class="col-sm-2">
-                        <div class="form-check">
-                          <input [(ngModel)]="fileType.public"
-                                 type="checkbox" class="form-check-input"
-                                 [id]="stringUtils.kebabCase('public', fileTypeIndex)">
-                          <label class="form-check-label" [for]="stringUtils.kebabCase('public', fileTypeIndex)">
-                            Visible by Public</label>
-                        </div>
-                      </div>
-                      <div class="col-sm-1">
-                        <div class="badge-button" (click)="deleteFileType(fileType)"
-                             delay=500 tooltip="Delete file type">
-                          <fa-icon [icon]="faClose"></fa-icon>
-                        </div>
+                  <button class="btn btn-primary mb-3" type="button" (click)="addFileType()" [disabled]="hasIncompleteFileType()">
+                    <fa-icon [icon]="faAdd" class="me-2"/>Add file type
+                  </button>
+                  @if (hasIncompleteFileType()) {
+                    <div class="alert alert-warning d-flex align-items-start mb-3">
+                      <fa-icon [icon]="ALERT_ERROR.icon" class="me-2 mt-1"/>
+                      <div><strong>Complete the file type first</strong>
+                        <div>Enter a description and choose who can view it. Agenda and minutes types also need a meeting name. Complete or remove the unfinished row before adding another.</div>
                       </div>
                     </div>
                   }
-                </app-thumbnail-heading-frame>
-
-                <app-thumbnail-heading-frame heading="Committee documents page" class="mb-3">
+                  <app-sortable-table [columns]="fileTypeColumns" [rows]="committeeConfig.fileTypes"
+                                      [defaultSortKey]="fileTypeSortKey" [defaultSortDirection]="fileTypeSortDirection"
+                                      [trackBy]="trackFileType" emptyMessage="No file types configured. Add a file type to get started."
+                                      (sortChange)="fileTypeSortChanged($event)">
+                    <ng-template [appSortableTableCell]="CommitteeFileTypeField.DESCRIPTION" let-fileType>
+                      <input class="form-control" aria-label="File type" placeholder="File type description"
+                             [(ngModel)]="fileType.description">
+                    </ng-template>
+                    <ng-template [appSortableTableCell]="CommitteeFileTypeField.MEETING_ROLE" let-fileType>
+                      <select class="form-select" aria-label="Meeting role" [(ngModel)]="fileType.meetingRole">
+                        <option [ngValue]="null">Not a meeting document</option>
+                        <option [ngValue]="CommitteeFileMeetingRole.AGENDA">Agenda</option>
+                        <option [ngValue]="CommitteeFileMeetingRole.MINUTES">Minutes</option>
+                      </select>
+                    </ng-template>
+                    <ng-template [appSortableTableCell]="CommitteeFileTypeField.MEETING_CATEGORY" let-fileType>
+                      <input class="form-control" aria-label="Meeting" placeholder="e.g. AGM"
+                             [disabled]="!fileType.meetingRole" [(ngModel)]="fileType.meetingCategory">
+                    </ng-template>
+                    <ng-template [appSortableTableCell]="CommitteeFileTypeField.ACCESS_LEVEL" let-fileType>
+                      <select class="form-select" aria-label="Who can view" [(ngModel)]="fileType.accessLevel">
+                        @for (level of memberResourcesReferenceData.accessLevels(); track level.id) {
+                          <option [ngValue]="level.id">{{ level.description }}</option>
+                        }
+                      </select>
+                    </ng-template>
+                    <ng-template [appSortableTableCell]="CommitteeFileTypeField.ACTIONS" let-fileType>
+                      <button class="btn btn-quiet btn-icon" type="button" (click)="deleteFileType(fileType)"
+                              aria-label="Remove file type" tooltip="Remove file type">
+                        <fa-icon [icon]="faTrash"/>
+                      </button>
+                    </ng-template>
+                  </app-sortable-table>
+                  <p class="text-muted mt-2 mb-0">File administrators can still view and manage all documents, including hidden documents.</p>
+                </div>
+                }
+              </tab>
+              <tab heading="Documents Page" [active]="tabActive(CommitteeSettingsTab.DOCUMENTS_PAGE)" (selectTab)="selectTab(CommitteeSettingsTab.DOCUMENTS_PAGE)">
+                @if (tabActive(CommitteeSettingsTab.DOCUMENTS_PAGE)) {
+                <div class="img-thumbnail thumbnail-admin-edit">
                   <div class="row">
                     <div class="col-sm-12 mt-2 mb-2">
                       <p class="text-muted mb-2">New agendas and minutes are added to this page. Leave it on automatic
@@ -867,9 +870,12 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                       </div>
                     </div>
                   </div>
-                </app-thumbnail-heading-frame>
-
-                <app-thumbnail-heading-frame heading="Meeting Frequency" class="mb-3">
+                </div>
+                }
+              </tab>
+              <tab heading="Meeting Frequency" [active]="tabActive(CommitteeSettingsTab.MEETING_FREQUENCY)" (selectTab)="selectTab(CommitteeSettingsTab.MEETING_FREQUENCY)">
+                @if (tabActive(CommitteeSettingsTab.MEETING_FREQUENCY)) {
+                <div class="img-thumbnail thumbnail-admin-edit">
                   <div class="row">
                     <div class="col-sm-12 mt-2 mb-2">
                       <p class="text-muted mb-2">How often does your committee meet? When you plan a meeting from the
@@ -884,9 +890,12 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                                            idPrefix="meeting-frequency"/>
                     </div>
                   </div>
-                </app-thumbnail-heading-frame>
-
-                <app-thumbnail-heading-frame heading="Expenses" class="mb-3">
+                </div>
+                }
+              </tab>
+              <tab heading="Expenses" [active]="tabActive(CommitteeSettingsTab.EXPENSES)" (selectTab)="selectTab(CommitteeSettingsTab.EXPENSES)">
+                @if (tabActive(CommitteeSettingsTab.EXPENSES)) {
+                <div class="img-thumbnail thumbnail-admin-edit">
                   <div class="row">
                     <div class="col-sm-12 mt-2 mb-2">
                       <app-content-text-editor standalone category="admin" name="committee-expenses-help"
@@ -904,7 +913,7 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
                       }
                     </div>
                   </div>
-                </app-thumbnail-heading-frame>
+                </div>
                 }
               </tab>
             </tabset>
@@ -914,10 +923,8 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
               <div class="col-sm-12 mb-10">
                 <div class="alert {{notifyTarget.alert.class}}">
                   <fa-icon [icon]="notifyTarget.alert.icon"></fa-icon>
-                  @if (notifyTarget.alertTitle) {
-                    <strong>
-                      {{ notifyTarget.alertTitle }}: </strong>
-                  } {{ notifyTarget.alertMessage }}
+                  <strong>{{ notifyTarget.alertTitle || "Committee settings" }}: </strong>
+                  {{ notifyTarget.alertMessage }}
                 </div>
               </div>
             </div>
@@ -930,7 +937,7 @@ import { DurationPickerComponent } from "../../../../modules/common/duration-pic
         </div>
       </div>
     </app-page>`,
-    imports: [PageComponent, TabsetComponent, TabDirective, ContentTextEditor, CommitteeMemberEditor, EmailRoutingLogComponent, TooltipDirective, FontAwesomeModule, FormsModule, AlertComponent, AsyncPipe, RouterLink, RecipientMultiSelect, CloudflareButton, FormSaveActionsComponent, ThumbnailHeadingFrameComponent, DurationPickerComponent, CommitteeUnassignedRolesComponent, SortableTableComponent, CloudflareWorkersList]
+    imports: [PageComponent, TabsetComponent, TabDirective, ContentTextEditor, CommitteeMemberEditor, EmailRoutingLogComponent, TooltipDirective, FontAwesomeModule, FormsModule, AlertComponent, AsyncPipe, RouterLink, RecipientMultiSelect, CloudflareButton, FormSaveActionsComponent, DurationPickerComponent, CommitteeUnassignedRolesComponent, SortableTableComponent, SortableTableCellDirective, CloudflareWorkersList]
 })
 export class CommitteeSettingsComponent implements OnInit, OnDestroy {
   @ViewChild(CommitteeMemberEditor) private roleEditor: CommitteeMemberEditor | null = null;
@@ -943,6 +950,18 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
     cancel: () => this.cancel()
   };
 
+  protected memberResourcesReferenceData = inject(MemberResourcesReferenceDataService);
+  protected readonly CommitteeFileTypeField = CommitteeFileTypeField;
+  protected fileTypeSortKey: string = CommitteeFileTypeField.DESCRIPTION;
+  protected fileTypeSortDirection = SortDirection.ASC;
+  protected readonly trackFileType = (_index: number, fileType: CommitteeFileType) => fileType;
+  protected readonly fileTypeColumns: SortableTableColumn<CommitteeFileType>[] = [
+    {key: CommitteeFileTypeField.DESCRIPTION, label: "File type", sortKey: CommitteeFileTypeField.DESCRIPTION},
+    {key: CommitteeFileTypeField.MEETING_ROLE, label: "Meeting role", sortKey: CommitteeFileTypeField.MEETING_ROLE},
+    {key: CommitteeFileTypeField.MEETING_CATEGORY, label: "Meeting", sortKey: CommitteeFileTypeField.MEETING_CATEGORY},
+    {key: CommitteeFileTypeField.ACCESS_LEVEL, label: "Who can view", sortKey: CommitteeFileTypeField.ACCESS_LEVEL, cellGetter: fileType => this.memberResourcesReferenceData.accessLevelFor(committeeFileAccessLevel(fileType))?.description},
+    {key: CommitteeFileTypeField.ACTIONS, label: "Actions"}
+  ];
   private logger: Logger = inject(LoggerFactory).createLogger("CommitteeSettingsComponent", NgxLoggerLevel.ERROR);
   stringUtils = inject(StringUtilsService);
   private urlService = inject(UrlService);
@@ -972,8 +991,9 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
   public notification: Notification;
   public committeeConfig: CommitteeConfig;
   documentsPages: CommitteeDocumentsPageChoice[] = [];
-  protected readonly knownTabs = ["committee-members", "email-logs", "configuration"];
-  protected selectedTab = this.knownTabs[0];
+  protected readonly CommitteeSettingsTab = CommitteeSettingsTab;
+  protected readonly knownTabs: string[] = values(CommitteeSettingsTab);
+  protected selectedTab: string = CommitteeSettingsTab.COMMITTEE_MEMBERS;
   protected readonly meetingFrequencyUnitOptions = RANGE_UNIT_OPTIONS;
   protected readonly environmentSetupGlobalQueryParams = {[StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS), [StoredValue.SUB_TAB]: EnvironmentSettingsSubTab.GLOBAL};
   protected readonly ALERT_ERROR = ALERT_ERROR;
@@ -1108,10 +1128,13 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
         if (sortOrder === SortDirection.ASC || sortOrder === SortDirection.DESC) {
           this.sortDirection = sortOrder;
         }
+        const fileTypeSortKey = params[StoredValue.COMMITTEE_FILE_TYPE_SORT];
+        this.fileTypeSortKey = this.fileTypeColumns.some(column => column.sortKey === fileTypeSortKey) ? fileTypeSortKey : CommitteeFileTypeField.DESCRIPTION;
+        this.fileTypeSortDirection = params[StoredValue.COMMITTEE_FILE_TYPE_SORT_ORDER] === SortDirection.DESC ? SortDirection.DESC : SortDirection.ASC;
         const tab = params[StoredValue.TAB];
         if (tab) {
-          const requested = (tab === "expenses" || tab === "file-types") ? "configuration" : tab;
-          this.selectedTab = this.knownTabs.includes(requested) ? requested : this.knownTabs[0];
+          const requested = tab === LEGACY_COMMITTEE_CONFIGURATION_TAB ? CommitteeSettingsTab.FILE_TYPES : tab;
+          this.selectedTab = this.knownTabs.includes(requested) ? requested : CommitteeSettingsTab.COMMITTEE_MEMBERS;
         }
         if (editType && this.committeeConfig) {
           this.openEditorForType(editType);
@@ -1120,7 +1143,7 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
         }
       }),
       this.committeeConfigService.committeeConfigEvents().subscribe(committeeConfig => {
-        this.committeeConfig = committeeConfig;
+        this.committeeConfig = {...committeeConfig, fileTypes: mapCommitteeFileTypeAccessLevels(committeeConfig.fileTypes)};
         if (!this.committeeConfig?.expenses) {
           this.committeeConfig.expenses = {costPerMile: DEFAULT_COST_PER_MILE};
         }
@@ -2262,8 +2285,21 @@ export class CommitteeSettingsComponent implements OnInit, OnDestroy {
     this.committeeConfig.fileTypes = this.committeeConfig.fileTypes.filter(item => item !== fileType);
   }
 
-  addFileType() {
-    this.committeeConfig.fileTypes = [...this.committeeConfig.fileTypes, {description: "(Enter new file type)"}];
+  fileTypeSortChanged(state: SortableTableSortState): void {
+    this.router.navigate([], {relativeTo: this.activatedRoute, queryParamsHandling: "merge", queryParams: {
+      [StoredValue.COMMITTEE_FILE_TYPE_SORT]: state.key,
+      [StoredValue.COMMITTEE_FILE_TYPE_SORT_ORDER]: state.direction
+    }, replaceUrl: true});
+  }
+
+  hasIncompleteFileType(): boolean {
+    return (this.committeeConfig?.fileTypes || []).some(fileType => !committeeFileTypeComplete(fileType));
+  }
+
+  addFileType(): void {
+    if (!this.hasIncompleteFileType()) {
+      this.committeeConfig.fileTypes = [...this.committeeConfig.fileTypes, {description: "", accessLevel: AccessLevel.COMMITTEE, meetingRole: null, meetingCategory: null}];
+    }
   }
 
   undoChanges() {

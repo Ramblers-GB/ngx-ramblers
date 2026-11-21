@@ -129,7 +129,7 @@ export async function objectData(req: Request, res: Response) {
     }
     const headers: Record<string, string> = {
       "Content-Type": contentTypeFrom(options.Key),
-      "Cache-Control": res.locals.privateRouteFile ? "private, no-store" : "public, max-age=31536000, immutable"
+      "Cache-Control": (res.locals.privateRouteFile || res.locals.privateCommitteeFile) ? "private, no-store" : "public, max-age=31536000, immutable"
     };
     const disposition = contentDispositionFrom(req);
     if (disposition) {

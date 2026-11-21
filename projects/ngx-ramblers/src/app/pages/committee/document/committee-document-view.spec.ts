@@ -1,3 +1,4 @@
+import { FileUtilsService } from "../../../file-utils.service";
 import {TestBed} from "@angular/core/testing";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {of} from "rxjs";
@@ -13,6 +14,7 @@ describe("document page measurements", () => {
 
   it("measures the header and footer inside the paper-width sheet", () => {
     TestBed.configureTestingModule({imports: [CommitteeDocumentView, LoggerTestingModule], providers: [
+      {provide: FileUtilsService, useValue: {localUrlToBlob: vi.fn()}},
       {provide: SystemConfigService, useValue: {events: () => of({group: {longName: "Hillside Park"}})}},
       {provide: CommitteeConfigService, useValue: {committeeReferenceDataEvents: () => of({contactUsFieldForBuiltInRole: () => "contact@group.example.org.uk"})}},
       {provide: DateUtilsService, useValue: {}},
@@ -43,6 +45,7 @@ describe("document page measurements", () => {
 
   it("reduces the page body height when a rendered sheet overflows", () => {
     TestBed.configureTestingModule({imports: [CommitteeDocumentView, LoggerTestingModule], providers: [
+      {provide: FileUtilsService, useValue: {localUrlToBlob: vi.fn()}},
       {provide: SystemConfigService, useValue: {events: () => of({})}},
       {provide: CommitteeConfigService, useValue: {committeeReferenceDataEvents: () => of({})}},
       {provide: DateUtilsService, useValue: {}},

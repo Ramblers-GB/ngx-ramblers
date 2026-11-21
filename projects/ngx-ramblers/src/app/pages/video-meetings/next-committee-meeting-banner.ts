@@ -12,7 +12,7 @@ import { DateRangeUnit } from "../../models/search.model";
 import { AdminPath, AdminSettingsPath } from "../../models/admin-route-paths.model";
 import { UIDateFormat } from "../../models/date-format.model";
 import { StoredValue } from "../../models/ui-actions.model";
-import { CommitteeFile, CommitteeFileType } from "../../models/committee.model";
+import { CommitteeFile, CommitteeFileType, CommitteeSettingsTab } from "../../models/committee.model";
 import { UpcomingBookedMeeting } from "../../models/video-meeting.model";
 import { lastMeetingEventDate, upcomingBookedMeetings } from "../../functions/upcoming-booked-meetings";
 import { videoMeetingDisplayName } from "../../functions/video-meeting-join";
@@ -49,7 +49,7 @@ import { AlertPanelComponent } from "../../modules/common/alert-panel/alert-pane
     } @else if (suggestedNextDate) {
       <app-alert-panel class="mb-3" actionsEnd title="Next committee meeting due {{ suggestedNextDateLabel }}">
         Based on committee meetings
-        <a [routerLink]="'/' + committeeSettingsPath" [queryParams]="{tab: 'configuration'}">{{ frequencyPhrase }}</a>.
+        <a [routerLink]="'/' + committeeSettingsPath" [queryParams]="meetingFrequencyQueryParams">{{ frequencyPhrase }}</a>.
         <button alertActions type="button" class="btn btn-primary" (click)="plan.emit({title: null, startTime: suggestedDateValue()})">
           Plan this meeting
         </button>
@@ -57,7 +57,7 @@ import { AlertPanelComponent } from "../../modules/common/alert-panel/alert-pane
     } @else if (committeeConfigLoaded && !hasFrequency) {
       <app-alert-panel class="mb-3" title="Set your committee meeting frequency">
         Tell us how often your committee meets in
-        <a [routerLink]="'/' + committeeSettingsPath" [queryParams]="{tab: 'configuration'}">Committee Settings</a>
+        <a [routerLink]="'/' + committeeSettingsPath" [queryParams]="meetingFrequencyQueryParams">Committee Settings</a>
         and the date of the next meeting will be suggested here.
       </app-alert-panel>
     }`
@@ -81,6 +81,7 @@ export class NextCommitteeMeetingBannerComponent implements OnInit, OnDestroy {
   private fileTypes: CommitteeFileType[] = [];
 
   protected readonly committeeSettingsPath = AdminSettingsPath.COMMITTEE_SETTINGS;
+  protected readonly meetingFrequencyQueryParams = {[StoredValue.TAB]: CommitteeSettingsTab.MEETING_FREQUENCY};
   protected readonly minutesPath = AdminPath.MEETING_MINUTES;
 
   ngOnInit(): void {

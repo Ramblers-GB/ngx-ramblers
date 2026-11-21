@@ -1,4 +1,4 @@
-import { BuiltInRole, CommitteeMember, ExpensesConfig } from "./committee.model";
+import { BuiltInRole, CommitteeFileType, CommitteeMember, ExpensesConfig } from "./committee.model";
 
 export interface CommitteeReferenceDataLike {
   createFrom(injectedCommitteeMembers: CommitteeMember[]): CommitteeReferenceDataLike;
@@ -7,7 +7,7 @@ export interface CommitteeReferenceDataLike {
   loggedOnRole(): CommitteeMember;
   loggedOnRoles(): CommitteeMember[];
   committeeMemberForMember(memberId: string): CommitteeMember;
-  fileTypes(): { description?: string; public?: boolean }[];
+  fileTypes(): CommitteeFileType[];
   expensesConfig(): ExpensesConfig;
   committeeMembersForRole(role: string[] | string): CommitteeMember[];
   toRoles(role: string[] | string): string[];
@@ -20,4 +20,5 @@ export interface CommitteeReferenceDataLike {
   description(role: string): string;
   fullName(role: string): string;
   isPublic(fileTypeDescription: string): boolean;
+  isVisible(fileTypeDescription: string, platformAdminEnabled?: boolean): boolean;
 }

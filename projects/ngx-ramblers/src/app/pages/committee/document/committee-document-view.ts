@@ -1,3 +1,4 @@
+import { FileUtilsService } from "../../../file-utils.service";
 import {DocumentAppearance, documentAppearance} from "../../../models/document-appearance.model";
 import { AfterViewInit, Component, ElementRef, inject, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild } from "@angular/core";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
@@ -105,6 +106,8 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
   private logger: Logger = inject(LoggerFactory).createLogger("CommitteeDocumentView", NgxLoggerLevel.ERROR);
   private systemConfigService = inject(SystemConfigService);
   private committeeConfigService = inject(CommitteeConfigService);
+  private fileUtils = inject(FileUtilsService);
+  private imageObjectUrls = new Map<string, Promise<string | null>>();
   private sanitizer = inject(DomSanitizer);
   private zone = inject(NgZone);
   protected dateUtils = inject(DateUtilsService);
@@ -165,6 +168,12 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
 
   ngOnDestroy(): void {
     clearTimeout(this.paginationTimer);
+    this.paginationGeneration++;
+    this.imageObjectUrls.forEach(pending => pending.then(url => {
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+    }));
     this.subscriptions.forEach(subscription => subscription.unsubscribe());
   }
 
@@ -267,7 +276,29 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
     }
   }
 
-  private waitForImages(): Promise<void> {
+  private async authoriseDocumentImages(): Promise<void> {
+    const images = [...(this.measureHost?.nativeElement?.querySelectorAll("img") || [])];
+    await Promise.all(images.map(async image => {
+      const source = new URL(image.src, window.location.href);
+      if (source.origin === window.location.origin && source.pathname.startsWith("/api/aws/s3/committeeFiles/")) {
+        if (!this.imageObjectUrls.has(source.href)) {
+          this.imageObjectUrls.set(source.href, this.fileUtils.localUrlToBlob(source.href)
+            .then(blob => URL.createObjectURL(blob))
+            .catch(error => {
+              this.logger.error("could not load document image", error);
+              return null;
+            }));
+        }
+        const objectUrl = await this.imageObjectUrls.get(source.href);
+        if (objectUrl) {
+          image.src = objectUrl;
+        }
+      }
+    }));
+  }
+
+  private async waitForImages(): Promise<void> {
+    await this.authoriseDocumentImages();
     const images = [...(this.measureHost?.nativeElement?.querySelectorAll("img") || [])]
       .filter(image => !image.complete);
     if (images.length === 0) {

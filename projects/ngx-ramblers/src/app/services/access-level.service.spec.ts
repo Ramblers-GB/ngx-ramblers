@@ -1,3 +1,4 @@
+import { MemberResourcesReferenceDataService } from "./member/member-resources-reference-data.service";
 import { TestBed } from "@angular/core/testing";
 import { AccessLevel } from "../models/member-resource.model";
 import { AccessLevelService } from "./access-level.service";
@@ -13,9 +14,11 @@ describe("AccessLevelService", () => {
     TestBed.configureTestingModule({
       providers: [
         AccessLevelService,
+        {provide: MemberResourcesReferenceDataService, useValue: {platformAdminOn: () => false}},
         {
           provide: MemberLoginService,
           useValue: {
+            loggedInMember: () => loginState.loggedIn ? {memberId: "member-1", committee: loginState.committee, memberAdmin: loginState.memberAdmin} : null,
             memberLoggedIn: () => loginState.loggedIn,
             allowCommittee: () => loginState.committee,
             allowMemberAdminEdits: () => loginState.memberAdmin
