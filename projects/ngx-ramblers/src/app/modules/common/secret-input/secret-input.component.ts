@@ -6,6 +6,7 @@ import { faEye, faEyeSlash, faCopy, faCheck } from "@fortawesome/free-solid-svg-
 import { ClipboardService } from "../../../services/clipboard.service";
 import { TooltipModule } from "ngx-bootstrap/tooltip";
 import { InputSize } from "../../../models/ui-size.model";
+import { SECRET_MASK } from "../../../models/config.model";
 
 @Component({
   selector: "app-secret-input",
@@ -107,17 +108,17 @@ import { InputSize } from "../../../models/ui-size.model";
           [class.copy-only]="!reveal"
           [class.input-sm]="size === InputSize.SM"
           [id]="id"
-          [value]="value"
+          [value]="savedOnServer() ? '' : value"
           (input)="onInputChange($event)"
           (blur)="onTouched()"
-          [placeholder]="placeholder"
+          [placeholder]="savedOnServer() ? savedPlaceholder : placeholder"
           [disabled]="disabled"
           [readonly]="readOnly"
           [attr.autocomplete]="autocomplete"
           [attr.data-form-type]="ignorePasswordManagers ? 'other' : null"
         />
         <div class="secret-input-actions">
-          @if (reveal) {
+          @if (reveal && !savedOnServer()) {
             <button
               type="button"
               class="secret-btn"
@@ -130,18 +131,20 @@ import { InputSize } from "../../../models/ui-size.model";
               <fa-icon [icon]="isVisible ? faEyeSlash : faEye"></fa-icon>
             </button>
           }
-          <button
-            type="button"
-            class="secret-btn"
-            [class.copied]="justCopied"
-            (click)="copyToClipboard()"
-            [disabled]="disabled || !value"
-            [tooltip]="justCopied ? 'Copied!' : copyTooltip"
-            [attr.aria-label]="justCopied ? 'Copied to clipboard' : copyTooltip"
-            delay="500"
-            container="body">
-            <fa-icon [icon]="justCopied ? faCheck : faCopy"></fa-icon>
-          </button>
+          @if (!savedOnServer()) {
+            <button
+              type="button"
+              class="secret-btn"
+              [class.copied]="justCopied"
+              (click)="copyToClipboard()"
+              [disabled]="disabled || !value"
+              [tooltip]="justCopied ? 'Copied!' : copyTooltip"
+              [attr.aria-label]="justCopied ? 'Copied to clipboard' : copyTooltip"
+              delay="500"
+              container="body">
+              <fa-icon [icon]="justCopied ? faCheck : faCopy"></fa-icon>
+            </button>
+          }
         </div>
       </div>
     }
@@ -153,6 +156,7 @@ export class SecretInputComponent implements ControlValueAccessor, OnDestroy {
 
   @Input() id = "";
   @Input() placeholder = "";
+  @Input() savedPlaceholder = "Saved - type a new value to replace it";
   @Input() copyTooltip = "Copy to clipboard";
   @Input() set copyText(value: string) {
     this.value = value || "";
@@ -189,6 +193,7 @@ export class SecretInputComponent implements ControlValueAccessor, OnDestroy {
 
   value = "";
   disabled = false;
+  private storedSecret = false;
   isVisible = false;
   justCopied = false;
   private revealValue = true;
@@ -202,6 +207,11 @@ export class SecretInputComponent implements ControlValueAccessor, OnDestroy {
 
   writeValue(value: any): void {
     this.value = value || "";
+    this.storedSecret = this.value === SECRET_MASK;
+  }
+
+  savedOnServer(): boolean {
+    return this.value === SECRET_MASK;
   }
 
   registerOnChange(fn: any): void {
@@ -218,7 +228,7 @@ export class SecretInputComponent implements ControlValueAccessor, OnDestroy {
 
   onInputChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.value = input.value;
+    this.value = !input.value && this.storedSecret ? SECRET_MASK : input.value;
     this.onChange(this.value);
   }
 

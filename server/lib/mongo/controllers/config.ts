@@ -1,6 +1,6 @@
 import debug from "debug";
 import { Request, Response } from "express";
-import { ConfigDocument, ConfigKey } from "../../../../projects/ngx-ramblers/src/app/models/config.model";
+import { ConfigDocument, ConfigKey, SECRET_MASK } from "../../../../projects/ngx-ramblers/src/app/models/config.model";
 import {
   EnvironmentConfig,
   EnvironmentsConfig,
@@ -51,6 +51,14 @@ const sensitiveKeys = new Set([
   "brevoEventsWebhookSecret",
 ]);
 
+const identifierKeys = new Set([
+  "username",
+  "userName",
+  "accessKeyId",
+]);
+
+const writeOnlyKeys = new Set([...sensitiveKeys].filter(key => !identifierKeys.has(key)));
+
 enum ConfigAccess {
   ADMIN_ONLY,
   PUBLIC_WITH_REDACTION,
@@ -79,7 +87,16 @@ const configAccessPolicy: Record<ConfigKey, ConfigAccess> = {
 };
 export const create = controller.create;
 export const all = controller.all;
-export const deleteOne = controller.deleteOne;
+export async function deleteOne(req: Request, res: Response) {
+  if (await isAdminFromRequest(req)) {
+    return controller.deleteOne(req, res);
+  } else {
+    return res.status(403).json({
+      message: "Admin access required to delete system configuration",
+      error: "Forbidden"
+    });
+  }
+}
 
 function criteriaForKey(configKey: ConfigKey) {
   const criteria = {key: {$eq: configKey}};
@@ -144,9 +161,10 @@ async function updateConfigDocument(req: Request, res: Response) {
     const documentRequest = createDocumentRequest(req);
     const result = await config.findOneAndUpdate(criteria, documentRequest, {upsert: true, new: true, useFindAndModify: false});
     debugLog("post-update:document:", documentRequest, "result:", result);
+    const savedDocument = decryptedDocument(req.body?.key, toObjectWithId(result));
     res.status(200).json({
       action: ApiAction.UPDATE,
-      response: decryptedDocument(req.body?.key, toObjectWithId(result))
+      response: savedDocument ? {...savedDocument, value: configValueForRequester(req.body?.key, savedDocument.value, true)} : savedDocument
     });
     setTimeout(() => broadcast(MessageType.CONFIG_UPDATED, {key: req.body?.key}), 0);
   } catch (error) {
@@ -292,7 +310,7 @@ export async function handleQuery(req: Request, res: Response): Promise<any> {
             }
           };
         }
-        const redactedValue = isAdmin ? configDocument?.value : redactSensitive(configDocument?.value);
+        const redactedValue = configValueForRequester(configKey, configDocument?.value, isAdmin);
         if (isAdmin && configKey === ConfigKey.ENVIRONMENTS) {
           secretsAccessLog("Environments document with secret values returned to %s", memberDescription(await memberFromRequest(req)));
         }
@@ -346,28 +364,36 @@ async function isAdminFromRequest(req: Request): Promise<boolean> {
   }
 }
 
-function redactSensitive(value: any): any {
-  function cleanse(obj: any): any {
-    if (isNull(obj) || isUndefined(obj)) return obj;
-    if (isArray(obj)) return obj.map(cleanse);
-    if (!isObject(obj)) return obj;
-    const out: any = isArray(obj) ? [] : {};
-    for (const k of keys(obj)) {
-      const v = obj[k];
-      if (sensitiveKeys.has(k)) {
-        out[k] = v ? "***" : null;
-        continue;
-      }
-      out[k] = cleanse(v);
-    }
-    return out;
+export function configValueForRequester(configKey: ConfigKey, value: any, isAdmin: boolean): any {
+  if (!isAdmin) {
+    return redactKeys(value, sensitiveKeys);
+  } else if (configKey === ConfigKey.ENVIRONMENTS) {
+    return value;
+  } else {
+    return redactKeys(value, writeOnlyKeys);
   }
+}
 
-  return cleanse(value);
+function redactKeys(value: any, keysToRedact: Set<string>): any {
+  if (isNull(value) || isUndefined(value) || !isObject(value)) {
+    return value;
+  } else if (isArray(value)) {
+    return value.map(item => redactKeys(item, keysToRedact));
+  } else {
+    return Object.fromEntries(keys(value).map(key => [key, keysToRedact.has(key) ? maskedValue(value[key]) : redactKeys(value[key], keysToRedact)]));
+  }
+}
+
+function maskedValue(value: any): any {
+  if (isPlainMap(value)) {
+    return Object.fromEntries(keys(value).map(key => [key, value[key] ? SECRET_MASK : null]));
+  } else {
+    return value ? SECRET_MASK : null;
+  }
 }
 
 function maskedSensitiveValue(value: any): boolean {
-  return isString(value) && value.trim() === "***";
+  return isString(value) && value.trim() === SECRET_MASK;
 }
 
 function preserveCustomGeometry(existingValue: any, incomingValue: any): any {
@@ -385,29 +411,37 @@ function preserveCustomGeometry(existingValue: any, incomingValue: any): any {
   return { ...incomingValue, area: { ...incomingValue.area, groups } };
 }
 
-function restoreSensitiveFields(existingValue: any, incomingValue: any): any {
-  function restore(existing: any, incoming: any): any {
-    if (isNull(existing) || isUndefined(existing)) return incoming;
-    if (isNull(incoming) || isUndefined(incoming)) return existing;
-    if (isArray(existing) && isArray(incoming)) {
-      return incoming.map((item, idx) => restore(existing[idx], item));
-    }
-    if (isObject(existing) && isObject(incoming)) {
-      const merged = {...incoming};
-      for (const k of keys(existing)) {
-        const v = existing[k];
-        if (sensitiveKeys.has(k)) {
-          if (!(k in incoming) || maskedSensitiveValue(incoming[k])) {
-            merged[k] = v;
-          }
-        } else if (isObject(v) && k in incoming && !isNull(incoming[k])) {
-          merged[k] = restore(v, incoming[k]);
-        }
-      }
-      return merged;
-    }
+export function restoreSensitiveFields(existingValue: any, incomingValue: any): any {
+  return restoreValue(existingValue, incomingValue);
+}
+
+function restoreValue(existing: any, incoming: any): any {
+  if (isNull(existing) || isUndefined(existing)) {
+    return incoming;
+  } else if (isNull(incoming) || isUndefined(incoming)) {
+    return existing;
+  } else if (isArray(existing) && isArray(incoming)) {
+    return incoming.map((item, index) => restoreValue(existing[index], item));
+  } else if (isObject(existing) && isObject(incoming)) {
+    return keys(existing).filter(key => sensitiveKeys.has(key) || key in incoming).reduce((merged, key) =>({...merged, [key]: restoredField(key, existing[key], incoming)}), {...incoming});
+  } else {
     return incoming;
   }
+}
 
-  return restore(existingValue, incomingValue);
+function restoredField(key: string, existing: any, incoming: any): any {
+  const incomingValue = incoming[key];
+  if (sensitiveKeys.has(key) && isPlainMap(existing) && isPlainMap(incomingValue)) {
+    return Object.fromEntries(keys(incomingValue).map(entryKey => [entryKey, maskedSensitiveValue(incomingValue[entryKey]) ? existing[entryKey] : incomingValue[entryKey]]));
+  } else if (sensitiveKeys.has(key)) {
+    return !(key in incoming) || maskedSensitiveValue(incomingValue) ? existing : incomingValue;
+  } else if (isObject(existing) && key in incoming && !isNull(incomingValue)) {
+    return restoreValue(existing, incomingValue);
+  } else {
+    return incomingValue;
+  }
+}
+
+function isPlainMap(value: any): boolean {
+  return isObject(value) && !isArray(value);
 }

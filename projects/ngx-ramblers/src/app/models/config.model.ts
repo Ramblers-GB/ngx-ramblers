@@ -1,5 +1,7 @@
 import { Identifiable } from "./api-response.model";
 
+export const SECRET_MASK = "***";
+
 export enum ConfigKey {
   ADMIN_ALERTS = "admin-alerts",
   BOOKING = "booking",

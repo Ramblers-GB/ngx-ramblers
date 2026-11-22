@@ -9,12 +9,13 @@ import { systemConfig as loadSystemConfig } from "../config/system-config";
 import { pingSalesforce } from "./salesforce-client";
 import { configuredSalesforce, parseGroupCodes, salesforceEndpointBaseUrl } from "./salesforce-config";
 import { runSalesforceSync } from "./salesforce-sync";
+import { restoreSensitiveFields } from "../mongo/controllers/config";
 
 export async function testSalesforceConnection(req: Request, res: Response): Promise<void> {
   const overrideConfig: SalesforceConfig | undefined = req.body?.config;
   const persistedConfig = await configuredSalesforce();
   const candidateConfig: SalesforceConfig | null = overrideConfig
-    ? { ...(persistedConfig || ({} as SalesforceConfig)), ...overrideConfig }
+    ? restoreSensitiveFields(persistedConfig, { ...(persistedConfig || ({} as SalesforceConfig)), ...overrideConfig })
     : persistedConfig;
   if (!candidateConfig?.endpointBaseUrl) {
     const result: SalesforceTestConnectionResult = {
