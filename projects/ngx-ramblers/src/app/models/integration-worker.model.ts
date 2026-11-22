@@ -323,12 +323,25 @@ export interface IntegrationWorkerBackupOptions {
   user?: string;
 }
 
+export interface IntegrationWorkerRestoreOptions {
+  environment: string;
+  from: string;
+  database?: string;
+  collections?: string[];
+  drop?: boolean;
+  includeS3?: boolean;
+  user?: string;
+}
+
 export interface IntegrationWorkerBackupsJobRequest {
   jobId: string;
   encryptedMongoUri: string;
   callback: IntegrationWorkerCallbackConfig;
   sessionMongoId?: string;
   options?: IntegrationWorkerBackupOptions;
+  migrationId?: string;
+  encryptedMoveRequest?: string;
+  restoreOptions?: IntegrationWorkerRestoreOptions;
 }
 
 export interface IntegrationWorkerBackupsProgressCallback {
@@ -343,6 +356,7 @@ export interface IntegrationWorkerBackupsProgressCallback {
 export interface IntegrationWorkerBackupsResultCallback {
   jobId: string;
   sessionMongoId?: string;
+  migrationId?: string;
   status: IntegrationWorkerResultStatus;
   errorMessage?: string;
 }

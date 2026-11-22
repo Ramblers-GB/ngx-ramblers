@@ -1,4 +1,5 @@
 import debug from "debug";
+import { createEnvironmentMigrationService } from "../backup/environment-migration-service";
 import { Request, Response } from "express";
 import { envConfig } from "../env-config/env-config";
 import { verifySignedJsonRequest } from "./integration-worker-crypto";
@@ -46,6 +47,10 @@ export async function backupsResultCallback(req: Request, res: Response): Promis
     if (body?.sessionMongoId && body.status === IntegrationWorkerResultStatus.Error) {
       const service = await createBackupAndRestoreService();
       await service.failPendingBackup(body.sessionMongoId, body.errorMessage || "Backup failed");
+      await service.failPendingRestore(body.sessionMongoId, body.errorMessage || "Restore failed");
+    }
+    if (body?.migrationId && body.status === IntegrationWorkerResultStatus.Error) {
+      await createEnvironmentMigrationService().failQueuedMigration(body.migrationId, body.errorMessage || "Move failed on the integration worker");
     }
     if (!session) {
       debugLog("result: no waiting cron session for jobId:", body?.jobId);

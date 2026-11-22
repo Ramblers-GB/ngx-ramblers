@@ -43,6 +43,8 @@ import { EmptyCollectionCandidate, EmptyCollectionCleanupPreview, EmptyCollectio
 import {
   AtlasClusterCreateRequest,
   AtlasClusterDeleteRequest,
+  AtlasGhostDatabaseDeleteRequest,
+  AtlasLeftoverLoginDeleteRequest,
   AtlasClusterRow,
   AtlasClusterView
 } from "../../models/atlas-cluster.model";
@@ -294,6 +296,24 @@ export class EnvironmentSetupService {
     const response = await this.commonDataService.responseFrom(
       this.logger,
       this.http.delete<ApiResponse>(`${this.BASE_URL}/atlas-clusters/${encodeURIComponent(request.projectId)}/${encodeURIComponent(request.name)}`, this.opts),
+      this.notifications
+    );
+    return response as unknown as {message: string};
+  }
+
+  async deleteGhostDatabase(request: AtlasGhostDatabaseDeleteRequest): Promise<{message: string}> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.post<ApiResponse>(`${this.BASE_URL}/atlas-ghost-databases/delete`, request, this.opts),
+      this.notifications
+    );
+    return response as unknown as {message: string};
+  }
+
+  async deleteLeftoverLogin(request: AtlasLeftoverLoginDeleteRequest): Promise<{message: string}> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.post<ApiResponse>(`${this.BASE_URL}/atlas-leftover-logins/delete`, request, this.opts),
       this.notifications
     );
     return response as unknown as {message: string};

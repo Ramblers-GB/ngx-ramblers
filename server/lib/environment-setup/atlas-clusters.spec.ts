@@ -1,12 +1,13 @@
 import expect from "expect";
 import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
-import { AtlasClusterTier, clusterAcceptsMigratedSite, clusterCanBeDeleted, clusterCapacity, clusterFullness, ClusterFullnessLevel, flexMonthlyDollars, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { AtlasAlertStatus, AtlasClusterTier, clusterAcceptsMigratedSite, connectionsNearLimit, clusterCanBeDeleted, clusterCapacity, clusterFullness, ClusterFullnessLevel, flexMonthlyDollars, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, createAtlasCluster, deleteAtlasCluster, loadFromMeasurements, processesForCluster, registrationMongoCluster } from "./atlas-clusters";
+import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, connectionsFromMeasurements, inBatches, recentClusterAlerts, usageFromDatabaseStats, createAtlasCluster, deleteAtlasCluster, loadFromMeasurements, processesForCluster, registrationMongoCluster } from "./atlas-clusters";
 import * as environmentsConfig from "../environments/environments-config";
 import * as registrationStore from "../site-registration/registration-store";
 import * as mongoDatabaseUser from "./mongo-database-user";
+import * as ghostDatabases from "./atlas-ghost-databases";
 
 describe("atlas-clusters", () => {
   const sandbox = sinon.createSandbox();
@@ -19,6 +20,8 @@ describe("atlas-clusters", () => {
     sandbox.stub(environmentsConfig, "configuredEnvironments").resolves({environments: []});
     sandbox.stub(registrationStore, "registrationSettings").resolves({sourceEnvironmentName: "template"} as never);
     sandbox.stub(mongoDatabaseUser, "platformAtlasAccess").resolves({projectId: "project-1", publicKey: "public-key", privateKey: "private-key"});
+    sandbox.stub(ghostDatabases, "atlasGhostDatabases").resolves([]);
+sandbox.stub(ghostDatabases, "atlasLeftoverLogins").resolves([]);
     const fetchStub = sandbox.stub(globalThis, "fetch");
     fetchStub.callsFake(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
@@ -303,5 +306,55 @@ describe("atlas-clusters", () => {
   it("uses the Atlas default cluster for new sites instead of the content template", () => {
     expect(registrationMongoCluster({environments: [], atlas: {defaultCluster: "ngx-ramblers-nonprod.abc123"}}, "template.abc123")).toBe("ngx-ramblers-nonprod.abc123");
     expect(registrationMongoCluster({environments: []}, "template.abc123")).toBe("template.abc123");
+  });
+
+  it("counts collections, indexes and size from one dbStats result", () => {
+    expect(usageFromDatabaseStats({collections: 61, views: 2, indexes: 185, dataSize: 1000, indexSize: 500})).toEqual({collections: 63, indexes: 185, dataSizeBytes: 1500});
+    expect(usageFromDatabaseStats({})).toEqual({collections: 0, indexes: 0, dataSizeBytes: 0});
+  });
+
+  it("never runs more than the batch size at once", async () => {
+    const running = {now: 0, most: 0};
+    const results = await inBatches([1, 2, 3, 4, 5, 6, 7], 3, async item => {
+      running.now += 1;
+      running.most = Math.max(running.most, running.now);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      running.now -= 1;
+      return item * 2;
+    });
+    expect(results).toEqual([2, 4, 6, 8, 10, 12, 14]);
+    expect(running.most).toBe(3);
+  });
+
+  it("reads the latest and busiest connection counts", () => {
+    const connections = connectionsFromMeasurements([{name: "CONNECTIONS", dataPoints: [
+      {timestamp: "2026-11-21T15:40:00Z", value: 235},
+      {timestamp: "2026-11-21T15:45:00Z", value: 475.4},
+      {timestamp: "2026-11-21T15:50:00Z", value: null},
+      {timestamp: "2026-11-21T16:15:00Z", value: 93}
+    ]}]);
+    expect(connections).toEqual({current: 93, peak: 475, peakAt: "2026-11-21T15:45:00Z"});
+    expect(connectionsFromMeasurements([])).toBeNull();
+  });
+
+  it("flags a cluster whose busiest minute reaches 70% of its connection limit", () => {
+    expect(connectionsNearLimit({instanceSize: AtlasClusterTier.M0, connections: {current: 90, peak: 350, peakAt: null}})).toBe(true);
+    expect(connectionsNearLimit({instanceSize: AtlasClusterTier.M0, connections: {current: 90, peak: 349, peakAt: null}})).toBe(false);
+    expect(connectionsNearLimit({instanceSize: AtlasClusterTier.M0, connections: null})).toBe(false);
+  });
+
+  it("keeps one alert per metric from the three replica set members", () => {
+    const since = Date.parse("2026-11-14T00:00:00Z");
+    const alert = (host: string, created: string) => ({clusterName: "ngx-demo", metricName: "CONNECTIONS_PERCENT", status: "CLOSED", created, resolved: "2026-11-21T15:57:36Z", currentValue: {number: 31.6}, id: host});
+    const alerts = recentClusterAlerts([
+      alert("a", "2026-11-21T15:48:20Z"),
+      alert("b", "2026-11-21T15:48:20Z"),
+      alert("c", "2026-11-21T15:48:21Z"),
+      alert("old", "2026-11-01T10:00:00Z"),
+      {...alert("other", "2026-11-21T15:48:20Z"), clusterName: "kent"}
+    ], "ngx-demo", since);
+    expect(alerts.length).toBe(1);
+    expect(alerts[0].status).toBe(AtlasAlertStatus.CLOSED);
+    expect(alerts[0].currentValue).toBe(31.6);
   });
 });

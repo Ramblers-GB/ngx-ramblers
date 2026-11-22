@@ -1,14 +1,35 @@
-import { Component, inject, OnDestroy, OnInit } from "@angular/core";
+import { Component, ElementRef, inject, OnDestroy, OnInit } from "@angular/core";
 import { EnvironmentSiteLinksComponent } from "../../../modules/common/environment-site-links/environment-site-links";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
-import { faCircleExclamation, faExternalLinkAlt, faFloppyDisk, faGlobe, faKey, faLayerGroup, faArrowsRotate, faList, faPlus, faSpinner, faStar, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faCircleExclamation, faExternalLinkAlt, faFloppyDisk, faGlobe, faKey, faLayerGroup, faArrowsRotate, faPlus, faSpinner, faStar, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { TabDirective, TabsetComponent } from "ngx-bootstrap/tabs";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import {
+  ATLAS_CONNECTION_LIMIT,
+  AtlasAlertStatus,
+  AtlasClusterAlert,
+  ATLAS_CLEANUP_CONFIRMATION_WORD,
+  AtlasCleanupAttempt,
+  AtlasCleanupItem,
+  AtlasCleanupKind,
+  AtlasCleanupOutcome,
+  AtlasGhostDatabase,
+  cleanupNeedsTypedConfirmation,
+  cleanupSelectionSummary,
+  ghostCleanupItem,
+  loginsCleanupItem,
+  AtlasLeftoverLogin,
+  AtlasLeftoverLoginGroup,
+  ghostDatabaseLogins,
+  spareLoginGroups,
+  atlasAlertLabel,
+  connectionPercent,
+  connectionsNearLimit,
+  openAtlasAlerts,
   AtlasClusterCreateRequest,
   AtlasClusterSortField,
   AtlasEnvironmentSortField,
@@ -17,7 +38,6 @@ import {
   AtlasClusterState,
   AtlasClusterTier,
   AtlasClusterView,
-  EnvironmentAtlasClusterTab,
   EnvironmentAtlasTab,
   clusterCanBeDeleted,
   atlasTierLabel,
@@ -36,8 +56,6 @@ import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { SortableTableAlignment, SortableTableColumn, SortableTableSortState } from "../../../modules/common/sortable-table/sortable-table.model";
 import { SortableTableCellDirective } from "../../../modules/common/sortable-table/sortable-table-cell.directive";
 import { SortableTableComponent } from "../../../modules/common/sortable-table/sortable-table.component";
-import { SectionToggle } from "../../../shared/components/section-toggle";
-import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { VendorBrandMarkComponent } from "../../../modules/common/vendor-brand-mark/vendor-brand-mark.component";
 import { ConsoleAccessLinksComponent } from "../../../modules/common/console-access-links/console-access-links";
 import { MongoClusterSelectComponent } from "../../../modules/common/selectors/mongo-cluster-select";
@@ -50,6 +68,7 @@ import { AlertInstance, NotifierService } from "../../../services/notifier.servi
 import { AlertTarget } from "../../../models/alert-target.model";
 import { AlertPanelVariant } from "../../../models/alert-panel.model";
 import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
+import { DateUtilsService } from "../../../services/date-utils.service";
 
 @Component({
   selector: "app-environment-atlas",
@@ -63,7 +82,6 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
     PageComponent,
     SortableTableComponent,
     SortableTableCellDirective,
-    SectionToggle,
     VendorBrandMarkComponent,
     ConsoleAccessLinksComponent,
     MongoClusterSelectComponent,
@@ -71,6 +89,8 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
     EnvironmentSiteLinksComponent
   ],
   styles: [`
+    .atlas-cluster-name
+      white-space: nowrap
     .row-action-icon
       border: 0
       background: transparent
@@ -83,6 +103,45 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
       cursor: not-allowed
     .row-action-default:not(:disabled):hover, .row-action-default:not(:disabled):focus-visible
       color: var(--ramblers-colour-sunrise, #f9b104)
+    .ghost-databases
+      display: flex
+      flex-wrap: wrap
+      gap: 0.25rem
+      margin-top: 0.3rem
+    .ghost-database
+      display: inline-flex
+      align-items: center
+      gap: 0.25rem
+      padding: 0 0.4rem
+      border: 1px dashed var(--bs-secondary-color)
+      border-radius: 1rem
+      color: var(--bs-secondary-color)
+      font-size: 0.75rem
+      line-height: 1.5
+      white-space: nowrap
+    .ghost-database-key
+      font-size: 0.65rem
+    .ghost-database-count
+      font-weight: 600
+    .ghost-database-delete
+      padding: 0
+      border: 0
+      background: none
+      color: inherit
+      font-size: 0.7rem
+      cursor: pointer
+    .ghost-database-delete:not(:disabled):hover, .ghost-database-delete:not(:disabled):focus-visible
+      color: var(--bs-danger)
+    .ghost-database-selected
+      border-style: solid
+      border-color: var(--bs-danger)
+      color: var(--bs-danger)
+    .atlas-cleanup-list
+      padding-left: 1.25rem
+    .row-action-default-selected
+      display: inline-block
+      color: var(--ramblers-colour-sunrise, #f9b104)
+      cursor: default
     .row-action-delete:not(:disabled):hover, .row-action-delete:not(:disabled):focus-visible
       color: var(--bs-danger)
     .cluster-fullness
@@ -93,9 +152,17 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
       justify-content: space-between
       gap: 0.5rem
       font-size: 0.8rem
+    .cluster-fullness-label .fw-bold
       white-space: nowrap
+      flex-shrink: 0
     .cluster-fullness .progress
       height: 6px
+    .atlas-loading
+      display: flex
+      align-items: flex-start
+      gap: 0.75rem
+      padding: 2rem 1rem
+      color: var(--bs-secondary-color)
     .cluster-fullness-note
       font-size: 0.75rem
       color: var(--bs-secondary-color)
@@ -138,12 +205,14 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
           </div>
         </div>
       }
-      @if (loading) {
+      @if (!loading && clustersNeedingAttention().length) {
         <div class="alert alert-warning d-flex align-items-start">
-          <fa-icon [icon]="faSpinner" class="me-2 mt-1" animation="spin"/>
+          <fa-icon [icon]="faCircleExclamation" class="me-2 mt-1"/>
           <div>
-            <strong>Loading clusters</strong>
-            <div>Counting the collections in each environment's database.</div>
+            <strong>MongoDB Atlas connections need attention</strong>
+            @for (cluster of clustersNeedingAttention(); track cluster.host) {
+              <div>{{ attentionSummary(cluster) }}</div>
+            }
           </div>
         </div>
       }
@@ -166,6 +235,306 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
         </div>
       }
       <tabset class="custom-tabset">
+      <tab heading="Cluster inventory" [active]="activeTab === EnvironmentAtlasTab.CLUSTERS" (selectTab)="selectTab(EnvironmentAtlasTab.CLUSTERS)">
+      <div class="row thumbnail-heading-frame mb-4">
+        <div class="thumbnail-heading">Clusters</div>
+        <div class="mb-3 d-flex flex-wrap gap-2">
+          <a class="btn btn-primary" [routerLink]="'/' + AdminPlatformPath.ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP">
+            <fa-icon [icon]="faLayerGroup" class="me-1"/>Clean up empty collections
+          </a>
+          <button type="button" class="btn btn-primary" [disabled]="loading" (click)="load()">
+            <fa-icon [icon]="loading ? faSpinner : faArrowsRotate" [animation]="loading ? 'spin' : undefined" class="me-1"/>{{ loading ? "Refreshing" : "Refresh" }}
+          </button>
+        </div>
+        @if (cleanupSelection.length) {
+          <div class="alert alert-warning mb-3 atlas-delete-confirmation">
+            <fa-icon [icon]="faCircleExclamation" class="me-1"/>
+            <strong>Delete {{ cleanupSelectionSummary(cleanupSelection) }}</strong>
+            <ul class="atlas-cleanup-list mt-1 mb-1">
+              @for (item of cleanupSelection; track item.key) {
+                <li>
+                  @if (cleanupCurrentKey === item.key) {
+                    <fa-icon [icon]="faSpinner" animation="spin" class="me-1"/>
+                  }
+                  {{ item.label }} <span class="text-muted">on {{ item.cluster }}</span>
+                </li>
+              }
+            </ul>
+            <div>Deleting is permanent and cannot be undone.@if (cleanupNeedsTypedConfirmation(cleanupSelection)) { Each database is removed with its unused logins; one already removed by hand is simply cleared from this list. Each can take a minute while Atlas sets up access. Type {{ ATLAS_CLEANUP_CONFIRMATION_WORD }} to confirm.} Click more bins to add to this list.</div>
+            <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+              @if (cleanupNeedsTypedConfirmation(cleanupSelection)) {
+                <input class="form-control w-auto" name="cleanupConfirmation" [(ngModel)]="cleanupConfirmation" autocomplete="off" [placeholder]="ATLAS_CLEANUP_CONFIRMATION_WORD">
+              }
+              <button type="button" class="btn btn-danger" [disabled]="cleaningUp || !cleanupConfirmed()" (click)="runCleanup()">
+                <fa-icon [icon]="cleaningUp ? faSpinner : faTrash" [animation]="cleaningUp ? 'spin' : undefined" class="me-1"/>{{ cleaningUp ? cleanupProgress : "Delete " + cleanupSelectionSummary(cleanupSelection) }}
+              </button>
+              <button type="button" class="btn btn-quiet" [disabled]="cleaningUp" (click)="clearCleanup()"><fa-icon [icon]="faXmark" class="me-1"/>Clear selection</button>
+            </div>
+          </div>
+        }
+        @if (deleteTarget) {
+          <div class="alert alert-warning mb-3 atlas-delete-confirmation">
+            <fa-icon [icon]="faCircleExclamation" class="me-1"/>
+            <strong>Delete cluster {{ deleteTarget.name }}</strong>
+            <div class="mt-1">Atlas deletes the cluster and everything on it, and this cannot be undone. No site uses it. Type the cluster name to confirm.</div>
+            <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+              <input class="form-control w-auto" name="deleteConfirmation" [(ngModel)]="deleteConfirmation" autocomplete="off" [placeholder]="deleteTarget.name">
+              <button type="button" class="btn btn-danger" [disabled]="deleting || deleteConfirmation !== deleteTarget.name" (click)="deleteCluster()">
+                <fa-icon [icon]="deleting ? faSpinner : faTrash" [animation]="deleting ? 'spin' : undefined" class="me-1"/>Delete cluster
+              </button>
+              <button type="button" class="btn btn-quiet" [disabled]="deleting" (click)="cancelDelete()"><fa-icon [icon]="faXmark" class="me-1"/>Cancel</button>
+            </div>
+          </div>
+        }
+        @if (loading) {
+          <div class="atlas-loading">
+            <fa-icon [icon]="faSpinner" animation="spin"/>
+            <div>
+              <strong>Loading clusters</strong>
+              <div>Reading each cluster's size, load and connections from Atlas.</div>
+            </div>
+          </div>
+        } @else {
+        <app-sortable-table
+          [columns]="clusterColumns"
+          [rows]="view?.clusters || []"
+          [defaultSortKey]="clusterSortKey"
+          [defaultSortDirection]="clusterSortDirection"
+          [trackBy]="trackCluster"
+          filterable
+          fillWindow
+          [fillWindowGapPx]="90"
+          [filterStoredValue]="StoredValue.ATLAS_CLUSTER_FILTER"
+          emptyMessage="No clusters yet. Use the New cluster tab, or existing group clusters will appear here from environment configuration."
+          (sortChange)="clusterSortChanged($event)">
+          <ng-template [appSortableTableCell]="AtlasClusterSortField.NAME" let-row>
+            <div class="atlas-cluster-name">{{ row.name }}</div>
+            @if (!row.inProvisioningProject) {
+              <div><span class="badge-cloudy">External project</span></div>
+            }
+            <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+              @if (clusterConsoleLinks(row).length) {
+                <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="18" [inline]="true"/>
+              }
+              <app-console-access-links class="d-inline-flex" [links]="clusterConsoleLinks(row)" [showEmpty]="false"/>
+              @if (row.region) {
+                <span class="text-muted text-nowrap">{{ awsRegionLabel(row.region) }}</span>
+              }
+            </div>
+          </ng-template>
+          <ng-template [appSortableTableCell]="AtlasClusterSortField.HOST" let-row>
+            {{ row.host }}
+          </ng-template>
+          <ng-template [appSortableTableCell]="AtlasClusterSortField.SIZE" let-row>
+            <span [tooltip]="row.stateName">{{ atlasTierLabel(row.instanceSize) }}</span>
+          </ng-template>
+          <ng-template [appSortableTableCell]="AtlasClusterSortField.ENVIRONMENTS" let-row>
+            <app-environment-site-links moveLinks [sites]="row.sites || []"/>
+            @if (row.ghostDatabases?.length || row.leftoverLogins?.length) {
+              <div class="ghost-databases">
+                @for (ghost of row.ghostDatabases || []; track ghost.migrationId) {
+                  @let ghostItem = ghostCleanupItem(row, ghost);
+                  <span class="ghost-database" [class.ghost-database-selected]="cleanupSelected(ghostItem)" [tooltip]="ghostDescription(row, ghost)" placement="right" container="body" containerClass="ghost-database-tooltip">
+                    {{ ghost.environment }}
+                    @for (login of ghostItem.logins; track login.username) {
+                      <fa-icon [icon]="faKey" class="ghost-database-key"/>
+                    }
+                    @if (row.inProvisioningProject && row.projectId) {
+                      <button type="button" class="ghost-database-delete" [attr.aria-pressed]="cleanupSelected(ghostItem)" [attr.aria-label]="(cleanupSelected(ghostItem) ? 'Keep the copy ' : 'Choose to delete the copy ') + ghost.environment + ' left behind'" [disabled]="cleaningUp" (click)="toggleCleanup(ghostItem)"><fa-icon [icon]="cleanupCurrentKey === ghostItem.key ? faSpinner : faTrash" [animation]="cleanupCurrentKey === ghostItem.key ? 'spin' : undefined"/></button>
+                    }
+                  </span>
+                }
+                @for (group of spareLoginGroups(row); track group.environment) {
+                  @let loginsItem = loginsCleanupItem(row, group);
+                  <span class="ghost-database" [class.ghost-database-selected]="cleanupSelected(loginsItem)" [tooltip]="spareLoginsDescription(group)" placement="right" container="body" containerClass="ghost-database-tooltip">
+                    <fa-icon [icon]="faKey" class="ghost-database-key"/>{{ group.environment }}@if (group.logins.length > 1) { <span class="ghost-database-count">{{ group.logins.length }}</span> }
+                    <button type="button" class="ghost-database-delete" [attr.aria-pressed]="cleanupSelected(loginsItem)" [attr.aria-label]="(cleanupSelected(loginsItem) ? 'Keep the unused logins for ' : 'Choose to delete the unused logins for ') + group.environment" [disabled]="cleaningUp" (click)="toggleCleanup(loginsItem)"><fa-icon [icon]="cleanupCurrentKey === loginsItem.key ? faSpinner : faTrash" [animation]="cleanupCurrentKey === loginsItem.key ? 'spin' : undefined"/></button>
+                  </span>
+                }
+              </div>
+            }
+          </ng-template>
+          <ng-template [appSortableTableCell]="AtlasClusterSortField.COLLECTIONS" let-row>
+            @let fullness = clusterFullness(row);
+            <div class="cluster-fullness" [tooltip]="row.limitHeadline">
+              <div class="cluster-fullness-label">
+                <span [class.text-danger]="!row.canAddEnvironment">{{ fullness.collections.label }}</span>
+                <span class="fw-bold">{{ fullness.collections.percent }}%</span>
+                @if (!row.canAddEnvironment) {
+                  <fa-icon [icon]="faCircleExclamation" class="text-danger"/>
+                }
+              </div>
+              <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.collections.percent" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" [class]="fullnessBarClass(fullness.collections.level)" [style.width.%]="fullness.collections.percent"></div>
+              </div>
+              @if (fullness.storage) {
+                <div class="cluster-fullness-label mt-1">
+                  <span>{{ fullness.storage.label }}</span>
+                  <span class="fw-bold">{{ fullness.storage.percent }}%</span>
+                </div>
+                <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.storage.percent" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" [class]="fullnessBarClass(fullness.storage.level)" [style.width.%]="fullness.storage.percent"></div>
+                </div>
+              }
+              @if (fullness.load) {
+                <div class="cluster-fullness-label mt-1">
+                  <span>{{ fullness.load.label }}</span>
+                  <span class="fw-bold">{{ fullness.load.percent }}%</span>
+                </div>
+                <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.load.percent" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" [class]="fullnessBarClass(fullness.load.level)" [style.width.%]="fullness.load.percent"></div>
+                </div>
+              }
+              @if (fullness.loadNote) {
+                <div class="cluster-fullness-note">{{ fullness.loadNote }}</div>
+              }
+              @if (fullness.connections) {
+                <div class="cluster-fullness-label mt-1">
+                  <span>{{ fullness.connections.label }}</span>
+                  <span class="fw-bold">{{ fullness.connections.percent }}%</span>
+                </div>
+                <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.connections.percent" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" [class]="fullnessBarClass(fullness.connections.level)" [style.width.%]="fullness.connections.percent"></div>
+                </div>
+                <div class="cluster-fullness-note">{{ fullness.connectionsNote }}</div>
+              }
+              @for (alert of row.alerts || []; track alert.id) {
+                <div class="cluster-fullness-note" [class.text-danger]="alert.status !== AtlasAlertStatus.CLOSED">
+                  <fa-icon [icon]="faCircleExclamation" class="me-1"/>{{ alertSummary(alert) }}
+                </div>
+              }
+            </div>
+          </ng-template>
+          <ng-template [appSortableTableCell]="'actions'" let-row>
+            @if (row.isDefault) {
+              <span class="row-action-icon row-action-default-selected" tooltip="Default for new sites" aria-label="Default for new sites"><fa-icon [icon]="faStar"/></span>
+            } @else if (row.host) {
+              <button type="button" class="row-action-icon row-action-default" tooltip="Use this cluster for new sites" aria-label="Use this cluster for new sites" [disabled]="saving" (click)="setDefaultCluster(row.host)"><fa-icon [icon]="faStar"/></button>
+            }
+            @if (clusterCanBeDeleted(row, view?.projectId)) {
+              <button type="button" class="row-action-icon row-action-delete ms-1" tooltip="Delete this empty cluster" aria-label="Delete this empty cluster" [disabled]="deleting" (click)="startDelete(row)"><fa-icon [icon]="faTrash"/></button>
+            }
+          </ng-template>
+        </app-sortable-table>
+        }
+        <div class="mt-3">
+          <button type="button" class="btn btn-quiet" [disabled]="!view?.keysConfigured || !projectId" (click)="allowNetwork()"><fa-icon [icon]="faGlobe" class="me-1"/>Allow Fly connections</button>
+          @if (view?.networkAccess?.length) {
+            <div class="small text-muted mt-2">Network access: {{ networkAccessSummary() }}</div>
+          }
+        </div>
+      </div>
+      </tab>
+      <tab heading="New cluster" [active]="activeTab === EnvironmentAtlasTab.NEW_CLUSTER" (selectTab)="selectTab(EnvironmentAtlasTab.NEW_CLUSTER)">
+      <div class="row thumbnail-heading-frame mb-4">
+        <div class="thumbnail-heading">Create cluster</div>
+        <p class="mb-3">M0 and Flex are only offered in AWS Ireland; London is for dedicated tiers. Flex is the cheapest paid tier and takes several sites, up to 500 collections and 100 databases, so it can stay in the main project. Atlas permits one M0 per project, so an M0 needs a separate project. Check the cluster inventory before moving sites onto a cluster. Nothing is created in Atlas until you press Create cluster.</p>
+        <div class="row">
+          <div class="col-md-4 mb-2">
+            <label class="form-label" for="new-cluster-name">Name</label>
+            <input id="new-cluster-name" class="form-control" name="newClusterName" [(ngModel)]="createRequest.name" autocomplete="off"
+                   placeholder="ngx-shared-sites-01">
+            <div class="form-text">A cluster shared by several group sites is named ngx-shared-sites- followed by the next number. A cluster for one group is named after the group, for example kent.</div>
+          </div>
+          <div class="col-md-4 mb-2">
+            <label class="form-label" for="new-cluster-tier">Tier</label>
+            <select id="new-cluster-tier" class="form-control" name="newClusterTier" [(ngModel)]="createRequest.tier" (ngModelChange)="tierChanged($event)">
+              <option [value]="AtlasClusterTier.M0">M0 free (one per project, 500 collections)</option>
+              <option [value]="AtlasClusterTier.FLEX">Flex ($8–30/month, 500 collections)</option>
+              <option [value]="AtlasClusterTier.M10">M10 dedicated</option>
+              <option [value]="AtlasClusterTier.M20">M20 dedicated (live groups)</option>
+              <option [value]="AtlasClusterTier.M30">M30 dedicated</option>
+            </select>
+          </div>
+          <div class="col-md-4 mb-2">
+            <label class="form-label">Region</label>
+            <select class="form-control" name="clusterRegion" [(ngModel)]="createRequest.region">
+              <option [value]="AwsRegion.EU_WEST_1">{{ awsRegionLabel(AwsRegion.EU_WEST_1) }}</option>
+              <option [value]="AwsRegion.EU_WEST_2" [disabled]="isSharedTier(createRequest.tier)">{{ awsRegionLabel(AwsRegion.EU_WEST_2) }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-check ms-4 mt-2">
+          <input class="form-check-input" type="checkbox" id="separate-project" name="separateProject" [(ngModel)]="createRequest.separateProject">
+          <label class="form-check-label" for="separate-project">Create in a separate Atlas project (Organisation Project Creator required)</label>
+        </div>
+        <div class="form-check ms-4 mt-2">
+          <input class="form-check-input" type="checkbox" id="set-as-default" name="setAsDefault" [(ngModel)]="createRequest.setAsDefault">
+          <label class="form-check-label" for="set-as-default">Set as the default cluster for new sites once Atlas gives us a hostname</label>
+        </div>
+        <div class="form-check ms-4 mt-2">
+          <input class="form-check-input" type="checkbox" id="allow-network" name="allowAllNetworkAccess" [(ngModel)]="createRequest.allowAllNetworkAccess">
+          <label class="form-check-label" for="allow-network">Allow connections from anywhere (needed for Fly)</label>
+        </div>
+        <div class="mt-3">
+          <button type="button" class="btn btn-primary" [disabled]="creating || !view?.keysConfigured || !projectId" (click)="createCluster()">
+            @if (creating) {
+              <fa-icon [icon]="faSpinner" animation="spin" class="me-1"/>
+            } @else {
+              <fa-icon [icon]="faPlus" class="me-1"/>
+            }
+            Create cluster
+          </button>
+        </div>
+      </div>
+      </tab>
+      <tab heading="Environments" [active]="activeTab === EnvironmentAtlasTab.ENVIRONMENTS" (selectTab)="selectTab(EnvironmentAtlasTab.ENVIRONMENTS)">
+      <div class="row thumbnail-heading-frame mb-4">
+        <div class="thumbnail-heading">Environments</div>
+        <div class="mb-3">
+          <button type="button" class="btn btn-primary" [disabled]="loading" (click)="load()">
+            <fa-icon [icon]="loading ? faSpinner : faArrowsRotate" [animation]="loading ? 'spin' : undefined" class="me-1"/>{{ loading ? "Refreshing" : "Refresh" }}
+          </button>
+        </div>
+        @if (loading) {
+          <div class="atlas-loading">
+            <fa-icon [icon]="faSpinner" animation="spin"/>
+            <div>
+              <strong>Loading environments</strong>
+              <div>Counting the collections in each environment's database.</div>
+            </div>
+          </div>
+        } @else {
+        <app-sortable-table
+          [columns]="environmentColumns"
+          [rows]="view?.environments || []"
+          [defaultSortKey]="environmentSortKey"
+          [defaultSortDirection]="environmentSortDirection"
+          [trackBy]="trackEnvironment"
+          filterable
+          fillWindow
+          [filterStoredValue]="StoredValue.ATLAS_ENVIRONMENT_FILTER"
+          emptyMessage="No environments in platform configuration."
+          (sortChange)="environmentSortChanged($event)">
+          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.ENVIRONMENT" let-row>
+            <app-environment-site-links moveLinks [sites]="[{environment: row.environment, url: row.siteUrl}]"/>
+          </ng-template>
+          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.CLUSTER" let-row>
+            {{ row.cluster }}
+          </ng-template>
+          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.DATABASE" let-row>
+            {{ row.database }}
+            @if (environmentConsoleLinks(row).length) {
+              <div class="d-flex align-items-center gap-2 mt-2">
+                <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="18" [inline]="true"/>
+                <app-console-access-links [links]="environmentConsoleLinks(row)" [showEmpty]="false"/>
+              </div>
+            }
+          </ng-template>
+          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.COLLECTIONS" let-row>
+            @if (row.error) {
+              <app-alert-panel compact title="Could not count collections"
+                               [icon]="faCircleExclamation" [variant]="AlertPanelVariant.DANGER">
+                {{ row.error }}
+              </app-alert-panel>
+            } @else {
+              {{ row.collections }} collections, {{ row.indexes }} indexes
+            }
+          </ng-template>
+        </app-sortable-table>
+        }
+      </div>
+      </tab>
       <tab heading="Provisioning" [active]="activeTab === EnvironmentAtlasTab.PROVISIONING" (selectTab)="selectTab(EnvironmentAtlasTab.PROVISIONING)">
       <div class="row thumbnail-heading-frame mb-4">
         <div class="thumbnail-heading with-vendor-logo d-flex align-items-center gap-2">
@@ -231,230 +600,6 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
         }
       </div>
       </tab>
-      <tab heading="Clusters" [active]="activeTab === EnvironmentAtlasTab.CLUSTERS" (selectTab)="selectTab(EnvironmentAtlasTab.CLUSTERS)">
-      <div class="thumbnail-heading-frame thumbnail-heading-frame-compact mb-3">
-        <app-section-toggle
-          [tabs]="clusterTabs"
-          [(selectedTab)]="activeClusterTab"
-          [queryParamKey]="StoredValue.SUB_TAB"/>
-      </div>
-      @if (activeClusterTab === EnvironmentAtlasClusterTab.CREATE) {
-      <div class="row thumbnail-heading-frame mb-4">
-        <div class="thumbnail-heading">Create cluster</div>
-        <p class="mb-3">M0 and Flex are only offered in AWS Ireland; London is for dedicated tiers. Flex is the cheapest paid tier and takes several sites, up to 500 collections and 100 databases, so it can stay in the main project. Atlas permits one M0 per project, so an M0 needs a separate project. Check the cluster inventory before moving sites onto a cluster. Nothing is created in Atlas until you press Create cluster.</p>
-        <div class="row">
-          <div class="col-md-4 mb-2">
-            <label class="form-label" for="new-cluster-name">Name</label>
-            <input id="new-cluster-name" class="form-control" name="newClusterName" [(ngModel)]="createRequest.name" autocomplete="off"
-                   placeholder="ngx-shared-sites-01">
-            <div class="form-text">A cluster shared by several group sites is named ngx-shared-sites- followed by the next number. A cluster for one group is named after the group, for example kent.</div>
-          </div>
-          <div class="col-md-4 mb-2">
-            <label class="form-label" for="new-cluster-tier">Tier</label>
-            <select id="new-cluster-tier" class="form-control" name="newClusterTier" [(ngModel)]="createRequest.tier" (ngModelChange)="tierChanged($event)">
-              <option [value]="AtlasClusterTier.M0">M0 free (one per project, 500 collections)</option>
-              <option [value]="AtlasClusterTier.FLEX">Flex ($8–30/month, 500 collections)</option>
-              <option [value]="AtlasClusterTier.M10">M10 dedicated</option>
-              <option [value]="AtlasClusterTier.M20">M20 dedicated (live groups)</option>
-              <option [value]="AtlasClusterTier.M30">M30 dedicated</option>
-            </select>
-          </div>
-          <div class="col-md-4 mb-2">
-            <label class="form-label">Region</label>
-            <select class="form-control" name="clusterRegion" [(ngModel)]="createRequest.region">
-              <option [value]="AwsRegion.EU_WEST_1">{{ awsRegionLabel(AwsRegion.EU_WEST_1) }}</option>
-              <option [value]="AwsRegion.EU_WEST_2" [disabled]="isSharedTier(createRequest.tier)">{{ awsRegionLabel(AwsRegion.EU_WEST_2) }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-check ms-4 mt-2">
-          <input class="form-check-input" type="checkbox" id="separate-project" name="separateProject" [(ngModel)]="createRequest.separateProject">
-          <label class="form-check-label" for="separate-project">Create in a separate Atlas project (Organisation Project Creator required)</label>
-        </div>
-        <div class="form-check ms-4 mt-2">
-          <input class="form-check-input" type="checkbox" id="set-as-default" name="setAsDefault" [(ngModel)]="createRequest.setAsDefault">
-          <label class="form-check-label" for="set-as-default">Set as the default cluster for new sites once Atlas gives us a hostname</label>
-        </div>
-        <div class="form-check ms-4 mt-2">
-          <input class="form-check-input" type="checkbox" id="allow-network" name="allowAllNetworkAccess" [(ngModel)]="createRequest.allowAllNetworkAccess">
-          <label class="form-check-label" for="allow-network">Allow connections from anywhere (needed for Fly)</label>
-        </div>
-        <div class="mt-3">
-          <button type="button" class="btn btn-primary" [disabled]="creating || !view?.keysConfigured || !projectId" (click)="createCluster()">
-            @if (creating) {
-              <fa-icon [icon]="faSpinner" animation="spin" class="me-1"/>
-            } @else {
-              <fa-icon [icon]="faPlus" class="me-1"/>
-            }
-            Create cluster
-          </button>
-        </div>
-      </div>
-      } @else {
-      <div class="row thumbnail-heading-frame mb-4">
-        <div class="thumbnail-heading">Clusters</div>
-        <div class="mb-3 d-flex flex-wrap gap-2">
-          <a class="btn btn-primary" [routerLink]="'/' + AdminPlatformPath.ENVIRONMENT_MANAGEMENT_COLLECTION_CLEANUP">
-            <fa-icon [icon]="faLayerGroup" class="me-1"/>Clean up empty collections
-          </a>
-          <button type="button" class="btn btn-primary" [disabled]="loading" (click)="load()">
-            <fa-icon [icon]="loading ? faSpinner : faArrowsRotate" [animation]="loading ? 'spin' : undefined" class="me-1"/>{{ loading ? "Refreshing" : "Refresh" }}
-          </button>
-        </div>
-        <app-sortable-table
-          [columns]="clusterColumns"
-          [rows]="view?.clusters || []"
-          [defaultSortKey]="clusterSortKey"
-          [defaultSortDirection]="clusterSortDirection"
-          [trackBy]="trackCluster"
-          filterable
-          fillWindow
-          [fillWindowGapPx]="90"
-          [filterStoredValue]="StoredValue.ATLAS_CLUSTER_FILTER"
-          emptyMessage="No clusters yet. Choose Create cluster above, or existing group clusters will appear here from environment configuration."
-          (sortChange)="clusterSortChanged($event)">
-          <ng-template [appSortableTableCell]="AtlasClusterSortField.NAME" let-row>
-            <div>{{ row.name }}</div>
-            @if (row.isDefault) {
-              <div><span class="badge-mintcake">Default for new sites</span></div>
-            }
-            @if (!row.inProvisioningProject) {
-              <div><span class="badge-cloudy">External project</span></div>
-            }
-            <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
-              @if (clusterConsoleLinks(row).length) {
-                <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="18" [inline]="true"/>
-              }
-              <app-console-access-links class="d-inline-flex" [links]="clusterConsoleLinks(row)" [showEmpty]="false"/>
-              @if (row.region) {
-                <span class="text-muted text-nowrap">{{ awsRegionLabel(row.region) }}</span>
-              }
-            </div>
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasClusterSortField.HOST" let-row>
-            {{ row.host }}
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasClusterSortField.SIZE" let-row>
-            <span [tooltip]="row.stateName">{{ atlasTierLabel(row.instanceSize) }}</span>
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasClusterSortField.ENVIRONMENTS" let-row>
-            <app-environment-site-links [sites]="row.sites || []"/>
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasClusterSortField.COLLECTIONS" let-row>
-            @let fullness = clusterFullness(row);
-            <div class="cluster-fullness" [tooltip]="row.limitHeadline">
-              <div class="cluster-fullness-label">
-                <span [class.text-danger]="!row.canAddEnvironment">{{ fullness.collections.label }}</span>
-                <span class="fw-bold">{{ fullness.collections.percent }}%</span>
-                @if (!row.canAddEnvironment) {
-                  <fa-icon [icon]="faCircleExclamation" class="text-danger"/>
-                }
-              </div>
-              <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.collections.percent" aria-valuemin="0" aria-valuemax="100">
-                <div class="progress-bar" [class]="fullnessBarClass(fullness.collections.level)" [style.width.%]="fullness.collections.percent"></div>
-              </div>
-              @if (fullness.storage) {
-                <div class="cluster-fullness-label mt-1">
-                  <span>{{ fullness.storage.label }}</span>
-                  <span class="fw-bold">{{ fullness.storage.percent }}%</span>
-                </div>
-                <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.storage.percent" aria-valuemin="0" aria-valuemax="100">
-                  <div class="progress-bar" [class]="fullnessBarClass(fullness.storage.level)" [style.width.%]="fullness.storage.percent"></div>
-                </div>
-              }
-              @if (fullness.load) {
-                <div class="cluster-fullness-label mt-1">
-                  <span>{{ fullness.load.label }}</span>
-                  <span class="fw-bold">{{ fullness.load.percent }}%</span>
-                </div>
-                <div class="progress" role="progressbar" [attr.aria-valuenow]="fullness.load.percent" aria-valuemin="0" aria-valuemax="100">
-                  <div class="progress-bar" [class]="fullnessBarClass(fullness.load.level)" [style.width.%]="fullness.load.percent"></div>
-                </div>
-              }
-              @if (fullness.loadNote) {
-                <div class="cluster-fullness-note">{{ fullness.loadNote }}</div>
-              }
-            </div>
-          </ng-template>
-          <ng-template [appSortableTableCell]="'actions'" let-row>
-            @if (row.host && !row.isDefault) {
-              <button type="button" class="row-action-icon row-action-default" tooltip="Use this cluster for new sites" aria-label="Use this cluster for new sites" [disabled]="saving" (click)="setDefaultCluster(row.host)"><fa-icon [icon]="faStar"/></button>
-            }
-            @if (clusterCanBeDeleted(row, view?.projectId)) {
-              <button type="button" class="row-action-icon row-action-delete ms-1" tooltip="Delete this empty cluster" aria-label="Delete this empty cluster" [disabled]="deleting" (click)="startDelete(row)"><fa-icon [icon]="faTrash"/></button>
-            }
-          </ng-template>
-        </app-sortable-table>
-        @if (deleteTarget) {
-          <div class="alert alert-warning mt-3 mb-0">
-            <fa-icon [icon]="faCircleExclamation" class="me-1"/>
-            <strong>Delete cluster {{ deleteTarget.name }}</strong>
-            <div class="mt-1">Atlas deletes the cluster and everything on it, and this cannot be undone. No site uses it. Type the cluster name to confirm.</div>
-            <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
-              <input class="form-control w-auto" name="deleteConfirmation" [(ngModel)]="deleteConfirmation" autocomplete="off" [placeholder]="deleteTarget.name">
-              <button type="button" class="btn btn-danger" [disabled]="deleting || deleteConfirmation !== deleteTarget.name" (click)="deleteCluster()">
-                <fa-icon [icon]="deleting ? faSpinner : faTrash" [animation]="deleting ? 'spin' : undefined" class="me-1"/>Delete cluster
-              </button>
-              <button type="button" class="btn btn-quiet" [disabled]="deleting" (click)="cancelDelete()"><fa-icon [icon]="faXmark" class="me-1"/>Cancel</button>
-            </div>
-          </div>
-        }
-        <div class="mt-3">
-          <button type="button" class="btn btn-quiet" [disabled]="!view?.keysConfigured || !projectId" (click)="allowNetwork()"><fa-icon [icon]="faGlobe" class="me-1"/>Allow Fly connections</button>
-          @if (view?.networkAccess?.length) {
-            <div class="small text-muted mt-2">Network access: {{ networkAccessSummary() }}</div>
-          }
-        </div>
-      </div>
-      }
-      </tab>
-      <tab heading="Environments" [active]="activeTab === EnvironmentAtlasTab.ENVIRONMENTS" (selectTab)="selectTab(EnvironmentAtlasTab.ENVIRONMENTS)">
-      <div class="row thumbnail-heading-frame mb-4">
-        <div class="thumbnail-heading">Environments</div>
-        <div class="mb-3">
-          <button type="button" class="btn btn-primary" [disabled]="loading" (click)="load()">
-            <fa-icon [icon]="loading ? faSpinner : faArrowsRotate" [animation]="loading ? 'spin' : undefined" class="me-1"/>{{ loading ? "Refreshing" : "Refresh" }}
-          </button>
-        </div>
-        <app-sortable-table
-          [columns]="environmentColumns"
-          [rows]="view?.environments || []"
-          [defaultSortKey]="environmentSortKey"
-          [defaultSortDirection]="environmentSortDirection"
-          [trackBy]="trackEnvironment"
-          filterable
-          fillWindow
-          [filterStoredValue]="StoredValue.ATLAS_ENVIRONMENT_FILTER"
-          [emptyMessage]="loading ? 'Waiting for environment data…' : 'No environments in platform configuration.'"
-          (sortChange)="environmentSortChanged($event)">
-          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.ENVIRONMENT" let-row>
-            <app-environment-site-links [sites]="[{environment: row.environment, url: row.siteUrl}]"/>
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.CLUSTER" let-row>
-            {{ row.cluster }}
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.DATABASE" let-row>
-            {{ row.database }}
-            @if (environmentConsoleLinks(row).length) {
-              <div class="d-flex align-items-center gap-2 mt-2">
-                <app-vendor-brand-mark serviceId="mongodbAtlas" [sizePx]="18" [inline]="true"/>
-                <app-console-access-links [links]="environmentConsoleLinks(row)" [showEmpty]="false"/>
-              </div>
-            }
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.COLLECTIONS" let-row>
-            @if (row.error) {
-              <app-alert-panel compact title="Could not count collections"
-                               [icon]="faCircleExclamation" [variant]="AlertPanelVariant.DANGER">
-                {{ row.error }}
-              </app-alert-panel>
-            } @else {
-              {{ row.collections }} collections, {{ row.indexes }} indexes
-            }
-          </ng-template>
-        </app-sortable-table>
-      </div>
-      </tab>
       </tabset>
     </app-page>
   `
@@ -462,9 +607,11 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
 export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   private logger: Logger = inject(LoggerFactory).createLogger("EnvironmentAtlasComponent", NgxLoggerLevel.ERROR);
   private environmentSetupService = inject(EnvironmentSetupService);
+  private dateUtils = inject(DateUtilsService);
   private notifierService = inject(NotifierService);
   private router = inject(Router);
   private activatedRoute = inject(ActivatedRoute);
+  private host: ElementRef<HTMLElement> = inject(ElementRef);
   private subscriptions: Subscription[] = [];
   private notify: AlertInstance;
   public notifyTarget: AlertTarget = {};
@@ -481,11 +628,11 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly StoredValue = StoredValue;
   protected readonly AdminPlatformPath = AdminPlatformPath;
   protected readonly EnvironmentAtlasTab = EnvironmentAtlasTab;
-  protected readonly EnvironmentAtlasClusterTab = EnvironmentAtlasClusterTab;
   protected readonly environmentSetupGlobalQueryParams = {[StoredValue.TAB]: toKebabCase(EnvironmentSetupTab.SETTINGS), [StoredValue.SUB_TAB]: EnvironmentSettingsSubTab.GLOBAL};
   protected readonly AtlasClusterTier = AtlasClusterTier;
   protected readonly isSharedTier = isSharedTier;
   protected readonly clusterFullness = clusterFullness;
+  protected readonly AtlasAlertStatus = AtlasAlertStatus;
   protected readonly atlasTierLabel = atlasTierLabel;
   protected readonly clusterCanBeDeleted = clusterCanBeDeleted;
   protected readonly faTrash = faTrash;
@@ -493,6 +640,16 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly faArrowsRotate = faArrowsRotate;
   protected readonly faXmark = faXmark;
   deleteTarget: AtlasClusterRow | null = null;
+  cleanupSelection: AtlasCleanupItem[] = [];
+  cleanupConfirmation = "";
+  cleaningUp = false;
+  cleanupProgress = "";
+  cleanupCurrentKey: string | null = null;
+  protected readonly ghostCleanupItem = ghostCleanupItem;
+  protected readonly loginsCleanupItem = loginsCleanupItem;
+  protected readonly cleanupSelectionSummary = cleanupSelectionSummary;
+  protected readonly cleanupNeedsTypedConfirmation = cleanupNeedsTypedConfirmation;
+  protected readonly ATLAS_CLEANUP_CONFIRMATION_WORD = ATLAS_CLEANUP_CONFIRMATION_WORD;
   deleteConfirmation = "";
   deleting = false;
   protected readonly AwsRegion = AwsRegion;
@@ -514,12 +671,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   clusterSortDirection = DESCENDING;
   environmentSortKey = AtlasEnvironmentSortField.ENVIRONMENT;
   environmentSortDirection = ASCENDING;
-  activeTab = EnvironmentAtlasTab.PROVISIONING;
-  activeClusterTab = EnvironmentAtlasClusterTab.INVENTORY;
-  clusterTabs: SectionToggleTab[] = [
-    {value: EnvironmentAtlasClusterTab.INVENTORY, label: "Cluster inventory", icon: faList},
-    {value: EnvironmentAtlasClusterTab.CREATE, label: "New cluster", icon: faPlus}
-  ];
+  activeTab = EnvironmentAtlasTab.CLUSTERS;
   createRequest: AtlasClusterCreateRequest = {
     name: nextSharedSitesClusterName([]),
     tier: AtlasClusterTier.FLEX,
@@ -535,7 +687,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
     {key: AtlasClusterSortField.SIZE, label: "Size", sortKey: AtlasClusterSortField.SIZE, cellClass: "text-nowrap", filterText: row => atlasTierLabel(row.instanceSize)},
     {key: AtlasClusterSortField.ENVIRONMENTS, label: "Sites", sortKey: AtlasClusterSortField.ENVIRONMENTS, filterValues: row => (row.sites || []).map(site => site.environment)},
     {key: AtlasClusterSortField.COLLECTIONS, label: "How full", sortKey: AtlasClusterSortField.COLLECTIONS, filterText: row => row.limitHeadline || "", filterSuggestions: false},
-    {key: "actions", label: "", cellClass: "text-nowrap"}
+    {key: "actions", label: "", cellClass: "text-nowrap", pinnedEnd: true}
   ];
 
   environmentColumns: SortableTableColumn<AtlasClusterEnvironmentRow>[] = [
@@ -548,12 +700,9 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.notify = this.notifierService.createAlertInstance(this.notifyTarget);
     this.subscriptions.push(this.activatedRoute.queryParams.subscribe(params => {
-      this.activeTab = params[StoredValue.TAB] === EnvironmentAtlasTab.CLUSTERS || params[StoredValue.TAB] === EnvironmentAtlasTab.ENVIRONMENTS
+      this.activeTab = [EnvironmentAtlasTab.NEW_CLUSTER, EnvironmentAtlasTab.ENVIRONMENTS, EnvironmentAtlasTab.PROVISIONING].includes(params[StoredValue.TAB])
         ? params[StoredValue.TAB]
-        : EnvironmentAtlasTab.PROVISIONING;
-      this.activeClusterTab = params[StoredValue.SUB_TAB] === EnvironmentAtlasClusterTab.CREATE
-        ? EnvironmentAtlasClusterTab.CREATE
-        : EnvironmentAtlasClusterTab.INVENTORY;
+        : EnvironmentAtlasTab.CLUSTERS;
       this.clusterSortKey = params[StoredValue.ATLAS_CLUSTER_SORT] || AtlasClusterSortField.DEFAULT_FOR_NEW_SITES;
       this.clusterSortDirection = params[StoredValue.ATLAS_CLUSTER_SORT_ORDER] === DESCENDING
         ? DESCENDING
@@ -668,6 +817,24 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
     await this.saveProvisioning();
   }
 
+  clustersNeedingAttention(): AtlasClusterRow[] {
+    return (this.view?.clusters || []).filter(cluster => connectionsNearLimit(cluster) || openAtlasAlerts(cluster).length > 0);
+  }
+
+  attentionSummary(cluster: AtlasClusterRow): string {
+    const percent = connectionPercent(cluster);
+    const connections = percent !== null ? `busiest minute in the last 24 hours used ${percent}% of its ${ATLAS_CONNECTION_LIMIT[cluster.instanceSize]} connections` : "";
+    const alerts = openAtlasAlerts(cluster).map(atlasAlertLabel);
+    const open = alerts.length ? `open Atlas alert: ${alerts.join(", ")}` : "";
+    return `${cluster.name}: ${[connections, open].filter(part => !!part).join("; ")}`;
+  }
+
+  alertSummary(alert: AtlasClusterAlert): string {
+    const raised = this.dateUtils.displayDateAndTime(Date.parse(alert.created));
+    const state = alert.status === AtlasAlertStatus.CLOSED ? `resolved${alert.resolved ? ` ${this.dateUtils.displayTime(Date.parse(alert.resolved))}` : ""}` : "still open";
+    return `Atlas alert: ${atlasAlertLabel(alert)}, ${raised}, ${state}`;
+  }
+
   fullnessBarClass(level: ClusterFullnessLevel): string {
     if (level === ClusterFullnessLevel.FULL) {
       return "progress-bar bg-danger";
@@ -681,11 +848,96 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   startDelete(row: AtlasClusterRow) {
     this.deleteTarget = row;
     this.deleteConfirmation = "";
+    this.showDeleteConfirmation();
   }
 
   cancelDelete() {
     this.deleteTarget = null;
     this.deleteConfirmation = "";
+  }
+
+  ghostDescription(row: AtlasClusterRow, ghost: AtlasGhostDatabase): string {
+    const when = ghost.movedAt ? ` on ${this.dateUtils.displayDate(Date.parse(ghost.movedAt))}` : "";
+    const size = ghost.collections !== null ? `, ${ghost.collections} collections` : "";
+    const logins = ghostDatabaseLogins(row, ghost).length;
+    const keys = logins ? ` It also has ${logins} unused login${logins === 1 ? "" : "s"}, shown as ${logins === 1 ? "a key" : "keys"}, removed with it.` : "";
+    return `Database ${ghost.database}${size}: the copy ${ghost.environment} left behind when it moved to ${ghost.movedTo}${when}. No site uses it.${keys}`;
+  }
+
+  protected readonly ghostDatabaseLogins = ghostDatabaseLogins;
+  protected readonly spareLoginGroups = spareLoginGroups;
+
+  spareLoginsDescription(group: AtlasLeftoverLoginGroup): string {
+    const count = group.logins.length;
+    return `${count} unused database login${count === 1 ? "" : "s"} for ${group.environment}: ${group.logins.map(login => login.username).join(", ")}. No site or move in progress uses ${count === 1 ? "it" : "them"}, so ${count === 1 ? "it" : "they"} can be deleted.`;
+  }
+
+  cleanupSelected(item: AtlasCleanupItem): boolean {
+    return this.cleanupSelection.some(selected => selected.key === item.key);
+  }
+
+  toggleCleanup(item: AtlasCleanupItem) {
+    const wasEmpty = this.cleanupSelection.length === 0;
+    this.cleanupSelection = this.cleanupSelected(item)
+      ? this.cleanupSelection.filter(selected => selected.key !== item.key)
+      : [...this.cleanupSelection, item];
+    if (wasEmpty && this.cleanupSelection.length > 0) {
+      this.showDeleteConfirmation();
+    }
+  }
+
+  cleanupConfirmed(): boolean {
+    return !cleanupNeedsTypedConfirmation(this.cleanupSelection) || this.cleanupConfirmation.trim().toLowerCase() === ATLAS_CLEANUP_CONFIRMATION_WORD;
+  }
+
+  clearCleanup() {
+    this.cleanupSelection = [];
+    this.cleanupConfirmation = "";
+    this.cleanupProgress = "";
+    this.cleanupCurrentKey = null;
+  }
+
+  private async attempt(label: string, work: () => Promise<{message: string}>): Promise<AtlasCleanupAttempt> {
+    try {
+      return {succeeded: true, message: (await work()).message};
+    } catch (error) {
+      return {succeeded: false, message: `${label}: ${error?.error?.error || error?.message || "Delete failed"}`};
+    }
+  }
+
+  private async cleanupOne(item: AtlasCleanupItem): Promise<AtlasCleanupOutcome> {
+    const attempts = item.kind === AtlasCleanupKind.DATABASE
+      ? [await this.attempt(item.label, () => this.environmentSetupService.deleteGhostDatabase({migrationId: item.ghost.migrationId, confirmDatabase: item.ghost.database}))]
+      : await item.logins.reduce(async (previous: Promise<AtlasCleanupAttempt[]>, login: AtlasLeftoverLogin) =>
+        [...await previous, await this.attempt(login.username, () => this.environmentSetupService.deleteLeftoverLogin({projectId: login.projectId, username: login.username}))], Promise.resolve([]));
+    const succeeded = attempts.every(attempt => attempt.succeeded);
+    return {item, succeeded, message: attempts.filter(attempt => succeeded || !attempt.succeeded).map(attempt => attempt.message).join(" ")};
+  }
+
+  async runCleanup() {
+    const items = this.cleanupSelection;
+    this.cleaningUp = true;
+    const outcomes = await items.reduce(async (previous: Promise<AtlasCleanupOutcome[]>, item: AtlasCleanupItem, index: number) => {
+      const done = await previous;
+      this.cleanupCurrentKey = item.key;
+      this.cleanupProgress = `Deleting ${index + 1} of ${items.length}`;
+      return [...done, await this.cleanupOne(item)];
+    }, Promise.resolve([] as AtlasCleanupOutcome[]));
+    const failed = outcomes.filter(outcome => !outcome.succeeded);
+    const succeeded = outcomes.filter(outcome => outcome.succeeded);
+    if (succeeded.length) {
+      this.notify.success({title: `Deleted ${cleanupSelectionSummary(succeeded.map(outcome => outcome.item))}`, message: succeeded.map(outcome => outcome.message).join(" ")});
+    }
+    if (failed.length) {
+      this.notify.error({title: `Could not delete ${cleanupSelectionSummary(failed.map(outcome => outcome.item))}`, message: failed.map(outcome => outcome.message).join(" ")});
+    }
+    this.cleaningUp = false;
+    this.clearCleanup();
+    await this.load();
+  }
+
+  private showDeleteConfirmation() {
+    setTimeout(() => this.host.nativeElement.querySelector(".atlas-delete-confirmation")?.scrollIntoView({behavior: "smooth", block: "start"}));
   }
 
   async deleteCluster() {

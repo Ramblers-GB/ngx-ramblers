@@ -2,16 +2,32 @@ import { randomBytes } from "crypto";
 import { MongoClient } from "mongodb";
 import { buildMongoUri } from "../shared/mongodb-uri";
 import { atlasRequest } from "./atlas-admin-api";
-import { AtlasApiAccess, AtlasDatabaseUser, AtlasError, CreatedEnvironmentMongoUser } from "./atlas-admin-api.model";
+import { AtlasApiAccess, AtlasDatabaseUser, AtlasError, CreatedEnvironmentMongoUser, MigrationLoginSlot } from "./atlas-admin-api.model";
 import { registrationSettings } from "../site-registration/registration-store";
 import { configuredEnvironments } from "../environments/environments-config";
 import { ConsoleAccessService } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 
 export { CreatedEnvironmentMongoUser } from "./atlas-admin-api.model";
 
+export function sanitisedEnvironmentName(environmentName: string): string {
+  return (environmentName || "group").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase() || "group";
+}
+
 export function environmentDatabaseUserName(environmentName: string): string {
-  const sanitised = (environmentName || "group").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase();
-  return `ngx_${sanitised || "group"}_db_user`.slice(0, 64);
+  return `ngx_${sanitisedEnvironmentName(environmentName)}_db_user`.slice(0, 64);
+}
+
+export function migrationLoginName(environmentName: string, slot: MigrationLoginSlot): string {
+  return `ngx_${sanitisedEnvironmentName(environmentName).slice(0, 48)}_move_${slot}`;
+}
+
+export function migrationLoginFor(environmentName: string, loginsInUse: (string | null | undefined)[]): string {
+  const first = migrationLoginName(environmentName, MigrationLoginSlot.A);
+  return loginsInUse.includes(first) ? migrationLoginName(environmentName, MigrationLoginSlot.B) : first;
+}
+
+export async function ensureMigrationMongoUser(atlas: AtlasApiAccess, database: string, username: string): Promise<CreatedEnvironmentMongoUser> {
+  return persistDatabaseUser(atlas, database, username, databaseUserPassword(), true);
 }
 
 export async function platformAtlasAccess(): Promise<AtlasApiAccess> {
@@ -90,13 +106,12 @@ function atlasFailure(action: string, username: string, status: number, error: A
   return new Error(`MongoDB Atlas would not ${action} the database user ${username} (${status}${error?.errorCode ? ` ${error.errorCode}` : ""}): ${error?.detail || error?.reason || "no detail given"}`);
 }
 
-async function persistDatabaseUser(atlas: AtlasApiAccess, database: string, environmentName: string, password: string, resetExistingPassword: boolean): Promise<CreatedEnvironmentMongoUser> {
+async function persistDatabaseUser(atlas: AtlasApiAccess, database: string, username: string, password: string, resetExistingPassword: boolean): Promise<CreatedEnvironmentMongoUser> {
   if (!atlas?.projectId) {
     throw new Error("The platform has no MongoDB Atlas project ID, so the new site cannot be given its own database user. Add it under Environment management → MongoDB Atlas, then retry.");
   } else if (!atlas?.publicKey || !atlas?.privateKey) {
     throw new Error("MongoDB Atlas API access is not set up, so the new site cannot be given its own database user. Add the Atlas API public and private key under Environment management → Global settings → MongoDB Atlas, then retry.");
   } else {
-    const username = environmentDatabaseUserName(environmentName);
     const roles = databaseRolesFor(database);
     const users = `/groups/${atlas.projectId}/databaseUsers`;
     const created = await atlasRequest<AtlasError>(atlas, "POST", users, {databaseName: "admin", groupId: atlas.projectId, username, password, roles});
@@ -126,14 +141,14 @@ async function persistDatabaseUser(atlas: AtlasApiAccess, database: string, envi
 }
 
 export async function createEnvironmentMongoUser(atlas: AtlasApiAccess, database: string, environmentName: string, resetExistingPassword = true): Promise<CreatedEnvironmentMongoUser> {
-  return persistDatabaseUser(atlas, database, environmentName, databaseUserPassword(), resetExistingPassword);
+  return persistDatabaseUser(atlas, database, environmentDatabaseUserName(environmentName), databaseUserPassword(), resetExistingPassword);
 }
 
 export async function ensureEnvironmentMongoUser(atlas: AtlasApiAccess, database: string, environmentName: string, password: string): Promise<CreatedEnvironmentMongoUser> {
   if (!password) {
     throw new Error(`Existing environment ${environmentName} has no MongoDB password stored. Repair it in Environment Setup before retrying.`);
   } else {
-    return persistDatabaseUser(atlas, database, environmentName, password, true);
+    return persistDatabaseUser(atlas, database, environmentDatabaseUserName(environmentName), password, true);
   }
 }
 

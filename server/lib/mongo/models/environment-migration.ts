@@ -42,6 +42,7 @@ const environmentMigrationSchema = new mongoose.Schema({
   s3CopyCheckpoint: { type: mongoose.Schema.Types.Mixed },
   rollbackInfo: { type: mongoose.Schema.Types.Mixed },
   rotatedAt: { type: Date },
+  sourceRemovedAt: { type: Date },
   error: { type: String },
   requestedBy: { type: String }
 }, { collection: "environmentMigrations", timestamps: true });

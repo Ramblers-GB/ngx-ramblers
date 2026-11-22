@@ -94,3 +94,33 @@ export interface AtlasMeasurement {
 export interface AtlasMeasurements {
   measurements?: AtlasMeasurement[];
 }
+
+export interface AtlasAlertDescription {
+  id?: string;
+  clusterName?: string;
+  metricName?: string;
+  eventTypeName?: string;
+  status?: string;
+  created?: string;
+  resolved?: string;
+  currentValue?: {number?: number; units?: string};
+}
+
+export interface AtlasAlertList {
+  results?: AtlasAlertDescription[];
+}
+
+export enum MigrationLoginSlot {
+  A = "a",
+  B = "b"
+}
+
+export interface AtlasDatabaseUserList {
+  results?: AtlasDatabaseUser[];
+}
+
+export interface ProjectLogin {
+  projectId: string;
+  username: string;
+  database?: string | null;
+}

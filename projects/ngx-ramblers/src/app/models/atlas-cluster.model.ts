@@ -44,14 +44,10 @@ export enum AtlasClusterState {
 }
 
 export enum EnvironmentAtlasTab {
-  PROVISIONING = "provisioning",
   CLUSTERS = "clusters",
-  ENVIRONMENTS = "environments"
-}
-
-export enum EnvironmentAtlasClusterTab {
-  INVENTORY = "inventory",
-  CREATE = "create"
+  NEW_CLUSTER = "new-cluster",
+  ENVIRONMENTS = "environments",
+  PROVISIONING = "provisioning"
 }
 
 export const ATLAS_M0_MAX_COLLECTIONS = 500;
@@ -97,6 +93,31 @@ export interface ClusterFullness {
   storage: ClusterFullnessMeasure | null;
   load: ClusterFullnessMeasure | null;
   loadNote: string;
+  connections: ClusterFullnessMeasure | null;
+  connectionsNote: string;
+}
+
+export const ATLAS_CONNECTION_LIMIT: Record<AtlasClusterTier, number | null> = {
+  [AtlasClusterTier.M0]: 500,
+  [AtlasClusterTier.FLEX]: 500,
+  [AtlasClusterTier.M10]: 1500,
+  [AtlasClusterTier.M20]: 3000,
+  [AtlasClusterTier.M30]: 3000,
+  [AtlasClusterTier.UNKNOWN]: null
+};
+
+export const ATLAS_CONNECTION_WARNING_PERCENT = 70;
+export const ATLAS_ALERT_HISTORY_DAYS = 7;
+
+export enum AtlasAlertMetric {
+  CONNECTIONS_PERCENT = "CONNECTIONS_PERCENT",
+  CONNECTIONS = "CONNECTIONS"
+}
+
+export enum AtlasAlertStatus {
+  OPEN = "OPEN",
+  TRACKING = "TRACKING",
+  CLOSED = "CLOSED"
 }
 
 export const ATLAS_THROUGHPUT_LIMIT_OPS_PER_SECOND: Record<AtlasClusterTier, number | null> = {
@@ -153,6 +174,41 @@ function megabytes(bytes: number): string {
   return value >= 1024 ? `${(value / 1024).toFixed(1)} GB` : `${value.toFixed(value < 10 ? 1 : 0)} MB`;
 }
 
+export function connectionPercent(cluster: Pick<AtlasClusterRow, "instanceSize" | "connections">): number | null {
+  const limit = ATLAS_CONNECTION_LIMIT[cluster.instanceSize];
+  return limit && cluster.connections ? Math.round((cluster.connections.peak / limit) * 100) : null;
+}
+
+export function connectionsNearLimit(cluster: Pick<AtlasClusterRow, "instanceSize" | "connections">): boolean {
+  const limit = ATLAS_CONNECTION_LIMIT[cluster.instanceSize];
+  return !!limit && !!cluster.connections && cluster.connections.peak * 100 >= limit * ATLAS_CONNECTION_WARNING_PERCENT;
+}
+
+export function atlasAlertLabel(alert: AtlasClusterAlert): string {
+  if (alert.metricName === AtlasAlertMetric.CONNECTIONS_PERCENT || alert.metricName === AtlasAlertMetric.CONNECTIONS) {
+    return "Connections near the limit";
+  } else {
+    return (alert.metricName || alert.eventTypeName || "Atlas alert").toLowerCase().replace(/_/g, " ").replace(/^./, first => first.toUpperCase());
+  }
+}
+
+export function openAtlasAlerts(cluster: Pick<AtlasClusterRow, "alerts">): AtlasClusterAlert[] {
+  return (cluster.alerts || []).filter(alert => alert.status !== AtlasAlertStatus.CLOSED);
+}
+
+function clusterConnectionsSummary(cluster: AtlasClusterRow): {connections: ClusterFullnessMeasure | null; connectionsNote: string} {
+  const connections = cluster.connections;
+  const limit = ATLAS_CONNECTION_LIMIT[cluster.instanceSize];
+  if (!connections || !limit) {
+    return {connections: null, connectionsNote: ""};
+  } else {
+    return {
+      connections: fullnessMeasure(connections.peak, limit, `Busiest minute ${connections.peak} of ${limit} connections`),
+      connectionsNote: `${connections.current} connections now, busiest over the last 24 hours`
+    };
+  }
+}
+
 export function clusterFullness(cluster: AtlasClusterRow): ClusterFullness {
   const recommended = ATLAS_RECOMMENDED_COLLECTION_AND_INDEX_LIMIT[cluster.instanceSize];
   const collections = recommended
@@ -162,7 +218,7 @@ export function clusterFullness(cluster: AtlasClusterRow): ClusterFullness {
   const storage = storageLimit
     ? fullnessMeasure(cluster.dataSizeBytes || 0, storageLimit, `${megabytes(cluster.dataSizeBytes || 0)} of ${megabytes(storageLimit)} storage`)
     : null;
-  return {collections, storage, ...clusterLoadSummary(cluster)};
+  return {collections, storage, ...clusterLoadSummary(cluster), ...clusterConnectionsSummary(cluster)};
 }
 
 export interface AtlasNetworkAccessEntry {
@@ -189,6 +245,22 @@ export interface AtlasClusterLoad {
   peakOpsPerSecond: number;
 }
 
+export interface AtlasClusterConnections {
+  current: number;
+  peak: number;
+  peakAt: string | null;
+}
+
+export interface AtlasClusterAlert {
+  id: string;
+  metricName: string | null;
+  eventTypeName: string | null;
+  status: AtlasAlertStatus | string;
+  created: string;
+  resolved: string | null;
+  currentValue: number | null;
+}
+
 export interface AtlasClusterRow {
   projectId?: string;
   name: string;
@@ -206,6 +278,10 @@ export interface AtlasClusterRow {
   databaseCount: number;
   dataSizeBytes: number;
   load?: AtlasClusterLoad | null;
+  connections?: AtlasClusterConnections | null;
+  alerts?: AtlasClusterAlert[];
+  ghostDatabases?: AtlasGhostDatabase[];
+  leftoverLogins?: AtlasLeftoverLogin[];
   canAddEnvironment: boolean;
   limitHeadline: string;
 }
@@ -311,4 +387,109 @@ export function clusterCapacity(instanceSize: AtlasClusterTier, collections: num
   } else {
     return {canAdd: true, headline: `${collections} collections on this cluster.`};
   }
+}
+
+export interface AtlasClusterHealth {
+  load: AtlasClusterLoad | null;
+  connections: AtlasClusterConnections | null;
+  alerts: AtlasClusterAlert[];
+}
+
+export enum ConnectionWindow {
+  LAST_DAY = "P1D",
+  LAST_QUARTER_HOUR = "PT15M"
+}
+
+export interface AtlasGhostDatabase {
+  migrationId: string;
+  environment: string;
+  cluster: string;
+  database: string;
+  oldUsername: string;
+  movedTo: string;
+  movedAt: string | null;
+  collections: number | null;
+}
+
+export interface AtlasGhostDatabaseDeleteRequest {
+  migrationId: string;
+  confirmDatabase: string;
+}
+
+export interface AtlasLeftoverLogin {
+  projectId: string;
+  username: string;
+  environment: string | null;
+  database: string | null;
+  cluster: string;
+}
+
+export interface AtlasLeftoverLoginDeleteRequest {
+  projectId: string;
+  username: string;
+}
+
+export interface AtlasLeftoverLoginGroup {
+  environment: string;
+  logins: AtlasLeftoverLogin[];
+}
+
+export function ghostDatabaseLogins(cluster: AtlasClusterRow, ghost: AtlasGhostDatabase): AtlasLeftoverLogin[] {
+  return (cluster.leftoverLogins || []).filter(login => !!login.database && login.database === ghost.database);
+}
+
+export function spareLoginGroups(cluster: AtlasClusterRow): AtlasLeftoverLoginGroup[] {
+  const ghostDatabases = new Set((cluster.ghostDatabases || []).map(ghost => ghost.database));
+  const spare = (cluster.leftoverLogins || []).filter(login => !login.database || !ghostDatabases.has(login.database));
+  return Array.from(new Set(spare.map(login => login.environment || login.username)))
+    .map(environment => ({environment, logins: spare.filter(login => (login.environment || login.username) === environment)}));
+}
+
+export enum AtlasCleanupKind {
+  DATABASE = "database",
+  LOGINS = "logins"
+}
+
+export interface AtlasCleanupItem {
+  key: string;
+  kind: AtlasCleanupKind;
+  label: string;
+  cluster: string;
+  ghost: AtlasGhostDatabase | null;
+  logins: AtlasLeftoverLogin[];
+}
+
+export interface AtlasCleanupAttempt {
+  succeeded: boolean;
+  message: string;
+}
+
+export interface AtlasCleanupOutcome {
+  item: AtlasCleanupItem;
+  succeeded: boolean;
+  message: string;
+}
+
+export const ATLAS_CLEANUP_CONFIRMATION_WORD = "delete";
+
+export function ghostCleanupItem(cluster: AtlasClusterRow, ghost: AtlasGhostDatabase): AtlasCleanupItem {
+  return {key: `database:${ghost.migrationId}`, kind: AtlasCleanupKind.DATABASE, label: ghost.database, cluster: cluster.name, ghost, logins: ghostDatabaseLogins(cluster, ghost)};
+}
+
+export function loginsCleanupItem(cluster: AtlasClusterRow, group: AtlasLeftoverLoginGroup): AtlasCleanupItem {
+  const count = group.logins.length;
+  return {key: `logins:${cluster.host}/${group.environment}`, kind: AtlasCleanupKind.LOGINS, label: `${count} unused login${count === 1 ? "" : "s"} for ${group.environment}`, cluster: cluster.name, ghost: null, logins: group.logins};
+}
+
+export function cleanupSelectionSummary(items: AtlasCleanupItem[]): string {
+  const databases = items.filter(item => item.kind === AtlasCleanupKind.DATABASE).length;
+  const logins = items.filter(item => item.kind === AtlasCleanupKind.LOGINS).reduce((total, item) => total + item.logins.length, 0);
+  return [
+    databases ? `${databases} database${databases === 1 ? "" : "s"}` : null,
+    logins ? `${logins} unused login${logins === 1 ? "" : "s"}` : null
+  ].filter(part => !!part).join(" and ");
+}
+
+export function cleanupNeedsTypedConfirmation(items: AtlasCleanupItem[]): boolean {
+  return items.some(item => item.kind === AtlasCleanupKind.DATABASE);
 }

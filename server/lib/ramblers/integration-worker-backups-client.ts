@@ -8,8 +8,10 @@ import {
   IntegrationWorkerBackupsJobRequest,
   IntegrationWorkerBackupsResultCallback,
   IntegrationWorkerCallbackConfig,
+  IntegrationWorkerRestoreOptions,
   IntegrationWorkerResultStatus
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
+import { EnvironmentMigrationRequest } from "../../../projects/ngx-ramblers/src/app/models/environment-migration.model";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 import { backupsWorkerSession, completeBackupsWorkerSession, registerBackupsWorkerSession } from "../backup/backups-worker-session";
 import { dateTimeNowAsValue } from "../shared/dates";
@@ -71,6 +73,38 @@ export async function submitEnvironmentBackupToIntegrationWorker(sessionMongoId:
       callback: backupCallback(),
       sessionMongoId,
       options
+    });
+  }
+}
+
+export async function submitEnvironmentRestoreToIntegrationWorker(sessionMongoId: string, restoreOptions: IntegrationWorkerRestoreOptions): Promise<void> {
+  const encryptionKey = required(Environment.INTEGRATION_WORKER_ENCRYPTION_KEY);
+  const mongoUri = envConfig.mongo()?.uri;
+  if (!mongoUri) {
+    throw new Error("Mongo URI must be configured to run restores on the integration worker");
+  } else {
+    await postBackupJob({
+      jobId: randomUUID(),
+      encryptedMongoUri: encryptRamblersUploadPayload({uri: mongoUri}, encryptionKey),
+      callback: backupCallback(),
+      sessionMongoId,
+      restoreOptions
+    });
+  }
+}
+
+export async function submitEnvironmentMoveToIntegrationWorker(migrationId: string, moveRequest: EnvironmentMigrationRequest): Promise<void> {
+  const encryptionKey = required(Environment.INTEGRATION_WORKER_ENCRYPTION_KEY);
+  const mongoUri = envConfig.mongo()?.uri;
+  if (!mongoUri) {
+    throw new Error("Mongo URI must be configured to run moves on the integration worker");
+  } else {
+    await postBackupJob({
+      jobId: randomUUID(),
+      encryptedMongoUri: encryptRamblersUploadPayload({uri: mongoUri}, encryptionKey),
+      callback: backupCallback(),
+      migrationId,
+      encryptedMoveRequest: encryptRamblersUploadPayload(moveRequest, encryptionKey)
     });
   }
 }

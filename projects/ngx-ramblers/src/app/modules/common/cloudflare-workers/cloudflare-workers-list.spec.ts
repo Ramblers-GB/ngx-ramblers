@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { ActivatedRoute, convertToParamMap, Router } from "@angular/router";
 import { BehaviorSubject } from "rxjs";
+import { LoggerTestingModule } from "ngx-logger/testing";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { CloudflareWorkersList } from "./cloudflare-workers-list";
 import { CloudflareWorkerSortField, WorkerEmailUsageStatus } from "../../../models/cloudflare-email-routing.model";
@@ -15,7 +16,7 @@ describe("shared Cloudflare workers list", () => {
     params.next(convertToParamMap({}));
     navigate.mockClear();
     await TestBed.configureTestingModule({
-      imports: [CloudflareWorkersList],
+      imports: [CloudflareWorkersList, LoggerTestingModule],
       providers: [
         {provide: ActivatedRoute, useValue: {queryParamMap: params}},
         {provide: Router, useValue: {navigate}}

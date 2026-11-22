@@ -16,44 +16,51 @@ describe("migration MongoDB target provisioning", () => {
     sandbox.stub(environmentsConfig, "configuredEnvironments").resolves({environments: [{environment: "hillside", mongo: {cluster: "source.abc123", db: "hillside-database"}}]} as never);
     sandbox.stub(atlasClusters, "atlasClusterView").resolves({atlasReachable: true, clusters: [target]} as AtlasClusterView);
     sandbox.stub(mongoDatabaseUser, "platformAtlasAccess").resolves({projectId: "project-1", publicKey: "public-key", privateKey: "private-key"});
-    sandbox.stub(mongoDatabaseUser, "createEnvironmentMongoUser").resolves({username: "hillside-user", password: "fictional-password"});
+    sandbox.stub(mongoDatabaseUser, "ensureMigrationMongoUser").resolves({username: "hillside-user", password: "fictional-password"});
   });
 
   afterEach(() => sandbox.restore());
 
-  it("uses the existing environment's database and never resets an existing target user", async () => {
+  it("creates the site's move login in the destination project, for the existing environment's database", async () => {
     const created = await provisionMigrationMongoTarget({environment: "hillside", cluster: target.host});
     expect(created).toEqual({cluster: target.host, db: "hillside-database", username: "hillside-user", password: "fictional-password"});
-    const args = (mongoDatabaseUser.createEnvironmentMongoUser as sinon.SinonStub).firstCall.args;
+    const args = (mongoDatabaseUser.ensureMigrationMongoUser as sinon.SinonStub).firstCall.args;
     expect(args[0]).toEqual({projectId: "project-1", publicKey: "public-key", privateKey: "private-key"});
     expect(args[1]).toBe("hillside-database");
-    expect(args[2]).toMatch(/^hillside_migration_/);
-    expect(args[3]).toBe(false);
+    expect(args[2]).toBe("ngx_hillside_move_a");
   });
 
-  it("uses a new target identity on retries instead of resetting the live source user", async () => {
+  it("reuses the same login when a move is retried, so logins do not pile up", async () => {
     await provisionMigrationMongoTarget({environment: "hillside", cluster: target.host});
     await provisionMigrationMongoTarget({environment: "hillside", cluster: target.host});
-    const calls = (mongoDatabaseUser.createEnvironmentMongoUser as sinon.SinonStub).getCalls();
-    expect(calls[0].args[2]).not.toBe(calls[1].args[2]);
-    expect(calls.map(call => call.args[3])).toEqual([false, false]);
+    const calls = (mongoDatabaseUser.ensureMigrationMongoUser as sinon.SinonStub).getCalls();
+    expect(calls.map(call => call.args[2])).toEqual(["ngx_hillside_move_a", "ngx_hillside_move_a"]);
+  });
+
+  it("never picks the login the site is running on, from its settings or its stored connection", async () => {
+    (environmentsConfig.configuredEnvironments as sinon.SinonStub).resolves({environments: [{environment: "hillside", mongo: {cluster: "source.abc123", db: "hillside-database", username: "ngx_hillside_move_a"}}]});
+    await provisionMigrationMongoTarget({environment: "hillside", cluster: target.host});
+    (environmentsConfig.configuredEnvironments as sinon.SinonStub).resolves({environments: [{environment: "hillside", mongo: {cluster: "source.abc123", db: "hillside-database", username: "older"}, secrets: {MONGODB_URI: "mongodb+srv://ngx_hillside_move_a:pw@source.abc123.mongodb.net/hillside-database"}}]});
+    await provisionMigrationMongoTarget({environment: "hillside", cluster: target.host});
+    const calls = (mongoDatabaseUser.ensureMigrationMongoUser as sinon.SinonStub).getCalls();
+    expect(calls.map(call => call.args[2])).toEqual(["ngx_hillside_move_b", "ngx_hillside_move_b"]);
   });
 
   it("creates the user in the destination project", async () => {
     (atlasClusters.atlasClusterView as sinon.SinonStub).resolves({atlasReachable: true, clusters: [{...target, projectId: "destination-project"}]});
     await provisionMigrationMongoTarget({environment: "hillside", cluster: target.host});
-    expect((mongoDatabaseUser.createEnvironmentMongoUser as sinon.SinonStub).firstCall.args[0].projectId).toBe("destination-project");
+    expect((mongoDatabaseUser.ensureMigrationMongoUser as sinon.SinonStub).firstCall.args[0].projectId).toBe("destination-project");
   });
 
   it("rejects the source cluster without touching Atlas", async () => {
     await expect(provisionMigrationMongoTarget({environment: "hillside", cluster: "source.abc123"})).rejects.toThrow("different from the source");
     expect((atlasClusters.atlasClusterView as sinon.SinonStub).called).toBe(false);
-    expect((mongoDatabaseUser.createEnvironmentMongoUser as sinon.SinonStub).called).toBe(false);
+    expect((mongoDatabaseUser.ensureMigrationMongoUser as sinon.SinonStub).called).toBe(false);
   });
 
   it("rejects an unknown environment before creating any credentials", async () => {
     await expect(provisionMigrationMongoTarget({environment: "unknown", cluster: target.host})).rejects.toThrow("Select an environment");
-    expect((mongoDatabaseUser.createEnvironmentMongoUser as sinon.SinonStub).called).toBe(false);
+    expect((mongoDatabaseUser.ensureMigrationMongoUser as sinon.SinonStub).called).toBe(false);
   });
 
   [
@@ -65,7 +72,7 @@ describe("migration MongoDB target provisioning", () => {
     it("rejects an unreachable, external, busy or full target without creating credentials", async () => {
       (atlasClusters.atlasClusterView as sinon.SinonStub).resolves(view);
       await expect(provisionMigrationMongoTarget({environment: "hillside", cluster: target.host})).rejects.toThrow();
-      expect((mongoDatabaseUser.createEnvironmentMongoUser as sinon.SinonStub).called).toBe(false);
+      expect((mongoDatabaseUser.ensureMigrationMongoUser as sinon.SinonStub).called).toBe(false);
     });
   });
 

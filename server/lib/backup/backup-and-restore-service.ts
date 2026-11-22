@@ -79,6 +79,7 @@ export interface RestoreOptions {
   dryRun?: boolean;
   includeS3?: boolean;
   user?: string;
+  executeLocally?: boolean;
 }
 
 export class BackupAndRestoreService {
@@ -234,6 +235,20 @@ export class BackupAndRestoreService {
     }
   }
 
+  async executeQueuedRestore(mongoId: string, options: RestoreOptions): Promise<void> {
+    const config = this.findEnvironmentConfig(options.environment);
+    const savedSession = config?.mongo ? await backupSession.findById(mongoId) : null;
+    if (!config?.mongo) {
+      throw new Error(`Environment "${options.environment}" is not configured for restore`);
+    } else if (!savedSession) {
+      throw new Error(`Restore session ${mongoId} was not found`);
+    } else if (savedSession.type !== BackupSessionType.RESTORE || savedSession.environment !== options.environment) {
+      throw new Error(`Restore session ${mongoId} does not match environment "${options.environment}"`);
+    } else if (savedSession.status === BackupSessionStatus.PENDING) {
+      await this.executeRestore(mongoId, config, options);
+    }
+  }
+
   async startRestore(options: RestoreOptions): Promise<BackupSession> {
     const config = this.findEnvironmentConfig(options.environment);
     if (!config) {
@@ -289,10 +304,12 @@ export class BackupAndRestoreService {
       await this.notificationService.notifyRestoreStarted(savedSession);
     }
 
-    if (!options.dryRun) {
+    if (!options.dryRun && options.executeLocally !== false) {
       this.executeRestore(savedSession._id!.toString(), config, options).catch(err => {
         this.updateSessionError(savedSession._id!.toString(), err.message);
       });
+    } else if (!options.dryRun) {
+      debugLog("startRestore: %s left for the integration worker", savedSession.sessionId);
     } else {
       await this.updateSession(savedSession._id!.toString(), {
         status: BackupSessionStatus.COMPLETED,
@@ -907,12 +924,16 @@ export class BackupAndRestoreService {
   }
 
   async failPendingBackup(sessionId: string, error: string): Promise<void> {
-    await this.updateSessionError(sessionId, error, BackupSessionStatus.PENDING);
+    await this.updateSessionError(sessionId, error, BackupSessionStatus.PENDING, BackupSessionType.BACKUP);
   }
 
-  private async updateSessionError(sessionId: string, error: string, expectedStatus?: BackupSessionStatus): Promise<void> {
+  async failPendingRestore(sessionId: string, error: string): Promise<void> {
+    await this.updateSessionError(sessionId, error, BackupSessionStatus.PENDING, BackupSessionType.RESTORE);
+  }
+
+  private async updateSessionError(sessionId: string, error: string, expectedStatus?: BackupSessionStatus, expectedType: BackupSessionType = BackupSessionType.BACKUP): Promise<void> {
     const result = await backupSession.updateOne(
-      { _id: sessionId, ...(expectedStatus ? {status: expectedStatus, type: BackupSessionType.BACKUP} : {status: {$ne: BackupSessionStatus.ABORTED}}) },
+      { _id: sessionId, ...(expectedStatus ? {status: expectedStatus, type: expectedType} : {status: {$ne: BackupSessionStatus.ABORTED}}) },
       { $set: { status: BackupSessionStatus.FAILED, error, endTime: dateTimeNow().toJSDate() }, $currentDate: { updatedAt: true } }
     );
     if (result.modifiedCount > 0) {

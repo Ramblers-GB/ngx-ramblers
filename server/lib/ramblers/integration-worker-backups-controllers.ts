@@ -18,6 +18,8 @@ import { createBackupAndRestoreService } from "../backup/backup-service-factory"
 import { backupEvents, BackupEventMap } from "../backup/backup-events";
 import { isString } from "es-toolkit/compat";
 import { startKeepAlive } from "./integration-worker-runner";
+import { createEnvironmentMigrationService } from "../backup/environment-migration-service";
+import { EnvironmentMigrationRequest, EnvironmentMigrationStatus } from "../../../projects/ngx-ramblers/src/app/models/environment-migration.model";
 
 const debugLog = debug(envConfig.logNamespace("integration-worker-backups-controllers"));
 debugLog.enabled = true;
@@ -44,6 +46,18 @@ async function postResult(callback: IntegrationWorkerCallbackConfig, sharedSecre
     await postSignedWorkerBody(`${callback.baseUrl}${callback.resultPath}`, sharedSecret, payload);
   } catch (error) {
     debugLog("result callback failed jobId:", payload.jobId, "error:", (error as Error).message);
+  }
+}
+
+async function runMove(migrationId: string, encryptedMoveRequest: string): Promise<void> {
+  const moveRequest = decryptRamblersUploadPayload<EnvironmentMigrationRequest>(encryptedMoveRequest, requiredValue(Environment.INTEGRATION_WORKER_ENCRYPTION_KEY));
+  if (!moveRequest?.environment) {
+    throw new Error("encryptedMoveRequest did not contain a move request");
+  } else {
+    const moved = await createEnvironmentMigrationService().runQueuedMigration(migrationId, moveRequest);
+    if (moved?.status === EnvironmentMigrationStatus.FAILED) {
+      throw new Error(moved.error || "Move failed");
+    }
   }
 }
 
@@ -77,7 +91,12 @@ async function runBackups(request: IntegrationWorkerBackupsJobRequest): Promise<
       connectTimeoutMS: 30000
     });
     backupEvents.on("session-updated", onSessionUpdated);
-    if (request.sessionMongoId && request.options) {
+    if (request.migrationId && request.encryptedMoveRequest) {
+      await runMove(request.migrationId, request.encryptedMoveRequest);
+    } else if (request.sessionMongoId && request.restoreOptions) {
+      const service = await createBackupAndRestoreService();
+      await service.executeQueuedRestore(request.sessionMongoId, request.restoreOptions);
+    } else if (request.sessionMongoId && request.options) {
       const service = await createBackupAndRestoreService();
       await service.executeQueuedBackup(request.sessionMongoId, request.options);
     } else {
@@ -85,6 +104,7 @@ async function runBackups(request: IntegrationWorkerBackupsJobRequest): Promise<
     }
     await postResult(request.callback, sharedSecret, {
       jobId: request.jobId,
+      migrationId: request.migrationId,
       status: IntegrationWorkerResultStatus.Success
     });
   } catch (error) {
@@ -93,6 +113,7 @@ async function runBackups(request: IntegrationWorkerBackupsJobRequest): Promise<
     await postResult(request.callback, sharedSecret, {
       jobId: request.jobId,
       sessionMongoId: request.sessionMongoId,
+      migrationId: request.migrationId,
       status: IntegrationWorkerResultStatus.Error,
       errorMessage
     });
@@ -111,13 +132,13 @@ export async function submitBackupsJob(req: Request, res: Response): Promise<voi
     res.status(401).json({error: "Invalid integration worker request signature"});
   } else if (!request?.jobId || !request?.encryptedMongoUri || !request?.callback) {
     res.status(400).json({error: "jobId, encryptedMongoUri and callback are required"});
-  } else if (Boolean(request.sessionMongoId) !== Boolean(request.options?.environment)) {
-    res.status(400).json({error: "A manual backup requires a session ID and an environment"});
+  } else if (Boolean(request.sessionMongoId) !== Boolean(request.options?.environment || request.restoreOptions?.environment)) {
+    res.status(400).json({error: "A manual backup or restore requires a session ID and an environment"});
   } else {
     const queueResult = integrationWorkerHeavyJobQueue.enqueue({
       jobId: request.jobId,
       type: IntegrationWorkerHeavyJobType.Backups,
-      label: request.options?.environment ? `Backup ${request.options.environment}` : "All-environments backup",
+      label: request.migrationId ? `Move ${request.migrationId}` : request.restoreOptions?.environment ? `Restore ${request.restoreOptions.environment}` : request.options?.environment ? `Backup ${request.options.environment}` : "All-environments backup",
       run: () => runBackups(request)
     });
     debugLog("queued: jobId:", request.jobId, "queued:", queueResult.queued, "position:", queueResult.queuePosition);

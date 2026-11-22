@@ -109,6 +109,7 @@ import { scheduleBrevoUnsubscribesSync } from "./cron/brevo-unsubscribes-sync-jo
 import { scheduleBrevoCampaignRelease } from "./cron/brevo-campaign-release-job";
 import { scheduleBrevoSmtpKeepalive } from "./cron/brevo-smtp-keepalive-job";
 import { scheduleInboxTokenHealthCheck } from "./cron/inbox-token-health-check-job";
+import { scheduleAtlasConnectionsCheck } from "./cron/atlas-connections-check-job";
 import { scheduleBackups } from "./cron/backups-job";
 import { scheduledTaskRoutes } from "./cron/scheduled-task-routes";
 import { adminAlertsRoutes } from "./alerts/admin-alerts-routes";
@@ -464,6 +465,10 @@ async function startServer() {
 
       scheduleBackups().catch(error => {
         debugLog("❌ Failed to schedule all-environments backup:", error);
+      });
+
+      scheduleAtlasConnectionsCheck().catch(error => {
+        debugLog("❌ Failed to schedule Atlas connections check:", error);
       });
 
       startScheduledTaskWatchdog();
