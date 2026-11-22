@@ -1,4 +1,4 @@
-import { continuousSnap, cumulativeDistances, metresBetween, pointAlongRoute, projectOnSegment, routeSnapCandidates, simplifiedRoutePoints, snapToRoute } from "./route-geometry";
+import { continuousSnap, cumulativeDistances, isClosedLoop, loopRestartedAt, metresBetween, pointAlongRoute, projectOnSegment, routeSnapCandidates, simplifiedRoutePoints, snapToRoute } from "./route-geometry";
 
 const line = [0, 0.01, 0.02].map(offset => ({latitude: 51 + offset, longitude: 1}));
 
@@ -92,5 +92,36 @@ describe("following a route that passes the same place twice", () => {
     const partWayOut = {latitude: 51.005, longitude: 0.9999};
     const snap = continuousSnap(routeSnapCandidates(loop, cumulative, partWayOut), total - 100, 40);
     expect(snap.progressMetres).toBeLessThan(cumulative[1]);
+  });
+
+  describe("moving the start of a loop", () => {
+    const square = [
+      {latitude: 51, longitude: 1},
+      {latitude: 51.01, longitude: 1},
+      {latitude: 51.01, longitude: 1.01},
+      {latitude: 51, longitude: 1.01},
+      {latitude: 51, longitude: 1}
+    ];
+
+    it("recognises a loop only when the finish is back near the start", () => {
+      expect(isClosedLoop(square, 150)).toBe(true);
+      expect(isClosedLoop(square.slice(0, 4), 150)).toBe(false);
+      expect(isClosedLoop(square.slice(0, 2), 150)).toBe(false);
+    });
+
+    it("starts and finishes the loop at the chosen place, keeping the order of the route", () => {
+      const restarted = loopRestartedAt(square, {latitude: 51.005, longitude: 1.0101});
+      expect(restarted[0].latitude).toBeCloseTo(51.005, 6);
+      expect(restarted[0].longitude).toBeCloseTo(1.01, 6);
+      expect(restarted.slice(1, -1).map(point => [point.latitude, point.longitude])).toEqual([[51, 1.01], [51, 1], [51.01, 1], [51.01, 1.01]]);
+      expect(restarted[restarted.length - 1]).toEqual(restarted[0]);
+      expect(Math.round(cumulativeDistances(restarted).at(-1))).toBe(Math.round(cumulativeDistances(square).at(-1)));
+    });
+
+    it("joins up a loop whose finish stops just short of the start", () => {
+      const open = [...square.slice(0, 4), {latitude: 51.0005, longitude: 1.0001}];
+      const restarted = loopRestartedAt(open, {latitude: 51.01, longitude: 1.005});
+      expect(restarted.slice(1, -1).map(point => [point.latitude, point.longitude])).toEqual([[51.01, 1.01], [51, 1.01], [51.0005, 1.0001], [51, 1], [51.01, 1]]);
+    });
   });
 });

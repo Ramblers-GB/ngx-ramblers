@@ -1151,6 +1151,9 @@ describe("snapping a plotted route to paths", () => {
   function plotting(snapToPaths: boolean, path: {latitude: number; longitude: number}[] | null): RouteFollowComponent {
     const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
     view["editVertices"] = [start];
+    view["draftPoints"] = [start];
+    view["editHistory"] = [];
+    view["draggingVertexIndex"] = null;
     view["progress"] = {mode: RouteFollowMode.EDITING} as typeof view["progress"];
     view["originalEditCount"] = 0;
     view["snapToPaths"] = snapToPaths;
@@ -1159,7 +1162,7 @@ describe("snapping a plotted route to paths", () => {
     view["pathSnapQueue"] = Promise.resolve();
     Object.defineProperty(view, "logger", {value: {info: vi.fn(), error: vi.fn()}});
     Object.defineProperty(view, "walkingPaths", {value: {pathBetween: vi.fn().mockResolvedValue(path)}});
-    view["followService"] = {replaceTrack: vi.fn()} as unknown as typeof view["followService"];
+    view["followService"] = {replaceTrack: vi.fn(), routeWaypoints: vi.fn(() => []), replaceWaypoints: vi.fn()} as unknown as typeof view["followService"];
     view["refreshEditHandles"] = vi.fn();
     view["refreshArrows"] = vi.fn();
     view["redraw"] = vi.fn();
@@ -1171,6 +1174,16 @@ describe("snapping a plotted route to paths", () => {
     await view["insertPathTo"](tapped, 0);
     expect(view["walkingPaths"].pathBetween).toHaveBeenCalledWith(start, tapped);
     expect(view["editVertices"]).toEqual([start, bend, tapped]);
+  });
+
+  it("undoes a snapped stretch in one step, then has nothing left to undo", async () => {
+    const view = plotting(true, [start, bend, tapped]);
+    await view["insertPathTo"](tapped, 0);
+    view.undoEdit();
+    expect(view["editVertices"]).toEqual([start]);
+    expect(view["editHistory"]).toEqual([]);
+    view.undoEdit();
+    expect(view["editVertices"]).toEqual([start]);
   });
 
   it("drops a path that arrives after editing was cancelled", async () => {
@@ -1203,6 +1216,8 @@ describe("snapping a plotted route to paths", () => {
     const verticesWhenSaving: {latitude: number; longitude: number}[][] = [];
     view["followService"] = {
       replaceTrack: vi.fn(),
+      routeWaypoints: vi.fn(() => []),
+      replaceWaypoints: vi.fn(),
       flushRecording: vi.fn(() => {
         verticesWhenSaving.push([...view["editVertices"]]);
         return Promise.resolve(false);

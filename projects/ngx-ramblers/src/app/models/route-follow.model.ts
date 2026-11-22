@@ -216,7 +216,8 @@ export enum RouteFollowMode {
 
 export enum RouteFollowEditTool {
   PENCIL = "pencil",
-  ERASER = "eraser"
+  ERASER = "eraser",
+  START = "start"
 }
 
 export enum RouteFollowSheetState {
@@ -751,6 +752,7 @@ export function firstCompleted<T>(promise: Promise<T>, timeoutMs: number, timeou
 export const ROUTE_FOLLOW_APPROACH_METRES = 40;
 export const ROUTE_FOLLOW_NUDGE_METRES = 50;
 export const ROUTE_FOLLOW_OFF_ROUTE_METRES = 50;
+export const ROUTE_FOLLOW_LOOP_CLOSURE_METRES = 150;
 export const ROUTE_FOLLOW_SNAP_AMBIGUITY_METRES = 40;
 export const ROUTE_FOLLOW_PROGRESS_MEMORY_HOURS = 12;
 export const ROUTE_FOLLOW_PATH_ROUTER_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/foot";
@@ -760,6 +762,12 @@ export interface RouteFollowPathPlacement {
   afterIndex: number;
   atStart: boolean;
   atEnd: boolean;
+}
+
+export interface RouteFollowEditSnapshot {
+  vertices: RouteFollowPoint[];
+  draftPoints: RouteFollowPoint[];
+  waypoints: RouteFollowWaypoint[];
 }
 export const ROUTE_FOLLOW_WALKING_METRES_PER_MINUTE = 75;
 export const ROUTE_FOLLOW_ARROW_SPACING_METRES = 220;

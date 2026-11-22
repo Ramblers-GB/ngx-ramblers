@@ -31,7 +31,7 @@ import { FormsModule } from "@angular/forms";
 import { CdkTextareaAutosize } from "@angular/cdk/text-field";
 import { afterNextRender, ChangeDetectorRef, Component, ElementRef, HostListener, effect, inject, Injector, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { turnRotationDegrees } from "../../functions/route-turns";
-import { nearestPointIndex, cumulativeDistances, snapToRoute } from "../../functions/route-geometry";
+import { nearestPointIndex, cumulativeDistances, isClosedLoop, loopRestartedAt, snapToRoute } from "../../functions/route-geometry";
 import { ActivatedRoute, Router } from "@angular/router";
 import { LeafletModule } from "@bluehalo/ngx-leaflet";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -46,6 +46,8 @@ import {
   faCompress,
   faEllipsis,
   faEraser,
+  faFlag,
+  faMagnet,
   faFlagCheckered,
   faFloppyDisk,
   faArrowUp,
@@ -89,6 +91,7 @@ import {
   RouteFollowLocationError,
   RouteFollowEditTool,
   RouteFollowMode,
+  RouteFollowEditSnapshot,
   RouteFollowPathPlacement,
   RouteFollowSheetState,
   RouteFollowPayload,
@@ -125,6 +128,7 @@ import {
   RouteFollowProgressPaint,
   routeFollowProgressPaintFrom,
   ROUTE_FOLLOW_HEADING_UP_MIN_DELTA,
+  ROUTE_FOLLOW_LOOP_CLOSURE_METRES,
   ROUTE_FOLLOW_LINE_WEIGHT_DEFAULT,
   ROUTE_FOLLOW_NETWORK_TIMEOUT_MS,
   ROUTE_FOLLOW_SHEET_DRAG_THRESHOLD,
@@ -548,6 +552,24 @@ import { SystemConfigService } from "../../services/system/system-config.service
                         aria-label="Eraser: remove points">
                   <fa-icon [icon]="faEraser"/>
                 </button>
+                <button class="follow-tool" type="button"
+                        [class.is-active]="editTool === RouteFollowEditTool.START"
+                        [disabled]="!routeIsLoop"
+                        (click)="setEditTool(RouteFollowEditTool.START)"
+                        [tooltip]="routeIsLoop ? 'Move start: tap the route where the walk should begin' : 'Move start works on circular routes. Drag the first point to move the start of a linear route'" [isDisabled]="!tooltipsEnabled"
+                        placement="left" container=".follow-app"
+                        aria-label="Move start: tap the route where the walk should begin">
+                  <fa-icon [icon]="faFlag"/>
+                </button>
+                <button class="follow-tool" type="button"
+                        [class.is-active]="snapToPaths"
+                        [attr.aria-pressed]="snapToPaths"
+                        (click)="toggleSnapToPaths()"
+                        [tooltip]="snapToPaths ? 'Snap to paths and roads: on' : 'Snap to paths and roads: off'" [isDisabled]="!tooltipsEnabled"
+                        placement="left" container=".follow-app"
+                        aria-label="Snap to paths and roads">
+                  <fa-icon [icon]="faMagnet"/>
+                </button>
               </div>
             }
             <div class="follow-tool-stack">
@@ -820,16 +842,17 @@ import { SystemConfigService } from "../../services/system/system-config.service
                   </div>
                 }
               </div>
+              @if (progress?.mode === RouteFollowMode.EDITING && editTool === RouteFollowEditTool.START) {
+                <p class="follow-library-note">Tap the route where the walk should start. The route keeps its direction and shape, and now begins and ends at that point.</p>
+              }
               @if (progress?.mode === RouteFollowMode.EDITING) {
                 <app-section-toggle class="follow-unit-toggle" small pill
                                     [tabs]="distanceUnitTabs" [selectedTab]="distanceUnit"
                                     [queryParamKey]="StoredValue.DISTANCE_UNIT"
                                     (selectedTabChange)="distanceUnitChanged($event)"/>
-                <div class="form-check form-switch follow-option-switch">
-                  <input class="form-check-input" type="checkbox" role="switch" id="follow-snap-to-paths"
-                         [checked]="snapToPaths" (change)="toggleSnapToPaths()">
-                  <label class="form-check-label" for="follow-snap-to-paths">Snap to paths and roads{{ snappingToPath ? " (finding path…)" : "" }}</label>
-                </div>
+                @if (snappingToPath) {
+                  <p class="follow-library-note">Finding the path…</p>
+                }
               }
             </div>
           }
@@ -974,7 +997,8 @@ import { SystemConfigService } from "../../services/system/system-config.service
                   Reduce density
                 </button>
               } @else {
-                <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="undoEdit()" [disabled]="editVertices.length === 0">
+                <button class="btn btn-quiet follow-secondary-btn" type="button" (click)="undoEdit()" [disabled]="editHistory.length === 0"
+                        [tooltip]="undoTooltip()" [isDisabled]="!tooltipsEnabled" placement="top" container=".follow-app">
                   <fa-icon [icon]="faRotateLeft"/>
                   Undo
                 </button>
@@ -1203,6 +1227,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected styleRoute: MapRoute | null = null;
   private savedStyle: {color: string; weight: number; opacity: number} | null = null;
   protected editVertices: {latitude: number; longitude: number}[] = [];
+  protected editHistory: RouteFollowEditSnapshot[] = [];
   protected originalEditCount = 0;
   protected showEditThinning = false;
   protected thinningPrompt = false;
@@ -1263,6 +1288,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected readonly faStop = faStop;
   protected readonly faPencil = faPencil;
   protected readonly faEraser = faEraser;
+  protected readonly faFlag = faFlag;
+  protected readonly faMagnet = faMagnet;
   protected readonly faCompress = faCompress;
   protected readonly faFlagCheckered = faFlagCheckered;
   protected readonly faFloppyDisk = faFloppyDisk;
@@ -2601,14 +2628,48 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     }
   }
 
+  @HostListener("document:keydown", ["$event"])
+  onUndoKey(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    const typing = !!target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+    if (this.progress?.mode === RouteFollowMode.EDITING && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "z" && !typing) {
+      event.preventDefault();
+      this.undoEdit();
+    }
+  }
+
+  undoTooltip(): string {
+    return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "Undo the last change (⌘Z)" : "Undo the last change (Ctrl+Z)";
+  }
+
   undoEdit(): void {
-    if (this.editVertices.length > 0) {
-      this.editVertices = this.editVertices.slice(0, this.editVertices.length - 1);
+    const previous = this.editHistory.at(-1);
+    if (previous && this.draggingVertexIndex === null) {
+      this.editHistory = this.editHistory.slice(0, -1);
+      this.cancelPendingPathSnaps();
+      this.editVertices = previous.vertices;
+      this.draftPoints = previous.draftPoints;
       this.followService.replaceTrack(this.editVertices);
+      this.followService.replaceWaypoints(previous.waypoints);
+      if (this.payload) {
+        this.payload = {...this.payload, points: this.editVertices, waypoints: previous.waypoints};
+      }
       this.refreshEditHandles();
       this.refreshArrows();
       this.redraw();
     }
+  }
+
+  private rememberEdit(): void {
+    this.editHistory = [...this.editHistory, {
+      vertices: this.editVertices,
+      draftPoints: this.draftPoints,
+      waypoints: this.payload?.waypoints || this.followService.routeWaypoints()
+    }];
+  }
+
+  private clearEditHistory(): void {
+    this.editHistory = [];
   }
 
   setEditTool(tool: RouteFollowEditTool): void {
@@ -2633,7 +2694,42 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.editVertices = this.followService.thinnedPoints(this.draftPoints, spacing);
   }
 
+  get routeIsLoop(): boolean {
+    return isClosedLoop(this.editVertices, ROUTE_FOLLOW_LOOP_CLOSURE_METRES);
+  }
+
+  private moveStartNear(containerPoint: L.Point): void {
+    const map = this.mapRef;
+    const clicked = map ? map.containerPointToLatLng(containerPoint) : null;
+    const nearest = clicked ? this.followService.nearestSegment({latitude: clicked.lat, longitude: clicked.lng}) : null;
+    if (map && nearest && containerPoint.distanceTo(map.latLngToContainerPoint([nearest.point.latitude, nearest.point.longitude])) <= 28) {
+      this.moveStartTo(nearest.point);
+    }
+  }
+
+  private moveStartTo(position: {latitude: number; longitude: number}): void {
+    if (this.routeIsLoop) {
+      this.rememberEdit();
+      this.editVertices = loopRestartedAt(this.editVertices, position);
+      this.draftPoints = isClosedLoop(this.draftPoints, ROUTE_FOLLOW_LOOP_CLOSURE_METRES)
+        ? loopRestartedAt(this.draftPoints, position)
+        : this.editVertices.map(point => ({...point}));
+      this.followService.replaceTrack(this.editVertices);
+      const start = this.editVertices[0];
+      this.followService.replaceWaypoints(this.followService.routeWaypoints().map(waypoint => waypoint.kind === RouteWaypointKind.START || waypoint.kind === RouteWaypointKind.END
+        ? {...waypoint, latitude: start.latitude, longitude: start.longitude}
+        : waypoint));
+      if (this.payload) {
+        this.payload = {...this.payload, points: this.editVertices, waypoints: this.followService.routeWaypoints()};
+      }
+      this.setEditTool(RouteFollowEditTool.PENCIL);
+      this.refreshArrows();
+      this.redraw();
+    }
+  }
+
   reverseRoute(): void {
+    this.rememberEdit();
     this.draftPoints = [...this.draftPoints].reverse();
     this.followService.reverseRoute();
     this.editVertices = this.followService.trackPoints().map(point => ({
@@ -2692,6 +2788,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       this.cancelPendingPathSnaps();
       this.draftPoints = [];
       this.editVertices = [];
+      this.clearEditHistory();
       this.editTool = RouteFollowEditTool.PENCIL;
       this.restoreStyle();
       this.clearEditHandles();
@@ -3013,6 +3110,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
           this.cancelPendingPathSnaps();
           this.draftPoints = [];
           this.editVertices = [];
+          this.clearEditHistory();
           this.clearEditHandles();
           this.followService.stop();
           this.clearFollowSession();
@@ -3119,6 +3217,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       this.editVertices = this.draftPoints.map(point => ({...point}));
     }
     this.cancelPendingPathSnaps();
+    this.clearEditHistory();
     this.followService.replaceTrack(this.editVertices);
     this.followService.startEditing();
     this.refreshEditHandles();
@@ -3208,6 +3307,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       return;
     } else if (this.editTool === RouteFollowEditTool.ERASER) {
       this.deleteVertexNear(event.containerPoint);
+    } else if (this.editTool === RouteFollowEditTool.START) {
+      this.moveStartNear(event.containerPoint);
     } else {
       this.addEditPointAt(event.latlng, event.containerPoint);
     }
@@ -3237,6 +3338,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private onVertexDragStart(index: number, handle: L.Marker): void {
+    this.rememberEdit();
     this.draggingVertexIndex = index;
     this.ignoreEditClick = true;
     this.mapRef?.dragging.disable();
@@ -3265,12 +3367,55 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.followService.replaceTrack(this.editVertices);
     this.refreshArrows();
     this.refreshEditHandles();
+    if (latLng && this.snapToPaths) {
+      const generation = this.pathSnapGeneration;
+      const vertices = this.editVertices;
+      this.pathSnapQueue = this.pathSnapQueue
+        .then(() => this.snapMovedVertex(index, vertices, generation))
+        .catch(error => this.logger.error("snapMovedVertex failed", error));
+    }
+  }
+
+  private async snapMovedVertex(index: number, vertices: {latitude: number; longitude: number}[], generation: number): Promise<void> {
+    const moved = vertices[index];
+    const previous = index > 0 ? vertices[index - 1] : null;
+    const next = index < vertices.length - 1 ? vertices[index + 1] : null;
+    if (generation !== this.pathSnapGeneration || this.editVertices !== vertices || !moved) {
+      this.logger.info("snapMovedVertex: the line changed before the path was found");
+    } else {
+      this.snappingToPath = true;
+      const [inbound, outbound] = await Promise.all([
+        previous ? this.walkingPaths.pathBetween(previous, moved) : Promise.resolve([moved]),
+        next ? this.walkingPaths.pathBetween(moved, next) : Promise.resolve([moved])
+      ]);
+      this.snappingToPath = false;
+      if (generation !== this.pathSnapGeneration || this.editVertices !== vertices) {
+        this.logger.info("snapMovedVertex: the line changed while the path was being found");
+      } else if (!inbound || !outbound) {
+        this.persistMessage = "No path found there, so the point was joined with straight lines.";
+      } else {
+        const leading = previous ? inbound.slice(1) : inbound;
+        const trailing = next ? outbound.slice(1, -1) : outbound.slice(1);
+        this.editVertices = [
+          ...vertices.slice(0, Math.max(index, 0)),
+          ...leading.map(point => ({latitude: point.latitude, longitude: point.longitude})),
+          ...trailing.map(point => ({latitude: point.latitude, longitude: point.longitude})),
+          ...vertices.slice(index + 1)
+        ];
+        this.followService.replaceTrack(this.editVertices);
+        this.refreshEditHandles();
+        this.refreshArrows();
+        this.redraw();
+      }
+    }
   }
 
   private onVertexClick(index: number, event: L.LeafletMouseEvent): void {
     L.DomEvent.stop(event);
     if (this.editTool === RouteFollowEditTool.ERASER) {
       this.deleteVertexAt(index);
+    } else if (this.editTool === RouteFollowEditTool.START) {
+      this.moveStartTo(this.editVertices[index]);
     }
   }
 
@@ -3411,6 +3556,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
 
   private deleteVertexAt(index: number): void {
     if (index >= 0 && this.editVertices.length > 2) {
+      this.rememberEdit();
       this.editVertices = this.editVertices.filter((_, vertexIndex) => vertexIndex !== index);
       this.followService.replaceTrack(this.editVertices);
       this.refreshEditHandles();
@@ -3424,6 +3570,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private insertEditVertices(points: {latitude: number; longitude: number}[], afterIndex: number): void {
+    this.rememberEdit();
     this.editVertices = [
       ...this.editVertices.slice(0, afterIndex + 1),
       ...points,
@@ -3476,7 +3623,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
         zIndexOffset: 800,
         icon: L.divIcon({
           className: "follow-leaflet-icon",
-          html: pencil
+          html: this.editTool !== RouteFollowEditTool.ERASER
             ? "<div class=\"follow-edit-handle-hit\"><div class=\"follow-edit-handle\"></div></div>"
             : "<div class=\"follow-edit-handle-hit\"><div class=\"follow-edit-handle follow-edit-handle-erase\"></div></div>",
           iconSize: [44, 44],
@@ -4147,6 +4294,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private onStartAnchorDragStart(event: L.LeafletEvent): void {
+    this.rememberEdit();
     this.ignoreEditClick = true;
     this.mapRef?.dragging.disable();
     const original = (event as L.LeafletMouseEvent).originalEvent;

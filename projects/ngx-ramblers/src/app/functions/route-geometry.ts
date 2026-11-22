@@ -166,3 +166,22 @@ export function simplifiedRoutePoints(points: RouteFollowPoint[], spacingMetres:
     return Array.from({length: maxPoints}, (_, index) => kept[Math.round(index * step)]);
   }
 }
+
+export function isClosedLoop(points: RouteFollowPoint[], toleranceMetres: number): boolean {
+  return points.length > 2
+    && !points.some(point => point.breakBefore)
+    && metresBetween(points[0], points[points.length - 1]) <= toleranceMetres;
+}
+
+export function loopRestartedAt(points: RouteFollowPoint[], position: RouteFollowPoint): RouteFollowPoint[] {
+  const snap = snapToRoute(points, cumulativeDistances(points), position);
+  if (!snap) {
+    return points;
+  } else {
+    const ring = metresBetween(points[0], points[points.length - 1]) === 0 ? points.slice(0, -1) : points;
+    const start: RouteFollowPoint = {latitude: snap.point.latitude, longitude: snap.point.longitude, elevation: points[snap.index].elevation ?? null};
+    const after = ring.slice(snap.index + 1).filter(point => metresBetween(point, start) > 0);
+    const before = ring.slice(0, snap.index + 1).filter(point => metresBetween(point, start) > 0);
+    return [start, ...after, ...before, start].map(point => ({latitude: point.latitude, longitude: point.longitude, elevation: point.elevation ?? null}));
+  }
+}

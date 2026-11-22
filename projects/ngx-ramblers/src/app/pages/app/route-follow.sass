@@ -1283,3 +1283,39 @@
   overflow-y: auto
   overscroll-behavior: contain
   -webkit-overflow-scrolling: touch
+
+.follow-sheet ::ng-deep
+  .thumbnail-heading-frame
+    background-color: var(--follow-panel)
+    border-color: var(--follow-handle)
+    color: var(--follow-ink)
+
+  .thumbnail-heading
+    background-color: var(--follow-panel)
+    color: var(--follow-ink)
+
+  .form-label
+    color: var(--follow-ink)
+
+  .form-control,
+  .form-select
+    background-color: var(--follow-secondary)
+    border-color: var(--follow-handle)
+    color: var(--follow-ink)
+
+  .form-control::placeholder
+    color: var(--follow-muted)
+
+  .route-point
+    --bs-btn-color: var(--follow-secondary-ink)
+    --bs-btn-bg: var(--follow-secondary)
+    --bs-btn-border-color: var(--follow-secondary)
+    color: var(--follow-secondary-ink)
+    background-color: var(--follow-secondary)
+    border-color: var(--follow-secondary)
+
+  .route-point small
+    color: var(--follow-muted)
+
+  .text-muted
+    color: var(--follow-muted) !important
