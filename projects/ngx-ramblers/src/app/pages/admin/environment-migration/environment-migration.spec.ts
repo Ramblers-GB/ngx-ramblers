@@ -3,11 +3,13 @@ import { HttpTestingController, provideHttpClientTesting } from "@angular/common
 import { TestBed } from "@angular/core/testing";
 import { ActivatedRoute, Router } from "@angular/router";
 import { LoggerTestingModule } from "ngx-logger/testing";
-import { of } from "rxjs";
+import { of, throwError } from "rxjs";
 import { EnvironmentMigrationComponent } from "./environment-migration";
 import {
+  EnvironmentMigrationAudit,
   EnvironmentMigrationMode,
   EnvironmentMigrationPhase,
+  resumableMove,
   EnvironmentMigrationStatus,
   EnvironmentMigrationStepKey,
   EnvironmentMigrationStepState
@@ -95,12 +97,12 @@ describe("migration target credentials", () => {
     expect(state.page.busy).toBe(false);
   });
 
-  it("lets an S3-only plan run without Mongo target credentials", () => {
+  it("lets an S3-only move start without Mongo target credentials", () => {
     state.page.request.environment = "hillside";
     state.page.request.mode = EnvironmentMigrationMode.S3_ONLY;
     state.page.request.targetMongo = {cluster: "", db: "", username: "", password: ""};
     state.page.request.targetAws = {bucket: "ngx-ramblers-hillside", region: "eu-west-2", accessKeyId: "AKIATEST", secretAccessKey: "secret"};
-    expect(state.page.formReady()).toBe(true);
+    expect(state.page.moveReady()).toBe(true);
     expect(state.page.includeMongo()).toBe(false);
     expect(state.page.stepKeys()).toEqual([
       EnvironmentMigrationStepKey.CHECK,
@@ -122,59 +124,19 @@ describe("migration target credentials", () => {
     expect(state.page.nextStep()).toBe(EnvironmentMigrationStepKey.PREPARE);
   });
 
-  it("does not allow copying until the check has passed", () => {
-    state.page.request.environment = "hillside";
-    state.page.request.confirmEnvironment = "hillside";
-    state.page.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
-    state.page.request.targetMongo = {cluster: "group-sites.abc123", db: "hillside-database", username: "hillside-user", password: "fictional-password"};
-    expect(state.page.canStartCopy()).toBe(false);
-    state.page.selectedMigration = {
-      migrationId: "environment-migration-hillside",
-      environment: "hillside",
-      mode: EnvironmentMigrationMode.MONGO_ONLY,
-      status: EnvironmentMigrationStatus.VALIDATED,
-      phase: EnvironmentMigrationPhase.VERIFY_TARGET,
-      dryRun: true,
-      startTime: 0
-    };
-    expect(state.page.stepState(EnvironmentMigrationStepKey.CHECK)).toBe(EnvironmentMigrationStepState.DONE);
-    expect(state.page.canStartCopy()).toBe(true);
-  });
-
   it("keeps Mongo required when Mongo is included", () => {
     state.page.request.environment = "hillside";
     state.page.request.mode = EnvironmentMigrationMode.MONGO_AND_S3;
     state.page.request.targetMongo = {cluster: "", db: "", username: "", password: ""};
     state.page.request.targetAws = {bucket: "ngx-ramblers-hillside", region: "eu-west-2", accessKeyId: "AKIATEST", secretAccessKey: "secret"};
-    expect(state.page.formReady()).toBe(false);
+    expect(state.page.moveReady()).toBe(false);
   });
 
-  it("lets Rotate Credentials run again after a verified restore whose cutover failed", () => {
+  it("rotates the credentials when moving a migration ready for cutover, even after a reload", async () => {
     state.page.request.environment = "hillside";
-    state.page.request.confirmEnvironment = "hillside";
-    state.page.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
-    state.page.request.targetMongo = {cluster: "ngx-demo.abc123", db: "hillside-database", username: "hillside-user", password: "fictional-password"};
-    state.page.selectedMigration = {
-      migrationId: "environment-migration-hillside",
-      environment: "hillside",
-      mode: EnvironmentMigrationMode.MONGO_ONLY,
-      status: EnvironmentMigrationStatus.FAILED,
-      phase: EnvironmentMigrationPhase.ROTATE_CREDENTIALS,
-      dryRun: false,
-      startTime: 0,
-      sourceMongo: {cluster: "old", db: "hillside-database", username: "old-user", uriSummary: "old-user@old/hillside-database"},
-      targetMongo: {cluster: "ngx-demo.abc123", db: "hillside-database", username: "hillside-user", uriSummary: "hillside-user@ngx-demo.abc123/hillside-database"},
-      verification: {collections: ["config"], totalDocumentCount: 1, keyCollectionCounts: []}
-    };
-    expect(state.page.canRotate()).toBe(true);
-  });
-
-  it("lets the switch over run after a reload, when the page no longer holds the new login", () => {
-    state.page.request.environment = "hillside";
-    state.page.request.confirmEnvironment = "hillside";
     state.page.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
     state.page.request.targetMongo = {cluster: "ngx-demo.abc123", db: "hillside-database", username: "", password: ""};
-    state.page.selectedMigration = {
+    const migration = {
       migrationId: "environment-migration-hillside",
       environment: "hillside",
       mode: EnvironmentMigrationMode.MONGO_ONLY,
@@ -184,9 +146,11 @@ describe("migration target credentials", () => {
       startTime: 0,
       targetMongo: {cluster: "ngx-demo.abc123", db: "hillside-database", username: "hillside-user", uriSummary: "hillside-user@ngx-demo.abc123/hillside-database"}
     };
-    expect(state.page.stepState(EnvironmentMigrationStepKey.PREPARE)).toBe(EnvironmentMigrationStepState.DONE);
-    expect(state.page.nextStep()).toBe(EnvironmentMigrationStepKey.SWITCH);
-    expect(state.page.canRotate()).toBe(true);
+    state.page.history = [migration];
+    state.page.selectedMigration = migration;
+    const rotate = vi.spyOn(state.page, "rotate").mockResolvedValue();
+    await state.page.moveNow();
+    expect(rotate).toHaveBeenCalled();
   });
 
   it("offers the files as the next step when only the database has been moved", async () => {
@@ -294,5 +258,154 @@ describe("migration target credentials", () => {
     expect(state.page.error).toBe("Target user already exists");
     expect(state.page.request.targetMongo.username).toBe("");
     expect(state.page.busy).toBe(false);
+  });
+
+  describe("moving a database that has been moved before", () => {
+    const switched = {
+      migrationId: "first-move",
+      environment: "hillside",
+      mode: EnvironmentMigrationMode.MONGO_ONLY,
+      status: EnvironmentMigrationStatus.ROTATED,
+      phase: EnvironmentMigrationPhase.ROTATE_CREDENTIALS,
+      dryRun: false,
+      startTime: 1000
+    };
+
+    beforeEach(() => {
+      state.page.environmentsWithMongo = [{name: "hillside"}] as never;
+      state.page.environmentsConfig = {atlas: {defaultCluster: "group-sites.abc123"}, environments: [{environment: "hillside", mongo: {cluster: "busy-sites.abc123"}}]} as never;
+      state.page.request.environment = "hillside";
+    });
+
+    const spareServer = {cluster: "spare-sites.abc123", username: "", password: "", databases: [], environments: []};
+    const newLogin = {cluster: "spare-sites.abc123", db: "hillside-database", username: "hillside-new-user", password: "secret"};
+    const withFilesLeft = () => {
+      state.page.environmentsConfig = {atlas: {defaultCluster: "group-sites.abc123"}, environments: [{environment: "hillside", mongo: {cluster: "busy-sites.abc123"}, aws: {bucket: "hillside-live-bucket", region: "eu-west-2"}}]} as never;
+      state.page.history = [switched];
+      (state.page as any).selectRemainingMigration();
+    };
+    const migrationService = () => TestBed.inject(EnvironmentMigrationService);
+    const record = (overrides: Partial<EnvironmentMigrationAudit>): EnvironmentMigrationAudit => ({...switched, migrationId: "second-move", startTime: 2000, targetMongo: {cluster: "spare-sites.abc123", db: "hillside-database", username: "hillside-new-user", uriSummary: "hillside-new-user@spare-sites.abc123/hillside-database"}, ...overrides});
+
+    it("moves the photos and files only when no server is chosen, and says so", () => {
+      withFilesLeft();
+      expect(state.page.request.mode).toBe(EnvironmentMigrationMode.S3_ONLY);
+      expect(state.page.request.targetMongo.cluster).toBe("");
+      expect(state.page.moveLabel()).toBe("Move photos and files");
+      expect(state.page.moveHint()).toContain("Choose a server to move the database");
+    });
+
+    it("makes Move a database move as soon as a server is chosen, even with files still to move", () => {
+      withFilesLeft();
+      state.page.targetClusterChanged(spareServer);
+      expect(state.page.request.mode).toBe(EnvironmentMigrationMode.MONGO_ONLY);
+      expect(state.page.moveLabel()).toBe("Move database");
+      expect(state.page.moveReady()).toBe(true);
+      state.page.targetClusterChanged(null);
+      expect(state.page.request.mode).toBe(EnvironmentMigrationMode.S3_ONLY);
+    });
+
+    it("runs the whole database move from one press, sending the environment name the server asks for", async () => {
+      withFilesLeft();
+      state.page.targetClusterChanged(spareServer);
+      vi.spyOn(state.page as any, "pollMigration").mockImplementation(() => undefined);
+      vi.spyOn(migrationService(), "provisionMongoTarget").mockReturnValue(of(newLogin));
+      const plan = vi.spyOn(migrationService(), "planMongoOnlyMigration").mockReturnValue(of(record({status: EnvironmentMigrationStatus.VALIDATED, dryRun: true})));
+      const execute = vi.spyOn(migrationService(), "executeMongoOnlyMigration").mockReturnValue(of(record({status: EnvironmentMigrationStatus.READY_FOR_CUTOVER})));
+      const rotate = vi.spyOn(migrationService(), "rotateMongoCredentials").mockReturnValue(of(record({status: EnvironmentMigrationStatus.ROTATED})));
+      await state.page.moveNow();
+      expect(state.page.error).toBe("");
+      expect(plan).toHaveBeenCalledWith(expect.objectContaining({mode: EnvironmentMigrationMode.MONGO_ONLY, dryRun: true}));
+      expect(execute).toHaveBeenCalledWith(expect.objectContaining({mode: EnvironmentMigrationMode.MONGO_ONLY, confirmEnvironment: "hillside", dryRun: false}));
+      expect(execute.mock.calls[0][0].targetAws).toBeUndefined();
+      expect(rotate).toHaveBeenCalledWith(expect.objectContaining({migrationId: "second-move", confirmEnvironment: "hillside", rotateS3Credentials: false}));
+      expect(state.page.moveCompleted).toContain("the database is now on spare-sites.");
+      expect(state.page.moveCompleted).not.toContain("abc123");
+      expect(state.page.request.confirmEnvironment).toBe("");
+      expect(state.page.moving).toBe(false);
+    });
+
+    it("stops at the first stage that fails and shows why", async () => {
+      withFilesLeft();
+      state.page.targetClusterChanged(spareServer);
+      vi.spyOn(migrationService(), "provisionMongoTarget").mockReturnValue(throwError(() => ({error: {error: "Atlas would not create the login"}})));
+      const plan = vi.spyOn(migrationService(), "planMongoOnlyMigration");
+      const execute = vi.spyOn(migrationService(), "executeMongoOnlyMigration");
+      const rotate = vi.spyOn(migrationService(), "rotateMongoCredentials");
+      await state.page.moveNow();
+      expect(state.page.error).toBe("Atlas would not create the login");
+      expect(plan).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+      expect(rotate).not.toHaveBeenCalled();
+    });
+
+    it("does not switch the site over when the copy fails", async () => {
+      withFilesLeft();
+      state.page.targetClusterChanged(spareServer);
+      vi.spyOn(state.page as any, "pollMigration").mockImplementation(() => undefined);
+      vi.spyOn(migrationService(), "provisionMongoTarget").mockReturnValue(of(newLogin));
+      vi.spyOn(migrationService(), "planMongoOnlyMigration").mockReturnValue(of(record({status: EnvironmentMigrationStatus.VALIDATED, dryRun: true})));
+      vi.spyOn(migrationService(), "executeMongoOnlyMigration").mockReturnValue(of(record({status: EnvironmentMigrationStatus.FAILED, error: "Restore failed: target full"})));
+      const rotate = vi.spyOn(migrationService(), "rotateMongoCredentials");
+      await state.page.moveNow();
+      expect(rotate).not.toHaveBeenCalled();
+      expect(state.page.error).toBe("Restore failed: target full");
+    });
+
+    it("carries on from a copy that is ready to switch over instead of creating another login", async () => {
+      withFilesLeft();
+      state.page.history = [record({status: EnvironmentMigrationStatus.READY_FOR_CUTOVER}), switched];
+      state.page.targetClusterChanged(spareServer);
+      const provision = vi.spyOn(migrationService(), "provisionMongoTarget");
+      const rotate = vi.spyOn(migrationService(), "rotateMongoCredentials").mockReturnValue(of(record({status: EnvironmentMigrationStatus.ROTATED})));
+      await state.page.moveNow();
+      expect(provision).not.toHaveBeenCalled();
+      expect(rotate).toHaveBeenCalledWith(expect.objectContaining({migrationId: "second-move", confirmEnvironment: "hillside"}));
+    });
+
+    it("only carries on from a genuine unfinished move to the same server", () => {
+      const migrations = [
+        record({migrationId: "old-dry-run", status: EnvironmentMigrationStatus.VALIDATED, dryRun: true, startTime: 3000}),
+        record({migrationId: "failed", status: EnvironmentMigrationStatus.FAILED, startTime: 3000}),
+        record({migrationId: "before-switch", status: EnvironmentMigrationStatus.READY_FOR_CUTOVER, startTime: 500}),
+        record({migrationId: "other-server", status: EnvironmentMigrationStatus.READY_FOR_CUTOVER, startTime: 3000, targetMongo: {cluster: "other.abc123", db: "hillside-database", username: "hillside-new-user", uriSummary: "other"}}),
+        switched
+      ];
+      expect(resumableMove(migrations, EnvironmentMigrationMode.MONGO_ONLY, "spare-sites.abc123")).toBeNull();
+      const genuine = record({migrationId: "genuine", status: EnvironmentMigrationStatus.RESTORING, startTime: 2500});
+      expect(resumableMove([genuine, ...migrations], EnvironmentMigrationMode.MONGO_ONLY, "spare-sites.abc123")?.migrationId).toBe("genuine");
+    });
+
+    it("picks up a second move after a reload instead of showing the site as moved", () => {
+      const copied = {...switched, migrationId: "second-move", status: EnvironmentMigrationStatus.READY_FOR_CUTOVER, phase: EnvironmentMigrationPhase.VERIFY_TARGET, startTime: 2000};
+      state.page.history = [copied, switched];
+      (state.page as any).selectRemainingMigration();
+      expect(state.page.request.mode).toBe(EnvironmentMigrationMode.MONGO_ONLY);
+      expect(state.page.selectedMigration.migrationId).toBe("second-move");
+      expect(state.page.nextStep()).toBe(EnvironmentMigrationStepKey.SWITCH);
+    });
+
+    it("ignores unfinished attempts from before the last switch over", () => {
+      const abandoned = {...switched, migrationId: "abandoned", status: EnvironmentMigrationStatus.FAILED, phase: EnvironmentMigrationPhase.VALIDATE_TARGET, startTime: 500};
+      state.page.history = [switched, abandoned];
+      (state.page as any).selectRemainingMigration();
+      expect(state.page.selectedMigration.migrationId).toBe("first-move");
+      expect(state.page.nextStepState()).toBe(EnvironmentMigrationStepState.DONE);
+    });
+
+    it("shows the second move as done once the site is switched over", async () => {
+      const ready = {...switched, migrationId: "second-move", status: EnvironmentMigrationStatus.READY_FOR_CUTOVER, phase: EnvironmentMigrationPhase.VERIFY_TARGET, startTime: 2000};
+      const rotatedAgain = {...ready, status: EnvironmentMigrationStatus.ROTATED, phase: EnvironmentMigrationPhase.ROTATE_CREDENTIALS};
+      state.page.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
+      state.page.history = [switched];
+      state.page.selectedMigration = ready;
+      vi.spyOn(TestBed.inject(EnvironmentMigrationService), "rotateMongoCredentials").mockReturnValue(of(rotatedAgain));
+      vi.mocked(state.page.loadHistory).mockImplementation(async () => {
+        state.page.history = [rotatedAgain, switched];
+      });
+      await state.page.rotate();
+      expect(state.page.selectedMigration.migrationId).toBe("second-move");
+      expect(state.page.nextStepState()).toBe(EnvironmentMigrationStepState.DONE);
+    });
   });
 });

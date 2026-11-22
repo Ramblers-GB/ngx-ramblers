@@ -16,6 +16,7 @@ export interface SortableTableColumn<T = any> {
   headerClass?: string;
   cellClass?: string;
   width?: string;
+  pinnedEnd?: boolean;
 }
 
 export interface SortableTableSortState {
@@ -27,3 +28,5 @@ export interface SortableTableGroup<T = any> {
   key: string;
   rows: T[];
 }
+
+export const MINIMUM_TABLE_HEIGHT_PX = 240;

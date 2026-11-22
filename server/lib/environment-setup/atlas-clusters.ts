@@ -1,6 +1,7 @@
 import debug from "debug";
-import { MongoClient } from "mongodb";
-import { isNumber } from "es-toolkit/compat";
+import { Document, MongoClient, MongoClientOptions } from "mongodb";
+import { chunk, groupBy, isNumber, uniqBy, values } from "es-toolkit/compat";
+import { dateTimeNowAsValue } from "../shared/dates";
 import { envConfig } from "../env-config/env-config";
 import * as configController from "../mongo/controllers/config";
 import { configuredEnvironments } from "../environments/environments-config";
@@ -10,8 +11,16 @@ import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.
 import {
   AtlasClusterCreateRequest,
   AtlasClusterDeleteRequest,
+  ATLAS_ALERT_HISTORY_DAYS,
+  AtlasAlertStatus,
+  AtlasClusterAlert,
+  AtlasClusterConnections,
+  AtlasClusterHealth,
   AtlasClusterLoad,
   AtlasClusterEnvironmentRow,
+  ConnectionWindow,
+  AtlasGhostDatabase,
+  AtlasLeftoverLogin,
   AtlasClusterRow,
   AtlasClusterState,
   AtlasClusterTier,
@@ -21,20 +30,26 @@ import {
   NEW_ENVIRONMENT_INDEX_HEADROOM,
   atlasTierFromInstanceSize,
   clusterCapacity,
-  isSharedTier
+  isSharedTier,
+  SiteDatabaseState,
+  siteDatabaseWarning
 } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
+import { runningSiteDatabaseState } from "./site-database-check";
 import {
   AtlasConfig,
   atlasApiRegionName,
   AwsRegion,
   awsRegionFromAny,
   ConsoleAccessService,
+  EnvironmentConfig,
   EnvironmentsConfig,
   MongoConfig
 } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { atlasRequest } from "./atlas-admin-api";
 import {
   AtlasAccessList,
+  AtlasAlertDescription,
+  AtlasAlertList,
   AtlasApiAccess,
   AtlasApiVersion,
   AtlasClusterDescription,
@@ -131,59 +146,72 @@ function regionFrom(cluster: AtlasClusterDescription): string {
   return awsRegionFromAny(atlasName) || atlasName;
 }
 
+export const DATABASES_COUNTED_AT_ONCE_PER_CLUSTER = 3;
+
+const USAGE_CLIENT_OPTIONS: MongoClientOptions = {serverSelectionTimeoutMS: 12000, connectTimeoutMS: 12000, maxPoolSize: 1, minPoolSize: 0};
+
+export function usageFromDatabaseStats(stats: Document): {collections: number; indexes: number; dataSizeBytes: number} {
+  return {
+    collections: (stats.collections || 0) + (stats.views || 0),
+    indexes: stats.indexes || 0,
+    dataSizeBytes: (stats.dataSize || 0) + (stats.indexSize || 0)
+  };
+}
+
 async function countDatabaseUsage(mongo: MongoConfig): Promise<{collections: number; indexes: number; dataSizeBytes: number | null}> {
   const client = new MongoClient(buildMongoUri({
     cluster: mongo.cluster,
     username: mongo.username,
     password: mongo.password,
     database: mongo.db
-  }), {serverSelectionTimeoutMS: 12000, connectTimeoutMS: 12000});
+  }), USAGE_CLIENT_OPTIONS);
   try {
     await client.connect();
-    const database = client.db(mongo.db);
-    const collections = await database.listCollections().toArray();
-    const indexCounts = await Promise.all(collections.map(collection =>
-      database.collection(collection.name).indexes().then(indexes => indexes.length).catch(() => 0)));
-    const stats = await database.stats().catch(() => null);
-    return {collections: collections.length, indexes: indexCounts.reduce((total, count) => total + count, 0), dataSizeBytes: stats ? (stats.dataSize || 0) + (stats.indexSize || 0) : null};
+    return usageFromDatabaseStats(await client.db(mongo.db).stats());
   } finally {
     await client.close();
   }
 }
 
+export async function inBatches<T, R>(items: T[], size: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  return chunk(items, Math.max(1, size)).reduce(async (previous: Promise<R[]>, batch: T[]) => [...await previous, ...await Promise.all(batch.map(work))], Promise.resolve([] as R[]));
+}
+
 async function environmentRows(config: EnvironmentsConfig): Promise<AtlasClusterEnvironmentRow[]> {
-  const environments = config.environments || [];
-  return Promise.all(environments.map(async environment => {
-    const mongo = environment.mongo || {};
-    const row: AtlasClusterEnvironmentRow = {
-      environment: environment.environment,
-      siteUrl: configuredSiteUrl(config, environment.environment),
-      cluster: mongo.cluster || "",
-      clusterName: "",
-      projectId: environment.consoleAccess?.[ConsoleAccessService.MONGODB_ATLAS]?.identifiers?.projectId || "",
-      database: mongo.db || "",
-      username: mongo.username || "",
-      collections: null,
-      indexes: null,
-      dataSizeBytes: null,
-      error: null
-    };
-    if (!mongo.cluster || !mongo.db || !mongo.username || !mongo.password) {
-      row.error = "MongoDB configuration is incomplete";
-      return row;
-    } else {
-      try {
-        const usage = await countDatabaseUsage(mongo);
-        row.collections = usage.collections;
-        row.indexes = usage.indexes;
-        row.dataSizeBytes = usage.dataSizeBytes;
-        return row;
-      } catch (error) {
-        row.error = error?.message || "Could not count collections";
-        return row;
-      }
+  const byCluster = values(groupBy(config.environments || [], environment => environment.mongo?.cluster || ""));
+  const [perCluster, liveDatabases] = await Promise.all([
+    Promise.all(byCluster.map(environments => inBatches(environments, DATABASES_COUNTED_AT_ONCE_PER_CLUSTER, environment => environmentRow(config, environment)))),
+    Promise.all((config.environments || []).map(environment => runningSiteDatabaseState(environment, environment.mongo?.cluster, environment.mongo?.db).catch(() => SiteDatabaseState.UNKNOWN)))
+  ]);
+  const liveByEnvironment = new Map((config.environments || []).map((environment, index) => [environment.environment, liveDatabases[index]]));
+  return perCluster.flat().map(row => ({...row, liveDatabase: liveByEnvironment.get(row.environment) || SiteDatabaseState.UNKNOWN}));
+}
+
+async function environmentRow(config: EnvironmentsConfig, environment: EnvironmentConfig): Promise<AtlasClusterEnvironmentRow> {
+  const mongo = environment.mongo || {};
+  const row: AtlasClusterEnvironmentRow = {
+    environment: environment.environment,
+    siteUrl: configuredSiteUrl(config, environment.environment),
+    cluster: mongo.cluster || "",
+    clusterName: "",
+    projectId: environment.consoleAccess?.[ConsoleAccessService.MONGODB_ATLAS]?.identifiers?.projectId || "",
+    database: mongo.db || "",
+    username: mongo.username || "",
+    collections: null,
+    indexes: null,
+    dataSizeBytes: null,
+    error: null
+  };
+  if (!mongo.cluster || !mongo.db || !mongo.username || !mongo.password) {
+    return {...row, error: "MongoDB configuration is incomplete"};
+  } else {
+    try {
+      const usage = await countDatabaseUsage(mongo);
+      return {...row, collections: usage.collections, indexes: usage.indexes, dataSizeBytes: usage.dataSizeBytes};
+    } catch (error) {
+      return {...row, error: error?.message || "Could not count collections"};
     }
-  }));
+  }
 }
 
 function rollupClusters(
@@ -253,7 +281,7 @@ function rollupClusters(
     return {
       ...cluster,
       environmentNames: clusterRows.map(row => row.environment).join(", "),
-      sites: clusterRows.map(row => ({environment: row.environment, url: row.siteUrl})),
+      sites: clusterRows.map(row => ({environment: row.environment, url: row.siteUrl, warning: siteDatabaseWarning(row.liveDatabase, row.cluster)})),
       canAddEnvironment: capacity.canAdd,
       limitHeadline: capacity.headline
     };
@@ -286,36 +314,127 @@ export function loadFromMeasurements(measurements: AtlasMeasurement[]): AtlasClu
   }
 }
 
-async function clusterLoad(atlas: AtlasApiAccess, processes: AtlasProcess[], host: string): Promise<AtlasClusterLoad | null> {
+export function connectionsFromMeasurements(measurements: AtlasMeasurement[]): AtlasClusterConnections | null {
+  const points = measurements
+    .filter(measurement => measurement.name === "CONNECTIONS")
+    .flatMap(measurement => measurement.dataPoints || [])
+    .filter(point => point.timestamp && isNumber(point.value));
+  if (points.length === 0) {
+    return null;
+  } else {
+    const busiest = points.reduce((highest, point) => point.value > highest.value ? point : highest, points[0]);
+    return {current: Math.round(points[points.length - 1].value), peak: Math.round(busiest.value), peakAt: busiest.timestamp || null};
+  }
+}
+
+export function recentClusterAlerts(alerts: AtlasAlertDescription[], clusterName: string, since: number): AtlasClusterAlert[] {
+  const matching = alerts
+    .filter(alert => alert.clusterName === clusterName && alert.created && Date.parse(alert.created) >= since)
+    .map(alert => ({
+      id: alert.id || "",
+      metricName: alert.metricName || null,
+      eventTypeName: alert.eventTypeName || null,
+      status: alert.status || AtlasAlertStatus.OPEN,
+      created: alert.created,
+      resolved: alert.resolved || null,
+      currentValue: isNumber(alert.currentValue?.number) ? alert.currentValue.number : null
+    }))
+    .sort((left, right) => right.created.localeCompare(left.created));
+  return uniqBy(matching, alert => `${alert.metricName || alert.eventTypeName}|${alert.status}|${alert.created.slice(0, 16)}`);
+}
+
+function primaryProcess(processes: AtlasProcess[], host: string): AtlasProcess | null {
   const candidates = processesForCluster(processes, host);
-  const process = candidates.find(candidate => candidate.typeName === "REPLICA_PRIMARY") || candidates[0];
+  return candidates.find(candidate => candidate.typeName === "REPLICA_PRIMARY") || candidates[0] || null;
+}
+
+async function processMeasurements(atlas: AtlasApiAccess, process: AtlasProcess, query: string, host: string): Promise<AtlasMeasurement[]> {
+  const response = await atlasRequest<AtlasMeasurements & AtlasError>(atlas, "GET", `/groups/${atlas.projectId}/processes/${encodeURIComponent(process.id)}/measurements?${query}`);
+  if (response.status >= 300) {
+    debugLog("cluster measurements: %s returned %s %o", host, response.status, response.body);
+    return [];
+  } else {
+    return response.body?.measurements || [];
+  }
+}
+
+async function clusterLoad(atlas: AtlasApiAccess, process: AtlasProcess | null, host: string): Promise<AtlasClusterLoad | null> {
   if (!process?.id) {
     return null;
   } else {
     const query = ["granularity=PT1H", "period=P1D", ...OPCOUNTER_METRICS.map(metric => `m=${metric}`)].join("&");
-    const response = await atlasRequest<AtlasMeasurements & AtlasError>(atlas, "GET", `/groups/${atlas.projectId}/processes/${encodeURIComponent(process.id)}/measurements?${query}`);
-    if (response.status >= 300) {
-      debugLog("cluster load: %s returned %s %o", host, response.status, response.body);
-      return null;
-    } else {
-      return loadFromMeasurements(response.body?.measurements || []);
-    }
+    return loadFromMeasurements(await processMeasurements(atlas, process, query, host));
   }
 }
 
-async function clusterLoads(atlas: AtlasApiAccess, clusters: AtlasClusterRow[]): Promise<Map<string, AtlasClusterLoad | null>> {
+async function clusterConnections(atlas: AtlasApiAccess, process: AtlasProcess | null, host: string, window: ConnectionWindow): Promise<AtlasClusterConnections | null> {
+  if (!process?.id) {
+    return null;
+  } else {
+    return connectionsFromMeasurements(await processMeasurements(atlas, process, `granularity=PT1M&period=${window}&m=CONNECTIONS`, host));
+  }
+}
+
+async function projectProcesses(atlas: AtlasApiAccess): Promise<AtlasProcess[]> {
+  const listed = await atlasRequest<AtlasProcessList & AtlasError>(atlas, "GET", `/groups/${atlas.projectId}/processes?itemsPerPage=500`).catch(() => null);
+  if (listed && listed.status >= 300) {
+    debugLog("cluster health: processes for project %s returned %s %o", atlas.projectId, listed.status, listed.body);
+  }
+  return listed && listed.status < 300 ? listed.body?.results || [] : [];
+}
+
+async function projectAlerts(atlas: AtlasApiAccess): Promise<AtlasAlertDescription[]> {
+  const listed = await atlasRequest<AtlasAlertList & AtlasError>(atlas, "GET", `/groups/${atlas.projectId}/alerts?itemsPerPage=100`).catch(() => null);
+  if (listed && listed.status >= 300) {
+    debugLog("cluster health: alerts for project %s returned %s %o", atlas.projectId, listed.status, listed.body);
+  }
+  return listed && listed.status < 300 ? listed.body?.results || [] : [];
+}
+
+export async function clusterHealth(atlas: AtlasApiAccess, clusters: Pick<AtlasClusterRow, "projectId" | "host" | "name" | "inProvisioningProject">[], window: ConnectionWindow, includeLoad: boolean): Promise<Map<string, AtlasClusterHealth>> {
+  const since = dateTimeNowAsValue() - ATLAS_ALERT_HISTORY_DAYS * 24 * 60 * 60 * 1000;
   const projectIds = Array.from(new Set(clusters.filter(cluster => cluster.inProvisioningProject && cluster.projectId).map(cluster => cluster.projectId)));
   const perProject = await Promise.all(projectIds.map(async projectId => {
     const projectAtlas = {...atlas, projectId};
-    const listed = await atlasRequest<AtlasProcessList & AtlasError>(projectAtlas, "GET", `/groups/${projectId}/processes?itemsPerPage=500`).catch(() => null);
-    const processes = listed && listed.status < 300 ? listed.body?.results || [] : [];
-    if (listed && listed.status >= 300) {
-      debugLog("cluster load: processes for project %s returned %s %o", projectId, listed.status, listed.body);
-    }
+    const [processes, alerts] = await Promise.all([projectProcesses(projectAtlas), projectAlerts(projectAtlas)]);
     const projectClustersWithHost = clusters.filter(cluster => cluster.projectId === projectId && cluster.host);
-    return Promise.all(projectClustersWithHost.map(async cluster => [cluster.host, await clusterLoad(projectAtlas, processes, cluster.host).catch(() => null)] as [string, AtlasClusterLoad | null]));
+    return Promise.all(projectClustersWithHost.map(async cluster => {
+      const process = primaryProcess(processes, cluster.host);
+      const [load, connections] = await Promise.all([
+        includeLoad ? clusterLoad(projectAtlas, process, cluster.host).catch(() => null) : Promise.resolve(null),
+        clusterConnections(projectAtlas, process, cluster.host, window).catch(() => null)
+      ]);
+      return [cluster.host, {load, connections, alerts: recentClusterAlerts(alerts, cluster.name, since)}] as [string, AtlasClusterHealth];
+    }));
   }));
   return new Map(perProject.flat());
+}
+
+export async function managedAtlasClusters(): Promise<AtlasClusterRow[]> {
+  const config = await configuredEnvironments();
+  const atlas = await platformAtlasAccess();
+  if (!atlas.projectId || !atlas.publicKey || !atlas.privateKey) {
+    return [];
+  } else {
+    const projectIds = Array.from(new Set([atlas.projectId, ...(config.atlas?.managedProjects || []).map(project => project.projectId)]));
+    const responses = await Promise.all(projectIds.map(id => projectClusters({...atlas, projectId: id})));
+    const described = responses.filter(response => response.status < 300).flatMap(response => response.body?.results || []);
+    const rows = (config.environments || []).map(environment => ({
+      environment: environment.environment, siteUrl: "", cluster: environment.mongo?.cluster || "", database: environment.mongo?.db || "",
+      username: "", collections: null, indexes: null, dataSizeBytes: null, error: null
+    }));
+    return rollupClusters(described, rows, config.atlas?.defaultCluster || "", NEW_ENVIRONMENT_COLLECTION_HEADROOM, NEW_ENVIRONMENT_INDEX_HEADROOM);
+  }
+}
+
+export async function atlasClusterConnectionHealth(window: ConnectionWindow): Promise<AtlasClusterRow[]> {
+  const clusters = await managedAtlasClusters();
+  if (clusters.length === 0) {
+    return [];
+  } else {
+    const health = await clusterHealth(await platformAtlasAccess(), clusters, window, false);
+    return clusters.map(cluster => ({...cluster, ...(health.get(cluster.host) || {}), load: null}));
+  }
 }
 
 async function projectClusters(atlas: AtlasApiAccess): Promise<AtlasResponse<AtlasClusterList & AtlasError>> {
@@ -335,6 +454,18 @@ async function projectClusters(atlas: AtlasApiAccess): Promise<AtlasResponse<Atl
     const results = [...(dedicated.body?.results || []).filter(cluster => !flexNames.has(cluster.name)), ...flexClusters]
       .map(cluster => ({...cluster, groupId: id}));
     return {status: dedicated.status, body: {...dedicated.body, results}};
+  }
+}
+
+export function withGhostDatabases(cluster: AtlasClusterRow, ghosts: AtlasGhostDatabase[], templateCollections: number, templateIndexes: number): AtlasClusterRow {
+  const ghostDatabases = ghosts.filter(ghost => ghost.cluster === cluster.host);
+  if (ghostDatabases.length === 0) {
+    return {...cluster, ghostDatabases};
+  } else {
+    const collectionCount = cluster.collectionCount + ghostDatabases.reduce((total, ghost) => total + (ghost.collections || 0), 0);
+    const databaseCount = cluster.databaseCount + ghostDatabases.length;
+    const capacity = clusterCapacity(cluster.instanceSize, collectionCount, cluster.indexCount, databaseCount, templateCollections, templateIndexes);
+    return {...cluster, ghostDatabases, collectionCount, databaseCount, canAddEnvironment: capacity.canAdd, limitHeadline: capacity.headline};
   }
 }
 
@@ -378,8 +509,16 @@ export async function atlasClusterView(): Promise<AtlasClusterView> {
   const templateCollections = templateUsage?.collections ?? NEW_ENVIRONMENT_COLLECTION_HEADROOM;
   const templateIndexes = templateUsage?.indexes ?? NEW_ENVIRONMENT_INDEX_HEADROOM;
   const rolledUp = rollupClusters(atlasState.clusters, rows, defaultCluster, templateCollections, templateIndexes);
-  const loads = atlasState.reachable ? await clusterLoads(atlas, rolledUp).catch(() => new Map<string, AtlasClusterLoad | null>()) : new Map<string, AtlasClusterLoad | null>();
-  const clusters = rolledUp.map(cluster => ({...cluster, load: loads.get(cluster.host) || null}));
+  const health = atlasState.reachable ? await clusterHealth(atlas, rolledUp, ConnectionWindow.LAST_DAY, true).catch(() => new Map<string, AtlasClusterHealth>()) : new Map<string, AtlasClusterHealth>();
+  const ghosts = await import("./atlas-ghost-databases").then(module => module.atlasGhostDatabases()).catch(error => {
+    debugLog("ghost databases: %s", error?.message || error);
+    return [] as AtlasGhostDatabase[];
+  });
+  const leftoverLogins = atlasState.reachable ? await import("./atlas-ghost-databases").then(module => module.atlasLeftoverLogins(rolledUp)).catch(error => {
+    debugLog("leftover logins: %s", error?.message || error);
+    return [] as AtlasLeftoverLogin[];
+  }) : [];
+  const clusters = rolledUp.map(cluster => withGhostDatabases({...cluster, ...(health.get(cluster.host) || {load: null, connections: null, alerts: []}), leftoverLogins: leftoverLogins.filter(login => login.cluster === cluster.host)}, ghosts, templateCollections, templateIndexes));
   const registrationCluster = defaultCluster || template?.mongo?.cluster || "";
   const registration = clusters.find(cluster => cluster.host === registrationCluster);
   const registrationBlocked = !!registration && !registration.canAddEnvironment;

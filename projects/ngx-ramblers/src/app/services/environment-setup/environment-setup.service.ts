@@ -43,6 +43,8 @@ import { EmptyCollectionCandidate, EmptyCollectionCleanupPreview, EmptyCollectio
 import {
   AtlasClusterCreateRequest,
   AtlasClusterDeleteRequest,
+  AtlasGhostDatabaseDeleteRequest,
+  AtlasLeftoverLoginDeleteRequest,
   AtlasClusterRow,
   AtlasClusterView
 } from "../../models/atlas-cluster.model";
@@ -61,6 +63,7 @@ export class EnvironmentSetupService {
   private BASE_URL = "/api/environment-setup";
   private notifications = new Subject<ApiResponse>();
   private setupApiKey: string | null = null;
+  private lastAtlasClusterView: AtlasClusterView | null = null;
 
   setSetupApiKey(key: string): void {
     this.setupApiKey = key;
@@ -278,7 +281,12 @@ export class EnvironmentSetupService {
       this.http.get<ApiResponse>(`${this.BASE_URL}/atlas-clusters`, this.opts),
       this.notifications
     );
-    return response as unknown as AtlasClusterView;
+    this.lastAtlasClusterView = response as unknown as AtlasClusterView;
+    return this.lastAtlasClusterView;
+  }
+
+  cachedAtlasClusters(): AtlasClusterView | null {
+    return this.lastAtlasClusterView;
   }
 
   async createAtlasCluster(request: AtlasClusterCreateRequest): Promise<{cluster: AtlasClusterRow | null; message: string}> {
@@ -294,6 +302,24 @@ export class EnvironmentSetupService {
     const response = await this.commonDataService.responseFrom(
       this.logger,
       this.http.delete<ApiResponse>(`${this.BASE_URL}/atlas-clusters/${encodeURIComponent(request.projectId)}/${encodeURIComponent(request.name)}`, this.opts),
+      this.notifications
+    );
+    return response as unknown as {message: string};
+  }
+
+  async deleteGhostDatabase(request: AtlasGhostDatabaseDeleteRequest): Promise<{message: string}> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.post<ApiResponse>(`${this.BASE_URL}/atlas-ghost-databases/delete`, request, this.opts),
+      this.notifications
+    );
+    return response as unknown as {message: string};
+  }
+
+  async deleteLeftoverLogin(request: AtlasLeftoverLoginDeleteRequest): Promise<{message: string}> {
+    const response = await this.commonDataService.responseFrom(
+      this.logger,
+      this.http.post<ApiResponse>(`${this.BASE_URL}/atlas-leftover-logins/delete`, request, this.opts),
       this.notifications
     );
     return response as unknown as {message: string};

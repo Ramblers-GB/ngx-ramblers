@@ -9,13 +9,14 @@ import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from "@angular/cdk/drag-drop";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faChevronDown, faChevronRight, faChevronUp, faGripVertical } from "@fortawesome/free-solid-svg-icons";
-import { get, isUndefined } from "es-toolkit/compat";
+import { get, isUndefined, omit } from "es-toolkit/compat";
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { filterRowsByText, tableTextFilterOptions } from "../../../functions/table-text-filter";
 import { TableFilterHeading, TableTextFilterField, TableTextFilterOption } from "../../../models/table-text-filter.model";
 import { TableFilterSelectComponent } from "./table-filter-select";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
 import { sortBy } from "../../../functions/arrays";
-import { SortableTableAlignment, SortableTableColumn, SortableTableGroup, SortableTableSortState } from "./sortable-table.model";
+import { MINIMUM_TABLE_HEIGHT_PX, SortableTableAlignment, SortableTableColumn, SortableTableGroup, SortableTableSortState } from "./sortable-table.model";
 import {
   SortableTableCellDirective,
   SortableTableExpandedRowDirective,
@@ -138,6 +139,13 @@ import {
         </tbody>
       </table>
     </div>
+    @if (fillWindow && effectiveMaxHeight) {
+      <div class="sortable-table-height-resize" role="separator" aria-orientation="horizontal"
+           title="Drag to change the table height. Double-click to fit the window again."
+           aria-label="Drag to change the table height"
+           (pointerdown)="startHeightResize($event)"
+           (dblclick)="resetHeight()"></div>
+    }
     @if (pageSize && sortedRows.length > pageSize) {
       <div class="d-flex justify-content-center mt-2">
         <pagination class="pagination rounded mb-0" [boundaryLinks]="true" [rotate]="true" [maxSize]="3"
@@ -213,10 +221,49 @@ import {
     .sortable-table-card.scrollable.freeze-first-column tbody tr.sortable-table-expanded-row td.frozen-column
       box-shadow: 1px 0 0 rgba(0, 0, 0, 0.08)
 
+    .sortable-table-card.scrollable thead th.pinned-end-column
+      position: sticky
+      top: 0
+      right: 0
+      z-index: 4
+      background: linear-gradient(to bottom, rgb(225, 239, 230), rgb(240, 247, 242))
+      box-shadow: -1px 0 0 rgba(0, 0, 0, 0.08)
+
+    .sortable-table-card.scrollable.sortable-table-flat thead th.pinned-end-column
+      background: var(--bs-body-bg)
+
+    .sortable-table-card.scrollable tbody td.pinned-end-column
+      position: sticky
+      right: 0
+      z-index: 1
+      background-color: inherit
+      box-shadow: -1px 0 0 rgba(0, 0, 0, 0.08)
+
     .sortable-table td.compact-cell
       overflow: hidden
       text-overflow: ellipsis
       white-space: nowrap
+
+    .sortable-table-height-resize
+      position: relative
+      height: 12px
+      cursor: row-resize
+      touch-action: none
+      user-select: none
+
+    .sortable-table-height-resize::before
+      content: ""
+      position: absolute
+      top: 4px
+      left: 50%
+      width: 48px
+      height: 4px
+      margin-left: -24px
+      border-radius: 2px
+      background: rgba(31, 31, 31, 0.2)
+
+    .sortable-table-height-resize:hover::before
+      background: var(--ramblers-colour-sunrise, #f9b104)
 
     .sortable-table th.resizable
       position: relative
@@ -245,7 +292,9 @@ import {
 
     @media (max-width: 767.98px)
       .sortable-table-card.scrollable.freeze-first-column thead th.frozen-column,
-      .sortable-table-card.scrollable.freeze-first-column tbody td.frozen-column
+      .sortable-table-card.scrollable.freeze-first-column tbody td.frozen-column,
+      .sortable-table-card.scrollable thead th.pinned-end-column,
+      .sortable-table-card.scrollable tbody td.pinned-end-column
         position: static
         box-shadow: none
         width: auto
@@ -447,11 +496,69 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
   @ViewChild("tableCard") private tableCard: ElementRef<HTMLElement>;
   private zone = inject(NgZone);
   private host: ElementRef<HTMLElement> = inject(ElementRef);
+  private uiActionsService = inject(UiActionsService);
   private fillWindowHeightPx = 0;
   private fillWindowObserver: ResizeObserver | null = null;
 
+  private chosenHeightPx = 0;
+  private readonly heightResize = {active: false, startY: 0, startHeight: 0};
+
   get effectiveMaxHeight(): string | null {
-    return this.fillWindow && this.fillWindowHeightPx > 0 ? `${this.fillWindowHeightPx}px` : this.maxHeight;
+    if (this.fillWindow && this.fillWindowHeightPx > 0) {
+      return `${this.chosenHeightPx ? this.withinWindow(this.chosenHeightPx) : this.fillWindowHeightPx}px`;
+    } else {
+      return this.maxHeight;
+    }
+  }
+
+  private withinWindow(heightPx: number): number {
+    return Math.max(MINIMUM_TABLE_HEIGHT_PX, Math.min(heightPx, window.innerHeight - this.fillWindowGapPx));
+  }
+
+  private heightStorageKey(): string {
+    const path = this.router.url.split(/[?#]/)[0];
+    return `${path}|${this.filterStoredValue || this.columns.map(column => column.key).join(",")}`;
+  }
+
+  private storedHeights(): Record<string, number> {
+    return this.uiActionsService.initialObjectValueFor<Record<string, number>>(StoredValue.SORTABLE_TABLE_HEIGHTS, {}) || {};
+  }
+
+  private saveChosenHeight(): void {
+    const others = omit(this.storedHeights(), [this.heightStorageKey()]);
+    this.uiActionsService.saveValueFor(StoredValue.SORTABLE_TABLE_HEIGHTS, this.chosenHeightPx ? {...others, [this.heightStorageKey()]: this.chosenHeightPx} : others);
+  }
+
+  protected startHeightResize(event: PointerEvent): void {
+    const card = this.tableCard?.nativeElement;
+    if (card) {
+      event.preventDefault();
+      this.heightResize.active = true;
+      this.heightResize.startY = event.clientY;
+      this.heightResize.startHeight = card.getBoundingClientRect().height;
+      window.addEventListener("pointermove", this.onHeightResizeMove);
+      window.addEventListener("pointerup", this.onHeightResizeEnd);
+    }
+  }
+
+  private readonly onHeightResizeMove = (event: PointerEvent): void => {
+    if (this.heightResize.active) {
+      this.zone.run(() => this.chosenHeightPx = this.withinWindow(Math.round(this.heightResize.startHeight + event.clientY - this.heightResize.startY)));
+    }
+  };
+
+  private readonly onHeightResizeEnd = (): void => {
+    window.removeEventListener("pointermove", this.onHeightResizeMove);
+    window.removeEventListener("pointerup", this.onHeightResizeEnd);
+    if (this.heightResize.active) {
+      this.heightResize.active = false;
+      this.saveChosenHeight();
+    }
+  };
+
+  protected resetHeight(): void {
+    this.chosenHeightPx = 0;
+    this.saveChosenHeight();
   }
 
   ngAfterViewInit(): void {
@@ -462,6 +569,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
       Array.from(this.host.nativeElement.parentElement?.children || [])
         .filter(sibling => sibling !== this.host.nativeElement)
         .forEach(sibling => this.fillWindowObserver.observe(sibling));
+      this.chosenHeightPx = this.storedHeights()[this.heightStorageKey()] || 0;
       setTimeout(() => this.fitToWindow());
     }
   }
@@ -488,7 +596,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
     const card = this.tableCard?.nativeElement;
     if (this.fillWindow && card && card.getClientRects().length > 0) {
       const top = card.getBoundingClientRect().top + window.scrollY;
-      const available = window.innerWidth < 768 ? 0 : Math.max(240, Math.floor(window.innerHeight - top - this.fillWindowGapPx));
+      const available = window.innerWidth < 768 ? 0 : Math.max(MINIMUM_TABLE_HEIGHT_PX, Math.floor(window.innerHeight - top - this.fillWindowGapPx));
       if (available !== this.fillWindowHeightPx) {
         this.fillWindowHeightPx = available;
       }
@@ -669,6 +777,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
     if (column.headerClass) parts.push(column.headerClass);
     if (column.align === SortableTableAlignment.CENTER) parts.push("text-center");
     if (column.align === SortableTableAlignment.RIGHT) parts.push("text-right");
+    if (column.pinnedEnd) parts.push("pinned-end-column");
     if (this.freezeFirstColumn && this.columns[0]?.key === column.key) parts.push("frozen-column");
     return parts.join(" ");
   }
@@ -679,6 +788,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
     if (column.align === SortableTableAlignment.CENTER) parts.push("text-center");
     if (column.align === SortableTableAlignment.RIGHT) parts.push("text-right");
     if (this.freezeFirstColumn && this.columns[0]?.key === column.key) parts.push("frozen-column");
+    if (column.pinnedEnd) parts.push("pinned-end-column");
     return parts.join(" ");
   }
 

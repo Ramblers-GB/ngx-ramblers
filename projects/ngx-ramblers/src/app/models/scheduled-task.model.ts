@@ -24,7 +24,8 @@ export enum ScheduledTaskId {
   BREVO_CAMPAIGN_RELEASE = "brevo-campaign-release",
   BREVO_SMTP_KEEPALIVE = "brevo-smtp-keepalive",
   SITE_REGISTRATION = "site-registration",
-  BACKUPS = "backups"
+  BACKUPS = "backups",
+  ATLAS_CONNECTIONS_CHECK = "atlas-connections-check"
 }
 
 export enum ScheduledTaskSubTab {
@@ -74,7 +75,8 @@ export const SCHEDULED_TASK_SUB_TAB_GROUPS: Record<Exclude<ScheduledTaskSubTab, 
   ],
   [ScheduledTaskSubTab.PLATFORM]: [
     ScheduledTaskId.SITE_REGISTRATION,
-    ScheduledTaskId.BACKUPS
+    ScheduledTaskId.BACKUPS,
+    ScheduledTaskId.ATLAS_CONNECTIONS_CHECK
   ]
 };
 

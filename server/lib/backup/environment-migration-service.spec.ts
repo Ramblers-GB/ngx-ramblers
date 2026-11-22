@@ -7,6 +7,9 @@ import { environmentMigration } from "../mongo/models/environment-migration";
 import * as configController from "../mongo/controllers/config";
 import * as awsSetup from "../environment-setup/aws-setup";
 import * as flyMachines from "../fly/fly-machines";
+import * as siteDatabaseCheck from "../environment-setup/site-database-check";
+import * as ghostDatabases from "../environment-setup/atlas-ghost-databases";
+import { SiteDatabaseState } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import {
   EnvironmentMigrationAudit,
   EnvironmentMigrationAwsSummary,
@@ -22,6 +25,8 @@ describe("environment-migration-service", () => {
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
+    sandbox.stub(siteDatabaseCheck, "confirmRunningSiteDatabase").resolves(SiteDatabaseState.MATCHES);
+    sandbox.stub(ghostDatabases, "removeLeftoverLoginsFor").resolves([]);
   });
 
   afterEach(() => {
@@ -236,6 +241,41 @@ describe("environment-migration-service", () => {
       expect(createOrUpdateKey.firstCall.args[1].environments[0].mongo).toEqual(targetMongo);
       const rotatedUpdate = updateOne.getCalls().find(call => call.args[1].$set?.status === EnvironmentMigrationStatus.ROTATED);
       expect(rotatedUpdate.args[1].$unset).toEqual({targetMongoPassword: ""});
+    });
+
+    it("records that the restarted site confirmed it is on the new database", async () => {
+      const {service, updateOne} = stubRotation(readyMigration(null), "target-password");
+      await service.rotateCredentials({migrationId: "migration", confirmEnvironment: "staging"});
+      const rotatedUpdate = updateOne.getCalls().find(call => call.args[1].$set?.status === EnvironmentMigrationStatus.ROTATED);
+      expect(rotatedUpdate.args[1].$set.siteDatabaseConfirmed).toBe(true);
+    });
+
+    it("removes the old database logins once the restarted site confirms the new database", async () => {
+      const {service} = stubRotation(readyMigration(null), "target-password");
+      await service.rotateCredentials({migrationId: "migration", confirmEnvironment: "staging"});
+      await new Promise(resolve => setImmediate(resolve));
+      expect((ghostDatabases.removeLeftoverLoginsFor as sinon.SinonStub).calledOnceWith("staging")).toBe(true);
+    });
+
+    [SiteDatabaseState.UNKNOWN, SiteDatabaseState.ASLEEP].forEach(state => {
+      it(`keeps the old database logins when the restarted site reports ${state}`, async () => {
+        const {service, updateOne} = stubRotation(readyMigration(null), "target-password");
+        (siteDatabaseCheck.confirmRunningSiteDatabase as sinon.SinonStub).resolves(state);
+        await service.rotateCredentials({migrationId: "migration", confirmEnvironment: "staging"});
+        await new Promise(resolve => setImmediate(resolve));
+        const rotatedUpdate = updateOne.getCalls().find(call => call.args[1].$set?.status === EnvironmentMigrationStatus.ROTATED);
+        expect(rotatedUpdate.args[1].$set.siteDatabaseConfirmed).toBe(false);
+        expect((ghostDatabases.removeLeftoverLoginsFor as sinon.SinonStub).called).toBe(false);
+      });
+    });
+
+    it("undoes the move when the restarted site is still on its old database", async () => {
+      const {service, createOrUpdateKey, updateOne} = stubRotation(readyMigration(null), "target-password");
+      (siteDatabaseCheck.confirmRunningSiteDatabase as sinon.SinonStub).resolves(SiteDatabaseState.DIFFERS);
+      await expect(service.rotateCredentials({migrationId: "migration", confirmEnvironment: "staging"})).rejects.toThrow("still connected to its old database");
+      expect(createOrUpdateKey.called).toBe(false);
+      expect((flyMachines.setCurrentMachineSecrets as sinon.SinonStub).callCount).toBe(2);
+      expect(updateOne.lastCall.args[1].$set.status).toBe(EnvironmentMigrationStatus.READY_FOR_CUTOVER);
     });
 
     it("explains when no target login was saved and the page no longer holds the password", async () => {

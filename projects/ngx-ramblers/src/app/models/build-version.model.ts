@@ -28,4 +28,5 @@ export interface DeploymentInfo {
   uptimeSeconds: number;
   startedAt: string;
   serverTime: string;
+  databaseFingerprint: string | null;
 }

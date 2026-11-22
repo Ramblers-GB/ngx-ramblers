@@ -331,6 +331,7 @@ export enum StoredValue {
   SHOW_IGNORED_MEMBERS = "show-ignored-members",
   SHOW_UNREFERENCED_PAGES = "show-unreferenced-pages",
   SITE_SEARCH_RECENT = "site-search-recent",
+  SORTABLE_TABLE_HEIGHTS = "sortable-table-heights",
   SORT = "sort",
   SORT_ORDER = "sort-order",
   SOURCE_PAGE = "source-page",

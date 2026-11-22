@@ -77,6 +77,9 @@ function loadFromLocalManifest(): EnvironmentsConfig | null {
 }
 
 function readServerEnvMongoUri(): string | null {
+  if (process.env.NGX_ISOLATED_TESTS === "true") {
+    return null;
+  }
   try {
     const envPath = resolveClientPath("server", ".env");
     if (!fs.existsSync(envPath)) {

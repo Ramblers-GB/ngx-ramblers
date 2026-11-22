@@ -6,8 +6,8 @@ import {primaryCandidates} from "../environment-setup/hostname-health";
 import { probeHttp } from "./public-http-probe";
 import { dateTimeNow, dateTimeNowAsValue } from "../shared/dates";
 import { queryCertificates } from "../fly/fly-certificates";
-import { EnvironmentConfig, FlyMachineMode } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { flyAppAsleep } from "../fly/fly-machines";
+import { EnvironmentConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
+import { environmentAsleep } from "../fly/fly-machines";
 import {
   CrossEnvironmentHealthResponse,
   EnvironmentHealthEvent,
@@ -75,19 +75,6 @@ async function certificateFindingsFor(env: EnvironmentConfig, hostnames: string[
   }
 }
 
-async function sleepingNow(env: EnvironmentConfig, appName: string): Promise<boolean> {
-  if (env.flyMachines !== FlyMachineMode.SLEEP_WHEN_IDLE || !env.flyio?.apiKey) {
-    return false;
-  } else {
-    try {
-      return await flyAppAsleep(env.flyio.apiKey, appName);
-    } catch (caught) {
-      debugLog("Could not read machine state for %s: %s", env.environment, caught instanceof Error ? caught.message : caught);
-      return false;
-    }
-  }
-}
-
 async function sleepingEnvironment(env: EnvironmentConfig, appName: string, baseDomain: string, startTime: number, signal?: AbortSignal): Promise<EnvironmentHealthCheck> {
   const environmentName = env.environment;
   const hostname = visitorHostnameFromSiteUrl(undefined, environmentName, baseDomain);
@@ -114,7 +101,7 @@ async function sleepingEnvironment(env: EnvironmentConfig, appName: string, base
 
 async function checkSingleEnvironment(env: EnvironmentConfig, baseDomain: string, signal?: AbortSignal): Promise<EnvironmentHealthCheck> {
   const appName = env.flyio?.appName || `ngx-ramblers-${env.environment}`;
-  if (await sleepingNow(env, appName)) {
+  if (await environmentAsleep(env, appName)) {
     return sleepingEnvironment(env, appName, baseDomain, dateTimeNow().toMillis(), signal);
   } else {
     return checkAwakeEnvironment(env, baseDomain, signal);

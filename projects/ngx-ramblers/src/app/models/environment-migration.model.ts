@@ -1,3 +1,5 @@
+import { DateTime } from "luxon";
+import { isNumber, isString } from "es-toolkit/compat";
 import { MongoConfig } from "./environment-config.model";
 import { BackupLocation, S3BackupSummary, S3LiveCopyCheckpoint } from "./backup-session.model";
 
@@ -170,6 +172,8 @@ export interface EnvironmentMigrationAudit {
   s3CopyCheckpoint?: S3LiveCopyCheckpoint;
   rollbackInfo?: EnvironmentMigrationRollbackInfo;
   rotatedAt?: Date | number;
+  sourceRemovedAt?: Date | number;
+  siteDatabaseConfirmed?: boolean;
   error?: string;
   requestedBy?: string;
 }
@@ -207,4 +211,41 @@ export enum EnvironmentMigrationStepState {
   RUNNING = "running",
   DONE = "done",
   FAILED = "failed"
+}
+
+function migrationStartValue(migration: EnvironmentMigrationAudit): number {
+  const start = migration.startTime;
+  const dateTime = isNumber(start) ? DateTime.fromMillis(start) : isString(start) ? DateTime.fromISO(start) : start ? DateTime.fromJSDate(start) : null;
+  return dateTime?.isValid ? dateTime.toMillis() : 0;
+}
+
+export function repeatDatabaseMoveUnderway(migrations: EnvironmentMigrationAudit[]): EnvironmentMigrationAudit | null {
+  const lastDatabaseSwitch = migrations
+    .filter(migration => migration.status === EnvironmentMigrationStatus.ROTATED && migrationIncludesMongo(migration.mode))
+    .reduce((latest, migration) => Math.max(latest, migrationStartValue(migration)), 0);
+  return migrations
+    .filter(migration => migration.mode === EnvironmentMigrationMode.MONGO_ONLY && migration.status !== EnvironmentMigrationStatus.ROTATED && migrationStartValue(migration) > lastDatabaseSwitch)
+    .sort((left, right) => migrationStartValue(right) - migrationStartValue(left))[0] || null;
+}
+
+export const MOVE_PROGRESS_CHECK_MS = 5000;
+export const MOVE_PROGRESS_CHECK_LIMIT = 720;
+
+const UNFINISHED_MOVE_STOPPED_STATUSES: EnvironmentMigrationStatus[] = [
+  EnvironmentMigrationStatus.ROTATED,
+  EnvironmentMigrationStatus.FAILED,
+  EnvironmentMigrationStatus.ORPHANED
+];
+
+export function resumableMove(migrations: EnvironmentMigrationAudit[], mode: EnvironmentMigrationMode, targetCluster: string): EnvironmentMigrationAudit | null {
+  const lastSwitch = migrations
+    .filter(migration => migration.status === EnvironmentMigrationStatus.ROTATED)
+    .reduce((latest, migration) => Math.max(latest, migrationStartValue(migration)), 0);
+  return migrations
+    .filter(migration => !migration.dryRun
+      && migration.mode === mode
+      && !UNFINISHED_MOVE_STOPPED_STATUSES.includes(migration.status)
+      && (!migrationIncludesMongo(mode) || migration.targetMongo?.cluster === targetCluster)
+      && (lastSwitch === 0 || migrationStartValue(migration) > lastSwitch))
+    .sort((left, right) => migrationStartValue(right) - migrationStartValue(left))[0] || null;
 }

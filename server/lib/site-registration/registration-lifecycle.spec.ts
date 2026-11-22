@@ -18,6 +18,7 @@ import * as registrationLogos from "./registration-logos";
 import * as osMapsProvision from "../os-maps/provision-os-maps-key";
 import * as environmentDetailsModule from "../environment-setup/environment-details";
 import * as mongoDatabaseUser from "../environment-setup/mongo-database-user";
+import * as ghostDatabases from "../environment-setup/atlas-ghost-databases";
 import * as atlasClusters from "../environment-setup/atlas-clusters";
 import * as systemConfigModule from "../config/system-config";
 import { approveRegistration, runRegistrationJobs, submitRegistration } from "./registration-jobs";
@@ -97,6 +98,8 @@ describe("site registration lifecycle", () => {
     sandboxState.sandbox.stub(registrationStore, "registrations").returns(inMemoryRegistrations(state));
     sandboxState.sandbox.stub(registrationStore, "registrationSettings").resolves(areaSettings);
     sandboxState.sandbox.stub(registrationStore, "ensureRegistrationIndexes").resolves();
+    sandboxState.sandbox.stub(ghostDatabases, "atlasGhostDatabases").resolves([]);
+sandboxState.sandbox.stub(ghostDatabases, "atlasLeftoverLogins").resolves([]);
     sandboxState.sandbox.stub(groupsApi, "fetchRamblersGroupsFromApi").resolves([area, group] as any);
     sandboxState.sandbox.stub(registrationEmail, "sendRegistrationEmail").resolves();
     sandboxState.sandbox.stub(environmentsConfig, "findEnvironmentFromDatabase").resolves(null);
@@ -112,6 +115,8 @@ describe("site registration lifecycle", () => {
     sandboxState.sandbox.stub(registrationStore, "registrations").returns(inMemoryRegistrations(state));
     sandboxState.sandbox.stub(registrationStore, "registrationSettings").resolves(settings);
     sandboxState.sandbox.stub(registrationStore, "ensureRegistrationIndexes").resolves();
+    sandboxState.sandbox.stub(ghostDatabases, "atlasGhostDatabases").resolves([]);
+sandboxState.sandbox.stub(ghostDatabases, "atlasLeftoverLogins").resolves([]);
     sandboxState.sandbox.stub(groupsApi, "fetchRamblersGroupsFromApi").resolves([group] as any);
     const sendEmail = sandboxState.sandbox.stub(registrationEmail, "sendRegistrationEmail").resolves();
     sandboxState.sandbox.stub(environmentsConfig, "findEnvironmentFromDatabase").resolves(null);
@@ -137,6 +142,8 @@ describe("site registration lifecycle", () => {
     sandboxState.sandbox.stub(registrationStore, "registrations").returns(inMemoryRegistrations(state));
     sandboxState.sandbox.stub(registrationStore, "registrationSettings").resolves(settings);
     sandboxState.sandbox.stub(registrationStore, "ensureRegistrationIndexes").resolves();
+    sandboxState.sandbox.stub(ghostDatabases, "atlasGhostDatabases").resolves([]);
+sandboxState.sandbox.stub(ghostDatabases, "atlasLeftoverLogins").resolves([]);
     sandboxState.sandbox.stub(groupsApi, "fetchRamblersGroupsFromApi").resolves([hosted] as any);
     sandboxState.sandbox.stub(registrationEmail, "sendRegistrationEmail").resolves();
     sandboxState.sandbox.stub(environmentsConfig, "findEnvironmentFromDatabase").resolves(null);
@@ -159,6 +166,8 @@ describe("site registration lifecycle", () => {
     sandboxState.sandbox.stub(registrationStore, "recordRegistrationHistory").resolves();
     sandboxState.sandbox.stub(registrationStore, "registrationSettings").resolves(settings);
     sandboxState.sandbox.stub(registrationStore, "ensureRegistrationIndexes").resolves();
+    sandboxState.sandbox.stub(ghostDatabases, "atlasGhostDatabases").resolves([]);
+sandboxState.sandbox.stub(ghostDatabases, "atlasLeftoverLogins").resolves([]);
     sandboxState.sandbox.stub(groupsApi, "fetchRamblersGroupsFromApi").resolves([group] as any);
     const sendEmail = sandboxState.sandbox.stub(registrationEmail, "sendRegistrationEmail").resolves();
     sandboxState.sandbox.stub(environmentsConfig, "findEnvironmentFromDatabase").resolves(null);

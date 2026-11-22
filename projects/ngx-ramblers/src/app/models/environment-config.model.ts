@@ -175,6 +175,11 @@ export enum SiteUrlPreference {
 export interface EnvironmentSiteLink {
   environment: string;
   url: string;
+  warning?: string | null;
+}
+
+export function flyAppNameFor(environment: Pick<EnvironmentConfig, "environment" | "flyio">): string {
+  return environment.flyio?.appName || `ngx-ramblers-${environment.environment}`;
 }
 
 export interface EnvironmentConfig {

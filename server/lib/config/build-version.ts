@@ -3,6 +3,7 @@ import { Environment } from "../../../projects/ngx-ramblers/src/app/models/envir
 import { BuildVersion, DEVELOPMENT_BUILD_NUMBER, DeploymentInfo, REPOSITORY_URL } from "../../../projects/ngx-ramblers/src/app/models/build-version.model";
 import { envConfig } from "../env-config/env-config";
 import { dateTimeNow } from "../shared/dates";
+import { runningDatabaseFingerprint } from "../shared/database-fingerprint";
 
 const FLY_APP_PREFIX = "ngx-ramblers-";
 
@@ -46,7 +47,8 @@ export function currentDeploymentInfo(): DeploymentInfo {
     nodeVersion: process.version,
     uptimeSeconds,
     startedAt: now.minus({seconds: uptimeSeconds}).toISO(),
-    serverTime: now.toISO()
+    serverTime: now.toISO(),
+    databaseFingerprint: runningDatabaseFingerprint()
   };
 }
 

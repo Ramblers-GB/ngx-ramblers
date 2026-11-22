@@ -34,6 +34,8 @@ router.get("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.list
 router.get("/s3-inventory", controllers.requireSetupAccess, awsS3Inventory.listAwsS3Inventory);
 router.post("/atlas-clusters", controllers.requireSetupAccess, atlasClusters.createAtlasClusterRequest);
 router.delete("/atlas-clusters/:projectId/:name", controllers.requireSetupAccess, atlasClusters.deleteAtlasClusterRequest);
+router.post("/atlas-ghost-databases/delete", controllers.requireSetupAccess, atlasClusters.deleteGhostDatabaseRequest);
+router.post("/atlas-leftover-logins/delete", controllers.requireSetupAccess, atlasClusters.deleteLeftoverLoginRequest);
 router.post("/atlas-network-access", controllers.requireSetupAccess, atlasClusters.allowAtlasNetworkAccessRequest);
 router.put("/atlas-provisioning", controllers.requireSetupAccess, atlasClusters.saveAtlasProvisioningRequest);
 router.post("/backup-archive", controllers.requireSetupAccess, backupArchive.provisionBackupArchiveRequest);

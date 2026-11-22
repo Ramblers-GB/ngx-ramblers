@@ -5,6 +5,7 @@ import { FlyMachineRunState, FlyMachineSummary, FlyRestartResult } from "./fly.m
 import { FlyMachineState, FlyTargetApp } from "../../../projects/ngx-ramblers/src/app/models/health.model";
 import { flyRuntimeConfig } from "./fly-runtime-config";
 import { flyAuthorizationHeader, MACHINES_API_BASE, missingFlyConfig } from "./fly-env";
+import { EnvironmentConfig, FlyMachineMode } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 
 const FLY_GRAPHQL_API = "https://api.fly.io/graphql";
 
@@ -32,6 +33,19 @@ export function flyMachinesAsleep(machines: FlyMachineSummary[]): boolean {
 
 export async function flyAppAsleep(apiToken: string, appName: string): Promise<boolean> {
   return flyMachinesAsleep(await listMachines(apiToken, appName));
+}
+
+export async function environmentAsleep(env: EnvironmentConfig, appName: string): Promise<boolean> {
+  if (env.flyMachines !== FlyMachineMode.SLEEP_WHEN_IDLE || !env.flyio?.apiKey) {
+    return false;
+  } else {
+    try {
+      return await flyAppAsleep(env.flyio.apiKey, appName);
+    } catch (caught) {
+      debugLog("Could not read machine state for %s: %s", env.environment, caught instanceof Error ? caught.message : caught);
+      return false;
+    }
+  }
 }
 
 async function queryMachine(apiToken: string, appName: string, machineId: string): Promise<FlyMachineSummary> {

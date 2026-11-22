@@ -12,6 +12,7 @@ import { AtlasClusterCreateRequest, AtlasClusterTier } from "../../../projects/n
 import { AtlasConfig, AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
 import { EmptyCollectionCandidate } from "../../../projects/ngx-ramblers/src/app/models/environment-collection-cleanup.model";
 import { emptyCollectionCleanupPreview, removeEmptyCollections } from "./collection-cleanup";
+import { deleteGhostDatabase, deleteLeftoverLogin } from "./atlas-ghost-databases";
 
 const errorDebugLog = createErrorDebugLog("atlas-clusters-controllers");
 
@@ -96,5 +97,23 @@ export async function collectionCleanupRequest(req: Request, res: Response): Pro
   } catch (error) {
     errorDebugLog("collectionCleanupRequest:", error?.message || error);
     res.status(500).json({error: error?.message || "Could not remove empty collections"});
+  }
+}
+
+export async function deleteGhostDatabaseRequest(req: Request, res: Response): Promise<void> {
+  try {
+    res.json(await deleteGhostDatabase({migrationId: isString(req.body?.migrationId) ? req.body.migrationId : "", confirmDatabase: isString(req.body?.confirmDatabase) ? req.body.confirmDatabase : ""}));
+  } catch (error) {
+    errorDebugLog("deleteGhostDatabase:", error?.message || error);
+    res.status(400).json({error: error?.message || "Could not delete the database"});
+  }
+}
+
+export async function deleteLeftoverLoginRequest(req: Request, res: Response): Promise<void> {
+  try {
+    res.json(await deleteLeftoverLogin({projectId: isString(req.body?.projectId) ? req.body.projectId : "", username: isString(req.body?.username) ? req.body.username : ""}));
+  } catch (error) {
+    errorDebugLog("deleteLeftoverLogin:", error?.message || error);
+    res.status(400).json({error: error?.message || "Could not delete the login"});
   }
 }

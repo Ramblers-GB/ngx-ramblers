@@ -10,7 +10,8 @@ import { booleanOf } from "../shared/string-utils";
 import { routeContributorFrom } from "../auth/request-member";
 import {
   integrationWorkerBackupsAvailable,
-  submitEnvironmentBackupToIntegrationWorker
+  submitEnvironmentBackupToIntegrationWorker,
+  submitEnvironmentRestoreToIntegrationWorker
 } from "../ramblers/integration-worker-backups-client";
 
 const debugLog = debug(envConfig.logNamespace("backup"));
@@ -145,13 +146,33 @@ export async function startRestore(req: Request, res: Response) {
   try {
     const svc = await service();
     const user = requestUserName(req);
+    const fromS3 = isString(req.body?.from) && req.body.from.startsWith("s3:");
+    const runOnWorker = fromS3 && !booleanOf(req.body?.dryRun) && integrationWorkerBackupsAvailable();
     const options = {
       ...req.body,
-      user
+      user,
+      executeLocally: !runOnWorker
     };
 
-    debugLog("startRestore:request:", options);
+    debugLog("startRestore:request:", options, "runOnWorker:", runOnWorker);
     const session = await svc.startRestore(options);
+    if (runOnWorker && session._id) {
+      const sessionId = session._id.toString();
+      try {
+        await submitEnvironmentRestoreToIntegrationWorker(sessionId, {
+          environment: options.environment,
+          from: session.options?.from || options.from,
+          database: options.database,
+          collections: options.collections,
+          drop: options.drop,
+          includeS3: options.includeS3,
+          user
+        });
+      } catch (error) {
+        await svc.failPendingRestore(sessionId, (error as Error).message);
+        throw error;
+      }
+    }
     debugLog("startRestore:response:", session.sessionId);
     res.status(200).json(session);
   } catch (error) {

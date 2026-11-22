@@ -106,7 +106,7 @@ export async function connect(debug?: debug.Debugger): Promise<boolean> {
         connectTimeoutMS: 30000,
         heartbeatFrequencyMS: 5000,
         maxPoolSize: 10,
-        minPoolSize: 2,
+        minPoolSize: 0,
         maxIdleTimeMS: 45000,
         ssl: true,
         autoCreate: false,

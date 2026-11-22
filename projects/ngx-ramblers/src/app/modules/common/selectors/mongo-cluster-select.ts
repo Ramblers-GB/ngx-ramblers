@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgLabelTemplateDirective, NgOptionTemplateDirective, NgSelectComponent } from "@ng-select/ng-select";
 import { MongoClusterInfo } from "../../../models/environment-setup.model";
+import { clusterDisplayName } from "../../../models/atlas-cluster.model";
 
 @Component({
   selector: "app-mongo-cluster-select",
@@ -46,9 +47,9 @@ import { MongoClusterInfo } from "../../../models/environment-setup.model";
       [dropdownPosition]="'bottom'"
       [placeholder]="placeholder"
       appearance="outline">
-      <ng-template ng-label-tmp let-item="item">{{ item.cluster }}@if (item.environments.length) { ({{ item.environments.join(", ") }})}</ng-template>
+      <ng-template ng-label-tmp let-item="item">{{ clusterDisplayName(item.cluster) }}@if (item.environments.length) { ({{ item.environments.join(", ") }})}</ng-template>
       <ng-template ng-option-tmp let-item="item">
-        <strong>{{ item.cluster }}</strong>
+        <strong>{{ clusterDisplayName(item.cluster) }}</strong>
         <div><small>{{ item.environments.length ? item.environments.join(", ") : "No sites yet" }}</small></div>
       </ng-template>
     </ng-select>
@@ -62,4 +63,5 @@ export class MongoClusterSelectComponent {
   @Input() disabled = false;
   @Input() placeholder = "Select a MongoDB cluster";
   @Output() selectedChange = new EventEmitter<MongoClusterInfo | null>();
+  protected readonly clusterDisplayName = clusterDisplayName;
 }

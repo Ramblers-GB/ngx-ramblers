@@ -11,6 +11,7 @@ import { buildMongoUri } from "../shared/mongodb-uri";
 import { dateTimeNow } from "../shared/dates";
 import { configuredBackup } from "./backup-config";
 import { environmentMigration } from "../mongo/models/environment-migration";
+import { integrationWorkerBackupsAvailable, submitEnvironmentMoveToIntegrationWorker } from "../ramblers/integration-worker-backups-client";
 import * as configController from "../mongo/controllers/config";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
 import { BackupLocation, S3BackupSummary } from "../../../projects/ngx-ramblers/src/app/models/backup-session.model";
@@ -40,6 +41,8 @@ import { manifestByTimestamp, migrateLiveBucket, siteAccessFor, siteConfigFor, s
 import { adminConfigFromEnvironment, bucketExists, createS3Client, generateBucketName, setupAwsForBucket } from "../environment-setup/aws-setup";
 import { waitForMongoLogin } from "../environment-setup/mongo-database-user";
 import { restartCurrentMachine, setCurrentMachineSecrets } from "../fly/fly-machines";
+import { confirmRunningSiteDatabase } from "../environment-setup/site-database-check";
+import { SiteDatabaseState } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { FlyTargetApp } from "../../../projects/ngx-ramblers/src/app/models/health.model";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { secretsAfterRotation, storedMongoUriConflict } from "./environment-migration-mongo-target";
@@ -95,10 +98,35 @@ export class EnvironmentMigrationService {
     }
 
     const migrationRecord = await this.createMigrationRecord(request, sourceMongo, targetMongo, mode, backupConfig);
-    this.runMongoOnlyMigration(migrationRecord.migrationId, request, backupConfig, sourceMongo, targetMongo).catch(error => {
-      debugLog("startMongoOnlyMigration background execution failed:", error);
-    });
+    if (!request.dryRun && integrationWorkerBackupsAvailable()) {
+      try {
+        await submitEnvironmentMoveToIntegrationWorker(migrationRecord.migrationId, request);
+        debugLog("startMongoOnlyMigration: %s sent to the integration worker", migrationRecord.migrationId);
+      } catch (error) {
+        await this.failQueuedMigration(migrationRecord.migrationId, `Could not start the move on the integration worker: ${error?.message || error}`);
+        throw error;
+      }
+    } else {
+      this.runMongoOnlyMigration(migrationRecord.migrationId, request, backupConfig, sourceMongo, targetMongo).catch(error => {
+        debugLog("startMongoOnlyMigration background execution failed:", error);
+      });
+    }
     return this.requiredMigration(migrationRecord.migrationId);
+  }
+
+  async runQueuedMigration(migrationId: string, request: EnvironmentMigrationRequest): Promise<EnvironmentMigrationAudit> {
+    const backupConfig = await configuredBackup();
+    const mode = request.mode || EnvironmentMigrationMode.MONGO_ONLY;
+    const sourceMongo = this.sourceMongoForMode(backupConfig, request.environment, mode);
+    const targetMongo = this.targetMongoForMode(request, mode);
+    return this.runMongoOnlyMigration(migrationId, request, backupConfig, sourceMongo, targetMongo);
+  }
+
+  async failQueuedMigration(migrationId: string, error: string): Promise<void> {
+    await environmentMigration.updateOne(
+      {migrationId, status: {$in: [EnvironmentMigrationStatus.PENDING, EnvironmentMigrationStatus.VALIDATING, EnvironmentMigrationStatus.DUMPING, EnvironmentMigrationStatus.RESTORING, EnvironmentMigrationStatus.VERIFYING]}},
+      {$set: {status: EnvironmentMigrationStatus.FAILED, error, heartbeatAt: dateTimeNow().toJSDate()}}
+    );
   }
 
   async executeMongoOnlyMigration(request: EnvironmentMigrationRequest): Promise<EnvironmentMigrationAudit> {
@@ -354,6 +382,12 @@ export class EnvironmentMigrationService {
         if (!restartResult.ok) {
           throw new Error(restartResult.error || "Fly machine did not restart after secrets update");
         } else {
+          const siteDatabase = mongoIncluded && migration.targetMongo
+            ? await confirmRunningSiteDatabase(matchingEnvironment, migration.targetMongo.cluster, migration.targetMongo.db)
+            : null;
+          if (siteDatabase === SiteDatabaseState.DIFFERS) {
+            throw new Error(`After restarting, ${migration.environment} is still connected to its old database, so the move has been undone. Check its stored MONGODB_URI and try again.`);
+          }
           cutover.configUpdateAttempted = true;
           await configController.createOrUpdateKey(ConfigKey.ENVIRONMENTS, {...currentConfig, environments: updatedEnvironments});
           await environmentMigration.updateOne(
@@ -365,9 +399,15 @@ export class EnvironmentMigrationService {
               endTime: dateTimeNow().toJSDate(),
               heartbeatAt: dateTimeNow().toJSDate(),
               rollbackInfo,
+              siteDatabaseConfirmed: siteDatabase === SiteDatabaseState.MATCHES,
               requestedBy: request.user || migration.requestedBy
             }, $unset: {targetMongoPassword: ""}}
           );
+          if (siteDatabase === SiteDatabaseState.MATCHES) {
+            void import("../environment-setup/atlas-ghost-databases")
+              .then(module => module.removeLeftoverLoginsFor(migration.environment))
+              .catch(error => debugLog("leftover logins for %s not removed: %s", migration.environment, error?.message || error));
+          }
           return this.requiredMigration(request.migrationId);
         }
       }

@@ -5,15 +5,13 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import {
   faArrowRight,
-  faArrowRightArrowLeft,
+  faArrowLeft,
   faCircleCheck,
   faCircleExclamation,
-  faClipboardCheck,
-  faCopy,
+  faDatabase,
   faList,
   faRotate,
   faSpinner,
-  faUserPlus
 } from "@fortawesome/free-solid-svg-icons";
 import { isString, kebabCase } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -32,6 +30,10 @@ import {
   EnvironmentMigrationTab,
   migrationAllowsCredentialRotation,
   migrationIncludesMongo,
+  MOVE_PROGRESS_CHECK_LIMIT,
+  MOVE_PROGRESS_CHECK_MS,
+  repeatDatabaseMoveUnderway,
+  resumableMove,
   migrationIncludesS3,
   migrationModeLabel
 } from "../../../models/environment-migration.model";
@@ -41,7 +43,7 @@ import { SortableTableComponent } from "../../../modules/common/sortable-table/s
 import { EnvironmentSelectComponent } from "../../../modules/common/selectors/environment-select";
 import { MongoClusterSelectComponent } from "../../../modules/common/selectors/mongo-cluster-select";
 import { generateDestinationBucketName, MongoClusterInfo } from "../../../models/environment-setup.model";
-import { clusterAcceptsMigratedSite } from "../../../models/atlas-cluster.model";
+import { AtlasClusterView, clusterAcceptsMigratedSite, clusterDisplayName } from "../../../models/atlas-cluster.model";
 import { EnvironmentSetupService } from "../../../services/environment-setup/environment-setup.service";
 import { VendorBrandMarkComponent } from "../../../modules/common/vendor-brand-mark/vendor-brand-mark.component";
 import { PageComponent } from "../../../page/page.component";
@@ -50,6 +52,7 @@ import { EnvironmentConfigService } from "../../../services/environment-config.s
 import { EnvironmentMigrationService } from "../../../services/environment-migration.service";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { StoredValue } from "../../../models/ui-actions.model";
+import { AdminPlatformPath } from "../../../models/admin-route-paths.model";
 import { DisplayDateAbbreviatedTimePipe } from "../../../pipes/display-date-abbreviated-time.pipe";
 import { DESCENDING } from "../../../models/table-filtering.model";
 import { AWS_DEFAULTS, EnvironmentsConfig } from "../../../models/environment-config.model";
@@ -129,6 +132,11 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
               (selectedNameChange)="onEnvironmentChange()"
               placeholder="All environments"></app-environment-select>
           </div>
+          @if (returnUrl) {
+            <div class="col-12 col-lg-6 d-flex justify-content-lg-end align-items-start mt-2 mt-lg-0">
+              <button type="button" class="btn btn-quiet text-nowrap" (click)="goBack()"><fa-icon [icon]="faArrowLeft" class="me-1"/>Back</button>
+            </div>
+          }
         </div>
       </div>
       <tabset class="custom-tabset">
@@ -137,7 +145,7 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
              [heading]="EnvironmentMigrationTab.PLAN">
           <div class="img-thumbnail thumbnail-admin-edit mt-3">
             <div class="thumbnail-heading-frame">
-              <div class="thumbnail-heading">Move to Ramblers hosting</div>
+              <div class="thumbnail-heading">{{ moveHeading() }}</div>
               @if (!request.environment) {
                 <p class="mb-0">Choose an environment above.</p>
               } @else {
@@ -151,69 +159,46 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
                     <dd class="col-sm-9">{{ filesFrom() }} <fa-icon [icon]="faArrowRight" class="mx-2"/> {{ filesTo() }}</dd>
                   }
                 </dl>
-                @if (nextStepState() === EnvironmentMigrationStepState.DONE) {
+                @if (nextStepState() === EnvironmentMigrationStepState.DONE && !moving) {
                   <div class="alert alert-success d-flex align-items-start mb-0" role="status">
                     <fa-icon [icon]="faCircleCheck" class="me-2 mt-1"/>
                     <div><strong>Moved</strong><div>The site is running on Ramblers hosting.</div></div>
                   </div>
-                } @else if (nextStepState() === EnvironmentMigrationStepState.RUNNING) {
+                } @else if (nextStepState() === EnvironmentMigrationStepState.RUNNING || moving) {
                   <div class="alert alert-warning d-flex align-items-start mb-0" role="status">
                     <fa-icon [icon]="faSpinner" animation="spin" class="me-2 mt-1"/>
                     <div>
-                      <strong>{{ runningLabel() }}</strong>
+                      <strong>Moving {{ request.environment }}</strong>
+                      <div>{{ runningLabel() }}</div>
                       @if (selectedMigration?.heartbeatAt) {
                         <div class="small">Last update {{ selectedMigration.heartbeatAt | displayDateAbbreviatedTime }}.</div>
                       }
                     </div>
                   </div>
-                } @else {
-                  @switch (nextStep()) {
-                    @case (EnvironmentMigrationStepKey.PREPARE) {
-                      @if (!environmentsConfig?.atlas?.defaultCluster) {
-                        <div class="col-lg-6 mb-2">
-                          <label class="form-label" for="target-cluster">New database server</label>
-                          <app-mongo-cluster-select id="target-cluster" [clusters]="targetClusterOptions()" [selected]="selectedTargetCluster()"
-                                                    [disabled]="busy" [placeholder]="targetClusters.length ? 'Choose a server with room for this site' : 'Loading servers…'"
-                                                    (selectedChange)="targetClusterChanged($event)"/>
-                        </div>
-                      }
-                      <button type="button" class="btn btn-primary" [disabled]="busy || !request.targetMongo.cluster" (click)="provisionMongoTarget()">
-                        <fa-icon [icon]="faUserPlus" class="me-1"/>Next: create database login
-                      </button>
-                    }
-                    @case (EnvironmentMigrationStepKey.CHECK) {
-                      @if (includeS3() && !filesReady()) {
-                        <button type="button" class="btn btn-primary" [disabled]="busy" (click)="useRamblersStorage()">
-                          <fa-icon [icon]="faRotate" class="me-1"/>Next: load Ramblers storage details
-                        </button>
-                      } @else {
-                        <button type="button" class="btn btn-primary" [disabled]="busy || !formReady()" (click)="plan()">
-                          <fa-icon [icon]="faClipboardCheck" class="me-1"/>Next: check
-                        </button>
-                      }
-                    }
-                    @case (EnvironmentMigrationStepKey.COPY) {
-                      <div class="col-lg-6 mb-2">
-                        <label class="form-label" for="confirm-environment-copy">Type <strong>{{ request.environment }}</strong> to confirm</label>
-                        <input id="confirm-environment-copy" class="form-control" name="confirmEnvironmentCopy"
-                               [(ngModel)]="request.confirmEnvironment" autocomplete="off">
-                      </div>
-                      <button type="button" class="btn btn-warning" [disabled]="busy || !canStartCopy()" (click)="execute(false)">
-                        <fa-icon [icon]="faCopy" class="me-1"/>Next: copy
-                      </button>
-                    }
-                    @case (EnvironmentMigrationStepKey.SWITCH) {
-                      <div class="col-lg-6 mb-2">
-                        <label class="form-label" for="confirm-environment-switch">Type <strong>{{ request.environment }}</strong> to confirm</label>
-                        <input id="confirm-environment-switch" class="form-control" name="confirmEnvironmentSwitch"
-                               [(ngModel)]="request.confirmEnvironment" autocomplete="off">
-                      </div>
-                      <button type="button" class="btn btn-danger" [disabled]="busy || !canRotate()" (click)="rotate()">
-                        <fa-icon [icon]="faArrowRightArrowLeft" class="me-1"/>Next: switch the site over
-                      </button>
-                    }
-                  }
                 }
+                @if (!moving && nextStepState() !== EnvironmentMigrationStepState.RUNNING) {
+                  <div class="row mb-2 mt-3">
+                    <div class="col-lg-6">
+                      <label class="form-label" for="move-target">Where do you want to move to?</label>
+                      <app-mongo-cluster-select id="move-target" [clusters]="targetClusterOptions()" [selected]="selectedTargetCluster()"
+                                                [disabled]="busy"
+                                                [placeholder]="targetClusters.length ? 'Choose a server with room for this site' : 'Loading servers…'"
+                                                (selectedChange)="targetClusterChanged($event)"/>
+                      @if (moveHint()) {
+                        <div class="form-text">{{ moveHint() }}</div>
+                      }
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-primary" [disabled]="!moveReady()" (click)="moveNow()">
+                    <fa-icon [icon]="faDatabase" class="me-1"/>{{ moveLabel() }}
+                  </button>
+                }
+              }
+              @if (moveCompleted) {
+                <div class="alert alert-success d-flex align-items-start mt-3 mb-0" role="status">
+                  <fa-icon [icon]="faCircleCheck" class="me-2 mt-1"/>
+                  <div>{{ moveCompleted }}</div>
+                </div>
               }
               @if (error) {
                 <div class="alert alert-danger d-flex align-items-start mt-3 mb-0" role="alert">
@@ -390,16 +375,14 @@ export class EnvironmentMigrationComponent implements OnInit {
   protected readonly migrationModeLabel = migrationModeLabel;
   protected readonly DESCENDING = DESCENDING;
   protected readonly AlertPanelVariant = AlertPanelVariant;
+  protected readonly faArrowLeft = faArrowLeft;
   protected readonly faArrowRight = faArrowRight;
-  protected readonly faArrowRightArrowLeft = faArrowRightArrowLeft;
   protected readonly faCircleCheck = faCircleCheck;
   protected readonly faCircleExclamation = faCircleExclamation;
-  protected readonly faClipboardCheck = faClipboardCheck;
-  protected readonly faCopy = faCopy;
   protected readonly faList = faList;
   protected readonly faRotate = faRotate;
   protected readonly faSpinner = faSpinner;
-  protected readonly faUserPlus = faUserPlus;
+  protected readonly faDatabase = faDatabase;
 
   environments: EnvironmentInfo[] = [];
   environmentsWithMongo: EnvironmentInfo[] = [];
@@ -412,6 +395,10 @@ export class EnvironmentMigrationComponent implements OnInit {
   private targetClusterOptionsKey = "";
   error = "";
   busy = false;
+  moving = false;
+  serverChosen = false;
+  moveCompleted = "";
+  returnUrl: string | null = null;
   busyAction = "";
   private pollingMigrationId: string | null = null;
 
@@ -453,6 +440,7 @@ export class EnvironmentMigrationComponent implements OnInit {
   };
 
   async ngOnInit(): Promise<void> {
+    this.rememberHowWeArrived();
     const initialEnvironment = this.activatedRoute.snapshot.queryParams[StoredValue.ENVIRONMENT];
     if (isString(initialEnvironment) && initialEnvironment) {
       this.request.environment = initialEnvironment;
@@ -494,15 +482,22 @@ export class EnvironmentMigrationComponent implements OnInit {
   }
 
   async loadTargetClusters(): Promise<void> {
+    const cached = this.environmentSetupService.cachedAtlasClusters();
+    if (cached) {
+      this.targetClusters = this.targetClustersFrom(cached);
+    }
     try {
-      const view = await this.environmentSetupService.atlasClusters();
-      this.targetClusters = view.clusters
-        .filter(cluster => clusterAcceptsMigratedSite(cluster, view.projectId))
-        .map(cluster => ({cluster: cluster.host, username: "", password: "", databases: [], environments: cluster.environmentNames ? cluster.environmentNames.split(", ") : []}));
+      this.targetClusters = this.targetClustersFrom(await this.environmentSetupService.atlasClusters());
     } catch (error) {
       this.logger.error("Failed to load Atlas clusters:", error);
-      this.targetClusters = [];
+      this.targetClusters = cached ? this.targetClusters : [];
     }
+  }
+
+  private targetClustersFrom(view: AtlasClusterView): MongoClusterInfo[] {
+    return view.clusters
+      .filter(cluster => clusterAcceptsMigratedSite(cluster, view.projectId))
+      .map(cluster => ({cluster: cluster.host, username: "", password: "", databases: [], environments: cluster.environmentNames ? cluster.environmentNames.split(", ") : []}));
   }
 
   targetClusterOptions(): MongoClusterInfo[] {
@@ -526,7 +521,9 @@ export class EnvironmentMigrationComponent implements OnInit {
 
   targetClusterChanged(cluster: MongoClusterInfo | null): void {
     this.request.targetMongo = {...this.request.targetMongo, cluster: cluster?.cluster || "", username: "", password: ""};
+    this.serverChosen = !!cluster?.cluster;
     this.selectedMigration = null;
+    this.selectRemainingMigration();
   }
 
   async loadEnvironmentConfig(): Promise<void> {
@@ -573,6 +570,8 @@ export class EnvironmentMigrationComponent implements OnInit {
 
   async onEnvironmentChange(): Promise<void> {
     this.pollingMigrationId = null;
+    this.serverChosen = false;
+    this.moveCompleted = "";
     const environment = this.environments.find(candidate => candidate.name === this.request.environment);
     this.request.targetMongo = {...this.request.targetMongo, db: environment?.database || "", username: "", password: ""};
     this.request.targetAws = this.emptyTargetAws();
@@ -702,11 +701,11 @@ export class EnvironmentMigrationComponent implements OnInit {
   }
 
   databaseFrom(): string {
-    return (this.siteMoved() ? this.currentMigration()?.sourceMongo?.cluster : this.sourceCluster()) || "current server";
+    return clusterDisplayName(this.siteMoved() ? this.currentMigration()?.sourceMongo?.cluster : this.sourceCluster()) || "current server";
   }
 
   databaseTo(): string {
-    return (this.siteMoved() ? this.currentMigration()?.targetMongo?.cluster : this.request.targetMongo.cluster) || "no default server configured";
+    return clusterDisplayName(this.siteMoved() ? this.currentMigration()?.targetMongo?.cluster : this.request.targetMongo.cluster) || "no default server configured";
   }
 
   filesFrom(): string {
@@ -741,23 +740,148 @@ export class EnvironmentMigrationComponent implements OnInit {
     }
   }
 
-  formReady(): boolean {
-    return !!this.request.environment && (!this.includeMongo() || this.databaseReady()) && this.filesReady();
+  async moveNow(): Promise<void> {
+    this.moving = true;
+    this.error = "";
+    this.moveCompleted = "";
+    this.request.confirmEnvironment = this.request.environment;
+    try {
+      const resumable = resumableMove(this.historyForEnvironment(), this.request.mode, this.request.targetMongo.cluster);
+      if (resumable) {
+        this.selectedMigration = resumable;
+      } else {
+        await this.prepareTargets();
+        await this.plan();
+        this.stopIfFailed();
+        await this.execute(false);
+        this.stopIfFailed();
+      }
+      await this.waitForCopyToSettle();
+      if (!migrationAllowsCredentialRotation(this.currentMigration())) {
+        throw new Error(this.currentMigration()?.error || "The copy did not finish, so the site has not been switched over. The Latest Result tab shows how far it got.");
+      }
+      await this.rotate();
+      this.stopIfFailed();
+      this.moveCompleted = this.completedMessage();
+      this.serverChosen = false;
+      this.selectRemainingMigration();
+    } catch (error) {
+      this.logger.error("moveNow failed:", error);
+      this.error = this.extractErrorMessage(error, "The move did not finish");
+    } finally {
+      this.request.confirmEnvironment = "";
+      this.moving = false;
+    }
   }
 
-  confirmationReady(): boolean {
-    return this.request.confirmEnvironment === this.request.environment;
+  moveHeading(): string {
+    if (this.includeMongo() && this.databaseMovedBefore()) {
+      return "Move to another database server";
+    } else if (!this.includeMongo() && this.databaseMovedBefore()) {
+      return "Move photos and files to Ramblers storage";
+    } else {
+      return "Move to Ramblers hosting";
+    }
   }
 
-  canStartCopy(): boolean {
-    return this.formReady() && this.confirmationReady() && this.stepState(EnvironmentMigrationStepKey.CHECK) === EnvironmentMigrationStepState.DONE;
+  goBack(): void {
+    if (this.returnUrl) {
+      void this.router.navigateByUrl(this.returnUrl);
+    }
   }
 
-  canRotate(): boolean {
-    return !!this.request.environment && this.filesReady() && this.confirmationReady() && migrationAllowsCredentialRotation(this.selectedMigration);
+  private rememberHowWeArrived(): void {
+    const previous = this.router.lastSuccessfulNavigation()?.previousNavigation?.finalUrl;
+    const previousUrl = previous ? this.router.serializeUrl(previous) : null;
+    this.returnUrl = previousUrl && !previousUrl.startsWith(`/${AdminPlatformPath.ENVIRONMENT_MANAGEMENT_MIGRATION}`) ? previousUrl : null;
+  }
+
+  moveReady(): boolean {
+    if (!this.request.environment || this.busy || this.moving) {
+      return false;
+    } else if (this.includeMongo()) {
+      return !!this.request.targetMongo.cluster;
+    } else {
+      return this.includeS3() && this.nextStepState() !== EnvironmentMigrationStepState.DONE;
+    }
+  }
+
+  moveLabel(): string {
+    if (this.includeMongo() && this.includeS3()) {
+      return "Move database, photos and files";
+    } else if (this.includeMongo()) {
+      return "Move database";
+    } else {
+      return "Move photos and files";
+    }
+  }
+
+  moveHint(): string {
+    if (this.databaseMovedBefore() && !this.serverChosen && this.includeS3()) {
+      return "Choose a server to move the database. With no server chosen, Move moves the photos and files only.";
+    } else if (this.includeMongo() && !this.includeS3()) {
+      return "Photos and files stay where they are.";
+    } else {
+      return "";
+    }
+  }
+
+  private completedMessage(): string {
+    const moved = [
+      this.includeMongo() ? `the database is now on ${clusterDisplayName(this.request.targetMongo.cluster)}` : "",
+      this.includeS3() ? `photos and files are now in ${this.request.targetAws.bucket}` : ""
+    ].filter(part => !!part).join(" and ");
+    if (!this.includeMongo()) {
+      return `Moved: ${moved}. The site has been restarted to use it.`;
+    } else if (this.currentMigration()?.siteDatabaseConfirmed) {
+      return `Moved: ${moved}. The site has restarted and confirms it is connected to the new database.`;
+    } else {
+      return `Moved: ${moved}. The site has been restarted, but did not confirm which database it is connected to, so its old database login has been kept. Check the site on the MongoDB Atlas page, then delete the old login there.`;
+    }
+  }
+
+  private databaseMovedBefore(): boolean {
+    return this.historyForEnvironment().some(migration => migration.status === EnvironmentMigrationStatus.ROTATED && migrationIncludesMongo(migration.mode));
+  }
+
+  private historyForEnvironment(): EnvironmentMigrationAudit[] {
+    return this.history.filter(migration => migration.environment === this.request.environment);
+  }
+
+  private async prepareTargets(): Promise<void> {
+    if (this.includeMongo()) {
+      await this.provisionMongoTarget();
+      this.stopIfFailed();
+    }
+    if (this.includeS3() && !this.filesReady()) {
+      await this.useRamblersStorage();
+      this.stopIfFailed();
+    }
+  }
+
+  private stopIfFailed(): void {
+    if (this.error) {
+      throw new Error(this.error);
+    }
+  }
+
+  private async waitForCopyToSettle(checks = 0): Promise<void> {
+    const migration = this.currentMigration();
+    if (migration && !migration.dryRun && this.migrationActive(migration)) {
+      if (checks >= MOVE_PROGRESS_CHECK_LIMIT) {
+        throw new Error("The copy is still running after an hour, so the site has not been switched over. The Latest Result tab shows how far it got.");
+      } else {
+        await new Promise(resolve => setTimeout(resolve, MOVE_PROGRESS_CHECK_MS));
+        this.selectedMigration = await firstValueFrom(this.migrationService.migration(migration.migrationId));
+        await this.waitForCopyToSettle(checks + 1);
+      }
+    } else {
+      await this.loadHistory();
+    }
   }
 
   async plan(): Promise<void> {
+
     await this.run("plan", async () => {
       this.selectedMigration = await firstValueFrom(this.migrationService.planMongoOnlyMigration({
         ...this.requestToSend(),
@@ -895,7 +1019,19 @@ export class EnvironmentMigrationComponent implements OnInit {
     const hasMongo = this.environmentsWithMongo.some(environment => environment.name === this.request.environment);
     const databaseLeft = hasMongo && !databaseMoved;
     const filesLeft = !!this.sourceBucket() && !filesMoved;
-    if (databaseLeft || filesLeft) {
+    const repeatDatabaseMove = hasMongo && databaseMoved && !this.serverChosen ? repeatDatabaseMoveUnderway(forEnvironment) : null;
+    if (hasMongo && databaseMoved && this.serverChosen) {
+      this.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
+      this.selectedMigration = resumableMove(forEnvironment, EnvironmentMigrationMode.MONGO_ONLY, this.request.targetMongo.cluster);
+    } else if (repeatDatabaseMove) {
+      this.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
+      this.request.targetMongo = {...this.request.targetMongo, cluster: repeatDatabaseMove.targetMongo?.cluster || ""};
+      this.serverChosen = !!this.request.targetMongo.cluster;
+      this.selectedMigration = repeatDatabaseMove;
+    } else if (databaseLeft || filesLeft) {
+      if (databaseMoved) {
+        this.request.targetMongo = {...this.request.targetMongo, cluster: ""};
+      }
       this.request.mode = databaseLeft && filesLeft ? EnvironmentMigrationMode.MONGO_AND_S3 : databaseLeft ? EnvironmentMigrationMode.MONGO_ONLY : EnvironmentMigrationMode.S3_ONLY;
       this.selectedMigration = forEnvironment.find(migration => migration.mode === this.request.mode && migration.status !== EnvironmentMigrationStatus.ROTATED) || null;
     } else {

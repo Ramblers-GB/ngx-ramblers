@@ -1,5 +1,5 @@
 {
   "extension": ["ts"],
   "spec": "lib/**/*.spec.ts",
-  "require": "ts-node/register"
+  "require": ["ts-node/register", "./test/isolate-from-real-services.ts"]
 }
