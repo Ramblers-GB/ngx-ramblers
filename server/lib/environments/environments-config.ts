@@ -29,6 +29,34 @@ import {
 const debugLog = debug(envConfig.logNamespace("environments-config"));
 debugLog.enabled = true;
 
+export class StaleEnvironmentsConfigError extends Error {
+}
+
+export function staleEnvironmentsConfigReason(environmentsConfig: EnvironmentsConfig | null | undefined, connectedUri: string): string | null {
+  const connected = parseMongoUri(connectedUri);
+  const listedClusters = connected?.database
+    ? (environmentsConfig?.environments || []).filter(environment => environment.mongo?.db === connected.database).map(environment => environment.mongo?.cluster).filter(cluster => !!cluster)
+    : [];
+  const stale = listedClusters.length > 0 && !listedClusters.includes(connected.cluster);
+  return stale
+    ? `The environments config was read from database ${connected.database} on cluster ${connected.cluster}, but that config says ${connected.database} now lives on ${listedClusters.join(", ")}. This is an out-of-date copy left behind by a cluster move. Point MONGODB_URI (ADMIN_MONGODB_URI for GitHub deploys) at ${listedClusters[0]} and try again.`
+    : null;
+}
+
+export function currentEnvironmentsConfig(environmentsConfig: EnvironmentsConfig, connectedUri: string): EnvironmentsConfig {
+  const staleReason = staleEnvironmentsConfigReason(environmentsConfig, connectedUri);
+  if (staleReason) {
+    throw new StaleEnvironmentsConfigError(staleReason);
+  } else {
+    return environmentsConfig;
+  }
+}
+
+export function environmentsConfigFromStagingDocument(storedValue: EnvironmentsConfig | undefined, stagingUri: string): EnvironmentsConfig | null {
+  const value = decryptEnvironmentsSecrets(storedValue);
+  return value?.environments?.length ? currentEnvironmentsConfig(value, stagingUri) : null;
+}
+
 async function loadFromDatabase(): Promise<EnvironmentsConfig | null> {
   try {
     debugLog("Connecting to database...");
@@ -37,13 +65,14 @@ async function loadFromDatabase(): Promise<EnvironmentsConfig | null> {
 
     const configDocument: ConfigDocument = await config.queryKey(ConfigKey.ENVIRONMENTS);
     if (configDocument?.value?.environments?.length) {
-      debugLog("Loaded environments config from ENVIRONMENTS:", configDocument.value.environments.length, "environments");
-      return configDocument.value;
+      const current = currentEnvironmentsConfig(configDocument.value, envConfig.mongo().uri.replace(/^"|"$/g, ""));
+      debugLog("Loaded environments config from ENVIRONMENTS:", current.environments.length, "environments");
+      return current;
     }
 
     return null;
   } catch (error) {
-    if (error instanceof EnvironmentsSecretsError) {
+    if (error instanceof EnvironmentsSecretsError || error instanceof StaleEnvironmentsConfigError) {
       throw error;
     } else {
       debugLog("Database query failed:", error.message);
@@ -107,15 +136,18 @@ async function loadFromStagingEnvFile(): Promise<EnvironmentsConfig | null> {
   }
   try {
     const doc = await client.db(parseMongoUri(stagingUri)?.database).collection("config").findOne({ key: ConfigKey.ENVIRONMENTS });
-    const value = decryptEnvironmentsSecrets(doc?.value as EnvironmentsConfig | undefined);
-    if (value?.environments?.length) {
+    const value = environmentsConfigFromStagingDocument(doc?.value as EnvironmentsConfig | undefined, stagingUri);
+    if (value) {
       debugLog("Loaded environments config from server/.env staging connection: %d environments", value.environments.length);
-      return value;
     }
-    return null;
+    return value;
   } catch (error) {
-    debugLog("Staging env-file environments query failed:", error.message);
-    return null;
+    if (error instanceof StaleEnvironmentsConfigError) {
+      throw error;
+    } else {
+      debugLog("Staging env-file environments query failed:", error.message);
+      return null;
+    }
   } finally {
     await client.close();
   }
