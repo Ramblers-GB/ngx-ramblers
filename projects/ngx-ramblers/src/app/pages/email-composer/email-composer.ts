@@ -130,7 +130,8 @@ import { volunteerLetterSeed } from "../../functions/volunteer-letters";
 import { volunteerMergeFieldsFor } from "../../functions/volunteer-management";
 import { HttpClient } from "@angular/common/http";
 import { MemberResourcesReferenceDataService } from "../../services/member/member-resources-reference-data.service";
-import { cloneDeep, isBoolean, isNumber, isString, kebabCase, values } from "es-toolkit/compat";
+import { cloneDeep, isBoolean, isNumber, isString, kebabCase, last, values } from "es-toolkit/compat";
+import { PageService } from "../../services/page.service";
 import { NgxLoggerLevel } from "ngx-logger";
 import {
   faAngleDoubleLeft,
@@ -1419,6 +1420,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private routerHistory = inject(RouterHistoryService);
+  private pageService = inject(PageService);
   private uiActions = inject(UiActionsService);
 
   private notifierService = inject(NotifierService);
@@ -3705,39 +3707,24 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   private leaveComposer(): void {
-    const previous = [...this.routerHistory.pageHistory].reverse().find(url => !this.composerLocation(url));
-    const path = this.router.url.split("?")[0].replace(/\/$/, "");
-    const inboxReply = !!this.route.snapshot.queryParamMap.get(StoredValue.THREAD)
-      && path === "/" + AdminPath.EMAIL_COMPOSER;
-    const parent = this.composerParentPath(this.router.url);
+    const currentPath = this.pathOf(this.router.url);
+    const previous = [...this.routerHistory.pageHistory].reverse().find(url => this.pathOf(url) !== currentPath && !this.isComposerPath(url));
     if (previous) {
       void this.router.navigateByUrl(previous);
-    } else if (inboxReply) {
+    } else if (this.route.snapshot.queryParamMap.get(StoredValue.THREAD)) {
       this.navigateToInbox();
-    } else if (parent) {
-      void this.router.navigateByUrl(parent);
     } else {
-      void this.router.navigate(["/" + AdminPath.ADMIN]);
+      void this.router.navigateByUrl("/" + (last(this.pageService.relativePages())?.href || ""));
     }
   }
 
-  private composerLocation(url: string): boolean {
-    const path = url.split("?")[0].replace(/\/$/, "");
-    return path === "/" + AdminPath.EMAIL_COMPOSER || path.endsWith("/" + PathSegment.EMAIL_COMPOSER);
+  private pathOf(url: string): string {
+    return url.split(/[?#]/)[0].replace(/\/$/, "");
   }
 
-  private composerParentPath(url: string): string | null {
-    const path = url.split("?")[0].replace(/\/$/, "");
-    if (path.endsWith("/" + PathSegment.EMAIL_COMPOSER)) {
-      const parent = path.slice(0, -(PathSegment.EMAIL_COMPOSER.length + 1));
-      if (parent) {
-        return parent;
-      } else {
-        return "/";
-      }
-    } else {
-      return null;
-    }
+  private isComposerPath(url: string): boolean {
+    const path = this.pathOf(url);
+    return path === "/" + AdminPath.EMAIL_COMPOSER || path === "/" + AdminPath.SEND_NOTIFICATION || path.endsWith("/" + PathSegment.EMAIL_COMPOSER);
   }
 
   private navigateToInbox(): void {
