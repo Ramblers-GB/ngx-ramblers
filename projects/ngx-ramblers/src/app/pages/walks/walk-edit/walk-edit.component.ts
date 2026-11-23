@@ -947,8 +947,13 @@ export class WalkEditComponent implements OnInit, OnDestroy {
     this.notify.hide();
     this.logger.info("isWalkReadyForStatusChangeTo ->", eventType);
     const walkValidations = this.validateWalk().validationMessages;
-    const restoringDeletedWalk = this.priorStatus === EventType.DELETED && eventType.eventType === EventType.AWAITING_LEADER;
-    if (eventType.mustHaveLeader && !restoringDeletedWalk && !this.displayedWalk.walk?.fields?.contactDetails?.memberId) {
+    if (this.persistedWalkDeleted() && eventType.eventType !== EventType.DELETED) {
+      this.notify.warning({
+        title: "Deleted walks cannot be restored",
+        message: "This walk has been deleted, so its status cannot be changed. Create a new walk for this date instead."
+      });
+      return false;
+    } else if (eventType.mustHaveLeader && !this.displayedWalk.walk?.fields?.contactDetails?.memberId) {
       this.notify.warning(
         {
           title: "Walk leader needed",
@@ -970,6 +975,9 @@ export class WalkEditComponent implements OnInit, OnDestroy {
 
   createEventAndSendNotifications(): Promise<boolean> {
     this.saveInProgress = true;
+    if (this.persistedWalkDeleted()) {
+      this.displayedWalk.status = EventType.DELETED;
+    }
     this.displayedWalk.walk = this.walkWithUserChanges();
     if (this.persistedWalkWithoutHistory()) {
       this.displayedWalk.walk.events = [walkEventSnapshotEvent(
@@ -1288,8 +1296,14 @@ export class WalkEditComponent implements OnInit, OnDestroy {
     return found || WalkEditTab.MAIN_DETAILS;
   }
 
+  private persistedWalkDeleted(): boolean {
+    return !!this.persistedWalk?.id && this.display.statusFor(this.persistedWalk) === EventType.DELETED;
+  }
+
   setStatus(status: EventType) {
-    if (this.displayedWalk.status === status) {
+    if (this.persistedWalkDeleted() && status !== EventType.DELETED) {
+      this.logger.info("setStatus:ignoring", status, "because this walk has been deleted");
+    } else if (this.displayedWalk.status === status) {
       this.logger.info("Status is already =>", status);
     } else {
       this.priorStatus = this.displayedWalk.status;
@@ -1298,10 +1312,10 @@ export class WalkEditComponent implements OnInit, OnDestroy {
     }
   }
 
-  onWalkStatusChange(eventTypeChange: EventType) {
+  onWalkStatusChange(selectedStatus: EventType) {
     this.notify.hide();
-    this.logger.info("walkStatusChange - previous status:", this.priorStatus, "eventTypeChange:", eventTypeChange);
-    const eventType: WalkEventType = this.walksReferenceService.toWalkEventType(this.displayedWalk.status);
+    this.logger.info("walkStatusChange - previous status:", this.priorStatus, "eventTypeChange:", selectedStatus);
+    const eventType: WalkEventType = this.walksReferenceService.toWalkEventType(selectedStatus);
     if (this.isWalkReadyForStatusChangeTo(eventType)) {
       this.setStatus(eventType.eventType);
       if (eventType.eventType === EventType.AWAITING_LEADER && this.priorStatus !== EventType.DELETED) {
@@ -1309,17 +1323,6 @@ export class WalkEditComponent implements OnInit, OnDestroy {
       } else if (eventType.eventType === EventType.APPROVED) {
         this.approveWalkDetails();
       }
-    } else {
-      setTimeout(() => {
-        this.revertToPriorStatus();
-      });
-    }
-  }
-
-  revertToPriorStatus() {
-    this.logger.debug("revertToPriorWalkStatus:", this.status(), "->", this.priorStatus);
-    if (this.priorStatus) {
-      this.setStatus(this.priorStatus);
     }
   }
 

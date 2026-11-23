@@ -119,7 +119,7 @@ export class EmailComposerEventSelectionService {
       media: event?.groupEvent?.media ?? [],
       selectedMediaIndex: 0,
       programmeStatus: displayedWalkProgrammeStatus(event, derivedEventStatus),
-      deleted: derivedEventStatus === EventType.DELETED
+      deleted: this.groupEventService.hasBeenDeleted(event)
     } as GroupEventSummary;
   }
 

@@ -1,7 +1,7 @@
 import { Component, EventEmitter, inject, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { DisplayedWalk, EventType } from "../../../models/walk.model";
 import { WalkEventType } from "../../../models/walk-event-type.model";
-import { FormsModule } from "@angular/forms";
+import { FormsModule, NgModel } from "@angular/forms";
 import { WalkDisplayService } from "../walk-display.service";
 import { MemberLoginService } from "../../../services/member/member-login.service";
 import { Member } from "../../../models/member.model";
@@ -65,8 +65,8 @@ import { EventDefaultsService } from "../../../services/event-defaults.service";
             <div class="form-group">
               <label for="walk-status">Walk Status</label>
               <select [disabled]="!display.allowAdminEdits() || inputDisabled"
-                      [(ngModel)]="displayedWalk.status"
-                      (change)="onStatusChange()"
+                      [ngModel]="displayedWalk.status" #statusModel="ngModel"
+                      (ngModelChange)="onStatusSelected($event, statusModel)"
                       class="form-control input-sm" id="walk-status">
                 @for (status of walkStatuses; track status.eventType) {
                   <option
@@ -419,8 +419,10 @@ export class WalkEditLeaderComponent implements OnInit, OnDestroy {
     this.logger.info("refreshContactIds:myContactId:", this.myContactId, "walkLeadContactId:", this.walkLeadContactId);
   }
 
-  onStatusChange() {
-    this.logger.info("onStatusChange:selectedStatus", this.displayedWalk?.status, "walkId", this.displayedWalk?.walk?.id);
-    this.statusChange.emit(this.displayedWalk.status);
+  onStatusSelected(status: EventType, statusModel: NgModel): void {
+    this.statusChange.emit(status);
+    if (this.displayedWalk.status !== status) {
+      statusModel.control.setValue(this.displayedWalk.status, {emitViewToModelChange: false});
+    }
   }
 }

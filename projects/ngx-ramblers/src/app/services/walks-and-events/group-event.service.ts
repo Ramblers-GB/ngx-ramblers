@@ -102,6 +102,10 @@ export class GroupEventService {
     }
   }
 
+  public hasBeenDeleted(extendedGroupEvent: ExtendedGroupEvent): boolean {
+    return (extendedGroupEvent?.events || []).some(event => event?.eventType === EventType.DELETED);
+  }
+
   public latestEventWithStatusChangeIs(extendedGroupEvent: ExtendedGroupEvent, eventType: EventType) {
     if (!extendedGroupEvent) {
       return false;

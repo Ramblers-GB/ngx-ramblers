@@ -139,7 +139,7 @@ export class CommitteeQueryService {
             selectedMediaIndex: 0,
             programmeStatus: displayedWalkProgrammeStatus(event, derivedEventStatus),
             programmeRow: walkProgrammeSummaryFromDisplayedWalk({walk: event, status: derivedEventStatus} as DisplayedWalk),
-            deleted: derivedEventStatus === EventType.DELETED
+            deleted: this.groupEventService.hasBeenDeleted(event)
           });
           })));
     }

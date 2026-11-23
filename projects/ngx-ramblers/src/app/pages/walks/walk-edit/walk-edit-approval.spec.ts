@@ -1,5 +1,6 @@
 import { WalkEditComponent } from "./walk-edit.component";
 import { DisplayedWalk, EventType } from "../../../models/walk.model";
+import { WalkEventType } from "../../../models/walk-event-type.model";
 import { InputSource } from "../../../models/group-event.model";
 import { ConfirmType } from "../../../models/ui-actions.model";
 
@@ -92,5 +93,39 @@ describe("walk approval permissions", () => {
     view.walkLeaderMemberIdChanged();
     await Promise.resolve();
     expect(view.displayedWalk.status).toBe(EventType.AWAITING_WALK_DETAILS);
+  });
+});
+
+describe("deleted walk status protection", () => {
+  function deletedWalk(): WalkEditComponent {
+    const view = Object.create(WalkEditComponent.prototype) as WalkEditComponent;
+    view["persistedWalk"] = {id: "deleted-walk"} as typeof view["persistedWalk"];
+    view["display"] = {statusFor: () => EventType.DELETED} as unknown as typeof view["display"];
+    view["logger"] = {info: vi.fn()} as unknown as typeof view["logger"];
+    view.notify = {hide: vi.fn(), warning: vi.fn()} as unknown as typeof view.notify;
+    view.displayedWalk = {status: EventType.DELETED} as DisplayedWalk;
+    view.validateWalk = vi.fn().mockReturnValue({validationMessages: []});
+    view["walksReferenceService"] = {toWalkEventType: (status: EventType) => ({eventType: status})} as unknown as typeof view["walksReferenceService"];
+    return view;
+  }
+
+  it("refuses to change a persisted deleted walk to an active status", () => {
+    const view = deletedWalk();
+    view.setStatus(EventType.AWAITING_LEADER);
+    expect(view.displayedWalk.status).toBe(EventType.DELETED);
+    expect(view.isWalkReadyForStatusChangeTo({eventType: EventType.AWAITING_LEADER} as WalkEventType)).toBe(false);
+    expect(view.notify.warning).toHaveBeenCalledWith(expect.objectContaining({title: "Deleted walks cannot be restored"}));
+  });
+
+  it("still allows saving a deleted status", () => {
+    const view = deletedWalk();
+    expect(view.isWalkReadyForStatusChangeTo({eventType: EventType.DELETED} as WalkEventType)).toBe(true);
+  });
+
+  it("leaves the status select unchanged when a deleted walk's selection is rejected", () => {
+    const view = deletedWalk();
+    view.onWalkStatusChange(EventType.AWAITING_LEADER);
+    expect(view.displayedWalk.status).toBe(EventType.DELETED);
+    expect(view.notify.warning).toHaveBeenCalledWith(expect.objectContaining({title: "Deleted walks cannot be restored"}));
   });
 });

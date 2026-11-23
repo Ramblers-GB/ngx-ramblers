@@ -93,6 +93,25 @@ describe("GroupEventService", () => {
         expect(service.statusAtOrBefore(walk, 2000)).toEqual(EventType.DELETED);
     });
 
+    it("still counts a walk as deleted after it was reopened and saved", () => {
+        const service = TestBed.inject(GroupEventService);
+        const walk = walkWithContact("leader");
+        walk.events = [
+            {eventType: EventType.APPROVED, memberId: "member-id", date: 1000, data: {}},
+            {eventType: EventType.DELETED, memberId: "member-id", date: 2000, data: {}},
+            {eventType: EventType.AWAITING_LEADER, memberId: "member-id", date: 3000, data: {}}
+        ];
+        expect(service.statusFor(walk)).toEqual(EventType.AWAITING_LEADER);
+        expect(service.hasBeenDeleted(walk)).toBe(true);
+    });
+
+    it("does not count a walk as deleted when it never was", () => {
+        const service = TestBed.inject(GroupEventService);
+        const walk = walkWithContact("leader");
+        walk.events = [{eventType: EventType.APPROVED, memberId: "member-id", date: 1000, data: {}}];
+        expect(service.hasBeenDeleted(walk)).toBe(false);
+    });
+
     it("treats missing contactId and null contactId as equal", () => {
         const service = TestBed.inject(GroupEventService);
         const previousWalk = walkWithContact(null);

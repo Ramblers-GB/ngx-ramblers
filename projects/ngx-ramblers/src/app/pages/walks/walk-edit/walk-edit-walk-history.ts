@@ -275,7 +275,7 @@ export class WalkEditHistoryComponent {
   }
 
   canRevert(event: DisplayedEvent): boolean {
-    return !!event.data && !!this.displayedWalk?.walkAccessMode?.walkWritable;
+    return !!event.data && !!this.displayedWalk?.walkAccessMode?.walkWritable && this.groupEventService.statusFor(this.displayedWalk.walk) !== EventType.DELETED;
   }
 
   revertToVersion(event: DisplayedEvent) {

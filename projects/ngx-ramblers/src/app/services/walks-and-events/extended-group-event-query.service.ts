@@ -197,11 +197,11 @@ export class ExtendedGroupEventQueryService {
   }
 
   activeWalk(walk: ExtendedGroupEvent) {
-    return !this.groupEventService.latestEventWithStatusChangeIs(walk, EventType.DELETED);
+    return !this.groupEventService.hasBeenDeleted(walk);
   }
 
   deletedWalk(walk: ExtendedGroupEvent) {
-    return this.groupEventService.latestEventWithStatusChangeIs(walk, EventType.DELETED);
+    return this.groupEventService.hasBeenDeleted(walk);
   }
 
   approvedWalk(walk: ExtendedGroupEvent) {
