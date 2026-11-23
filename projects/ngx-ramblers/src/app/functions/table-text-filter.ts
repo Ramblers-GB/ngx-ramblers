@@ -10,6 +10,7 @@ import {
   TableTextFilterTerm
 } from "../models/table-text-filter.model";
 import { enumValues } from "./enums";
+import { toKebabCase } from "./strings";
 
 const TOKEN_PATTERN = /(-?)(?:([\w-]+):)?(=?)(?:"([^"]*)"|(\S+))/g;
 
@@ -26,7 +27,7 @@ export function tableTextFilterQuery(tokens: string[]): string {
 }
 
 function headingField(heading: string): string {
-  return (heading || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return toKebabCase(heading);
 }
 
 const MAX_OPTIONS_PER_COLUMN = 100;
@@ -80,7 +81,9 @@ function fieldMatchesName(field: TableTextFilterField, name: string): boolean {
 
 function textMatches(fieldText: string, term: TableTextFilterTerm): boolean {
   const text = searchable(fieldText);
-  return term.exact ? text === term.text : text.includes(term.text);
+  return term.exact
+    ? text === term.text || toKebabCase(text) === term.text
+    : text.includes(term.text) || toKebabCase(text).includes(term.text);
 }
 
 function termMatches(fields: TableTextFilterField[], term: TableTextFilterTerm): boolean {
@@ -90,7 +93,11 @@ function termMatches(fields: TableTextFilterField[], term: TableTextFilterTerm):
 }
 
 export function tableTextFilterMatches(fields: TableTextFilterField[], terms: TableTextFilterTerm[]): boolean {
-  return terms.every(term => termMatches(fields, term));
+  const columnChoices = terms.filter(term => term.field && !term.negated);
+  const otherTerms = terms.filter(term => !columnChoices.includes(term));
+  const choiceFields = Array.from(new Set(columnChoices.map(term => term.field)));
+  return otherTerms.every(term => termMatches(fields, term))
+    && choiceFields.every(field => columnChoices.filter(term => term.field === field).some(term => termMatches(fields, term)));
 }
 
 export function filterRowsByText<T>(rows: T[], query: string, fieldsFor: (row: T) => TableTextFilterField[]): T[] {
@@ -135,30 +142,32 @@ function tableFilterOperatorFor(negated: boolean, exact: boolean): TableFilterOp
   }
 }
 
-export function tableFilterToken(chip: TableFilterChip): string {
-  const value = chip.value.replace(/"/g, "").trim();
+export function tableFilterToken(chip: TableFilterChip, valueAliasFor: (value: string) => string = value => value): string {
+  const value = valueAliasFor(chip.value).replace(/"/g, "").trim();
   const quoted = `"${value}"`;
   const field = chip.heading ? `${headingField(chip.heading)}:` : "";
   const exact = chip.heading && tableFilterOperatorExact(chip.operator) ? "=" : "";
   return `${tableFilterOperatorNegated(chip.operator) ? "-" : ""}${field}${exact}${quoted}`;
 }
 
-export function tableFilterChips(query: string, headings: string[]): TableFilterChip[] {
+export function tableFilterChips(query: string, headings: string[], options: TableTextFilterOption[] = []): TableFilterChip[] {
   return Array.from((query || "").matchAll(TOKEN_PATTERN))
     .map(match => {
       const field = match[2] ? normalised(match[2]) : null;
       const heading = field ? headings.find(candidate => normalised(candidate) === field) || headings.find(candidate => headingWords(candidate).some(word => word.startsWith(field))) || match[2] : null;
+      const value = (match[4] ?? match[5] ?? "").trim();
+      const option = options.find(candidate => (!heading || candidate.group === heading) && toKebabCase(candidate.label) === value);
       return {
         heading,
         operator: tableFilterOperatorFor(match[1] === "-", !!heading && match[3] === "="),
-        value: (match[4] ?? match[5] ?? "").trim()
+        value: option?.label || value
       };
     })
     .filter(chip => chip.value.length > 0);
 }
 
-export function tableFilterQueryFromChips(chips: TableFilterChip[]): string {
-  return tableTextFilterQuery(chips.map(tableFilterToken));
+export function tableFilterQueryFromChips(chips: TableFilterChip[], valueAliasFor: (value: string) => string = value => value): string {
+  return tableTextFilterQuery(chips.map(chip => tableFilterToken(chip, valueAliasFor)));
 }
 
 function wordsMatch(text: string, typed: string): boolean {

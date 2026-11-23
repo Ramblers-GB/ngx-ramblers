@@ -11,7 +11,7 @@ import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faChevronDown, faChevronRight, faChevronUp, faGripVertical } from "@fortawesome/free-solid-svg-icons";
 import { get, isUndefined, omit } from "es-toolkit/compat";
 import { UiActionsService } from "../../../services/ui-actions.service";
-import { filterRowsByText, tableTextFilterOptions } from "../../../functions/table-text-filter";
+import { filterRowsByText, tableFilterChips, tableFilterQueryFromChips, tableTextFilterOptions } from "../../../functions/table-text-filter";
 import { TableFilterHeading, TableTextFilterField, TableTextFilterOption } from "../../../models/table-text-filter.model";
 import { TableFilterSelectComponent } from "./table-filter-select";
 import { ASCENDING, DESCENDING } from "../../../models/table-filtering.model";
@@ -41,6 +41,7 @@ import {
          [class.sortable-table-flat]="flat"
          [class.scrollable]="!!effectiveMaxHeight || freezeFirstColumn"
          [class.freeze-first-column]="freezeFirstColumn"
+         [class.overflowing-x]="overflowingX"
          [style.max-height]="effectiveMaxHeight">
       <table class="sortable-table" [class.sortable-table-fixed-layout]="fixedLayout || resizableColumns"
              [style.width]="resizableColumns ? resizableTableWidth : null">
@@ -201,7 +202,6 @@ import {
       width: var(--sortable-table-frozen-col-width)
       min-width: var(--sortable-table-frozen-col-width)
       background: linear-gradient(to bottom, rgb(225, 239, 230), rgb(240, 247, 242))
-      box-shadow: 1px 0 0 rgba(0, 0, 0, 0.08)
 
     .sortable-table-card.scrollable.freeze-first-column.sortable-table-flat thead th.frozen-column
       background: var(--bs-body-bg)
@@ -213,12 +213,12 @@ import {
       width: var(--sortable-table-frozen-col-width)
       min-width: var(--sortable-table-frozen-col-width)
       background-color: inherit
-      box-shadow: 1px 0 0 rgba(0, 0, 0, 0.08)
 
     .sortable-table-card.scrollable.freeze-first-column tbody tr:hover td.frozen-column
       background-color: inherit
 
-    .sortable-table-card.scrollable.freeze-first-column tbody tr.sortable-table-expanded-row td.frozen-column
+    .sortable-table-card.scrollable.overflowing-x.freeze-first-column thead th.frozen-column,
+    .sortable-table-card.scrollable.overflowing-x.freeze-first-column tbody td.frozen-column
       box-shadow: 1px 0 0 rgba(0, 0, 0, 0.08)
 
     .sortable-table-card.scrollable thead th.pinned-end-column
@@ -227,7 +227,6 @@ import {
       right: 0
       z-index: 4
       background: linear-gradient(to bottom, rgb(225, 239, 230), rgb(240, 247, 242))
-      box-shadow: -1px 0 0 rgba(0, 0, 0, 0.08)
 
     .sortable-table-card.scrollable.sortable-table-flat thead th.pinned-end-column
       background: var(--bs-body-bg)
@@ -237,6 +236,9 @@ import {
       right: 0
       z-index: 1
       background-color: inherit
+
+    .sortable-table-card.scrollable.overflowing-x thead th.pinned-end-column,
+    .sortable-table-card.scrollable.overflowing-x tbody td.pinned-end-column
       box-shadow: -1px 0 0 rgba(0, 0, 0, 0.08)
 
     .sortable-table td.compact-cell
@@ -499,6 +501,8 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
   private uiActionsService = inject(UiActionsService);
   private fillWindowHeightPx = 0;
   private fillWindowObserver: ResizeObserver | null = null;
+  private overflowObserver: ResizeObserver | null = null;
+  overflowingX = false;
 
   private chosenHeightPx = 0;
   private readonly heightResize = {active: false, startY: 0, startHeight: 0};
@@ -562,6 +566,12 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
   }
 
   ngAfterViewInit(): void {
+    const card = this.tableCard?.nativeElement;
+    if (card && !isUndefined(globalThis.ResizeObserver)) {
+      this.overflowObserver = new ResizeObserver(() => this.zone.run(() => this.measureOverflow()));
+      this.overflowObserver.observe(card);
+      Array.from(card.querySelectorAll("table")).forEach(table => this.overflowObserver.observe(table));
+    }
     if (this.fillWindow && !isUndefined(globalThis.ResizeObserver)) {
       this.fillWindowObserver = new ResizeObserver(() => this.zone.run(() => this.fitToWindow()));
       this.fillWindowObserver.observe(document.body);
@@ -578,7 +588,10 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
     if (this.filterable && this.filterStoredValue) {
       this.filterSubscription = this.activatedRoute.queryParams.subscribe(params => {
         const query = params[this.filterStoredValue] || "";
-        if (query !== this.filterQuery) {
+        const canonicalQuery = tableFilterQueryFromChips(tableFilterChips(query, this.columns.map(column => column.label)), value => this.uiActionsService.queryValueAliasFor(value));
+        if (query !== canonicalQuery) {
+          this.changeFilter(query);
+        } else if (query !== this.filterQuery) {
           this.filterQuery = query;
           this.applySort();
         }
@@ -586,7 +599,13 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
     }
   }
 
+  protected measureOverflow(): void {
+    const card = this.tableCard?.nativeElement;
+    this.overflowingX = !!card && card.scrollWidth > card.clientWidth + 1;
+  }
+
   ngOnDestroy(): void {
+    this.overflowObserver?.disconnect();
     this.fillWindowObserver?.disconnect();
     this.filterSubscription?.unsubscribe();
   }
@@ -799,7 +818,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
     if (this.filterStoredValue) {
       void this.router.navigate([], {
         relativeTo: this.activatedRoute,
-        queryParams: {[this.filterStoredValue]: query || null},
+        queryParams: {[this.filterStoredValue]: tableFilterQueryFromChips(tableFilterChips(query, this.filterHeadings.map(heading => heading.heading)), value => this.uiActionsService.queryValueAliasFor(value)) || null},
         queryParamsHandling: "merge",
         replaceUrl: true
       });
@@ -841,7 +860,7 @@ export class SortableTableComponent implements OnInit, OnChanges, AfterContentIn
     this.pageNumber = 1;
     this.groupedRows = this.applyGrouping(this.currentPageRows());
     if (this.filterable) {
-      this.filterOptions = this.buildFilterOptions(this.sortedRows);
+      this.filterOptions = this.buildFilterOptions(this.rows || []);
       this.filterHeadings = this.filterColumns().filter(column => column.label).map(column => ({heading: column.label, suggestValues: column.filterSuggestions !== false}));
     }
   }

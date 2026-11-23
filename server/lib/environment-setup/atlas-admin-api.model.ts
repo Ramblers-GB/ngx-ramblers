@@ -1,7 +1,34 @@
 export enum AtlasApiVersion {
   DEFAULT = "2023-01-01",
   CLUSTERS = "2023-02-01",
-  FLEX_CLUSTERS = "2024-11-13"
+  FLEX_CLUSTERS = "2024-11-13",
+  PROJECT_USERS = "2025-02-19"
+}
+
+export interface AtlasProjectUser {
+  id?: string;
+  username?: string;
+  roles?: string[];
+}
+
+export interface AtlasProjectUserList {
+  results?: AtlasProjectUser[];
+}
+
+export interface AtlasProjectTeam {
+  teamId?: string;
+  roleNames?: string[];
+}
+
+export interface AtlasProjectTeamList {
+  results?: AtlasProjectTeam[];
+}
+
+export interface AtlasProjectAccessResult {
+  projectId: string;
+  addedUsers: string[];
+  addedTeams: string[];
+  failures: string[];
 }
 
 export interface AtlasApiAccess {

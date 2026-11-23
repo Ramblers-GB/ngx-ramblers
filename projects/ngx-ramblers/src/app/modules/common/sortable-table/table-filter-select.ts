@@ -175,7 +175,7 @@ interface PendingChip {
             <span class="table-filter-option-detail">{{ suggestionDetail(suggestion) }}</span>
           </button>
         }
-        <div class="table-filter-hint">↑ ↓ to move, Enter to choose, Backspace to undo the last step</div>
+        <div class="table-filter-hint">Choose several values in a column to match any of them. ↑ ↓ to move, Enter to choose, Backspace to undo the last step</div>
       </div>
     }
   `
@@ -198,8 +198,8 @@ export class TableFilterSelectComponent implements OnChanges {
   protected suggestions: TableFilterSuggestion[] = [];
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes["query"] && this.query !== tableFilterQueryFromChips(this.chips)) {
-      this.chips = tableFilterChips(this.query, this.headings.map(heading => heading.heading));
+    if (changes["query"] || changes["options"] || changes["headings"]) {
+      this.chips = tableFilterChips(this.query, this.headings.map(heading => heading.heading), this.options);
     }
     this.refreshSuggestions(false);
   }

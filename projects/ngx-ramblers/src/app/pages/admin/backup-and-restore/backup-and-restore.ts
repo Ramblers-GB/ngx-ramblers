@@ -1,3 +1,4 @@
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { CommonModule, DatePipe, DOCUMENT } from "@angular/common";
 import { FormsModule } from "@angular/forms";
@@ -709,6 +710,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   private dateUtils = inject(DateUtilsService);
   private activatedRoute = inject(ActivatedRoute);
   private router = inject(Router);
+  private readonly uiActions = inject(UiActionsService);
   private document = inject(DOCUMENT);
   private pendingScrollToExpanded = false;
   private subscriptions: Subscription[] = [];
@@ -1012,7 +1014,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
   private applyHistoryFiltersFrom(params: Params) {
     const environmentsParameter: string = params[StoredValue.ENVIRONMENTS] || "";
     this.environmentNamesFromUrl = environmentsParameter.split(",").filter(name => name.length > 0);
-    this.historyFilterStatus = BACKUP_SESSION_STATUSES.find(status => status === params[StoredValue.STATUS]) || null;
+    this.historyFilterStatus = this.uiActions.queryValueForAlias(params[StoredValue.STATUS], BACKUP_SESSION_STATUSES) as BackupSessionStatus || null;
     this.historyFilterTrigger = [BackupSessionTrigger.SCHEDULED, BackupSessionTrigger.WEB, BackupSessionTrigger.CLI]
       .find(trigger => trigger === params[StoredValue.TRIGGERED_BY]) || null;
     const expandedParameter: string = params[StoredValue.EXPANDED_SESSIONS];
@@ -1042,7 +1044,7 @@ export class BackupAndRestore implements OnInit, OnDestroy {
           ? this.selectedEnvironments.map(environment => environment.name).join(",")
           : null,
         [StoredValue.TRIGGERED_BY]: this.historyFilterTrigger,
-        [StoredValue.STATUS]: this.historyFilterStatus,
+        [StoredValue.STATUS]: this.historyFilterStatus ? this.uiActions.queryValueAliasFor(this.historyFilterStatus) : null,
         [StoredValue.EXPANDED_SESSIONS]: this.expandedSessionIds.length > 0 ? this.expandedSessionIds.join(",") : null
       },
       queryParamsHandling: "merge"

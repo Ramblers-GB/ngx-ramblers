@@ -1,3 +1,5 @@
+import { enumValues } from "../../../functions/enums";
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { CommonModule } from "@angular/common";
 import { Component, inject, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
@@ -162,7 +164,7 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
                 @if (nextStepState() === EnvironmentMigrationStepState.DONE && !moving) {
                   <div class="alert alert-success d-flex align-items-start mb-0" role="status">
                     <fa-icon [icon]="faCircleCheck" class="me-2 mt-1"/>
-                    <div><strong>Moved</strong><div>The site is running on Ramblers hosting.</div></div>
+                    <div><strong>Migration completed</strong><div>{{ moveCompleted || completedMessage() }}</div></div>
                   </div>
                 } @else if (nextStepState() === EnvironmentMigrationStepState.RUNNING || moving) {
                   <div class="alert alert-warning d-flex align-items-start mb-0" role="status">
@@ -177,27 +179,31 @@ import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-p
                   </div>
                 }
                 @if (!moving && nextStepState() !== EnvironmentMigrationStepState.RUNNING) {
-                  <div class="row mb-2 mt-3">
-                    <div class="col-lg-6">
-                      <label class="form-label" for="move-target">Where do you want to move to?</label>
-                      <app-mongo-cluster-select id="move-target" [clusters]="targetClusterOptions()" [selected]="selectedTargetCluster()"
-                                                [disabled]="busy"
-                                                [placeholder]="targetClusters.length ? 'Choose a server with room for this site' : 'Loading servers…'"
-                                                (selectedChange)="targetClusterChanged($event)"/>
-                      @if (moveHint()) {
-                        <div class="form-text">{{ moveHint() }}</div>
-                      }
+                  @if (showDatabaseTarget()) {
+                    <div class="row mb-2 mt-3">
+                      <div class="col-lg-6">
+                        <label class="form-label" for="move-target">Where do you want to move to?</label>
+                        <app-mongo-cluster-select id="move-target" [clusters]="targetClusterOptions()" [selected]="selectedTargetCluster()"
+                                                  [disabled]="busy"
+                                                  [placeholder]="targetClusters.length ? 'Choose a server with room for this site' : 'Loading servers…'"
+                                                  (selectedChange)="targetClusterChanged($event)"/>
+                        @if (moveHint()) {
+                          <div class="form-text">{{ moveHint() }}</div>
+                        }
+                      </div>
                     </div>
-                  </div>
-                  <button type="button" class="btn btn-primary" [disabled]="!moveReady()" (click)="moveNow()">
-                    <fa-icon [icon]="faDatabase" class="me-1"/>{{ moveLabel() }}
-                  </button>
+                  }
+                  @if (nextStepState() !== EnvironmentMigrationStepState.DONE) {
+                    <button type="button" class="btn btn-primary" [disabled]="!moveReady()" (click)="moveNow()">
+                      <fa-icon [icon]="faDatabase" class="me-1"/>{{ moveLabel() }}
+                    </button>
+                  }
                 }
               }
-              @if (moveCompleted) {
+              @if (moveCompleted && nextStepState() !== EnvironmentMigrationStepState.DONE) {
                 <div class="alert alert-success d-flex align-items-start mt-3 mb-0" role="status">
                   <fa-icon [icon]="faCircleCheck" class="me-2 mt-1"/>
-                  <div>{{ moveCompleted }}</div>
+                  <div><strong>Migration completed</strong><div>{{ moveCompleted }}</div></div>
                 </div>
               }
               @if (error) {
@@ -366,6 +372,7 @@ export class EnvironmentMigrationComponent implements OnInit {
   private router = inject(Router);
   private tab: EnvironmentMigrationTab | string = EnvironmentMigrationTab.PLAN;
 
+  private readonly uiActions = inject(UiActionsService);
   protected readonly EnvironmentMigrationStatus = EnvironmentMigrationStatus;
   protected readonly EnvironmentMigrationTab = EnvironmentMigrationTab;
   protected readonly EnvironmentMigrationStepKey = EnvironmentMigrationStepKey;
@@ -775,10 +782,10 @@ export class EnvironmentMigrationComponent implements OnInit {
   }
 
   moveHeading(): string {
-    if (this.includeMongo() && this.databaseMovedBefore()) {
-      return "Move to another database server";
-    } else if (!this.includeMongo() && this.databaseMovedBefore()) {
+    if (!this.includeMongo() && this.includeS3()) {
       return "Move photos and files to Ramblers storage";
+    } else if (this.includeMongo() && this.databaseMovedBefore()) {
+      return "Move to another database server";
     } else {
       return "Move to Ramblers hosting";
     }
@@ -816,8 +823,16 @@ export class EnvironmentMigrationComponent implements OnInit {
     }
   }
 
+  showDatabaseTarget(): boolean {
+    return this.includeMongo() || (!this.requestedMigrationMode() && this.databaseMovedBefore());
+  }
+
+  private requestedMigrationMode(): EnvironmentMigrationMode | null {
+    return this.uiActions.queryValueForAlias(this.activatedRoute.snapshot.queryParams[StoredValue.MIGRATION_MODE], enumValues(EnvironmentMigrationMode)) as EnvironmentMigrationMode | null;
+  }
+
   moveHint(): string {
-    if (this.databaseMovedBefore() && !this.serverChosen && this.includeS3()) {
+    if (this.showDatabaseTarget() && this.databaseMovedBefore() && !this.serverChosen && this.includeS3()) {
       return "Choose a server to move the database. With no server chosen, Move moves the photos and files only.";
     } else if (this.includeMongo() && !this.includeS3()) {
       return "Photos and files stay where they are.";
@@ -1020,7 +1035,11 @@ export class EnvironmentMigrationComponent implements OnInit {
     const databaseLeft = hasMongo && !databaseMoved;
     const filesLeft = !!this.sourceBucket() && !filesMoved;
     const repeatDatabaseMove = hasMongo && databaseMoved && !this.serverChosen ? repeatDatabaseMoveUnderway(forEnvironment) : null;
-    if (hasMongo && databaseMoved && this.serverChosen) {
+    const requestedMode = this.requestedMigrationMode();
+    if (requestedMode) {
+      this.request.mode = requestedMode;
+      this.selectedMigration = forEnvironment.find(migration => migration.mode === requestedMode) || null;
+    } else if (hasMongo && databaseMoved && this.serverChosen) {
       this.request.mode = EnvironmentMigrationMode.MONGO_ONLY;
       this.selectedMigration = resumableMove(forEnvironment, EnvironmentMigrationMode.MONGO_ONLY, this.request.targetMongo.cluster);
     } else if (repeatDatabaseMove) {

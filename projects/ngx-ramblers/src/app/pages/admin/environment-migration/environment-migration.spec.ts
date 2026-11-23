@@ -1,3 +1,4 @@
+import { StoredValue } from "../../../models/ui-actions.model";
 import { provideHttpClient } from "@angular/common/http";
 import { HttpTestingController, provideHttpClientTesting } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
@@ -43,6 +44,20 @@ describe("migration target credentials", () => {
   });
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it("honours an S3-only link when the database has not moved", () => {
+    TestBed.inject(ActivatedRoute).snapshot.queryParams[StoredValue.MIGRATION_MODE] = EnvironmentMigrationMode.S3_ONLY;
+    state.page.request.environment = "hillside";
+    state.page.environmentsWithMongo = [{name: "hillside"}] as never;
+    state.page.environmentsConfig = {environments: [{environment: "hillside", aws: {bucket: "hillside-files"}}]} as never;
+    (state.page as any).selectRemainingMigration();
+    expect(state.page.request.mode).toBe(EnvironmentMigrationMode.S3_ONLY);
+    expect(state.page.includeMongo()).toBe(false);
+    expect(state.page.showDatabaseTarget()).toBe(false);
+    expect(state.page.moveLabel()).toBe("Move photos and files");
+    expect(state.page.moveReady()).toBe(true);
+    expect((state.page as any).requestToSend().targetMongo).toBeUndefined();
+  });
 
   it("prefills the default cluster without creating a user or changing existing credentials", async () => {
     state.page.request.targetMongo.username = "saved-user";

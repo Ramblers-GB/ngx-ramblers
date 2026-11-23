@@ -6,5 +6,5 @@ export function sortDirectionParam(direction: string): SortDirection {
 }
 
 export function sortDirectionFromParam(param: string, defaultDirection: string): string {
-  return param === SortDirection.ASC ? ASCENDING : param === SortDirection.DESC ? DESCENDING : defaultDirection;
+  return param === SortDirection.ASC || param === ASCENDING ? ASCENDING : param === SortDirection.DESC || param === DESCENDING ? DESCENDING : defaultDirection;
 }

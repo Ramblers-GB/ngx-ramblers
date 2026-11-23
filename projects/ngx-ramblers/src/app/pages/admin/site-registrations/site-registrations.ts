@@ -1,3 +1,5 @@
+import { sortDirectionFromParam, sortDirectionParam } from "../../../functions/sort-direction";
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgClass } from "@angular/common";
@@ -273,6 +275,7 @@ export class SiteRegistrationsComponent implements OnInit, OnDestroy {
   private setup = inject(EnvironmentSetupService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private readonly uiActions = inject(UiActionsService);
   private stringUtils = inject(StringUtilsService);
   private subscriptions: Subscription[] = [];
   readonly State = RegistrationState;
@@ -324,8 +327,8 @@ export class SiteRegistrationsComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     this.tab = values(RegistrationAdminTab).find(tab => kebabCase(tab) === this.route.snapshot.queryParamMap.get(StoredValue.TAB)) || RegistrationAdminTab.REGISTRATION_REQUESTS;
     this.selectedStates = (this.route.snapshot.queryParamMap.get(StoredValue.STATUS) || "").split(",").map(value => value.trim()).filter(value => this.states.includes(value as RegistrationState)) as RegistrationState[];
-    this.sort = {key: this.route.snapshot.queryParamMap.get(StoredValue.SORT) || "group.name", direction: this.route.snapshot.queryParamMap.get(StoredValue.SORT_ORDER) || ASCENDING};
-    this.approvalSort = {key: this.route.snapshot.queryParamMap.get(StoredValue.REGISTRATION_EMAIL_SORT) || "groupCode", direction: this.route.snapshot.queryParamMap.get(StoredValue.REGISTRATION_EMAIL_SORT_ORDER) || ASCENDING};
+    this.sort = {key: this.uiActions.queryValueForAlias(this.route.snapshot.queryParamMap.get(StoredValue.SORT), this.columns.map(column => column.sortKey).filter(Boolean)) || "group.name", direction: sortDirectionFromParam(this.route.snapshot.queryParamMap.get(StoredValue.SORT_ORDER), ASCENDING)};
+    this.approvalSort = {key: this.uiActions.queryValueForAlias(this.route.snapshot.queryParamMap.get(StoredValue.REGISTRATION_EMAIL_SORT), this.approvalColumns.map(column => column.sortKey).filter(Boolean)) || "groupCode", direction: sortDirectionFromParam(this.route.snapshot.queryParamMap.get(StoredValue.REGISTRATION_EMAIL_SORT_ORDER), ASCENDING)};
     await this.perform(async () => {
       this.settings = await this.service.settings();
       this.registrations = await this.service.list();
@@ -549,8 +552,8 @@ export class SiteRegistrationsComponent implements OnInit, OnDestroy {
   }
   tabActive(tab: RegistrationAdminTab): boolean { return this.tab === tab; }
   selectTab(tab: RegistrationAdminTab): void { this.tab = tab; this.router.navigate([], {queryParams: {[StoredValue.TAB]: kebabCase(tab)}, queryParamsHandling: "merge"}); }
-  sortChanged(sort: SortableTableSortState): void { this.sort = sort; this.router.navigate([], {queryParams: {[StoredValue.SORT]: sort.key, [StoredValue.SORT_ORDER]: sort.direction}, queryParamsHandling: "merge"}); }
-  approvalSortChanged(sort: SortableTableSortState): void { this.approvalSort = sort; this.router.navigate([], {queryParams: {[StoredValue.REGISTRATION_EMAIL_SORT]: sort.key, [StoredValue.REGISTRATION_EMAIL_SORT_ORDER]: sort.direction}, queryParamsHandling: "merge"}); }
+  sortChanged(sort: SortableTableSortState): void { this.sort = sort; this.router.navigate([], {queryParams: {[StoredValue.SORT]: this.uiActions.queryValueAliasFor(sort.key), [StoredValue.SORT_ORDER]: sortDirectionParam(sort.direction)}, queryParamsHandling: "merge"}); }
+  approvalSortChanged(sort: SortableTableSortState): void { this.approvalSort = sort; this.router.navigate([], {queryParams: {[StoredValue.REGISTRATION_EMAIL_SORT]: this.uiActions.queryValueAliasFor(sort.key), [StoredValue.REGISTRATION_EMAIL_SORT_ORDER]: sortDirectionParam(sort.direction)}, queryParamsHandling: "merge"}); }
 
   rowBusy(row: SiteRegistration): boolean {
     return this.busyRowId ? this.busyRowId === row.id : this.busy;

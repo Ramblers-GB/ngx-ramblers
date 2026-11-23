@@ -1,3 +1,4 @@
+import { SortDirection } from "../../../models/sort.model";
 import {NO_ERRORS_SCHEMA} from "@angular/core";
 import {provideNoopAnimations} from "@angular/platform-browser/animations";
 import {TestBed} from "@angular/core/testing";
@@ -64,7 +65,7 @@ describe("MigrationHealthComponent progressive monitoring", () => {
     expect(component.sortColumn).toBe(HealthSortColumn.ENVIRONMENT);
     expect(component.sortDirection).toBe(DESCENDING);
     component.sortChanged({key: HealthSortColumn.RESPONSE, direction: ASCENDING});
-    expect(navigate).toHaveBeenCalledWith([], {queryParams: {[StoredValue.SORT]: HealthSortColumn.RESPONSE, [StoredValue.SORT_ORDER]: ASCENDING}, queryParamsHandling: "merge"});
+    expect(navigate).toHaveBeenCalledWith([], {queryParams: {[StoredValue.SORT]: "response-time-ms", [StoredValue.SORT_ORDER]: SortDirection.ASC}, queryParamsHandling: "merge"});
     fixture.destroy();
   });
 

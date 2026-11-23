@@ -63,7 +63,7 @@ import {
   AtlasProcessList,
   AtlasResponse
 } from "./atlas-admin-api.model";
-import { atlasProjectForCluster } from "./atlas-projects";
+import { atlasProjectForCluster, matchManagedProjectAccess } from "./atlas-projects";
 import { platformAtlasAccess } from "./mongo-database-user";
 import { storedMongoUri } from "../shared/stored-mongo-uri";
 import { configuredSiteUrl } from "../../../projects/ngx-ramblers/src/app/functions/environment-site-url";
@@ -495,6 +495,7 @@ export async function atlasClusterView(): Promise<AtlasClusterView> {
     } else {
       atlasState.reachable = true;
       atlasState.clusters = listed.body?.results || [];
+      void matchManagedProjectAccess(atlas).catch(error => debugLog("could not match Atlas project access: %s", error?.message || error));
       const access = await atlasRequest<AtlasAccessList & AtlasError>(atlas, "GET", `/groups/${projectId}/accessList?itemsPerPage=100`);
       if (access.status < 300) {
         atlasState.networkAccess = (access.body?.results || []).map(entry => ({

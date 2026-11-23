@@ -1,3 +1,6 @@
+import { sortDirectionFromParam, sortDirectionParam } from "../../../functions/sort-direction";
+import { enumValues } from "../../../functions/enums";
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { Component, ElementRef, inject, OnDestroy, OnInit } from "@angular/core";
 import { EnvironmentSiteLinksComponent } from "../../../modules/common/environment-site-links/environment-site-links";
 import { FormsModule } from "@angular/forms";
@@ -40,6 +43,7 @@ import {
   AtlasClusterView,
   EnvironmentAtlasTab,
   clusterCanBeDeleted,
+  clusterDisplayName,
   atlasTierLabel,
   clusterFullness,
   ClusterFullnessLevel,
@@ -158,6 +162,13 @@ import { DateUtilsService } from "../../../services/date-utils.service";
       flex-shrink: 0
     .cluster-fullness .progress
       height: 6px
+    .row > .atlas-delete-confirmation
+      width: auto
+      margin-left: calc(var(--bs-gutter-x) * .5)
+      margin-right: calc(var(--bs-gutter-x) * .5)
+      padding-left: 1rem
+      padding-right: 1rem
+
     .atlas-loading
       display: flex
       align-items: flex-start
@@ -322,9 +333,6 @@ import { DateUtilsService } from "../../../services/date-utils.service";
                 <span class="text-muted text-nowrap">{{ awsRegionLabel(row.region) }}</span>
               }
             </div>
-          </ng-template>
-          <ng-template [appSortableTableCell]="AtlasClusterSortField.HOST" let-row>
-            {{ row.host }}
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasClusterSortField.SIZE" let-row>
             <span [tooltip]="row.stateName">{{ atlasTierLabel(row.instanceSize) }}</span>
@@ -511,7 +519,7 @@ import { DateUtilsService } from "../../../services/date-utils.service";
             <app-environment-site-links moveLinks [sites]="[{environment: row.environment, url: row.siteUrl, warning: siteDatabaseWarning(row.liveDatabase, row.cluster)}]"/>
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.CLUSTER" let-row>
-            {{ row.cluster }}
+            {{ clusterDisplayName(row.cluster) }}
           </ng-template>
           <ng-template [appSortableTableCell]="AtlasEnvironmentSortField.DATABASE" let-row>
             {{ row.database }}
@@ -606,6 +614,7 @@ import { DateUtilsService } from "../../../services/date-utils.service";
   `
 })
 export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
+  private readonly uiActions = inject(UiActionsService);
   private logger: Logger = inject(LoggerFactory).createLogger("EnvironmentAtlasComponent", NgxLoggerLevel.ERROR);
   private environmentSetupService = inject(EnvironmentSetupService);
   private dateUtils = inject(DateUtilsService);
@@ -634,6 +643,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   protected readonly AtlasClusterTier = AtlasClusterTier;
   protected readonly isSharedTier = isSharedTier;
   protected readonly clusterFullness = clusterFullness;
+  protected readonly clusterDisplayName = clusterDisplayName;
   protected readonly AtlasAlertStatus = AtlasAlertStatus;
   protected readonly atlasTierLabel = atlasTierLabel;
   protected readonly clusterCanBeDeleted = clusterCanBeDeleted;
@@ -684,17 +694,16 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   };
 
   clusterColumns: SortableTableColumn<AtlasClusterRow>[] = [
-    {key: AtlasClusterSortField.NAME, label: "Host", sortKey: AtlasClusterSortField.NAME},
-    {key: AtlasClusterSortField.HOST, label: "Cluster", sortKey: AtlasClusterSortField.HOST, cellClass: "text-nowrap"},
+    {key: AtlasClusterSortField.NAME, label: "Cluster", sortKey: AtlasClusterSortField.NAME},
     {key: AtlasClusterSortField.SIZE, label: "Size", sortKey: AtlasClusterSortField.SIZE, cellClass: "text-nowrap", filterText: row => atlasTierLabel(row.instanceSize)},
     {key: AtlasClusterSortField.ENVIRONMENTS, label: "Sites", sortKey: AtlasClusterSortField.ENVIRONMENTS, filterValues: row => (row.sites || []).map(site => site.environment)},
-    {key: AtlasClusterSortField.COLLECTIONS, label: "How full", sortKey: AtlasClusterSortField.COLLECTIONS, filterText: row => row.limitHeadline || "", filterSuggestions: false},
+    {key: AtlasClusterSortField.COLLECTIONS, label: "Usage against limits", sortKey: AtlasClusterSortField.COLLECTIONS, filterText: row => row.limitHeadline || "", filterSuggestions: false},
     {key: "actions", label: "", cellClass: "text-nowrap", pinnedEnd: true}
   ];
 
   environmentColumns: SortableTableColumn<AtlasClusterEnvironmentRow>[] = [
     {key: AtlasEnvironmentSortField.ENVIRONMENT, label: "Environment", sortKey: AtlasEnvironmentSortField.ENVIRONMENT},
-    {key: AtlasEnvironmentSortField.CLUSTER, label: "Cluster", sortKey: AtlasEnvironmentSortField.CLUSTER},
+    {key: AtlasEnvironmentSortField.CLUSTER, label: "Cluster", sortKey: AtlasEnvironmentSortField.CLUSTER, filterText: row => clusterDisplayName(row.cluster)},
     {key: AtlasEnvironmentSortField.DATABASE, label: "Database", sortKey: AtlasEnvironmentSortField.DATABASE},
     {key: AtlasEnvironmentSortField.COLLECTIONS, label: "Usage", sortKey: AtlasEnvironmentSortField.COLLECTIONS, align: SortableTableAlignment.RIGHT, cellClass: "text-nowrap", filterText: row => row.error || `${row.collections} collections, ${row.indexes} indexes`, filterSuggestions: false}
   ];
@@ -705,14 +714,10 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
       this.activeTab = [EnvironmentAtlasTab.NEW_CLUSTER, EnvironmentAtlasTab.ENVIRONMENTS, EnvironmentAtlasTab.PROVISIONING].includes(params[StoredValue.TAB])
         ? params[StoredValue.TAB]
         : EnvironmentAtlasTab.CLUSTERS;
-      this.clusterSortKey = params[StoredValue.ATLAS_CLUSTER_SORT] || AtlasClusterSortField.DEFAULT_FOR_NEW_SITES;
-      this.clusterSortDirection = params[StoredValue.ATLAS_CLUSTER_SORT_ORDER] === DESCENDING
-        ? DESCENDING
-        : params[StoredValue.ATLAS_CLUSTER_SORT_ORDER] === ASCENDING
-          ? ASCENDING
-          : this.clusterSortKey === AtlasClusterSortField.DEFAULT_FOR_NEW_SITES ? DESCENDING : ASCENDING;
-      this.environmentSortKey = params[StoredValue.ATLAS_ENVIRONMENT_SORT] || AtlasEnvironmentSortField.ENVIRONMENT;
-      this.environmentSortDirection = params[StoredValue.ATLAS_ENVIRONMENT_SORT_ORDER] === DESCENDING ? DESCENDING : ASCENDING;
+      this.clusterSortKey = this.uiActions.queryValueForAlias(params[StoredValue.ATLAS_CLUSTER_SORT], enumValues(AtlasClusterSortField)) as AtlasClusterSortField || AtlasClusterSortField.DEFAULT_FOR_NEW_SITES;
+      this.clusterSortDirection = sortDirectionFromParam(params[StoredValue.ATLAS_CLUSTER_SORT_ORDER], this.clusterSortKey === AtlasClusterSortField.DEFAULT_FOR_NEW_SITES ? DESCENDING : ASCENDING);
+      this.environmentSortKey = this.uiActions.queryValueForAlias(params[StoredValue.ATLAS_ENVIRONMENT_SORT], enumValues(AtlasEnvironmentSortField)) as AtlasEnvironmentSortField || AtlasEnvironmentSortField.ENVIRONMENT;
+      this.environmentSortDirection = sortDirectionFromParam(params[StoredValue.ATLAS_ENVIRONMENT_SORT_ORDER], ASCENDING);
     }));
     this.load();
   }
@@ -1003,7 +1008,7 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   }
 
   clusterSortChanged(state: SortableTableSortState) {
-    this.clusterSortKey = (state.key as AtlasClusterSortField) || AtlasClusterSortField.HOST;
+    this.clusterSortKey = (state.key as AtlasClusterSortField) || AtlasClusterSortField.NAME;
     this.clusterSortDirection = state.direction === DESCENDING ? DESCENDING : ASCENDING;
     this.updateQueryParams();
   }
@@ -1015,15 +1020,11 @@ export class EnvironmentAtlasComponent implements OnInit, OnDestroy {
   }
 
   private updateQueryParams() {
-    this.router.navigate([], {
-      relativeTo: this.activatedRoute,
-      queryParams: {
-        [StoredValue.ATLAS_CLUSTER_SORT]: this.clusterSortKey,
-        [StoredValue.ATLAS_CLUSTER_SORT_ORDER]: this.clusterSortDirection,
-        [StoredValue.ATLAS_ENVIRONMENT_SORT]: this.environmentSortKey,
-        [StoredValue.ATLAS_ENVIRONMENT_SORT_ORDER]: this.environmentSortDirection
-      },
-      queryParamsHandling: "merge"
+    void this.uiActions.updateQueryParameters({
+      [StoredValue.ATLAS_CLUSTER_SORT]: this.uiActions.queryValueAliasFor(this.clusterSortKey),
+      [StoredValue.ATLAS_CLUSTER_SORT_ORDER]: sortDirectionParam(this.clusterSortDirection),
+      [StoredValue.ATLAS_ENVIRONMENT_SORT]: this.uiActions.queryValueAliasFor(this.environmentSortKey),
+      [StoredValue.ATLAS_ENVIRONMENT_SORT_ORDER]: sortDirectionParam(this.environmentSortDirection)
     });
   }
 }

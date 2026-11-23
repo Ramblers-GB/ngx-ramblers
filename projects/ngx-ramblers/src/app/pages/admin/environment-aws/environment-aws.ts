@@ -1,3 +1,6 @@
+import { sortDirectionFromParam, sortDirectionParam } from "../../../functions/sort-direction";
+import { enumValues } from "../../../functions/enums";
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -298,6 +301,7 @@ export class EnvironmentAwsComponent implements OnInit, OnDestroy {
   private environmentSetupService = inject(EnvironmentSetupService);
   private notifierService = inject(NotifierService);
   private router = inject(Router);
+  private readonly uiActions = inject(UiActionsService);
   private activatedRoute = inject(ActivatedRoute);
   private subscriptions: Subscription[] = [];
   public notifyTarget: AlertTarget = {};
@@ -324,7 +328,7 @@ export class EnvironmentAwsComponent implements OnInit, OnDestroy {
   view: AwsS3InventoryView | null = null;
   loading = true;
   errorMessage: string | null = null;
-  activeTab = EnvironmentAwsTab.PROVISIONING;
+  activeTab = EnvironmentAwsTab.BUCKETS;
   bucketSortKey = AwsS3BucketSortField.STATUS;
   bucketSortDirection = ASCENDING;
   environmentSortKey = AwsS3EnvironmentSortField.STATUS;
@@ -351,13 +355,13 @@ export class EnvironmentAwsComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.notifierService.createAlertInstance(this.notifyTarget);
     this.subscriptions.push(this.activatedRoute.queryParams.subscribe(params => {
-      this.activeTab = params[StoredValue.TAB] === EnvironmentAwsTab.BUCKETS || params[StoredValue.TAB] === EnvironmentAwsTab.ENVIRONMENTS
+      this.activeTab = params[StoredValue.TAB] === EnvironmentAwsTab.PROVISIONING || params[StoredValue.TAB] === EnvironmentAwsTab.ENVIRONMENTS
         ? params[StoredValue.TAB]
-        : EnvironmentAwsTab.PROVISIONING;
-      this.bucketSortKey = params[StoredValue.AWS_BUCKET_SORT] || AwsS3BucketSortField.STATUS;
-      this.bucketSortDirection = params[StoredValue.AWS_BUCKET_SORT_ORDER] === DESCENDING ? DESCENDING : ASCENDING;
-      this.environmentSortKey = params[StoredValue.AWS_ENVIRONMENT_SORT] || AwsS3EnvironmentSortField.STATUS;
-      this.environmentSortDirection = params[StoredValue.AWS_ENVIRONMENT_SORT_ORDER] === DESCENDING ? DESCENDING : ASCENDING;
+        : EnvironmentAwsTab.BUCKETS;
+      this.bucketSortKey = this.uiActions.queryValueForAlias(params[StoredValue.AWS_BUCKET_SORT], enumValues(AwsS3BucketSortField)) as AwsS3BucketSortField || AwsS3BucketSortField.STATUS;
+      this.bucketSortDirection = sortDirectionFromParam(params[StoredValue.AWS_BUCKET_SORT_ORDER], ASCENDING);
+      this.environmentSortKey = this.uiActions.queryValueForAlias(params[StoredValue.AWS_ENVIRONMENT_SORT], enumValues(AwsS3EnvironmentSortField)) as AwsS3EnvironmentSortField || AwsS3EnvironmentSortField.STATUS;
+      this.environmentSortDirection = sortDirectionFromParam(params[StoredValue.AWS_ENVIRONMENT_SORT_ORDER], ASCENDING);
     }));
     this.load();
   }
@@ -454,10 +458,10 @@ export class EnvironmentAwsComponent implements OnInit, OnDestroy {
       relativeTo: this.activatedRoute,
       queryParams: {
         [StoredValue.TAB]: this.activeTab,
-        [StoredValue.AWS_BUCKET_SORT]: this.bucketSortKey,
-        [StoredValue.AWS_BUCKET_SORT_ORDER]: this.bucketSortDirection,
-        [StoredValue.AWS_ENVIRONMENT_SORT]: this.environmentSortKey,
-        [StoredValue.AWS_ENVIRONMENT_SORT_ORDER]: this.environmentSortDirection
+        [StoredValue.AWS_BUCKET_SORT]: this.uiActions.queryValueAliasFor(this.bucketSortKey),
+        [StoredValue.AWS_BUCKET_SORT_ORDER]: sortDirectionParam(this.bucketSortDirection),
+        [StoredValue.AWS_ENVIRONMENT_SORT]: this.uiActions.queryValueAliasFor(this.environmentSortKey),
+        [StoredValue.AWS_ENVIRONMENT_SORT_ORDER]: sortDirectionParam(this.environmentSortDirection)
       },
       queryParamsHandling: "merge"
     });

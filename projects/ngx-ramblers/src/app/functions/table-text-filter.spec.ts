@@ -1,3 +1,4 @@
+import { toKebabCase } from "./strings";
 import { filterRowsByText, parseTableTextFilter, tableFilterChips, tableFilterQueryFromChips, tableFilterSuggestions, tableTextFilterOptions } from "./table-text-filter";
 import { TableFilterOperator, TableFilterSuggestionKind, TableTextFilterField } from "../models/table-text-filter.model";
 
@@ -52,6 +53,28 @@ describe("table text filter", () => {
     expect(names("status:=moved")).toEqual(["windsor-district", "craven"]);
   });
 
+  it("matches any positive choice in each column while combining different columns", () => {
+    const rows = [
+      {cluster: "cluster-a", size: "M0", site: "alpha"},
+      {cluster: "cluster-b", size: "M0", site: "beta"},
+      {cluster: "cluster-c", size: "M10", site: "gamma"}
+    ];
+    const filtered = (query: string) => filterRowsByText(rows, query, row => [
+      {names: ["Cluster"], text: row.cluster},
+      {names: ["Size"], text: row.size},
+      {names: ["Site"], text: row.site}
+    ]).map(row => row.cluster);
+    expect(filtered('cluster:a cluster:b')).toEqual(["cluster-a", "cluster-b"]);
+    expect(filtered('cluster:="cluster-a" cluster:b')).toEqual(["cluster-a", "cluster-b"]);
+    expect(filtered('size:="M0" size:="M10" site:alpha site:gamma')).toEqual(["cluster-a", "cluster-c"]);
+    expect(filtered('cluster:="cluster-a" cluster:="cluster-b"')).toEqual(["cluster-a", "cluster-b"]);
+    expect(filtered('cluster:="cluster-a" cluster:="cluster-c" size:="M0"')).toEqual(["cluster-a"]);
+    expect(filtered('cluster:="cluster-a" cluster:="cluster-b" -site:="alpha"')).toEqual(["cluster-b"]);
+    expect(filtered('cluster:="cluster-a" cluster:="cluster-b" beta')).toEqual(["cluster-b"]);
+    expect(filtered('cluster:="cluster-a" cluster:="cluster-b" cluster:="cluster-c"')).toEqual(["cluster-a", "cluster-b", "cluster-c"]);
+    expect(filtered('-cluster:="cluster-a" -cluster:="cluster-b"')).toEqual(["cluster-c"]);
+  });
+
   it("treats quoted text as one phrase", () => {
     expect(names("\"not moved\"")).toEqual(["new-forest"]);
   });
@@ -102,6 +125,18 @@ describe("table filter chips", () => {
     expect(query).toEqual("london-move:=\"Not moved\" -cluster:\"shared\" \"forest\"");
     expect(tableFilterChips(query, headings)).toEqual(chips);
     expect(names(query)).toEqual(["new-forest"]);
+  });
+
+  it("uses shared kebab-case aliases in URLs and restores readable choice labels", () => {
+    const chips = [{heading: "London move", operator: TableFilterOperator.NOT_EQUALS, value: "Still on old account"}];
+    const options = [{group: "London move", label: "Still on old account", count: 1, partial: false}];
+    const query = tableFilterQueryFromChips(chips, toKebabCase);
+    expect(query).toBe('-london-move:="still-on-old-account"');
+    expect(tableFilterChips(query, headings, options)).toEqual(chips);
+    const rows = ["Still on old account", "Moved"];
+    expect(filterRowsByText(rows, query, text => [{names: ["London move"], text}])).toEqual(["Moved"]);
+    expect(filterRowsByText(rows, 'london-move:="still-on-old-account"', text => [{names: ["London move"], text}])).toEqual(["Still on old account"]);
+    expect(filterRowsByText(rows, 'london-move:"old-account"', text => [{names: ["London move"], text}])).toEqual(["Still on old account"]);
   });
 
   it("keeps typed text containing a colon, such as a web address, as text to find", () => {

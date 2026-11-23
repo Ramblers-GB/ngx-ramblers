@@ -1,3 +1,5 @@
+import { sortDirectionFromParam, sortDirectionParam } from "../../../functions/sort-direction";
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { Component, inject, OnInit } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
@@ -148,6 +150,7 @@ import { StringUtilsService } from "../../../services/string-utils.service";
 export class EnvironmentCollectionCleanupComponent implements OnInit {
   private activatedRoute = inject(ActivatedRoute);
   private router = inject(Router);
+  private readonly uiActions = inject(UiActionsService);
   private logger: Logger = inject(LoggerFactory).createLogger(EnvironmentCollectionCleanupComponent, NgxLoggerLevel.ERROR);
   private environmentSetupService = inject(EnvironmentSetupService);
   protected stringUtils = inject(StringUtilsService);
@@ -195,10 +198,8 @@ export class EnvironmentCollectionCleanupComponent implements OnInit {
 
   ngOnInit(): void {
     const params = this.activatedRoute.snapshot.queryParams;
-    this.sortKey = values(EmptyCollectionCleanupSortField).includes(params[StoredValue.COLLECTION_CLEANUP_SORT])
-      ? params[StoredValue.COLLECTION_CLEANUP_SORT]
-      : EmptyCollectionCleanupSortField.ENVIRONMENT;
-    this.sortDirection = params[StoredValue.COLLECTION_CLEANUP_SORT_ORDER] === DESCENDING ? DESCENDING : ASCENDING;
+    this.sortKey = this.uiActions.queryValueForAlias(params[StoredValue.COLLECTION_CLEANUP_SORT], values(EmptyCollectionCleanupSortField)) as EmptyCollectionCleanupSortField || EmptyCollectionCleanupSortField.ENVIRONMENT;
+    this.sortDirection = sortDirectionFromParam(params[StoredValue.COLLECTION_CLEANUP_SORT_ORDER], ASCENDING);
     void this.loadClusters();
   }
 
@@ -283,8 +284,8 @@ export class EnvironmentCollectionCleanupComponent implements OnInit {
       : EmptyCollectionCleanupSortField.ENVIRONMENT;
     this.sortDirection = state.direction === DESCENDING ? DESCENDING : ASCENDING;
     this.router.navigate([], {relativeTo: this.activatedRoute, queryParams: {
-      [StoredValue.COLLECTION_CLEANUP_SORT]: this.sortKey,
-      [StoredValue.COLLECTION_CLEANUP_SORT_ORDER]: this.sortDirection
+      [StoredValue.COLLECTION_CLEANUP_SORT]: this.uiActions.queryValueAliasFor(this.sortKey),
+      [StoredValue.COLLECTION_CLEANUP_SORT_ORDER]: sortDirectionParam(this.sortDirection)
     }, queryParamsHandling: "merge"});
   }
 

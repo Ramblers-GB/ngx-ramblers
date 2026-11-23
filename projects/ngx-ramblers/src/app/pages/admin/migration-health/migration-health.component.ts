@@ -1,3 +1,5 @@
+import { sortDirectionFromParam, sortDirectionParam } from "../../../functions/sort-direction";
+import { UiActionsService } from "../../../services/ui-actions.service";
 import { ChangeDetectorRef, Component, inject, OnInit, OnDestroy } from "@angular/core";
 import {
   faCheckCircle,
@@ -395,6 +397,7 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
   private changeDetector = inject(ChangeDetectorRef);
   private crossEnvironmentHealthService = inject(CrossEnvironmentHealthService);
   private router = inject(Router);
+  private readonly uiActions = inject(UiActionsService);
   private activatedRoute = inject(ActivatedRoute);
 
   faCheckCircle = faCheckCircle;
@@ -436,8 +439,8 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     const sort = this.activatedRoute.snapshot.queryParams[StoredValue.SORT];
-    this.sortColumn = values(HealthSortColumn).includes(sort) ? sort : HealthSortColumn.STATUS;
-    this.sortDirection = this.activatedRoute.snapshot.queryParams[StoredValue.SORT_ORDER] === DESCENDING ? DESCENDING : ASCENDING;
+    this.sortColumn = this.uiActions.queryValueForAlias(sort, values(HealthSortColumn)) as HealthSortColumn || HealthSortColumn.STATUS;
+    this.sortDirection = sortDirectionFromParam(this.activatedRoute.snapshot.queryParams[StoredValue.SORT_ORDER], ASCENDING);
     this.refresh();
   }
 
@@ -562,7 +565,7 @@ export class MigrationHealthComponent implements OnInit, OnDestroy {
     this.sortColumn = sort.key as HealthSortColumn;
     this.sortDirection = sort.direction;
     this.router.navigate([], {
-      queryParams: {[StoredValue.SORT]: sort.key, [StoredValue.SORT_ORDER]: sort.direction},
+      queryParams: {[StoredValue.SORT]: this.uiActions.queryValueAliasFor(sort.key), [StoredValue.SORT_ORDER]: sortDirectionParam(sort.direction)},
       queryParamsHandling: "merge"
     });
   }
