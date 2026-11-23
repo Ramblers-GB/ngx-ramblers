@@ -16,6 +16,7 @@ import { UrlService } from "../services/url.service";
 import { RejoinMeetingBannerComponent } from "../pages/video-meetings/rejoin-meeting-banner";
 import { NewVersionBannerComponent } from "../modules/common/new-version-banner/new-version-banner";
 import { ViewAsBar } from "../modules/common/view-as-bar/view-as-bar";
+import { RecordingReturnButtonComponent } from "../pages/app/recording-return-button";
 import { PullToRefreshComponent } from "../modules/common/pull-to-refresh/pull-to-refresh";
 import { RouterHistoryService } from "../services/router-history.service";
 import { Router } from "@angular/router";
@@ -50,6 +51,7 @@ import { Logger, LoggerFactory } from "../services/logger-factory.service";
         <app-new-version-banner/>
       }
       <router-outlet/>
+      <app-recording-return-button/>
       @if (showFloatingNavigation()) {
         <button class="btn btn-primary btn-icon app-floating-navigation" type="button" (click)="navigationTooltip.hide(); navigateFloating()"
                 aria-label="Back"
@@ -72,7 +74,7 @@ import { Logger, LoggerFactory } from "../services/logger-factory.service";
     </div>
     `,
     styleUrls: ["./container.sass"],
-    imports: [HeaderBarComponent, NavbarComponent, RouterOutlet, FooterComponent, RejoinMeetingBannerComponent, NewVersionBannerComponent, PullToRefreshComponent, FontAwesomeModule, TooltipModule, ViewAsBar]
+    imports: [HeaderBarComponent, NavbarComponent, RouterOutlet, FooterComponent, RejoinMeetingBannerComponent, NewVersionBannerComponent, PullToRefreshComponent, FontAwesomeModule, TooltipModule, ViewAsBar, RecordingReturnButtonComponent]
 })
 export class ContainerComponent implements OnInit, OnDestroy {
   private routerHistory = inject(RouterHistoryService);

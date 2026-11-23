@@ -279,6 +279,11 @@ export interface QueuedWebsiteSave {
   saveAsNewRecordingId: string | null;
 }
 
+export interface RouteFollowReturn {
+  url: string;
+  recording: boolean;
+}
+
 export interface RouteFollowSession {
   recordingId?: string | null;
   recordingDetailsOpen?: boolean;

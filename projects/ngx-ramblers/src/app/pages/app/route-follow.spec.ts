@@ -151,18 +151,25 @@ describe("route follow interrupted sessions", () => {
     expect(view["followCache"].payload).toHaveBeenCalledWith("walk:second-walk");
   });
 
-  it("asks before closing discards an unsaved recording", () => {
+  it("keeps a recording going when the map is closed", () => {
     const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
     view["followService"] = {recordingSession: () => true, stop: vi.fn()} as unknown as typeof view["followService"];
-    view["expandSheet"] = vi.fn();
+    view["persistFollowSession"] = vi.fn();
+    view["clearFollowSession"] = vi.fn();
+    view["releaseWakeLock"] = vi.fn().mockResolvedValue(undefined);
+    view["routerHistory"] = {forgetCurrentPage: vi.fn()} as unknown as typeof view["routerHistory"];
+    view["walkDisplay"] = {takeFollowReturnUrl: () => "/walks"} as unknown as typeof view["walkDisplay"];
+    view["router"] = {navigateByUrl: vi.fn()} as unknown as typeof view["router"];
     view.closeFollow();
-    expect(view["confirmingRecordingDiscard"]).toBe(true);
     expect(view["followService"].stop).not.toHaveBeenCalled();
+    expect(view["clearFollowSession"]).not.toHaveBeenCalled();
+    expect(view["persistFollowSession"]).toHaveBeenCalledWith(true);
+    expect(view["confirmingRecordingDiscard"]).toBeFalsy();
+    expect(view["router"].navigateByUrl).toHaveBeenCalledWith("/walks", {replaceUrl: true});
   });
 
   it("confirms discard through the existing controls without closing the route", () => {
     const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
-    view["discardAndClose"] = false;
     view["confirmingRecordingDiscard"] = true;
     view.cancelEdit = vi.fn();
     view.closeFollow = vi.fn();
@@ -170,18 +177,6 @@ describe("route follow interrupted sessions", () => {
     expect(view["confirmingRecordingDiscard"]).toBe(false);
     expect(view.cancelEdit).toHaveBeenCalledWith(true);
     expect(view.closeFollow).not.toHaveBeenCalled();
-  });
-
-  it("closes only after confirming a close that discards a recording", () => {
-    const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
-    view["discardAndClose"] = true;
-    view["confirmingRecordingDiscard"] = true;
-    view.cancelEdit = vi.fn();
-    view.closeFollow = vi.fn();
-    view.confirmRecordingDiscard();
-    expect(view["confirmingRecordingDiscard"]).toBe(false);
-    expect(view.closeFollow).toHaveBeenCalledWith(true);
-    expect(view.cancelEdit).not.toHaveBeenCalled();
   });
 
   it("reports a failed checkpoint while keeping the current session", () => {

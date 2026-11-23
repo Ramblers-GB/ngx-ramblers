@@ -160,6 +160,7 @@ import { CurrentLocationService } from "../../services/maps/current-location.ser
 import { RouteFollowService } from "../../services/maps/route-follow.service";
 import { WalkingPathService } from "../../services/maps/walking-path.service";
 import { RouteFollowSaveService } from "../../services/maps/route-follow-save.service";
+import { RouteRecordingReturnService } from "../../services/maps/route-recording-return.service";
 import { OsMapsExportService } from "../../services/maps/os-maps-export.service";
 import { MapGestures, mapAngleDelta, mapGesturesFor } from "../../services/maps/map-gestures";
 import { travelAlongRoute } from "../../services/maps/route-travel";
@@ -1178,6 +1179,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     }
   }
   private routeSave = inject(RouteFollowSaveService);
+  private recordingReturn = inject(RouteRecordingReturnService);
+  private followUrl: string | null = null;
   private osMapsExport = inject(OsMapsExportService);
   private ramblersLibrary = inject(RamblersLibraryRouteService);
   private followCache = inject(RouteFollowCacheService);
@@ -1404,7 +1407,6 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.recordingDescriptionAutosize = autosize;
     this.fitRouteDetailFields();
   }
-  private discardAndClose = false;
   private arrowGroup = L.layerGroup();
   private waypointGroup = L.layerGroup();
   private pointerMarker: L.Marker | null = null;
@@ -1412,6 +1414,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     document.addEventListener("pointerdown", this.sheetPointerDownListener, true);
     document.addEventListener("click", this.sheetClickListener, true);
+    this.recordingReturn.returned();
     this.routeSave.setFollowScreenOpen(true);
     this.subscriptions.push(this.routeSave.websiteSaveRetry$.subscribe(() => this.retryPendingNetworkSave()));
     const storedDistanceUnit = this.uiActions.initialValueFor(StoredValue.DISTANCE_UNIT, DistanceUnit.MILES);
@@ -1458,6 +1461,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
           StoredValue.PLOT_ROUTE, StoredValue.DRAW_ROUTE, StoredValue.LAT, StoredValue.LON, StoredValue.NEARBY_PLACE]
           .map(key => queryParams.get(key) ? (key === StoredValue.DRAW_ROUTE || key === StoredValue.PLOT_ROUTE ? "true" : queryParams.get(key)) : null)
       ]);
+      this.followUrl = this.router.url;
       const unit = queryParams.get(StoredValue.DISTANCE_UNIT);
       if (unit === DistanceUnit.MILES || unit === DistanceUnit.KILOMETRES) {
         this.distanceUnit = unit;
@@ -1498,7 +1502,11 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       container.removeEventListener("pointercancel", this.onEditPointerCancel);
     }
     this.gestures?.setOnBearing(null);
-    this.followService.stop();
+    if (this.recordingSession && this.followUrl) {
+      this.recordingReturn.leave(this.followUrl);
+    } else {
+      this.followService.stop();
+    }
     this.mapTiles.allowCachedOsTiles(false);
     void this.releaseWakeLock();
     this.subscriptions.forEach(subscription => subscription.unsubscribe());
@@ -2826,18 +2834,12 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   confirmRecordingDiscard(): void {
-    const closeAfter = this.discardAndClose;
     this.confirmingRecordingDiscard = false;
-    if (closeAfter) {
-      this.closeFollow(true);
-    } else {
-      this.cancelEdit(true);
-    }
+    this.cancelEdit(true);
   }
 
   cancelEdit(confirmed = false): void {
     if (this.recordingSession && !confirmed) {
-      this.discardAndClose = false;
       this.confirmingRecordingDiscard = true;
       this.expandSheet();
     } else {
@@ -3742,31 +3744,30 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   closeFollow(confirmed = false): void {
-    if (this.recordingSession && !confirmed && !this.pendingNetworkSave) {
-      this.discardAndClose = true;
-      this.confirmingRecordingDiscard = true;
-      this.expandSheet();
+    const keepRecording = this.recordingSession && !confirmed && !this.pendingNetworkSave;
+    if (this.showStylePicker) {
+      this.closeStylePicker();
+    }
+    if (keepRecording) {
+      this.persistFollowSession(true);
     } else {
-      if (this.showStylePicker) {
-        this.closeStylePicker();
-      }
       this.followService.stop();
       if (!this.pendingNetworkSave) {
         this.clearFollowSession();
       }
-      this.routerHistory.forgetCurrentPage();
-      void this.releaseWakeLock();
-      const returnUrl = this.walkDisplay.takeFollowReturnUrl();
-      if (returnUrl && !this.isFollowPath(returnUrl)) {
-        void this.router.navigateByUrl(returnUrl, {replaceUrl: true});
-      } else if (this.loadedWalk) {
-        const area = (this.walkDisplay.groupEventArea() || DEFAULT_WALKS_AREA).replace(/^\/+/, "");
-        void this.router.navigate(["/" + area, this.walkDisplay.walkSlug(this.loadedWalk)], {replaceUrl: true});
-      } else if (this.payload?.path) {
-        void this.router.navigateByUrl("/" + this.payload.path, {replaceUrl: true});
-      } else {
-        void this.router.navigate(["/" + AppPath.ROOT], {replaceUrl: true});
-      }
+    }
+    this.routerHistory.forgetCurrentPage();
+    void this.releaseWakeLock();
+    const returnUrl = this.walkDisplay.takeFollowReturnUrl();
+    if (returnUrl && !this.isFollowPath(returnUrl)) {
+      void this.router.navigateByUrl(returnUrl, {replaceUrl: true});
+    } else if (this.loadedWalk) {
+      const area = (this.walkDisplay.groupEventArea() || DEFAULT_WALKS_AREA).replace(/^\/+/, "");
+      void this.router.navigate(["/" + area, this.walkDisplay.walkSlug(this.loadedWalk)], {replaceUrl: true});
+    } else if (this.payload?.path) {
+      void this.router.navigateByUrl("/" + this.payload.path, {replaceUrl: true});
+    } else {
+      void this.router.navigate(["/" + AppPath.ROOT], {replaceUrl: true});
     }
   }
 
