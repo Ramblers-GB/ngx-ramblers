@@ -6,11 +6,12 @@ import { connectToEnvironmentMongo, loadEnvironmentContext } from "../environmen
 import { environmentsConfigFromDatabase } from "../environments/environments-config";
 import { ConsoleAccessFieldKind, consoleAccessValue } from "../ops/console-access-catalogue";
 import { ConsoleAccessService } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { OS_DATA_HUB_API_KEY_MAX_WAIT_MS, OS_DATA_HUB_API_KEY_POLL_MS, OsDataHubApiKey, OsDataHubApiKeyJobResult, OsDataHubApiKeyJobStatus } from "../../../projects/ngx-ramblers/src/app/models/os-data-hub-api-key.model";
+import { OS_DATA_HUB_API_KEY_MAX_WAIT_MS, OS_DATA_HUB_API_KEY_POLL_MS, OsDataHubApiKey, OsDataHubApiKeyJobStatus } from "../../../projects/ngx-ramblers/src/app/models/os-data-hub-api-key.model";
 import { buildOsDataHubApiKeyJob } from "../ramblers/os-maps-export-job-builder";
 import { detachedAuditSocket, dispatchRemoteIntegrationWorkerJob, integrationWorkerConfigured } from "../ramblers/dispatch-integration-worker-job";
 import { createQueuedOsDataHubApiKeyResult, osDataHubApiKeyResultByJobId, removeOsDataHubApiKeyResult } from "./os-data-hub-api-key-store";
 import { dateTimeNowAsValue } from "../shared/dates";
+import { awaitWorkerResult } from "../ramblers/await-worker-result";
 
 const debugLog = debug(envConfig.logNamespace("os-maps:provision-key"));
 const MANUAL_KEY_ADVICE = "Generate a key by hand at osdatahub.os.uk and enter it under System Settings, OS Maps on the new site.";
@@ -30,7 +31,7 @@ export async function generateOsMapsApiKey(projectName: string, email: string, p
   try {
     await dispatchRemoteIntegrationWorkerJob(job, {userName: email, password}, detachedAuditSocket());
     await report(`Asked the integration worker to sign in to the OS Data Hub and read the key for project ${projectName}`);
-    const result = await completedOsDataHubApiKeyResult(job.jobId, dateTimeNowAsValue() + OS_DATA_HUB_API_KEY_MAX_WAIT_MS);
+    const result = await awaitWorkerResult(() => osDataHubApiKeyResultByJobId(job.jobId), found => found.status !== OsDataHubApiKeyJobStatus.QUEUED, dateTimeNowAsValue() + OS_DATA_HUB_API_KEY_MAX_WAIT_MS, OS_DATA_HUB_API_KEY_POLL_MS);
     if (result?.status === OsDataHubApiKeyJobStatus.COMPLETED) {
       debugLog("generated key length %s for %s", (result.apiKey || "").length, projectName);
       return result.apiKey ? {projectName, apiKey: result.apiKey, created: result.created !== false} : null;
@@ -41,18 +42,6 @@ export async function generateOsMapsApiKey(projectName: string, email: string, p
     }
   } finally {
     await removeOsDataHubApiKeyResult(job.jobId);
-  }
-}
-
-async function completedOsDataHubApiKeyResult(jobId: string, deadline: number): Promise<OsDataHubApiKeyJobResult | null> {
-  const result = await osDataHubApiKeyResultByJobId(jobId);
-  if (result && result.status !== OsDataHubApiKeyJobStatus.QUEUED) {
-    return result;
-  } else if (dateTimeNowAsValue() >= deadline) {
-    return result;
-  } else {
-    await new Promise(resolve => setTimeout(resolve, OS_DATA_HUB_API_KEY_POLL_MS));
-    return completedOsDataHubApiKeyResult(jobId, deadline);
   }
 }
 

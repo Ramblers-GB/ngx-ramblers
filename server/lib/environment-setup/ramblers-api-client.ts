@@ -7,6 +7,9 @@ import {
 import { envConfig } from "../env-config/env-config";
 import { RamblersAreaLookup, RamblersGroupLookup, ValidationResult } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 import { isArray } from "es-toolkit/compat";
+import { ConfigKey, SECRET_MASK } from "../../../projects/ngx-ramblers/src/app/models/config.model";
+import { queryKey } from "../mongo/controllers/config";
+import { secretOrSaved } from "../shared/mask-secrets";
 
 const debugLog = debug(envConfig.logNamespace("environment-setup:ramblers-api"));
 debugLog.enabled = true;
@@ -49,7 +52,7 @@ async function makeRamblersApiRequest(path: string): Promise<RamblersApiRequestR
       }
     };
 
-    debugLog("Making Ramblers API request:", options.path);
+    debugLog("Making Ramblers API request:", options.path.replace(/api-key=[^&]*/, "api-key=***"));
 
     const request = https.request(options, response => {
       const chunks: Uint8Array[] = [];
@@ -87,42 +90,56 @@ async function makeRamblersApiRequest(path: string): Promise<RamblersApiRequestR
   });
 }
 
+export function ramblersApiKeyFrom(apiKey: string, storedApiKey: string | null | undefined): string {
+  return secretOrSaved(apiKey, storedApiKey);
+}
+
+export async function resolvedRamblersApiKey(apiKey: string): Promise<string> {
+  if (apiKey === SECRET_MASK) {
+    const systemConfig = await queryKey(ConfigKey.SYSTEM);
+    return ramblersApiKeyFrom(apiKey, systemConfig?.value?.national?.walksManager?.apiKey);
+  } else {
+    return apiKey;
+  }
+}
+
 export async function listGroupsByAreaCode(lookup: RamblersAreaLookup): Promise<RamblersGroupsApiResponse[]> {
-  if (!lookup.areaCode || !lookup.apiKey) {
+  const apiKey = await resolvedRamblersApiKey(lookup.apiKey);
+  if (!lookup.areaCode || !apiKey) {
     debugLog("Missing area code or API key");
     return [];
+  } else {
+    const path = `/api/volunteers/groups?limit=${MAXIMUM_PAGE_SIZE}&groups=${encodeURIComponent(lookup.areaCode)}&api-key=${encodeURIComponent(apiKey)}`;
+    const result = await makeRamblersApiRequest(path);
+    if (result.error) {
+      debugLog("Error fetching groups by area:", result.error);
+      return [];
+    } else {
+      return result.response || [];
+    }
   }
-
-  const path = `/api/volunteers/groups?limit=${MAXIMUM_PAGE_SIZE}&groups=${encodeURIComponent(lookup.areaCode)}&api-key=${encodeURIComponent(lookup.apiKey)}`;
-  const result = await makeRamblersApiRequest(path);
-
-  if (result.error) {
-    debugLog("Error fetching groups by area:", result.error);
-    return [];
-  }
-
-  return result.response || [];
 }
 
 export async function groupDetails(lookup: RamblersGroupLookup): Promise<RamblersGroupsApiResponse | null> {
-  if (!lookup.groupCode || !lookup.apiKey) {
+  const apiKey = await resolvedRamblersApiKey(lookup.apiKey);
+  if (!lookup.groupCode || !apiKey) {
     debugLog("Missing group code or API key");
     return null;
+  } else {
+    const path = `/api/volunteers/groups?limit=${MAXIMUM_PAGE_SIZE}&groups=${encodeURIComponent(lookup.groupCode)}&api-key=${encodeURIComponent(apiKey)}`;
+    const result = await makeRamblersApiRequest(path);
+    if (result.error) {
+      debugLog("Error fetching group details:", result.error);
+      return null;
+    } else {
+      const groups = result.response || [];
+      return groups.find(g => g.group_code === lookup.groupCode) || (groups.length > 0 ? groups[0] : null);
+    }
   }
-
-  const path = `/api/volunteers/groups?limit=${MAXIMUM_PAGE_SIZE}&groups=${encodeURIComponent(lookup.groupCode)}&api-key=${encodeURIComponent(lookup.apiKey)}`;
-  const result = await makeRamblersApiRequest(path);
-
-  if (result.error) {
-    debugLog("Error fetching group details:", result.error);
-    return null;
-  }
-
-  const groups = result.response || [];
-  return groups.find(g => g.group_code === lookup.groupCode) || (groups.length > 0 ? groups[0] : null);
 }
 
-export async function validateRamblersApiKey(apiKey: string): Promise<ValidationResult> {
+export async function validateRamblersApiKey(suppliedApiKey: string): Promise<ValidationResult> {
+  const apiKey = await resolvedRamblersApiKey(suppliedApiKey);
   if (!apiKey) {
     return { valid: false, message: "API key is required" };
   }

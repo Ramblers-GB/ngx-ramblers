@@ -5,6 +5,7 @@ import { ContentMetadata, ContentMetadataItem, ContentMetadataResizeRequest } fr
 import { ApiAction } from "./api-response.model";
 import { ExportedGpxSummary, OsMapsListedRoute } from "./os-maps-export.model";
 import { OsDataHubApiKey } from "./os-data-hub-api-key.model";
+import { WalksManagerAccess } from "./walks-manager-access.model";
 import {
   ContentMigrationProgress,
   ContentMigrationRequest,
@@ -86,6 +87,7 @@ export interface IntegrationWorkerResultCallbackRequest {
   listedRoutes?: OsMapsListedRoute[];
   exportedGpx?: ExportedGpxSummary[];
   osDataHubApiKey?: OsDataHubApiKey;
+  walksManagerAccess?: WalksManagerAccess;
 }
 
 export interface PublicSiteFetchRelay {

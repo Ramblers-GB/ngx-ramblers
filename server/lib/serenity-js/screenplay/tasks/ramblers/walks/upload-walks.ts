@@ -13,6 +13,10 @@ import { SetFileInput } from "../../common/set-file-input";
 
 export class UploadWalks {
 
+  static openCreateMenu() {
+    return ClickWhenReady.on(WalksPageElements.createMenuDropdown);
+  }
+
   static fileWithNameAndCount(fileName: string, walkCount: number) {
     return UploadWalksSpecifiedWalks.withFile(fileName, walkCount);
   }
@@ -30,7 +34,7 @@ export class UploadWalksSpecifiedWalks {
     const message = `${pluraliseWithCount(walkCount, "walk")} ${pluralise(walkCount, "has", "have")} been created`;
     return Task.where(`#actor uploads file ${fileName} containing ${pluraliseWithCount(walkCount, "walk")}`,
       Log.message(`Uploading file ${fileName} containing ${pluraliseWithCount(walkCount, "walk")}`),
-      ClickWhenReady.on(WalksPageElements.createMenuDropdown),
+      UploadWalks.openCreateMenu(),
       ClickWhenReady.on(WalksPageElements.uploadAWalksCSV),
       Accept.dismissCookieBanners(),
       SetFileInput.to(fileName).from(WalksPageElements.chooseFilesButton),

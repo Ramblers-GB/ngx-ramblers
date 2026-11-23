@@ -8,7 +8,7 @@ import { sortBy } from "../../../functions/arrays";
 import { SerenityReportButtonComponent } from "../../../modules/common/serenity-report-button/serenity-report-button";
 import { isRamblersAuditNoise } from "../../../models/ramblers-audit-noise.model";
 import { AuditType, FileUploadSummary, RamblersUploadAudit, Status } from "../../../models/ramblers-upload-audit.model";
-import { SerenityFeature } from "../../../models/serenity-feature.model";
+import { SERENITY_JOB_WAITING_MESSAGES, SerenityFeature } from "../../../models/serenity-feature.model";
 import { isUploadFinishedMessage } from "../../../functions/integration-worker";
 import { OsMapsExportJobResult, OsMapsExportJobStatus, OsMapsExportProgress, osMapsExportProgressFromMessage } from "../../../models/os-maps-export.model";
 import { SortDirection } from "../../../models/sort.model";
@@ -248,7 +248,7 @@ export class SerenityJobAuditPanelComponent implements OnInit, OnChanges, OnDest
     } else if (this.jobFinished()) {
       return this.selectedSession?.status === Status.ERROR ? "The job could not finish. Show details to see why." : "Job finished";
     } else {
-      return this.feature === SerenityFeature.OS_MAPS_LIST ? "Loading routes from OS Maps…" : "Waiting for conversion progress…";
+      return SERENITY_JOB_WAITING_MESSAGES[this.feature] || "Waiting for conversion progress…";
     }
   }
 

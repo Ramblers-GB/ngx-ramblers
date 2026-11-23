@@ -1,5 +1,5 @@
-import { Component, EventEmitter, inject, Input, OnDestroy, OnInit, Output, signal } from "@angular/core";
-import { faAdd, faSync, faClock, faCheckCircle, faTimesCircle, faInfoCircle } from "@fortawesome/free-solid-svg-icons";
+import { Component, EventEmitter, inject, Input, OnChanges, OnDestroy, OnInit, Output, signal, SimpleChanges } from "@angular/core";
+import { faAdd, faSync, faClock, faCheckCircle, faTimesCircle, faInfoCircle, faUserCheck } from "@fortawesome/free-solid-svg-icons";
 import { NgxLoggerLevel } from "ngx-logger";
 import { RamblersSyncMode, SystemConfig, WalksManagerSyncStats, WalksManagerSyncStatusResponse } from "../../../../models/system.model";
 import { Logger, LoggerFactory } from "../../../../services/logger-factory.service";
@@ -7,16 +7,22 @@ import { SystemConfigService } from "../../../../services/system/system-config.s
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { SecretInputComponent } from "../../../../modules/common/secret-input/secret-input.component";
 import { HttpClient } from "@angular/common/http";
+import { NgClass } from "@angular/common";
 import { AdminSettingsPath } from "../../../../models/admin-route-paths.model";
 import { RouterLink } from "@angular/router";
 import { DateUtilsService } from "../../../../services/date-utils.service";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { WebSocketClientService } from "../../../../services/websockets/websocket-client.service";
 import { EventType, MessageType } from "../../../../models/websocket.model";
-import { Subscription } from "rxjs";
+import { firstValueFrom, Subscription, switchMap, takeUntil, takeWhile, timer } from "rxjs";
 import { InputSize } from "../../../../models/ui-size.model";
 import { StoredValue } from "../../../../models/ui-actions.model";
 import { walksManagerSyncEnabled } from "../../../../functions/walks/walks-manager-sync-config";
+import { WALKS_MANAGER_ACCESS_MAX_WAIT_MS, WALKS_MANAGER_ACCESS_POLL_MS, WALKS_MANAGER_ACCESS_ALERT_CLASSES, WALKS_MANAGER_ACCESS_TITLES, WalksManagerAccess, WalksManagerAccessStatus } from "../../../../models/walks-manager-access.model";
+import { IntegrationWorkerJobResponse } from "../../../../models/integration-worker.model";
+import { SerenityFeature } from "../../../../models/serenity-feature.model";
+import { SerenityJobAuditPanelComponent } from "../../../walks/walk-admin/serenity-job-audit-panel";
+import { walksManagerAccessWithStatus, walksManagerLoginUnsaved } from "../../../../functions/walks/walks-manager-access";
 
 @Component({
   selector: "app-ramblers-settings",
@@ -112,6 +118,32 @@ import { walksManagerSyncEnabled } from "../../../../functions/walks/walks-manag
                 placeholder="Enter Walks Manager API key">
               </app-secret-input>
             </form>
+          </div>
+          <div class="col-md-12">
+            <button type="button" class="btn btn-primary"
+                    [disabled]="checkingAccess() || !config.national.walksManager.userName || !config.national.walksManager.password"
+                    (click)="checkWalksManagerAccess()">
+              <fa-icon [icon]="faUserCheck" [animation]="checkingAccess() ? 'beat-fade' : undefined" class="me-2"/>
+              {{ checkingAccess() ? "Checking the Walks Manager login…" : "Check this Walks Manager login" }}
+            </button>
+            @if (accessJobFileName() || startingAccessCheck()) {
+              <div class="mt-3">
+                <app-serenity-job-audit-panel [fileName]="accessJobFileName()" [starting]="startingAccessCheck()"
+                                              [jobRunning]="checkingAccess()" [feature]="SerenityFeature.WALKS_MANAGER_ACCESS"/>
+              </div>
+            }
+            @if (walksManagerAccess(); as access) {
+              <div class="alert d-flex align-items-start mt-3 mb-0" role="status" [ngClass]="WALKS_MANAGER_ACCESS_ALERT_CLASSES[access.status]">
+                <fa-icon [icon]="access.status === WalksManagerAccessStatus.UPLOAD_AVAILABLE ? faCheckCircle : faTimesCircle" class="me-2 mt-1"/>
+                <div>
+                  <strong class="d-block">{{ WALKS_MANAGER_ACCESS_TITLES[access.status] }}</strong>
+                  {{ access.message }}
+                  @if (checkedUnsavedLogin() && access.status === WalksManagerAccessStatus.UPLOAD_AVAILABLE) {
+                    <strong class="d-block mt-2">This login has not been saved yet. Save the settings to keep it.</strong>
+                  }
+                </div>
+              </div>
+            }
           </div>
         </div>
 
@@ -246,9 +278,9 @@ import { walksManagerSyncEnabled } from "../../../../functions/walks/walks-manag
       </div>
     }
   `,
-  imports: [ReactiveFormsModule, FormsModule, SecretInputComponent, FontAwesomeModule, RouterLink]
+  imports: [ReactiveFormsModule, FormsModule, SecretInputComponent, FontAwesomeModule, RouterLink, SerenityJobAuditPanelComponent, NgClass]
 })
-export class RamblersSettings implements OnInit, OnDestroy {
+export class RamblersSettings implements OnInit, OnChanges, OnDestroy {
   adminSettingsSystemSettingsPath = AdminSettingsPath.SYSTEM_SETTINGS;
 
   private logger: Logger = inject(LoggerFactory).createLogger("RamblersSettings", NgxLoggerLevel.ERROR);
@@ -263,6 +295,19 @@ export class RamblersSettings implements OnInit, OnDestroy {
   faCheckCircle = faCheckCircle;
   faTimesCircle = faTimesCircle;
   faInfoCircle = faInfoCircle;
+  faUserCheck = faUserCheck;
+  protected readonly WalksManagerAccessStatus = WalksManagerAccessStatus;
+  protected readonly WALKS_MANAGER_ACCESS_TITLES = WALKS_MANAGER_ACCESS_TITLES;
+  protected readonly WALKS_MANAGER_ACCESS_ALERT_CLASSES = WALKS_MANAGER_ACCESS_ALERT_CLASSES;
+  checkingAccess = signal<boolean>(false);
+  walksManagerAccess = signal<WalksManagerAccess | null>(null);
+  startingAccessCheck = signal<boolean>(false);
+  accessJobFileName = signal<string | null>(null);
+  checkedUnsavedLogin = signal<boolean>(false);
+  private savedWalksManagerUserName: string | null = null;
+  protected readonly SerenityFeature = SerenityFeature;
+  private readonly accessCheckUrl = "/api/ramblers/walks-manager/check-access";
+  private accessCheckSubscription: Subscription;
 
   @Input() config: SystemConfig;
   @Output() syncingChange = new EventEmitter<boolean>();
@@ -284,6 +329,13 @@ export class RamblersSettings implements OnInit, OnDestroy {
   private completeSubscription: Subscription;
   private errorSubscription: Subscription;
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes.config) {
+      this.savedWalksManagerUserName = this.config?.national?.walksManager?.userName || null;
+      this.checkedUnsavedLogin.set(false);
+    }
+  }
+
   async ngOnInit() {
     this.logger.info("constructed:config:", this.config);
     await this.loadSyncStatus();
@@ -291,7 +343,54 @@ export class RamblersSettings implements OnInit, OnDestroy {
     this.setupWebSocketSubscriptions();
   }
 
+  async checkWalksManagerAccess(): Promise<void> {
+    this.accessCheckSubscription?.unsubscribe();
+    this.checkingAccess.set(true);
+    this.startingAccessCheck.set(true);
+    this.accessJobFileName.set(null);
+    this.walksManagerAccess.set(null);
+    try {
+      const walksManager = this.config.national.walksManager;
+      this.checkedUnsavedLogin.set(walksManagerLoginUnsaved(walksManager, this.savedWalksManagerUserName));
+      const started = await firstValueFrom(this.http.post<IntegrationWorkerJobResponse>(this.accessCheckUrl, {userName: walksManager.userName, password: walksManager.password}));
+      this.accessJobFileName.set(started.fileName || null);
+      this.watchAccessCheck(started.jobId);
+    } catch (error) {
+      this.accessCheckFailed(error);
+    } finally {
+      this.startingAccessCheck.set(false);
+    }
+  }
+
+  private watchAccessCheck(jobId: string): void {
+    this.accessCheckSubscription = timer(WALKS_MANAGER_ACCESS_POLL_MS, WALKS_MANAGER_ACCESS_POLL_MS).pipe(
+      switchMap(() => this.http.get<WalksManagerAccess>(`${this.accessCheckUrl}/${jobId}`)),
+      takeWhile(access => access.status === WalksManagerAccessStatus.QUEUED, true),
+      takeUntil(timer(WALKS_MANAGER_ACCESS_MAX_WAIT_MS))
+    ).subscribe({
+      next: access => {
+        if (access.status !== WalksManagerAccessStatus.QUEUED) {
+          this.walksManagerAccess.set(access);
+          this.checkingAccess.set(false);
+        }
+      },
+      error: error => this.accessCheckFailed(error),
+      complete: () => {
+        if (this.checkingAccess()) {
+          this.accessCheckFailed(new Error(`the integration worker did not finish within ${WALKS_MANAGER_ACCESS_MAX_WAIT_MS / 60000} minutes`));
+        }
+      }
+    });
+  }
+
+  private accessCheckFailed(error: unknown): void {
+    const reason = (error as {error?: {message?: string}})?.error?.message || (error as Error)?.message;
+    this.walksManagerAccess.set(walksManagerAccessWithStatus(WalksManagerAccessStatus.NOT_CHECKED, reason));
+    this.checkingAccess.set(false);
+  }
+
   ngOnDestroy() {
+    this.accessCheckSubscription?.unsubscribe();
     this.progressSubscription?.unsubscribe();
     this.completeSubscription?.unsubscribe();
     this.errorSubscription?.unsubscribe();

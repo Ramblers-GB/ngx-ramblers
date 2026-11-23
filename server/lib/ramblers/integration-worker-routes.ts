@@ -1,4 +1,3 @@
-import { completeOsMapsExportResult, osMapsExportResultByJobId } from "../os-maps/os-maps-export-result-store";
 import { dateTimeNowAsValue } from "../shared/dates";
 import debug from "debug";
 import express, { Request, Response } from "express";
@@ -14,8 +13,7 @@ import {
   IntegrationWorkerQueueCancelResult,
   IntegrationWorkerQueueClearResult,
   IntegrationWorkerQueueJob,
-  IntegrationWorkerQueueStatus,
-  IntegrationWorkerResultCallbackRequest
+  IntegrationWorkerQueueStatus
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
 import { cancelActiveWorkerJob, executeRamblersUploadJobOnWorker } from "./integration-worker-runner";
 import * as auditNotifier from "./ramblers-upload-audit-notifier";
@@ -29,9 +27,7 @@ import { IntegrationWorkerQueuedUploadJob } from "../models/ramblers-upload-exec
 import { integrationWorkerHeavyJobQueue } from "./integration-worker-heavy-job-queue";
 import { IntegrationWorkerHeavyJob, IntegrationWorkerHeavyJobType } from "../models/integration-worker-heavy-job.model";
 import { isOsMapsWorkerJob } from "./serenity-job-environment";
-import { saveOsMapsRouteListing } from "../os-maps/os-maps-route-listing-store";
-import { applyOsMapsExportWorkerResult } from "../os-maps/os-maps-gpx-attach";
-import { applyOsDataHubApiKeyWorkerResult } from "../os-maps/os-data-hub-api-key-store";
+import { callbackSecret, integrationWorkerResult, requiredValue } from "./integration-worker-controllers";
 import { notifyWorkerHoldArrived, waitForWorkerHoldArrival } from "./integration-worker-hold";
 
 const debugLog = debug(envConfig.logNamespace("integration-worker-routes"));
@@ -223,56 +219,7 @@ router.post("/progress", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/result", async (req: Request, res: Response) => {
-  const incomingJobId = (req.body as IntegrationWorkerResultCallbackRequest | undefined)?.jobId;
-  const incomingStatus = (req.body as IntegrationWorkerResultCallbackRequest | undefined)?.status;
-  debugLog("POST /result received: jobId:", incomingJobId, "status:", incomingStatus);
-  try {
-    if (!verifySignedJsonRequest(req, callbackSecret())) {
-      debugLog("POST /result rejected: invalid signature for jobId:", incomingJobId);
-      res.status(401).json({ error: "Invalid upload worker callback signature" });
-      return;
-    }
-
-    const request: IntegrationWorkerResultCallbackRequest = req.body;
-    if (request.listedRoutes) {
-      const listingJob = await osMapsExportResultByJobId(request.jobId);
-      await saveOsMapsRouteListing(request.listedRoutes, listingJob?.accountOwnerId || null);
-      if (listingJob) {
-        await completeOsMapsExportResult(request.jobId, []);
-      }
-    }
-    const handledExport = await applyOsMapsExportWorkerResult(request.jobId, request.exportedGpx, request.payload)
-      || await applyOsDataHubApiKeyWorkerResult(request.jobId, request.osDataHubApiKey, request.payload);
-    const session = currentRamblersUploadSession(request.jobId);
-
-    if (!session) {
-      debugLog("POST /result no active session for jobId:", request.jobId);
-      if (!!request.listedRoutes || handledExport) {
-        res.json({ success: true });
-      } else {
-        res.status(404).json({ error: `No upload session found for job ${request.jobId}` });
-      }
-    } else {
-      activateRamblersUploadSession(request.jobId);
-      if (request.reportKeyPrefix && request.reportBucket) {
-        await auditNotifier.recordReportLocation(request.jobId, request.reportBucket, request.reportKeyPrefix);
-      }
-      await auditNotifier.sendAudit(session.ws, {
-        messageType: MessageType.COMPLETE,
-        auditMessage: request.payload || "Upload completed",
-        parserFunction: auditParser.parseExit,
-        status: (request.status as Status) || Status.INFO
-      }, request.jobId);
-      downloadStatusManager.completeDownload(request.status === Status.SUCCESS ? ServerDownloadStatusType.COMPLETED : ServerDownloadStatusType.ERROR);
-      debugLog("POST /result forwarded to session for jobId:", incomingJobId, "reportKeyPrefix:", request.reportKeyPrefix);
-      res.json({ success: true });
-    }
-  } catch (error) {
-    debugLog("POST /result error for jobId:", incomingJobId, "error:", (error as Error).message);
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
+router.post("/result", integrationWorkerResult);
 
 export const integrationWorkerRoutes = router;
 
@@ -294,19 +241,4 @@ async function executeWorkerJob(queuedJob: IntegrationWorkerQueuedUploadJob): Pr
   } catch (error) {
     debugLog("executeWorkerJob: failed jobId:", jobId, "elapsedMs:", dateTimeNowAsValue() - startedAt, "queueWaitMs:", queueWaitMs, "error:", (error as Error).message);
   }
-}
-
-function callbackSecret(): string {
-  return envConfig.value(Environment.INTEGRATION_WORKER_CALLBACK_SECRET)
-    || requiredValue(Environment.INTEGRATION_WORKER_SHARED_SECRET);
-}
-
-function requiredValue(environmentVariable: Environment): string {
-  const value = envConfig.value(environmentVariable);
-
-  if (!value) {
-    throw new Error(`Environment variable '${environmentVariable}' must be set`);
-  }
-
-  return value;
 }

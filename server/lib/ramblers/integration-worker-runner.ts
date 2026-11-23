@@ -21,7 +21,8 @@ import {
 } from "../../../projects/ngx-ramblers/src/app/models/integration-worker.model";
 import { uploadFinishedMessage } from "../../../projects/ngx-ramblers/src/app/functions/integration-worker";
 import { prepareRamblersUploadJobFiles, removeRamblersUploadJobFiles } from "./ramblers-upload-job-files";
-import { applyOsMapsExportEnvironment, isOsDataHubApiKeyJob, isOsMapsExportJob, isOsMapsListJob, isOsMapsWorkerJob } from "./serenity-job-environment";
+import { applyOsMapsExportEnvironment, applyWalksManagerAccessEnvironment, isOsDataHubApiKeyJob, isOsMapsExportJob, isOsMapsListJob, isOsMapsWorkerJob, isWalksManagerAccessJob, runsOnlyOnIntegrationWorker } from "./serenity-job-environment";
+import { walksManagerAccessFromJobPath } from "./walks-manager-access-store";
 import { osDataHubApiKeyFromJobPath } from "../os-maps/os-data-hub-api-key-store";
 import { OsMapsListedRoute } from "../../../projects/ngx-ramblers/src/app/models/os-maps-export.model";
 import { exportedGpxFromJobPath } from "../os-maps/os-maps-exported-gpx-files";
@@ -106,7 +107,7 @@ export function startKeepAlive(jobId: string): () => void {
   }
 }
 
-function prepareOsMapsExportJobPath(jobId: string): {jobPath: string; metadataPath?: string} {
+function prepareWorkerJobPath(jobId: string): {jobPath: string; metadataPath?: string} {
   const jobPath = path.join("/tmp/os-maps-export", jobId);
   fs.mkdirSync(jobPath, {recursive: true});
   return {jobPath};
@@ -249,11 +250,13 @@ export async function executeRamblersUploadJobOnWorker(
 ): Promise<void> {
   const stopKeepAlive = startKeepAlive(job.jobId);
   const jobStartedAt = dateTimeNowAsValue();
-  const preparedFiles = isOsMapsWorkerJob(job)
-    ? prepareOsMapsExportJobPath(job.jobId)
+  const preparedFiles = runsOnlyOnIntegrationWorker(job)
+    ? prepareWorkerJobPath(job.jobId)
     : await prepareRamblersUploadJobFiles(job);
   if (isOsMapsWorkerJob(job)) {
     applyOsMapsExportEnvironment(job, credentials, preparedFiles.jobPath);
+  } else if (isWalksManagerAccessJob(job)) {
+    applyWalksManagerAccessEnvironment(job, credentials, preparedFiles.jobPath);
   } else {
     process.env[Environment.RAMBLERS_METADATA_FILE] = preparedFiles.metadataPath;
     process.env[Environment.RAMBLERS_FEATURE] = job.data.feature;
@@ -445,7 +448,8 @@ async function finishJob(
     reportBucket,
     listedRoutes: isOsMapsListJob(job) ? listedRoutesFromJobPath(jobPath) : undefined,
     exportedGpx: isOsMapsExportJob(job) ? exportedGpxFromJobPath(jobPath) : undefined,
-    osDataHubApiKey: isOsDataHubApiKeyJob(job) ? osDataHubApiKeyFromJobPath(jobPath) : undefined
+    osDataHubApiKey: isOsDataHubApiKeyJob(job) ? osDataHubApiKeyFromJobPath(jobPath) : undefined,
+    walksManagerAccess: isWalksManagerAccessJob(job) ? walksManagerAccessFromJobPath(jobPath) : undefined
   });
 }
 

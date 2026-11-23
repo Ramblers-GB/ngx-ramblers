@@ -27,7 +27,7 @@ describe("secret input", () => {
   it("shows a saved secret as saved, with nothing to reveal or copy", () => {
     const {fixture, input} = render(SECRET_MASK);
     expect(input.value).toBe("");
-    expect(input.placeholder).toBe("Saved - type a new value to replace it");
+    expect(input.placeholder).toBe("Saved");
     expect(fixture.nativeElement.querySelectorAll("button").length).toBe(0);
   });
 

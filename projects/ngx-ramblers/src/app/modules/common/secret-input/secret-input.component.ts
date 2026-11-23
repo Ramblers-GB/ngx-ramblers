@@ -112,6 +112,9 @@ import { SECRET_MASK } from "../../../models/config.model";
           (input)="onInputChange($event)"
           (blur)="onTouched()"
           [placeholder]="savedOnServer() ? savedPlaceholder : placeholder"
+          [tooltip]="savedOnServer() ? savedTooltip : null"
+          delay="500"
+          container="body"
           [disabled]="disabled"
           [readonly]="readOnly"
           [attr.autocomplete]="autocomplete"
@@ -156,7 +159,8 @@ export class SecretInputComponent implements ControlValueAccessor, OnDestroy {
 
   @Input() id = "";
   @Input() placeholder = "";
-  @Input() savedPlaceholder = "Saved - type a new value to replace it";
+  @Input() savedPlaceholder = "Saved";
+  @Input() savedTooltip = "Saved - type a new value to replace it";
   @Input() copyTooltip = "Copy to clipboard";
   @Input() set copyText(value: string) {
     this.value = value || "";

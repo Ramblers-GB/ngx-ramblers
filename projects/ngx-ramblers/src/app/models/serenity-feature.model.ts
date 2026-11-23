@@ -5,7 +5,8 @@ export enum SerenityFeature {
   WALKS_UPLOAD = "walks-upload.ts",
   OS_MAPS_EXPORT = "os-maps-export.ts",
   OS_MAPS_LIST = "os-maps-list.ts",
-  OS_DATA_HUB_API_KEY = "os-data-hub-api-key.ts"
+  OS_DATA_HUB_API_KEY = "os-data-hub-api-key.ts",
+  WALKS_MANAGER_ACCESS = "walks-manager-access.ts"
 }
 
 export interface SerenityFeatureFileName {
@@ -39,6 +40,12 @@ export const SERENITY_FEATURE_FILE_NAMES: Record<SerenityFeature, SerenityFeatur
     extension: "json",
     timestampPattern: "\\d{8}-\\d{6}",
     timestampFormat: UIDateFormat.FILE_TIMESTAMP_COMPACT
+  },
+  [SerenityFeature.WALKS_MANAGER_ACCESS]: {
+    prefix: "walks-manager-access-",
+    extension: "json",
+    timestampPattern: "\\d{8}-\\d{6}",
+    timestampFormat: UIDateFormat.FILE_TIMESTAMP_COMPACT
   }
 };
 
@@ -66,3 +73,8 @@ export function resolvedSerenityFeature(fileName: string, storedFeature?: string
     return serenityFeatureFromFileName(fileName);
   }
 }
+
+export const SERENITY_JOB_WAITING_MESSAGES: Partial<Record<SerenityFeature, string>> = {
+  [SerenityFeature.OS_MAPS_LIST]: "Loading routes from OS Maps…",
+  [SerenityFeature.WALKS_MANAGER_ACCESS]: "Logging in to Walks Manager…"
+};

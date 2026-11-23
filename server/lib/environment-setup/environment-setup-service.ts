@@ -17,7 +17,7 @@ import {
   SetupWarning,
   ValidationResult
 } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
-import { groupDetails, listGroupsByAreaCode, validateRamblersApiKey } from "./ramblers-api-client";
+import { groupDetails, listGroupsByAreaCode, resolvedRamblersApiKey, validateRamblersApiKey } from "./ramblers-api-client";
 import {
   adminConfigFromEnvironment,
   awsConfigForBucket,
@@ -352,11 +352,19 @@ export async function createEnvironment(
       throw new Error(`Validation failed: ${errorMessage}`);
     }
     reportProgress(SetupStep.VALIDATE_INPUTS, SetupStepStatus.Completed, "All validations passed");
+    const ramblersApiKey = await resolvedRamblersApiKey(request.serviceConfigs.ramblers.apiKey);
+    const resolvedRequest: EnvironmentSetupRequest = {
+      ...request,
+      serviceConfigs: {
+        ...request.serviceConfigs,
+        ramblers: {...request.serviceConfigs.ramblers, apiKey: ramblersApiKey}
+      }
+    };
 
     reportProgress(SetupStep.QUERY_RAMBLERS_API, SetupStepStatus.Running, "Fetching group details from Ramblers API");
     const groupData = await groupDetails({
       groupCode: request.ramblersInfo.groupCode,
-      apiKey: request.serviceConfigs.ramblers.apiKey
+      apiKey: ramblersApiKey
     });
     if (!groupData) {
       throw new Error(`Failed to fetch group details for ${request.ramblersInfo.groupCode}`);
@@ -367,7 +375,7 @@ export async function createEnvironment(
 
     const areaGroups = await listGroupsByAreaCode({
       areaCode: request.ramblersInfo.areaCode,
-      apiKey: request.serviceConfigs.ramblers.apiKey
+      apiKey: ramblersApiKey
     });
     if (areaGroups.length > 0) {
       request.ramblersInfo.areaData = areaGroups[0];
@@ -513,7 +521,7 @@ export async function createEnvironment(
       reportProgress(SetupStep.INITIALISE_DATABASE, SetupStepStatus.Running, "Initialising MongoDB database");
       const dbInitTimeout = 120000;
       const dbResult = await Promise.race([
-        initialiseDatabase(request, dbProgress => {
+        initialiseDatabase(resolvedRequest, dbProgress => {
           reportProgress(SetupStep.INITIALISE_DATABASE, SetupStepStatus.Running, dbProgress.message || dbProgress.step);
         }, copiedAssets, awsCredentials.bucket ? bannerPictureStoreFor(awsCredentials) : null),
         new Promise<never>((_, reject) =>

@@ -40,3 +40,19 @@ export function applyOsMapsExportEnvironment(job: RamblersUploadJob, credentials
     delete process.env[Environment.OS_MAPS_ROUTE_URLS];
   }
 }
+
+export function isWalksManagerAccessJob(job: RamblersUploadJob): boolean {
+  return job.data.feature === SerenityFeature.WALKS_MANAGER_ACCESS;
+}
+
+export function runsOnlyOnIntegrationWorker(job: RamblersUploadJob): boolean {
+  return isOsMapsWorkerJob(job) || isWalksManagerAccessJob(job);
+}
+
+export function applyWalksManagerAccessEnvironment(job: RamblersUploadJob, credentials: RamblersUploadCredentials, jobPath: string): void {
+  process.env[Environment.RAMBLERS_FEATURE] = job.data.feature;
+  process.env[Environment.RAMBLERS_USERNAME] = (credentials.userName || "").trim();
+  process.env[Environment.RAMBLERS_PASSWORD] = credentials.password || "";
+  process.env[Environment.RAMBLERS_JOB_PATH] = jobPath;
+  delete process.env[Environment.RAMBLERS_METADATA_FILE];
+}

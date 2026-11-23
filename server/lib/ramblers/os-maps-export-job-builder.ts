@@ -4,7 +4,7 @@ import {
   RamblersUploadJobData,
   RamblersUploadJobState
 } from "../../../projects/ngx-ramblers/src/app/models/ramblers-upload-job.model";
-import { SerenityFeature } from "../../../projects/ngx-ramblers/src/app/models/serenity-feature.model";
+import { SERENITY_FEATURE_FILE_NAMES, SerenityFeature } from "../../../projects/ngx-ramblers/src/app/models/serenity-feature.model";
 import { dateTimeNow, dateTimeNowAsValue, formatDateTime } from "../shared/dates";
 import { UIDateFormat } from "../../../projects/ngx-ramblers/src/app/models/date-format.model";
 
@@ -21,47 +21,38 @@ function emptyWalkJobData(): Omit<RamblersUploadJobData, "fileName" | "feature">
   };
 }
 
-export function buildOsMapsExportJob(routeUrls: string[], walkId?: string, ramblersUser?: string): RamblersUploadJob {
+function workerJob(feature: SerenityFeature, extra: Partial<RamblersUploadJobData> = {}): RamblersUploadJob {
+  const naming = SERENITY_FEATURE_FILE_NAMES[feature];
   return {
     jobId: randomUUID(),
     createdAt: dateTimeNowAsValue(),
     state: RamblersUploadJobState.QUEUED,
     data: {
       ...emptyWalkJobData(),
-      fileName: `os-maps-export-${formatDateTime(dateTimeNow(), UIDateFormat.FILE_TIMESTAMP_COMPACT)}.gpx`,
-      feature: SerenityFeature.OS_MAPS_EXPORT,
-      osMapsRouteUrl: routeUrls[0],
-      osMapsRouteUrls: routeUrls,
-      ...(walkId ? {osMapsWalkId: walkId} : {}),
-      ...(ramblersUser ? {ramblersUser} : {})
+      fileName: `${naming.prefix}${formatDateTime(dateTimeNow(), UIDateFormat.FILE_TIMESTAMP_COMPACT)}.${naming.extension}`,
+      feature,
+      ...extra
     }
   };
+}
+
+export function buildOsMapsExportJob(routeUrls: string[], walkId?: string, ramblersUser?: string): RamblersUploadJob {
+  return workerJob(SerenityFeature.OS_MAPS_EXPORT, {
+    osMapsRouteUrl: routeUrls[0],
+    osMapsRouteUrls: routeUrls,
+    ...(walkId ? {osMapsWalkId: walkId} : {}),
+    ...(ramblersUser ? {ramblersUser} : {})
+  });
 }
 
 export function buildOsDataHubApiKeyJob(projectName: string): RamblersUploadJob {
-  return {
-    jobId: randomUUID(),
-    createdAt: dateTimeNowAsValue(),
-    state: RamblersUploadJobState.QUEUED,
-    data: {
-      ...emptyWalkJobData(),
-      fileName: `os-data-hub-api-key-${formatDateTime(dateTimeNow(), UIDateFormat.FILE_TIMESTAMP_COMPACT)}.json`,
-      feature: SerenityFeature.OS_DATA_HUB_API_KEY,
-      osDataHubProjectName: projectName
-    }
-  };
+  return workerJob(SerenityFeature.OS_DATA_HUB_API_KEY, {osDataHubProjectName: projectName});
 }
 
 export function buildOsMapsListJob(ramblersUser?: string): RamblersUploadJob {
-  return {
-    jobId: randomUUID(),
-    createdAt: dateTimeNowAsValue(),
-    state: RamblersUploadJobState.QUEUED,
-    data: {
-      ...emptyWalkJobData(),
-      fileName: `os-maps-list-${formatDateTime(dateTimeNow(), UIDateFormat.FILE_TIMESTAMP_COMPACT)}.json`,
-      feature: SerenityFeature.OS_MAPS_LIST,
-      ...(ramblersUser ? {ramblersUser} : {})
-    }
-  };
+  return workerJob(SerenityFeature.OS_MAPS_LIST, ramblersUser ? {ramblersUser} : {});
+}
+
+export function buildWalksManagerAccessJob(): RamblersUploadJob {
+  return workerJob(SerenityFeature.WALKS_MANAGER_ACCESS);
 }
