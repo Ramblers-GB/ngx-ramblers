@@ -6,7 +6,8 @@ import { faGithub } from "@fortawesome/free-brands-svg-icons";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import { DEVELOPMENT_BUILD_NUMBER, DeploymentInfo } from "../../models/build-version.model";
-import { ReleaseFeed, ReleaseFeedEntry } from "../../models/release-feed.model";
+import { ReleaseFeed, ReleaseNoteLink } from "../../models/release-feed.model";
+import { releaseNoteLinks } from "../../functions/release-note-title";
 import { Organisation } from "../../models/system.model";
 import { UIDateFormat } from "../../models/date-format.model";
 import { DateUtilsService } from "../../services/date-utils.service";
@@ -151,8 +152,16 @@ const RELEASE_FEED_LIMIT = 20;
                 <strong>{{ releaseNotesMatchBuild ? "Release notes for this build:" : "Latest release notes:" }}</strong>
               </p>
               <ul class="mb-2">
-                @for (releaseNote of releaseNotes; track releaseNote.path) {
-                  <li><a [href]="releaseNote.url">{{ releaseNote.title }}</a></li>
+                @for (releaseNote of releaseNotes; track releaseNote.entry.path) {
+                  <li>
+                    @for (segment of releaseNote.segments; track $index) {
+                      @if (segment.issueUrl) {
+                        <a [href]="segment.issueUrl" target="_blank" rel="noopener">{{ segment.text }}</a>
+                      } @else {
+                        <a [href]="releaseNote.entry.url">{{ segment.text }}</a>
+                      }
+                    }
+                  </li>
                 }
               </ul>
               @if (!releaseNotesMatchBuild && !isDevelopmentBuild()) {
@@ -167,7 +176,7 @@ const RELEASE_FEED_LIMIT = 20;
               <div class="d-grid d-sm-flex gap-2">
                 <a class="btn btn-primary rounded-pill" [href]="feed.indexUrl"><fa-icon [icon]="faCodeBranch" class="me-2"/>All release notes</a>
                 @if (feed.humansIndexPath) {
-                  <a class="btn btn-quiet rounded-pill" [href]="feed.humansIndexUrl"><fa-icon [icon]="faArrowUpRightFromSquare" class="me-2"/>Release notes for members</a>
+                  <a class="btn btn-quiet rounded-pill" [href]="feed.humansIndexUrl"><fa-icon [icon]="faArrowUpRightFromSquare" class="me-2"/>Release notes for humans</a>
                 }
               </div>
             }
@@ -200,7 +209,7 @@ export class VersionPageComponent implements OnInit, OnDestroy {
   protected feed: ReleaseFeed | null = null;
   protected feedLoaded = false;
   protected feedError = false;
-  protected releaseNotes: ReleaseFeedEntry[] = [];
+  protected releaseNotes: ReleaseNoteLink[] = [];
   protected releaseNotesMatchBuild = false;
   protected error: string | null = null;
   protected group: Organisation | null = null;
@@ -223,7 +232,7 @@ export class VersionPageComponent implements OnInit, OnDestroy {
       this.feed = await this.deploymentInfoService.releaseFeed(RELEASE_FEED_LIMIT);
       const forBuild = this.info ? this.deploymentInfoService.releaseNotesForBuild(this.feed, this.info.buildNumber) : [];
       this.releaseNotesMatchBuild = forBuild.length > 0;
-      this.releaseNotes = forBuild.length > 0 ? forBuild : (this.feed?.entries || []).slice(0, 1);
+      this.releaseNotes = releaseNoteLinks(forBuild.length > 0 ? forBuild : (this.feed?.entries || []).slice(0, 1));
     } catch (error) {
       this.logger.error("could not load release feed", error);
       this.feedError = true;

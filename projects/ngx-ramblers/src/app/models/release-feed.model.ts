@@ -10,6 +10,16 @@ export interface ReleaseFeedEntry {
   hasImages: boolean;
 }
 
+export interface ReleaseNoteTitleSegment {
+  text: string;
+  issueUrl: string | null;
+}
+
+export interface ReleaseNoteLink {
+  entry: ReleaseFeedEntry;
+  segments: ReleaseNoteTitleSegment[];
+}
+
 export interface ReleaseFeed {
   title: string;
   description: string;
