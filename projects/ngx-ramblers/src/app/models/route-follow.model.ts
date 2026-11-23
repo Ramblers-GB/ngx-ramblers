@@ -753,6 +753,26 @@ export const ROUTE_FOLLOW_APPROACH_METRES = 40;
 export const ROUTE_FOLLOW_NUDGE_METRES = 50;
 export const ROUTE_FOLLOW_OFF_ROUTE_METRES = 50;
 export const ROUTE_FOLLOW_LOOP_CLOSURE_METRES = 150;
+export const ROUTE_START_ALIGNED_METRES = 50;
+export const ROUTE_START_ON_ROUTE_METRES = 100;
+export const ROUTE_START_NEAREST_POINT_METRES = 10;
+
+export enum RouteStartAlignmentKind {
+  ALIGNED = "aligned",
+  LOOP_PASSES_START = "loop-passes-start",
+  FINISHES_AT_START = "finishes-at-start",
+  PASSES_START = "passes-start",
+  AWAY_FROM_START = "away-from-start"
+}
+
+export interface RouteStartAlignment {
+  kind: RouteStartAlignmentKind;
+  routeStartMetres: number;
+  passesAtMetres: number | null;
+  startPoint: RouteFollowPoint | null;
+}
+
+export const ROUTE_START_COPY_NOTE = "Saving keeps an adjusted copy for this walk. The original route file is not changed, so anything else using it is unaffected.";
 export const ROUTE_FOLLOW_SNAP_AMBIGUITY_METRES = 40;
 export const ROUTE_FOLLOW_PROGRESS_MEMORY_HOURS = 12;
 export const ROUTE_FOLLOW_PATH_ROUTER_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/foot";

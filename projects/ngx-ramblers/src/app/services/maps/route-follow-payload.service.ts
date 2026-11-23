@@ -381,6 +381,11 @@ export class RouteFollowPayloadService {
     }
   }
 
+  async routePoints(fileData: FileNameData | Partial<ServerFileNameData> | undefined): Promise<RouteFollowPoint[]> {
+    const parsed = await this.loadGpx(fileData);
+    return parsed.points;
+  }
+
   private async loadGpx(fileData: FileNameData | Partial<ServerFileNameData> | undefined, trackIndex = 0): Promise<{points: RouteFollowPoint[]; waypoints: RouteFollowWaypoint[]; totalMetres: number; tracks: RouteFollowPoint[][]}> {
     const url = this.gpxDownloadUrl(fileData);
     if (!url) {

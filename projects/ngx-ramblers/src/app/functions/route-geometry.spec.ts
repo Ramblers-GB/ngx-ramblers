@@ -109,6 +109,12 @@ describe("following a route that passes the same place twice", () => {
       expect(isClosedLoop(square.slice(0, 2), 150)).toBe(false);
     });
 
+    it("recognises a loop read from a GPX file, whose first point starts a track segment, but not one with a gap part way round", () => {
+      const parsed = square.map((point, index) => ({...point, breakBefore: index === 0}));
+      expect(isClosedLoop(parsed, 150)).toBe(true);
+      expect(isClosedLoop(parsed.map((point, index) => ({...point, breakBefore: index === 0 || index === 2})), 150)).toBe(false);
+    });
+
     it("starts and finishes the loop at the chosen place, keeping the order of the route", () => {
       const restarted = loopRestartedAt(square, {latitude: 51.005, longitude: 1.0101});
       expect(restarted[0].latitude).toBeCloseTo(51.005, 6);

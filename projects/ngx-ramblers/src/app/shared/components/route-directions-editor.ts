@@ -54,6 +54,9 @@ import { RouteStepControls } from "./route-step-controls";
       flex: 1 1 18rem
       min-width: 0
 
+    .route-directions-toolbar ~ .route-directions-layout > .route-guide-panel.thumbnail-heading-frame-compact
+      margin-top: 28px
+
     .route-directions-layout .map-section:not(:has([routeDirectionsMap]))
       display: none
 

@@ -49,11 +49,13 @@ import { faCloudArrowUp, faMap, faPencil, faRightLeft, faRoute, faTableColumns, 
 import { LatLng } from "leaflet";
 import { RouteFollowPayloadService } from "../../../services/maps/route-follow-payload.service";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
+import { WalkRouteStartCheckComponent } from "./walk-route-start-check";
 
 @Component({
   selector: "app-walk-edit-details",
   imports: [
     GpxProposalsComponent,
+    WalkRouteStartCheckComponent,
     FormsModule,
     WalkLocationEditComponent,
     EventAscentEdit,
@@ -244,6 +246,13 @@ import { TooltipDirective } from "ngx-bootstrap/tooltip";
                 @if (uploadError) {
                   <small class="text-danger">{{ uploadError }}</small>
                 }
+                <app-walk-route-start-check [gpxFile]="displayedWalk?.walk?.fields?.gpxFile"
+                                            [awsFileName]="displayedWalk?.walk?.fields?.gpxFile?.awsFileName"
+                                            [startLocation]="displayedWalk?.walk?.groupEvent?.start_location"
+                                            [latitude]="displayedWalk?.walk?.groupEvent?.start_location?.latitude"
+                                            [longitude]="displayedWalk?.walk?.groupEvent?.start_location?.longitude"
+                                            [disabled]="inputDisabled || !canOpenFollowEditor"
+                                            (adjust)="openFollowEditor()"/>
                 <app-gpx-proposals id="walk" [proposals]="gpxProposals" [loading]="gpxProposalsLoading" (applied)="applyGpxProposals()" (dismissed)="gpxProposals = []"/>
               </div>
             </div>

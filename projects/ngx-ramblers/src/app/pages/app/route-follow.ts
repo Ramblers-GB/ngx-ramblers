@@ -16,6 +16,7 @@ import { MobileAppAccessService } from "../../services/maps/mobile-app-access.se
 import { MobileAppAction } from "../../models/walks-config.model";
 import { routeSegments } from "../../functions/route-geometry";
 import { routeHasElevation } from "../../functions/route-elevation";
+import { routeStartAdjustable, routeStartAdjustLabel, routeStartAlignment, routeStartAlignmentMessage, routeStartNeedsAttention, walkStartPoint } from "../../functions/route-start-alignment";
 import { RouteAuditComponent } from "../../modules/common/route-audit";
 import { RouteElevationComponent } from "../../shared/components/route-elevation";
 import { RouteDirectionsEditor } from "../../shared/components/route-directions-editor";
@@ -138,6 +139,9 @@ import {
   sheetStateAfterDrag,
   RouteBranch,
   ROUTE_FORK_PROMPT_METRES,
+  ROUTE_START_COPY_NOTE,
+  RouteStartAlignment,
+  RouteStartAlignmentKind,
   AppHomeView
 } from "../../models/route-follow.model";
 import { DEFAULT_OS_STYLE, MAP_BASEMAP_CHOICES, MapBasemapChoice, MapProvider } from "../../models/map.model";
@@ -803,6 +807,24 @@ import { SystemConfigService } from "../../services/system/system-config.service
               <div><strong>Session storage unavailable</strong><p>{{ sessionStorageError }}</p></div>
             </div>
           }
+          @if (showStartAlignment) {
+            <div class="alert alert-warning d-flex align-items-start gap-2" role="status">
+              <fa-icon [icon]="faCircleExclamation"/>
+              <div class="flex-grow-1">
+                <strong class="d-block">Route does not start at the walk's start</strong>
+                {{ startAlignmentMessage }}
+                @if (startAlignmentAdjustable) {
+                  <div class="small mt-1">{{ ROUTE_START_COPY_NOTE }}</div>
+                }
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  @if (startAlignmentAdjustable) {
+                    <button type="button" class="btn btn-sm btn-primary px-2" (click)="adjustRouteStart()"><fa-icon [icon]="faRightLeft"/>{{ startAlignmentLabel }}</button>
+                  }
+                  <button type="button" class="btn btn-sm btn-quiet px-2" (click)="startAlignmentDismissed = true"><fa-icon [icon]="faXmark"/>Leave it as it is</button>
+                </div>
+              </div>
+            </div>
+          }
           @if (startLocationMessage && !plottingRoute()) {
             <div class="alert alert-warning d-flex align-items-start gap-2" role="status">
               <fa-icon [icon]="faCircleExclamation"/>
@@ -1215,6 +1237,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private plotRecordingId: string | null = null;
   private saveAsNewRecordingId: string | null = null;
   protected startLocationMessage: string | null = null;
+  protected startAlignment: RouteStartAlignment | null = null;
+  protected startAlignmentDismissed = false;
   protected startingFollow = false;
   protected savingRoute = false;
   protected readonly mobileAccess = inject(MobileAppAccessService);
@@ -2748,6 +2772,47 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.redraw();
   }
 
+  get showStartAlignment(): boolean {
+    return !this.startAlignmentDismissed && routeStartNeedsAttention(this.startAlignment);
+  }
+
+  get startAlignmentAdjustable(): boolean {
+    return routeStartAdjustable(this.startAlignment);
+  }
+
+  get startAlignmentMessage(): string {
+    return this.startAlignment ? routeStartAlignmentMessage(this.startAlignment, this.walkStartName(), metres => this.followService.formatDistance(metres)) : "";
+  }
+
+  get startAlignmentLabel(): string {
+    return this.startAlignment ? routeStartAdjustLabel(this.startAlignment, this.walkStartName()) : "";
+  }
+
+  adjustRouteStart(): void {
+    const alignment = this.startAlignment;
+    if (alignment && routeStartAdjustable(alignment)) {
+      if (this.progress?.mode !== RouteFollowMode.EDITING) {
+        this.editRoute();
+      }
+      if (alignment.kind === RouteStartAlignmentKind.LOOP_PASSES_START) {
+        this.moveStartTo(alignment.startPoint);
+      } else {
+        this.reverseRoute();
+      }
+      this.persistMessage = ROUTE_START_COPY_NOTE;
+    }
+  }
+
+  private walkStartName(): string {
+    const start = this.payload?.guide?.start_location;
+    return start?.description || start?.postcode || "the walk's start";
+  }
+
+  private refreshStartAlignment(points: RouteFollowPoint[]): void {
+    const checkable = this.payload?.source === RouteFollowSource.WALK && this.canEditRoute && !isLiveFollowMode(this.progress?.mode);
+    this.startAlignment = checkable ? routeStartAlignment(points, walkStartPoint(this.payload.guide?.start_location)) : null;
+  }
+
   get recordingStopAction(): boolean {
     return this.payload?.source === RouteFollowSource.RECORDING && !this.recordingDetailsOpen;
   }
@@ -2840,6 +2905,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   protected readonly RouteFollowSource = RouteFollowSource;
+  protected readonly ROUTE_START_COPY_NOTE = ROUTE_START_COPY_NOTE;
 
   exportGpx(): void {
     if (this.payload && this.hasLine) {
@@ -4420,6 +4486,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
       const points = this.followService.trackPoints().length > 0 ? this.followService.trackPoints() : this.payload.points;
       const latLngs = points.map(point => [point.latitude, point.longitude] as [number, number]);
       const completedIndex = this.progress?.snap?.index ?? 0;
+      this.refreshStartAlignment(points);
       const lineColor = this.payload.color || PaletteColor.ROSE;
       const lineWeight = this.payload.weight || ROUTE_FOLLOW_LINE_WEIGHT_DEFAULT;
       const lineOpacity = this.payload.opacity ?? 1;

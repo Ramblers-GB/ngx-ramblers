@@ -1285,7 +1285,8 @@
   -webkit-overflow-scrolling: touch
 
 .follow-sheet ::ng-deep
-  .thumbnail-heading-frame
+  .thumbnail-heading-frame,
+  .thumbnail-heading-frame-compact
     background-color: var(--follow-panel)
     border-color: var(--follow-handle)
     color: var(--follow-ink)
@@ -1319,3 +1320,19 @@
 
   .text-muted
     color: var(--follow-muted) !important
+
+  .route-guide-item
+    background: var(--follow-secondary)
+    border-color: var(--follow-handle)
+    border-left-color: #453C90
+    color: var(--follow-ink)
+
+  .route-guide-item:hover,
+  .route-guide-item.active
+    border-color: var(--ramblers-colour-sunrise)
+
+  .route-guide-item.active
+    background: rgba(249, 177, 4, 0.16)
+
+  .route-guide-distance
+    color: var(--follow-muted)

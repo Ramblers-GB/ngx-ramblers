@@ -169,7 +169,7 @@ export function simplifiedRoutePoints(points: RouteFollowPoint[], spacingMetres:
 
 export function isClosedLoop(points: RouteFollowPoint[], toleranceMetres: number): boolean {
   return points.length > 2
-    && !points.some(point => point.breakBefore)
+    && !points.slice(1).some(point => point.breakBefore)
     && metresBetween(points[0], points[points.length - 1]) <= toleranceMetres;
 }
 
