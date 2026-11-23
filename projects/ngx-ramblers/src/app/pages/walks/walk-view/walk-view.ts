@@ -13,6 +13,7 @@ import { DisplayedWalk, EventType, MapDisplay, WalkExportTab, WalkShareMenuActio
 import { ButtonDropdownComponent } from "../../../modules/common/button-dropdown/button-dropdown";
 import { ButtonDropdownItem } from "../../../models/button-dropdown.model";
 import { WalkLeadEditAppearance } from "../../../models/walk-edit-mode.model";
+import { WalksManagerUpdateButton } from "./walks-manager-update-button";
 import { WalkLeadEditButton } from "./walk-lead-edit-button";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import { WalkStatus } from "../../../models/ramblers-walks-manager.model";
@@ -320,6 +321,8 @@ import { deviceCanRecordRoutes } from "../../../functions/route-recording-device
               <span>View</span>
             </a>
           }
+          <app-walks-manager-update-button [walk]="displayedWalk?.walk" [notify]="notify"
+                                           (walkUpdated)="applyUpdatedWalk($event)"/>
           <ng-container *ngTemplateOutlet="followThisRoute"/>
         </ng-template>
         <ng-template #followThisRoute>
@@ -407,7 +410,7 @@ import { deviceCanRecordRoutes } from "../../../functions/route-recording-device
       </div>
     }`,
   styleUrls: ["./walk-view.sass"],
-  imports: [WalkPanelExpanderComponent, TooltipDirective, MarkdownComponent, EventLeaderComponent, WalkFeaturesComponent, FontAwesomeModule, RouterLink, GroupEventImages, MapEditComponent, MaximisableMapComponent, FormsModule, WalkDetailsComponent, DisplayDayPipe, RelatedLinksPanelComponent, DisplayTimePipe, BookingFormComponent, NormaliseMarkdownPipe, WalkAlbumPanelComponent, NgTemplateOutlet, ButtonDropdownComponent, EventSocialPublishModalComponent, DrivingOrigin, WalkLeadEditButton]
+  imports: [WalksManagerUpdateButton, WalkPanelExpanderComponent, TooltipDirective, MarkdownComponent, EventLeaderComponent, WalkFeaturesComponent, FontAwesomeModule, RouterLink, GroupEventImages, MapEditComponent, MaximisableMapComponent, FormsModule, WalkDetailsComponent, DisplayDayPipe, RelatedLinksPanelComponent, DisplayTimePipe, BookingFormComponent, NormaliseMarkdownPipe, WalkAlbumPanelComponent, NgTemplateOutlet, ButtonDropdownComponent, EventSocialPublishModalComponent, DrivingOrigin, WalkLeadEditButton]
 })
 
 export class WalkViewComponent implements OnInit, OnDestroy {
@@ -494,7 +497,7 @@ export class WalkViewComponent implements OnInit, OnDestroy {
   private payloadService = inject(RouteFollowPayloadService);
 
   showWalkViewActions(): boolean {
-    return !!(this.allowWalkAdminEdits || this.displayedWalk?.walkAccessMode?.walkWritable || this.showPublishToRamblers || this.canShareWalk() || this.canFollowRoute() || this.canRecordRoute() || this.canPlotRoute());
+    return !!(this.allowWalkAdminEdits || this.displayedWalk?.walkAccessMode?.walkWritable || this.showPublishToRamblers || this.canShareWalk() || (this.display.walkPopulationWalksManager() && this.memberLoginService.isAdmin()) || this.canFollowRoute() || this.canRecordRoute() || this.canPlotRoute());
   }
 
   canFollowRoute(): boolean {
@@ -923,6 +926,10 @@ export class WalkViewComponent implements OnInit, OnDestroy {
         })
         .catch(error => this.logger.error("queryFullWalkIfRequired failed for", walkId, error));
     }
+  }
+
+  applyUpdatedWalk(walk: ExtendedGroupEvent): void {
+    this.applyWalk(this.display.toDisplayedWalk(walk));
   }
 
   private applyWalk(displayedWalk: DisplayedWalk) {

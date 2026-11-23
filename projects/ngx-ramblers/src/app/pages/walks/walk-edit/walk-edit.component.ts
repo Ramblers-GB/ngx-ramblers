@@ -419,7 +419,6 @@ export class WalkEditComponent implements OnInit, OnDestroy {
   public faPencil = faPencil;
   private subscriptions: Subscription[] = [];
   public walksConfig: WalksConfig;
-  public options: any;
   public showGoogleMapsView = false;
   public rematchPreviewMessage: string | null = null;
   public rematchPreviewClass = ALERT_WARNING.class;
@@ -569,9 +568,8 @@ export class WalkEditComponent implements OnInit, OnDestroy {
   }
 
   allowApprove() {
-    return this.confirmAction === ConfirmType.NONE && this.memberLoginService.allowWalkAdminEdits() &&
-      this.walkEventService.latestEventWithStatusChangeIs(this.displayedWalk.walk, EventType.AWAITING_APPROVAL)
-      && this.status() !== EventType.APPROVED;
+    return this.inputEnabled() && this.memberLoginService.allowWalkAdminEdits() &&
+      [EventType.AWAITING_WALK_DETAILS, EventType.AWAITING_APPROVAL].includes(this.status());
   }
 
   allowContactOther() {
@@ -579,7 +577,8 @@ export class WalkEditComponent implements OnInit, OnDestroy {
   }
 
   allowRequestApproval() {
-    return this.confirmAction === ConfirmType.NONE && this.ownedAndAwaitingWalkDetails();
+    return this.inputEnabled() && this.status() === EventType.AWAITING_WALK_DETAILS &&
+      (this.memberLoginService.allowWalkAdminEdits() || this.display.loggedInMemberIsLeadingWalk(this.displayedWalk.walk));
   }
 
   pendingCancel() {
@@ -604,10 +603,6 @@ export class WalkEditComponent implements OnInit, OnDestroy {
 
   pendingConfirmation() {
     return this.confirmAction !== ConfirmType.NONE;
-  }
-
-  ownedAndAwaitingWalkDetails() {
-    return this.display.loggedInMemberIsLeadingWalk(this.displayedWalk.walk) && this.status() === EventType.AWAITING_WALK_DETAILS;
   }
 
   walkLeaderMemberIdChanged(preserveContactDetails = false) {
@@ -637,7 +632,9 @@ export class WalkEditComponent implements OnInit, OnDestroy {
       if (selectedMember) {
         this.logger.info("walkLeaderMemberIdChanged:selectedMember", this.toLogJson(selectedMember));
         const isImportedWalk = [InputSource.WALKS_MANAGER_CACHE, InputSource.FILE_IMPORT].includes(this.displayedWalk.walk?.fields?.inputSource);
-        this.setStatus(isImportedWalk ? EventType.APPROVED : EventType.AWAITING_WALK_DETAILS);
+        if ([EventType.AWAITING_LEADER, EventType.AWAITING_WALK_DETAILS].includes(this.status())) {
+          this.setStatus(isImportedWalk ? EventType.APPROVED : EventType.AWAITING_WALK_DETAILS);
+        }
         this.displayedWalk.walk.fields.contactDetails.memberId = selectedMember.id;
         if (!preserveContactDetails) {
           const selectedContactId = selectedMember.contactId ?? null;
@@ -919,10 +916,6 @@ export class WalkEditComponent implements OnInit, OnDestroy {
     return this.ramblersWalksAndEventsService.toWalkExport({localWalk: this.displayedWalk.walk, ramblersWalk: null});
   }
 
-
-  loggedIn() {
-    return this.memberLoginService.memberLoggedIn();
-  }
 
   deleteWalkDetails() {
     this.confirmAction = ConfirmType.DELETE;

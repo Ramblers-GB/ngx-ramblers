@@ -1,10 +1,11 @@
+import { WalksManagerUpdateResponse } from "../../models/walks-manager-update.model";
 import { RamblersGroupsService } from "./ramblers-groups.service";
 import { wordDiffHtml } from "../../functions/text-diff";
 import { HttpClient } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { cloneDeep, isEmpty, isEqual, isNaN, isNumber, isString, isUndefined, keys, without } from "es-toolkit/compat";
 import { NgxLoggerLevel } from "ngx-logger";
-import { Observable, ReplaySubject } from "rxjs";
+import { firstValueFrom, Observable, ReplaySubject } from "rxjs";
 import {
   ALL_EVENT_TYPES,
   DateFormat,
@@ -200,6 +201,14 @@ export class RamblersWalksAndEventsService {
     this.logger.info("queryWalkLeaders:body:", body);
     const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.post<WalkLeadersApiResponse>(`${this.BASE_URL}/walk-leaders`, body), this.walkLeadersSubject);
     return apiResponse.response;
+  }
+
+  async checkWalksManagerUpdate(walkId: string): Promise<WalksManagerUpdateResponse> {
+    return firstValueFrom(this.http.get<WalksManagerUpdateResponse>(`${this.BASE_URL}/events/${walkId}/update`));
+  }
+
+  async updateFromWalksManager(walkId: string): Promise<WalksManagerUpdateResponse> {
+    return firstValueFrom(this.http.post<WalksManagerUpdateResponse>(`${this.BASE_URL}/events/${walkId}/update`, {}));
   }
 
   async queryById(walkId: string): Promise<ExtendedGroupEvent> {

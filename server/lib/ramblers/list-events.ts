@@ -240,7 +240,7 @@ export async function fetchMappedEvents(config: SystemConfig, fromDate: number, 
   return events.map(event => toExtendedGroupEvent(config, event));
 }
 
-async function queryBasedOnExistingEvent(existingEvent: ExtendedGroupEvent, body: EventsListRequest, config: SystemConfig): Promise<RamblersEventsApiResponse> {
+export async function queryBasedOnExistingEvent(existingEvent: ExtendedGroupEvent, body: EventsListRequest, config: SystemConfig): Promise<RamblersEventsApiResponse> {
   const defaultOptions = requestDefaults.createApiRequestOptions(config);
   const parameters = [
     optionalParameter("groups", uniqueCommaDelimitedList(existingEvent?.groupEvent?.group_code, config?.group?.groupCode)),
