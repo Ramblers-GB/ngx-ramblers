@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import { first, last } from "es-toolkit/compat";
-import { faAdd, faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faCaretDown, faFileImport, faPrint, faEye, faCalendarDays } from "@fortawesome/free-solid-svg-icons";
+import { faAdd, faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faFileImport, faPrint, faEye, faCalendarDays } from "@fortawesome/free-solid-svg-icons";
 import { AuthService } from "../../../auth/auth.service";
 import { CommitteeDocumentEditMode, CommitteeFileAction, CommitteeFile, CommitteeFileEmailAction } from "../../../models/committee.model";
 import { ButtonDropdownComponent } from "../button-dropdown/button-dropdown";
@@ -80,7 +80,8 @@ import { UIDateFormat } from "../../../models/date-format.model";
                   <div class="file-download">
                     <img [alt]="display.iconFile(committeeFile)"
                          [src]="'assets/images/ramblers/' + display.iconFile(committeeFile)" class="icon"/>
-                    <app-button-dropdown compact [icon]="faCaretDown" buttonClass="btn btn-quiet btn-sm"
+                    <app-button-dropdown compact plain buttonClass="btn btn-sm" container="body" placement="bottom right"
+                                         menuClass="file-actions-menu"
                                          ariaLabel="Document actions" [items]="fileActionItems(committeeFile)"
                                          (itemSelect)="onFileAction($event, committeeFile)"/>
                   </div>
@@ -167,7 +168,6 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
   faBan = faBan;
   faEye = faEye;
   protected readonly faAdd = faAdd;
-  faCaretDown = faCaretDown;
   faFileImport = faFileImport;
   private memberResourcesReferenceData = inject(MemberResourcesReferenceDataService);
   memberLoginService = inject(MemberLoginService);
@@ -555,11 +555,14 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
   fileActionItems(file: CommitteeFile): ButtonDropdownItem[] {
     return [
       {id: CommitteeFileAction.HEADING, label: file.fileType, extraLabel: this.display.fileTitle(file), type: ButtonDropdownItemType.HEADER},
+      {id: CommitteeFileAction.HEADING_DIVIDER, type: ButtonDropdownItemType.DIVIDER},
       {id: CommitteeFileAction.PREVIEW, label: "Preview", icon: faEye, hidden: !this.display.canViewInBrowser(file)},
       {id: CommitteeFileAction.NEW_TAB, label: "View in new tab", icon: faUpRightFromSquare, href: this.display.viewUrl(file, this.documentsSourcePath), target: "_blank", rel: "noopener", hidden: !this.display.canViewInBrowser(file)},
       {id: CommitteeFileAction.PRINT, label: "Print / A4", icon: faPrint, href: this.display.composedDocumentPrintUrl(file, this.documentsSourcePath), target: "_blank", rel: "noopener", hidden: !this.display.isComposedDocument(file)},
       {id: CommitteeFileAction.DOWNLOAD, label: "Download", icon: faDownload, hidden: this.display.isComposedDocument(file)},
-      {id: CommitteeFileAction.CONVERT, label: "Convert to editable document", icon: faFileImport, hidden: !this.display.allowEditCommitteeFile(file) || !this.display.canConvertToComposedDocument(file)},
+      {id: CommitteeFileAction.CONVERT_DIVIDER, type: ButtonDropdownItemType.DIVIDER, hidden: !this.display.allowEditCommitteeFile(file) || !this.display.canConvertToComposedDocument(file)},
+      {id: CommitteeFileAction.CONVERT, label: "Convert to editable document", icon: faFileImport, disabled: this.notifyTarget.busy, hidden: !this.display.allowEditCommitteeFile(file) || !this.display.canConvertToComposedDocument(file)},
+      {id: CommitteeFileAction.ADMIN_DIVIDER, type: ButtonDropdownItemType.DIVIDER, itemClass: "d-sm-none", hidden: !this.allowFileActions(file)},
       {id: CommitteeFileAction.EDIT, label: "Edit", icon: faEdit, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file)},
       {id: CommitteeFileAction.SEND_EMAIL, label: this.canSendMeetingInvite(file) ? "Write an email" : "Send Email", icon: faEnvelope, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file)},
       {id: CommitteeFileAction.SEND_INVITE, label: "Send a meeting invite", icon: faCalendarDays, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file) || !this.canSendMeetingInvite(file)},

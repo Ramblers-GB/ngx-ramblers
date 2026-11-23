@@ -761,6 +761,9 @@ export interface ValidateTokenApiResponse extends ApiResponse {
 
 export enum CommitteeFileAction {
   HEADING = "heading",
+  HEADING_DIVIDER = "heading-divider",
+  CONVERT_DIVIDER = "convert-divider",
+  ADMIN_DIVIDER = "admin-divider",
   NEW_TAB = "new-tab",
   PRINT = "print",
   PREVIEW = "preview",

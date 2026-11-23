@@ -20,7 +20,8 @@ import { TOOLTIP_SHOW_DELAY_MS } from "../tooltip-config";
   imports: [BsDropdownDirective, BsDropdownToggleDirective, BsDropdownMenuDirective, FontAwesomeModule, TooltipDirective, RouterLink, NgClass, NgTemplateOutlet],
   host: {
     "[class.full-width]": "fullWidth",
-    "[class.compact]": "compact"
+    "[class.compact]": "compact",
+    "[class.plain]": "plain"
   },
   styles: [`
     :host
@@ -70,6 +71,18 @@ import { TOOLTIP_SHOW_DELAY_MS } from "../tooltip-config";
       padding-right: 0.5rem
       gap: var(--space-2)
       justify-content: flex-start
+    :host.plain .btn-group > .btn,
+    :host.plain .btn-group:hover > .btn:not(:disabled),
+    :host.plain .btn-group.show > .btn:not(:disabled),
+    :host.plain .btn-group:focus-within > .btn:not(:disabled)
+      color: var(--bs-secondary-color, #6c757d)
+      background-color: transparent
+      border-color: transparent
+      box-shadow: none
+
+    :host.plain .btn-group:hover > .btn:not(:disabled)
+      color: #000
+
     :host.compact .btn-group > .dropdown-toggle-split
       flex: 0 0 var(--button-dropdown-caret-width, 1.75rem)
       width: var(--button-dropdown-caret-width, 1.75rem)
@@ -124,7 +137,8 @@ import { TOOLTIP_SHOW_DELAY_MS } from "../tooltip-config";
       padding-right: 0.75rem
       box-sizing: border-box
 
-    .btn-group > .dropdown-menu
+    .btn-group > .dropdown-menu,
+    .dropdown-menu.dropdown-menu-end
       right: 0
       left: auto
 
@@ -264,10 +278,17 @@ import { TOOLTIP_SHOW_DELAY_MS } from "../tooltip-config";
           @if (!item.hidden) {
             @switch (item.type) {
               @case (ButtonDropdownItemType.DIVIDER) {
-                <li class="dropdown-divider"></li>
+                <li class="dropdown-divider" [ngClass]="item.itemClass"></li>
               }
               @case (ButtonDropdownItemType.HEADER) {
-                <li class="dropdown-header">{{ item.label }}</li>
+                <li class="dropdown-header">
+                  <span class="dropdown-item-copy">
+                    <span>{{ item.label }}</span>
+                    @if (item.extraLabel) {
+                      <span class="dropdown-item-extra">{{ item.extraLabel }}</span>
+                    }
+                  </span>
+                </li>
               }
               @default {
                 <li role="menuitem">
@@ -337,6 +358,7 @@ export class ButtonDropdownComponent {
   protected dropUp = false;
   protected fullWidth = false;
   protected compact = false;
+  protected plain = false;
   protected insideClick = false;
   protected menuEnd = true;
   protected iconSpin = false;
@@ -357,6 +379,10 @@ export class ButtonDropdownComponent {
 
   @Input("compact") set compactValue(value: boolean) {
     this.compact = coerceBooleanProperty(value);
+  }
+
+  @Input("plain") set plainValue(value: boolean) {
+    this.plain = coerceBooleanProperty(value);
   }
 
   @Input("insideClick") set insideClickValue(value: boolean) {
