@@ -21,7 +21,8 @@ import { RouteStepControls } from "./route-step-controls";
   providers: [RouteGuideEditSession],
   imports: [FormsModule, FontAwesomeModule, RouteGuidePanel, RouteStepControls],
   host: {
-    "[class.route-directions-fullscreen]": "fullscreen"
+    "[class.route-directions-fullscreen]": "fullscreen",
+    "[class.route-directions-filled]": "fillHeight"
   },
   styles: [`
     :host
@@ -32,6 +33,18 @@ import { RouteStepControls } from "./route-step-controls";
       display: flex
       flex-direction: column
       height: 100%
+      min-height: 0
+
+    :host.route-directions-filled
+      display: flex
+      flex-direction: column
+      flex: 1 1 auto
+      min-height: 0
+
+    :host.route-directions-filled > .thumbnail-heading-frame
+      display: flex
+      flex-direction: column
+      flex: 1 1 auto
       min-height: 0
 
     .route-directions-toolbar
@@ -54,15 +67,29 @@ import { RouteStepControls } from "./route-step-controls";
       flex: 1 1 18rem
       min-width: 0
 
-    .route-directions-toolbar ~ .route-directions-layout > .route-guide-panel.thumbnail-heading-frame-compact
-      margin-top: 28px
-
     .route-directions-layout .map-section:not(:has([routeDirectionsMap]))
       display: none
 
     :host.route-directions-fullscreen .route-directions-layout
       flex: 1 1 auto
       min-height: 0
+
+    :host.route-directions-filled .route-directions-layout
+      display: flex
+      flex-direction: column
+      flex: 1 1 auto
+      min-height: 0
+
+    :host.route-directions-filled .route-directions-layout > .route-guide-panel
+      display: flex
+      flex-direction: column
+      flex: 1 1 auto
+      min-height: 0
+
+    :host.route-directions-filled .route-directions-layout > .route-guide-panel ::ng-deep .route-guide-list
+      flex: 1 1 auto
+      min-height: 0
+      max-height: none
 
     .route-directions-toolbar
       display: flex
@@ -81,6 +108,7 @@ import { RouteStepControls } from "./route-step-controls";
       overflow-wrap: anywhere
   `],
   template: `
+    @if (showToolbar || entries.length > 0) {
     <div [class.thumbnail-heading-frame]="framed" [class.thumbnail-heading-frame-compact]="framed">
       @if (framed) {
         <div class="thumbnail-heading">Directions</div>
@@ -108,24 +136,24 @@ import { RouteStepControls } from "./route-step-controls";
         <p class="text-muted small d-block mb-2">{{ message }}</p>
       }
       @if (showToolbar && !canGenerate) {
-        <div class="alert alert-warning d-flex align-items-start mb-0">
+        <div class="alert alert-warning d-flex align-items-start" [class.mb-0]="entries.length === 0" [class.mb-2]="entries.length > 0">
           <fa-icon [icon]="faCircleExclamation" class="flex-shrink-0 mt-1 me-2"/>
           <div class="route-alert-copy">
             <strong class="d-block">{{ missingTitle }}</strong>
             <p class="mb-0">{{ missingBody }}</p>
           </div>
         </div>
-      } @else if (showPanel) {
+      }
+      @if (showPanel && (canGenerate || !showToolbar || entries.length > 0)) {
         <div class="route-directions-layout" [class.route-fullscreen-shell]="fullscreen" [class.is-fullscreen]="fullscreen" [class.is-editing]="editing">
           <div class="map-section">
             <ng-content select="[routeDirectionsMap]"/>
           </div>
           @if (entries.length > 0) {
-            <app-route-guide-panel class="route-guide-panel" heading="How to follow this route"
+            <app-route-guide-panel class="route-guide-panel" [showHeading]="fullscreen"
                                    [class.thumbnail-heading-frame]="fullscreen"
-                                   [class.thumbnail-heading-frame-compact]="!fullscreen"
                                    [entries]="entries" [activeMarker]="activeMarker" [markerColour]="markerColour"
-                                   [listId]="listId" [height]="fullscreen ? null : panelHeight" [resizable]="false"
+                                   [listId]="listId" [height]="fullscreen || fillHeight ? null : panelHeight" [resizable]="false"
                                    [fullscreen]="fullscreen"
                                    [fullScreenAvailable]="fullScreenAvailable && !fullscreen"
                                    [editing]="editing" [editingNow]="editing"
@@ -135,6 +163,7 @@ import { RouteStepControls } from "./route-step-controls";
         </div>
       }
     </div>
+    }
   `
 })
 export class RouteDirectionsEditor {
@@ -154,6 +183,7 @@ export class RouteDirectionsEditor {
   @Input() writtenDirections: string[] = [];
   @Input() chrome: RouteDirectionsChrome = RouteDirectionsChrome.PANEL;
   @Input() panelHeight = 280;
+  @Input() fillHeight = false;
   @Output() waypointsChange = new EventEmitter<RouteFollowWaypoint[]>();
   @Output() stepSelect = new EventEmitter<RouteFollowWaypoint>();
   @Output() fullScreen = new EventEmitter<void>();

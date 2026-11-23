@@ -211,9 +211,8 @@ export class RouteFollowSaveService implements OnDestroy {
   pointsToGpx(points: RouteFollowPoint[], name: string, description = ""): string {
     const stamp = points[0]?.recordedAt ? this.dateUtils.isoDateTime(points[0].recordedAt) : this.dateUtils.isoDateTimeNow();
     const trackPoints = points.map((point, index) => {
-      const elevation = isNumber(point.elevation) ? point.elevation : 0;
-      return `${index > 0 && point.breakBefore ? "    </trkseg>\n    <trkseg>\n" : ""}      <trkpt lat="${point.latitude}" lon="${point.longitude}">
-        <ele>${elevation}</ele>${point.recordedAt ? `
+      const elevation = isNumber(point.elevation) ? `\n        <ele>${point.elevation}</ele>` : "";
+      return `${index > 0 && point.breakBefore ? "    </trkseg>\n    <trkseg>\n" : ""}      <trkpt lat="${point.latitude}" lon="${point.longitude}">${elevation}${point.recordedAt ? `
         <time>${this.dateUtils.isoDateTime(point.recordedAt)}</time>` : ""}
       </trkpt>`;
     }).join("\n");

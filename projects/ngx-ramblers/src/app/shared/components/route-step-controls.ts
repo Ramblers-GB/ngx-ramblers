@@ -11,7 +11,7 @@ import { ROUTE_SAVE_STATE_LABELS, ROUTE_STEP_SPEED_DEFAULT, ROUTE_STEP_SPEED_MAX
   imports: [FontAwesomeModule, NgTemplateOutlet, FormsModule],
   template: `
     <div class="d-flex flex-wrap align-items-center gap-2 control-pill-row">
-      @if (!fullscreen) {
+      @if (!fullscreen && (fullScreenAvailable || canFollow || (!compact && (count > 0 || tracks.length > 1)))) {
         <div class="control-pill" role="group" aria-label="Map view">
           @if (fullScreenAvailable) {
             <button type="button" class="control-pill-btn" (click)="fullScreen.emit()" title="Show the map full screen with the directions beside it" aria-label="Full screen">
@@ -47,9 +47,9 @@ import { ROUTE_SAVE_STATE_LABELS, ROUTE_STEP_SPEED_DEFAULT, ROUTE_STEP_SPEED_MAX
         </div>
       }
       @if (stepping) {
-        <div class="control-pill" role="group" aria-label="Step through the route">
+        <div class="control-pill" [class.control-pill-fill]="compact" role="group" aria-label="Step through the route">
           <button type="button" class="control-pill-btn control-pill-action" (click)="previous.emit()" [disabled]="activeIndex <= 0" aria-label="Previous step">
-            <fa-icon [icon]="faChevronLeft"/><span class="d-none d-sm-inline">Previous</span>
+            <fa-icon [icon]="faChevronLeft"/><span class="d-none" [class.d-sm-inline]="!compact">Previous</span>
           </button>
           <span class="control-pill-divider"></span>
           <span class="control-pill-text" role="status">
@@ -62,11 +62,11 @@ import { ROUTE_SAVE_STATE_LABELS, ROUTE_STEP_SPEED_DEFAULT, ROUTE_STEP_SPEED_MAX
           <span class="control-pill-divider"></span>
           @if (activeIndex >= count - 1) {
             <button type="button" class="control-pill-btn control-pill-action" (click)="first.emit()" aria-label="Back to the start">
-              <fa-icon [icon]="faRotateLeft"/><span class="d-none d-sm-inline">Start again</span>
+              <fa-icon [icon]="faRotateLeft"/><span class="d-none" [class.d-sm-inline]="!compact">Start again</span>
             </button>
           } @else {
             <button type="button" class="control-pill-btn control-pill-action" (click)="next.emit()" aria-label="Next step">
-              <span class="d-none d-sm-inline">Next</span><fa-icon [icon]="faChevronRight"/>
+              <span class="d-none" [class.d-sm-inline]="!compact">Next</span><fa-icon [icon]="faChevronRight"/>
             </button>
           }
         </div>

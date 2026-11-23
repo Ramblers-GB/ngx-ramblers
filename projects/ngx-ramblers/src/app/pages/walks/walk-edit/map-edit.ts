@@ -18,7 +18,7 @@ import { GridReferenceLookupResponse } from "../../../models/address.model";
 import { DEFAULT_OS_STYLE, LocationType, MapProvider, OSMapStyle, OSMapStyleKey, UK_MAP_CENTER, UK_MAP_ZOOM } from "../../../models/map.model";
 import { UK_POSTCODE_PATTERN } from "../../../models/locate.model";
 import { formattedUkPostcode } from "../../../functions/locate";
-import { isString } from "es-toolkit/compat";
+import { isNumber, isString } from "es-toolkit/compat";
 import { LocationDetails, WalkStatus } from "../../../models/ramblers-walks-manager.model";
 import { PostcodeMapPreview } from "../../../models/postcode-navigation.model";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
@@ -35,7 +35,8 @@ import { MapMarker, PaletteColor, RouteGuideEntry } from "../../../models/conten
 import { MAP_PIN_POPUP_OPTIONS, locationPinPopupHtml, ROUTE_STEP_POPUP_OPTIONS, routeStepPopupHtml } from "../../../functions/route-step-popup";
 import { MapZoomService } from "../../../services/maps/map-zoom.service";
 import { isUndefined } from "es-toolkit/compat";
-import { RouteFollowPoint, RouteFollowWaypoint } from "../../../models/route-follow.model";
+import { ROUTE_FOLLOW_LOOP_CLOSURE_METRES, ROUTE_END_MARKER_HIDDEN_WITHIN_METRES, RouteFollowPoint, RouteFollowWaypoint, RouteWaypointKind } from "../../../models/route-follow.model";
+import { isClosedLoop, metresBetween } from "../../../functions/route-geometry";
 
 const COMBINED_MAP_BOUNDS_PADDING = 0.25;
 
@@ -436,6 +437,30 @@ export class MapEditComponent implements OnInit, OnDestroy, OnChanges {
     this.logger.info("removeGpxRoute: removed", removed.length, "route layers, layers now:", this.layers.length);
   }
 
+  private routeEndMarkers(points: RouteFollowPoint[]): L.Marker[] {
+    const first = points[0];
+    const last = points[points.length - 1];
+    const startMap = this.showCombinedMap || this.locationType === LocationType.STARTING || this.locationType === LocationType.START;
+    const finishMap = this.showCombinedMap || this.locationType === LocationType.FINISHING || this.locationType === LocationType.END;
+    const finishLocation = this.showCombinedMap ? this.endLocationDetails : this.locationDetails;
+    const showStart = !this.preview && !!first && startMap && this.awayFrom(first, this.locationDetails);
+    const showFinish = !this.preview && !!last && finishMap && !isClosedLoop(points, ROUTE_FOLLOW_LOOP_CLOSURE_METRES) && this.awayFrom(last, finishLocation);
+    return [
+      ...(showStart ? [this.routeEndMarker(first, RouteWaypointKind.START, "The route starts here")] : []),
+      ...(showFinish ? [this.routeEndMarker(last, RouteWaypointKind.END, "The route finishes here")] : [])
+    ];
+  }
+
+  private awayFrom(point: RouteFollowPoint, location: LocationDetails | null): boolean {
+    const located = isNumber(location?.latitude) && isNumber(location?.longitude) ? {latitude: location.latitude, longitude: location.longitude} : null;
+    return !located || metresBetween(point, located) > ROUTE_END_MARKER_HIDDEN_WITHIN_METRES;
+  }
+
+  private routeEndMarker(point: RouteFollowPoint, kind: RouteWaypointKind, label: string): L.Marker {
+    return L.marker([point.latitude, point.longitude], {icon: this.markerStyle.routeAnchorIcon(kind), keyboard: false, zIndexOffset: 500})
+      .bindTooltip(label, {direction: "top", offset: [0, -40]});
+  }
+
   private async loadAndRenderGpxRoute() {
     if (!this.gpxFile?.awsFileName) return;
     const sequence = this.gpxLoadSequence + 1;
@@ -480,7 +505,7 @@ export class MapEditComponent implements OnInit, OnDestroy, OnChanges {
           });
 
           this.removeGpxRoute();
-          this.gpxLayers = [halo, core];
+          this.gpxLayers = [halo, core, ...this.routeEndMarkers(track.points)];
           this.layers = [...this.layers, ...this.gpxLayers];
           this.logger.info("loadAndRenderGpxRoute: drew route for load", sequence, "layers now:", this.layers.length);
 

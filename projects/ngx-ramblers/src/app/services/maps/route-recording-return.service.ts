@@ -3,7 +3,8 @@ import { Router } from "@angular/router";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { NgxLoggerLevel } from "ngx-logger";
 import { StoredValue } from "../../models/ui-actions.model";
-import { isLiveFollowMode, RouteFollowMode, RouteFollowReturn, RouteFollowSession } from "../../models/route-follow.model";
+import { isLiveFollowMode, ROUTE_FOLLOW_RETURN_MAX_AGE_MS, RouteFollowMode, RouteFollowReturn, RouteFollowSession } from "../../models/route-follow.model";
+import { DateUtilsService } from "../date-utils.service";
 import { followRouteLink, followRouteQuery } from "../../functions/route-follow-link";
 import { UiActionsService } from "../ui-actions.service";
 import { LoggerFactory } from "../logger-factory.service";
@@ -13,6 +14,7 @@ import { RouteFollowService } from "./route-follow.service";
 export class RouteRecordingReturnService {
   private followService = inject(RouteFollowService);
   private uiActions = inject(UiActionsService);
+  private dateUtils = inject(DateUtilsService);
   private router = inject(Router);
   private zone = inject(NgZone);
   private logger = inject(LoggerFactory).createLogger("RouteRecordingReturnService", NgxLoggerLevel.ERROR);
@@ -43,10 +45,11 @@ export class RouteRecordingReturnService {
   offerSavedSession(): void {
     if (!this.returnSubject.value) {
       const session = this.storedSession();
-      if (session && isLiveFollowMode(session.mode)) {
+      const recording = session?.mode === RouteFollowMode.RECORDING
+        || (session?.mode === RouteFollowMode.PAUSED && session?.pausedFromMode === RouteFollowMode.RECORDING);
+      const recent = (session?.savedAt || 0) >= this.dateUtils.dateTimeNowAsValue() - ROUTE_FOLLOW_RETURN_MAX_AGE_MS;
+      if (session && isLiveFollowMode(session.mode) && (recording || recent)) {
         const url = this.router.serializeUrl(this.router.createUrlTree(followRouteLink(session), {queryParams: followRouteQuery(session)}));
-        const recording = session.mode === RouteFollowMode.RECORDING
-          || (session.mode === RouteFollowMode.PAUSED && session.pausedFromMode === RouteFollowMode.RECORDING);
         this.returnSubject.next({url, recording});
       }
     }
@@ -96,7 +99,8 @@ export class RouteRecordingReturnService {
           mode: progress.mode,
           pausedFromMode: this.followService.pausedMode(),
           recordedPoints: points,
-          progress
+          progress,
+          savedAt: this.dateUtils.dateTimeNowAsValue()
         });
         if (saved) {
           this.savedPointCount = points.length;

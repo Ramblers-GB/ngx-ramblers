@@ -1,13 +1,15 @@
 import {visibleGridReference} from "../../functions/grid-reference";
 import {WalksConfigService} from "../../services/system/walks-config.service";
-import { Component, EventEmitter, Input, Output, inject } from "@angular/core";
+import { ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, Output, inject } from "@angular/core";
 import { isNumber } from "es-toolkit/compat";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { faFlagCheckered, faLocationDot } from "@fortawesome/free-solid-svg-icons";
-import { RouteFollowPoint, RouteFollowWaypoint, RouteWaypointKind } from "../../models/route-follow.model";
-import { elevationSvgPath, routeElevationStats, RouteElevationStats } from "../../functions/route-elevation";
+import { ROUTE_ASCENT_THRESHOLD_METRES, RouteFollowPoint, RouteFollowWaypoint, RouteWaypointKind } from "../../models/route-follow.model";
+import { elevationSvgPath, routeElevationStats, RouteElevationStats, smoothedAscentMetres } from "../../functions/route-elevation";
 import { GridReferenceService } from "../../services/maps/grid-reference.service";
 import { RouteFollowService } from "../../services/maps/route-follow.service";
+
+import { RouteHeightsService } from "../../services/maps/route-heights.service";
 
 const CHART_WIDTH = 100;
 const CHART_HEIGHT = 36;
@@ -111,7 +113,10 @@ const CHART_HEIGHT = 36;
     }
   `
 })
-export class RouteElevationComponent {
+export class RouteElevationComponent implements OnDestroy {
+  private routeHeights = inject(RouteHeightsService);
+  private changeDetector = inject(ChangeDetectorRef);
+  private heightLoadSequence = 0;
   private follow = inject(RouteFollowService);
   private walksConfigService = inject(WalksConfigService);
   private grid = inject(GridReferenceService);
@@ -128,6 +133,7 @@ export class RouteElevationComponent {
   @Input() set points(value: RouteFollowPoint[]) {
     this.routePoints = value || [];
     this.refresh();
+    void this.loadHeights(this.routePoints);
   }
 
   @Input() set waypoints(value: RouteFollowWaypoint[]) {
@@ -137,6 +143,20 @@ export class RouteElevationComponent {
 
   private routePoints: RouteFollowPoint[] = [];
   private routeWaypoints: RouteFollowWaypoint[] = [];
+
+  ngOnDestroy(): void {
+    this.heightLoadSequence++;
+  }
+
+  private async loadHeights(points: RouteFollowPoint[]): Promise<void> {
+    const sequence = ++this.heightLoadSequence;
+    const located = await this.routeHeights.elevationPoints(points);
+    if (sequence === this.heightLoadSequence) {
+      this.routePoints = located;
+      this.refresh();
+      this.changeDetector.markForCheck();
+    }
+  }
 
   metresLabel(metres: number): string {
     return this.follow.formatElevation(metres);
@@ -170,7 +190,8 @@ export class RouteElevationComponent {
   }
 
   private refresh(): void {
-    this.stats = routeElevationStats(this.routePoints);
+    const stats = routeElevationStats(this.routePoints);
+    this.stats = stats ? {...stats, ascentMetres: smoothedAscentMetres(this.routePoints.map(point => point.elevation), ROUTE_ASCENT_THRESHOLD_METRES)} : null;
     this.path = this.stats ? elevationSvgPath(this.stats, CHART_WIDTH, CHART_HEIGHT) : "";
     const startWaypoint = this.routeWaypoints.find(waypoint => waypoint.kind === RouteWaypointKind.START);
     const endWaypoint = this.routeWaypoints.find(waypoint => waypoint.kind === RouteWaypointKind.END);

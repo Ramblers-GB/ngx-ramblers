@@ -38,7 +38,7 @@ describe("route screen start alignment", () => {
     const {instance, editRoute, moveStartTo} = routeScreen({});
     expect(instance.showStartAlignment).toBe(true);
     expect(instance.startAlignment.kind).toBe(RouteStartAlignmentKind.LOOP_PASSES_START);
-    expect(instance.startAlignmentLabel).toBe("Start the route at White Lion");
+    expect(instance.startAlignmentLabel).toBe("Start at the start point");
     expect(moveStartTo).not.toHaveBeenCalled();
     instance.adjustRouteStart();
     expect(editRoute).toHaveBeenCalled();

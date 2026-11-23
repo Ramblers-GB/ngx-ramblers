@@ -190,6 +190,24 @@ export interface RouteTurnStepsResponse {
   places?: LocatedPlace[];
 }
 
+export interface RouteHeightsRequest {
+  points: RouteFollowPoint[];
+}
+
+export interface RouteHeightsResponse {
+  heights: (number | null)[];
+}
+
+export interface ValhallaHeightResponse {
+  height?: (number | null)[];
+}
+
+export const ROUTE_HEIGHTS_MAX_POINTS = 20000;
+export const ROUTE_HEIGHTS_SAMPLE_METRES = 30;
+export const ROUTE_HEIGHTS_SAMPLE_MAX_POINTS = 2000;
+export const ROUTE_ASCENT_THRESHOLD_METRES = 3;
+export const ROUTE_HEIGHTS_TIMEOUT_MS = 30000;
+
 export interface ValhallaTraceEdge {
   names?: string[];
   use?: string;
@@ -279,6 +297,8 @@ export interface QueuedWebsiteSave {
   saveAsNewRecordingId: string | null;
 }
 
+export const ROUTE_FOLLOW_RETURN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
 export interface RouteFollowReturn {
   url: string;
   recording: boolean;
@@ -316,6 +336,7 @@ export interface RouteFollowSession {
   pendingNetworkSave?: boolean;
   pendingSaveAsNew?: boolean;
   saveAsNewRecordingId?: string | null;
+  savedAt?: number | null;
 }
 
 export function isLiveFollowMode(mode: RouteFollowMode): boolean {
@@ -761,6 +782,7 @@ export const ROUTE_FOLLOW_LOOP_CLOSURE_METRES = 150;
 export const ROUTE_START_ALIGNED_METRES = 50;
 export const ROUTE_START_ON_ROUTE_METRES = 100;
 export const ROUTE_START_NEAREST_POINT_METRES = 10;
+export const ROUTE_END_MARKER_HIDDEN_WITHIN_METRES = 250;
 
 export enum RouteStartAlignmentKind {
   ALIGNED = "aligned",

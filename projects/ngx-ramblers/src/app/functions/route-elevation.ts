@@ -1,6 +1,6 @@
 import { isNumber } from "es-toolkit/compat";
 import { RouteFollowPoint } from "../models/route-follow.model";
-import { cumulativeDistances } from "./route-geometry";
+import { cumulativeDistances, pointAlongRoute } from "./route-geometry";
 
 export interface RouteElevationSample {
   distanceMetres: number;
@@ -64,4 +64,37 @@ export function elevationSvgPath(stats: RouteElevationStats, width: number, heig
     const y = height - ((sample.elevation - stats.minMetres) / span) * height;
     return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
   }).join(" ");
+}
+
+export function missingHeightIndices(points: RouteFollowPoint[]): number[] {
+  const located = routeHasElevation(points);
+  return (points || [])
+    .map((point, index) => ({point, index}))
+    .filter(item => !located || !isNumber(item.point.elevation))
+    .map(item => item.index);
+}
+
+export function evenlySpacedRoutePoints(points: RouteFollowPoint[], spacingMetres: number, maxPoints: number): RouteFollowPoint[] {
+  if (points.length < 2) {
+    return points;
+  } else {
+    const cumulative = cumulativeDistances(points);
+    const total = cumulative[cumulative.length - 1];
+    const count = Math.min(maxPoints, Math.max(2, Math.floor(total / spacingMetres) + 1));
+    const step = total / (count - 1);
+    return Array.from({length: count}, (_, index) => pointAlongRoute(points, cumulative, index * step).point);
+  }
+}
+
+export function smoothedAscentMetres(elevations: number[], thresholdMetres: number): number {
+  const located = elevations.filter(elevation => isNumber(elevation) && Number.isFinite(elevation));
+  return located.slice(1).reduce((acc, elevation) => {
+    if (elevation - acc.reference >= thresholdMetres) {
+      return {reference: elevation, ascent: acc.ascent + elevation - acc.reference};
+    } else if (acc.reference - elevation >= thresholdMetres) {
+      return {reference: elevation, ascent: acc.ascent};
+    } else {
+      return acc;
+    }
+  }, {reference: located[0] ?? 0, ascent: 0}).ascent;
 }

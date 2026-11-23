@@ -14,7 +14,9 @@ import { ResizerComponent, ResizerOrientation, ResizerVariant } from "../../modu
   imports: [FontAwesomeModule, FormsModule, ResizerComponent],
   template: `
     <ng-content select="[controls]"/>
-    <div class="thumbnail-heading">{{ editingNow ? "Steps" : heading }}</div>
+    @if (showHeading) {
+      <div class="thumbnail-heading">{{ editingNow ? "Steps" : heading }}</div>
+    }
     @if (editing && !fullscreen) {
       <p class="text-muted small mb-2">
         @if (fullScreenAvailable) {
@@ -160,6 +162,7 @@ export class RouteGuidePanel {
   @Input() markerColour = "#453C90";
   @Input() listId = "";
   @Input() heading = "How to follow this route";
+  @Input() showHeading = true;
   @Input() fullscreen = false;
   @Input() fullScreenAvailable = true;
   @Input() editing = false;

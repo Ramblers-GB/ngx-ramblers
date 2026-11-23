@@ -9,6 +9,7 @@ import { cloneDeep } from "es-toolkit/compat";
 import { GpxParserService, GpxTrack } from "./gpx-parser.service";
 import { AddressQueryService } from "../walks/address-query.service";
 import { RouteFollowPayloadService } from "./route-follow-payload.service";
+import { RouteHeightsService } from "./route-heights.service";
 import { StringUtilsService } from "../string-utils.service";
 import { LoggerFactory } from "../logger-factory.service";
 import { GridReferenceLookupResponse } from "../../models/address.model";
@@ -31,6 +32,7 @@ export class GpxProposalsService {
   private httpClient = inject(HttpClient);
   private routeFollowPayload = inject(RouteFollowPayloadService);
   private stringUtils = inject(StringUtilsService);
+  private routeHeights = inject(RouteHeightsService);
 
   gpxContent(file: FileNameData | Partial<ServerFileNameData>): Promise<string> {
     return firstValueFrom(this.httpClient.get(this.routeFollowPayload.gpxDownloadUrl(file), {responseType: "text"}));
@@ -47,11 +49,13 @@ export class GpxProposalsService {
       const last = points[points.length - 1];
       const circular = metresBetween(first, last) <= GPX_CIRCULAR_ENDS_METRES;
       const km = (track.totalDistance || 0) / 1000;
+      const terrainAscent = await this.routeHeights.ascentMetres(points);
+      const ascentMetres = terrainAscent > 0 ? terrainAscent : track.totalAscent || 0;
       return {
         shape: circular ? WalkType.CIRCULAR : WalkType.LINEAR,
         miles: km / KM_PER_MILE,
         km,
-        ascentMetres: Math.round(track.totalAscent || 0),
+        ascentMetres: Math.round(ascentMetres),
         startLocation: await this.locationFor(first),
         endLocation: circular ? null : await this.locationFor(last)
       };

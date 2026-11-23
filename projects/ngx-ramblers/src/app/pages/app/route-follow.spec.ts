@@ -479,13 +479,24 @@ describe("walk route edit access", () => {
     expect(view["routeCanBeEdited"](payload)).toBe(true);
   });
 
-  it("starts editing when the walk editor requested it", () => {
+  it("starts editing when the walk editor asked to plot a route that has no line yet", () => {
     const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
     view["canEditRoute"] = true;
+    view["payload"] = {source: RouteFollowSource.WALK, points: []} as RouteFollowPayload;
     view["route"] = {snapshot: {queryParamMap: {get: (key: string) => key === StoredValue.EDIT_ROUTE ? "true" : null}}} as unknown as typeof view["route"];
     view.editRoute = vi.fn();
     view["openRequestedEdit"]();
     expect(view.editRoute).toHaveBeenCalledOnce();
+  });
+
+  it("opens an existing route for viewing, leaving Edit to the user", () => {
+    const view = Object.create(RouteFollowComponent.prototype) as RouteFollowComponent;
+    view["canEditRoute"] = true;
+    view["payload"] = {source: RouteFollowSource.WALK, points: [{latitude: 51, longitude: 0}, {latitude: 51.01, longitude: 0.01}]} as RouteFollowPayload;
+    view["route"] = {snapshot: {queryParamMap: {get: (key: string) => key === StoredValue.EDIT_ROUTE ? "true" : null}}} as unknown as typeof view["route"];
+    view.editRoute = vi.fn();
+    view["openRequestedEdit"]();
+    expect(view.editRoute).not.toHaveBeenCalled();
   });
 
   it("edits a walk route when canEditRoute is already true", () => {
@@ -1229,6 +1240,70 @@ describe("snapping a plotted route to paths", () => {
   it("adds a straight line and says so when no path is found", async () => {
     const view = plotting(true, null);
     await view["insertPathTo"](tapped, 0);
+    expect(view["editVertices"]).toEqual([start, tapped]);
+    expect(view["persistMessage"]).toContain("No path found");
+  });
+
+  it("does not extend a circular route from a tap away from the line", () => {
+    const loop = [start, bend, {latitude: start.latitude + 0.0001, longitude: start.longitude}];
+    const view = plotting(false, null);
+    view["originalEditCount"] = loop.length;
+    view["editVertices"] = loop;
+    view["draftPoints"] = loop;
+    view["insertOffRouteVertex"](tapped);
+    expect(view["editVertices"]).toEqual(loop);
+    expect(view["persistMessage"]).toContain("circular route");
+  });
+
+  it("snaps the gap left by deleting a point and undoes it in one step", async () => {
+    const pathPoint = {latitude: 51.24, longitude: 1.04};
+    const view = plotting(true, [start, pathPoint, tapped]);
+    view["editVertices"] = [start, bend, tapped];
+    view["deleteVertexAt"](1);
+    await view["pathSnapQueue"];
+    expect(view["walkingPaths"].pathBetween).toHaveBeenCalledWith(start, tapped);
+    expect(view["editVertices"]).toEqual([start, pathPoint, tapped]);
+    view.undoEdit();
+    expect(view["editVertices"]).toEqual([start, bend, tapped]);
+    expect(view["editHistory"]).toEqual([]);
+  });
+
+  it("keeps a straight connection after deletion when snapping is off", async () => {
+    const view = plotting(false, null);
+    view["editVertices"] = [start, bend, tapped];
+    view["deleteVertexAt"](1);
+    await view["pathSnapQueue"];
+    expect(view["walkingPaths"].pathBetween).not.toHaveBeenCalled();
+    expect(view["editVertices"]).toEqual([start, tapped]);
+  });
+
+  it("does not request a new path when deleting an endpoint", async () => {
+    const view = plotting(true, null);
+    view["editVertices"] = [start, bend, tapped];
+    view["deleteVertexAt"](0);
+    await view["pathSnapQueue"];
+    expect(view["walkingPaths"].pathBetween).not.toHaveBeenCalled();
+    expect(view["editVertices"]).toEqual([bend, tapped]);
+  });
+
+  it("does not apply a deleted-point path after undo", async () => {
+    const pending: {resolve: (path: {latitude: number; longitude: number}[]) => void} = {resolve: null};
+    const view = plotting(true, null);
+    view["editVertices"] = [start, bend, tapped];
+    view["walkingPaths"].pathBetween = vi.fn().mockReturnValue(new Promise(resolve => pending.resolve = resolve));
+    view["deleteVertexAt"](1);
+    await Promise.resolve();
+    view.undoEdit();
+    pending.resolve([start, tapped]);
+    await view["pathSnapQueue"];
+    expect(view["editVertices"]).toEqual([start, bend, tapped]);
+  });
+
+  it("explains when a deletion cannot reconnect along a path", async () => {
+    const view = plotting(true, null);
+    view["editVertices"] = [start, bend, tapped];
+    view["deleteVertexAt"](1);
+    await view["pathSnapQueue"];
     expect(view["editVertices"]).toEqual([start, tapped]);
     expect(view["persistMessage"]).toContain("No path found");
   });

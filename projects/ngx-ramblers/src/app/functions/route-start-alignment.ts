@@ -64,6 +64,6 @@ export function routeStartAlignmentMessage(alignment: RouteStartAlignment, start
   }
 }
 
-export function routeStartAdjustLabel(alignment: RouteStartAlignment, startName: string): string {
-  return alignment.kind === RouteStartAlignmentKind.FINISHES_AT_START ? "Reverse the route" : `Start the route at ${startName}`;
+export function routeStartAdjustLabel(alignment: RouteStartAlignment): string {
+  return alignment.kind === RouteStartAlignmentKind.FINISHES_AT_START ? "Reverse the route" : "Start at the start point";
 }

@@ -181,12 +181,10 @@ import { GridReferenceService } from "../../../services/maps/grid-reference.serv
         <div class="col-sm-12">
           <div class="btn-group walk-location-map-toggle w-100 mb-2" role="group" aria-label="Toggle Google Maps View">
             <button type="button" class="btn btn-primary text-nowrap" [class.active]="!showGoogleMapsView"
-              [disabled]="disabled"
               (click)="selectPinView()">
               <fa-icon class="me-2" [icon]="faMapPin"/>Pin
             </button>
             <button type="button" class="btn btn-primary text-nowrap" [class.active]="showGoogleMapsView"
-              [disabled]="disabled"
               (click)="selectGoogleMapView()">
               <fa-icon class="me-2" [icon]="faMap"/>Google Map
             </button>

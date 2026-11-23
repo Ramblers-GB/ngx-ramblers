@@ -559,9 +559,8 @@ import { SystemConfigService } from "../../services/system/system-config.service
                 </button>
                 <button class="follow-tool" type="button"
                         [class.is-active]="editTool === RouteFollowEditTool.START"
-                        [disabled]="!routeIsLoop"
                         (click)="setEditTool(RouteFollowEditTool.START)"
-                        [tooltip]="routeIsLoop ? 'Move start: tap the route where the walk should begin' : 'Move start works on circular routes. Drag the first point to move the start of a linear route'" [isDisabled]="!tooltipsEnabled"
+                        tooltip="Move start: tap the route where the walk should begin" [isDisabled]="!tooltipsEnabled"
                         placement="left" container=".follow-app"
                         aria-label="Move start: tap the route where the walk should begin">
                   <fa-icon [icon]="faFlag"/>
@@ -817,11 +816,12 @@ import { SystemConfigService } from "../../services/system/system-config.service
                 @if (startAlignmentAdjustable) {
                   <div class="small mt-1">{{ ROUTE_START_COPY_NOTE }}</div>
                 }
-                <div class="d-flex flex-wrap gap-2 mt-2">
+                <div class="d-grid gap-2 mt-3">
                   @if (startAlignmentAdjustable) {
-                    <button type="button" class="btn btn-sm btn-primary px-2" (click)="adjustRouteStart()"><fa-icon [icon]="faRightLeft"/>{{ startAlignmentLabel }}</button>
+                    <button type="button" class="btn btn-sm btn-primary px-2 justify-content-center" (click)="adjustRouteStart()"><fa-icon [icon]="faRightLeft"/>{{ startAlignmentLabel }}</button>
                   }
-                  <button type="button" class="btn btn-sm btn-quiet px-2" (click)="startAlignmentDismissed = true"><fa-icon [icon]="faXmark"/>Leave it as it is</button>
+                  <button type="button" class="btn btn-sm btn-quiet px-2 justify-content-center" (click)="chooseStartOnMap()"><fa-icon [icon]="faFlag"/>Choose the start on the map</button>
+                  <button type="button" class="btn btn-sm btn-quiet px-2 justify-content-center" (click)="startAlignmentDismissed = true"><fa-icon [icon]="faXmark"/>Leave it as it is</button>
                 </div>
               </div>
             </div>
@@ -866,7 +866,7 @@ import { SystemConfigService } from "../../services/system/system-config.service
                 }
               </div>
               @if (progress?.mode === RouteFollowMode.EDITING && editTool === RouteFollowEditTool.START) {
-                <p class="follow-library-note">Tap the route where the walk should start. The route keeps its direction and shape, and now begins and ends at that point.</p>
+                <p class="follow-library-note">Tap a point on the route where the walk should start, or drag the START marker along the route. The route keeps its direction, the old start and finish are joined up, and it now begins and ends at that point.</p>
               }
               @if (progress?.mode === RouteFollowMode.EDITING) {
                 <app-section-toggle class="follow-unit-toggle" small pill
@@ -1250,6 +1250,10 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   protected mapTilesLoading = false;
   protected mapReady = false;
   protected mapTilesFailed = false;
+  private hudFrame: number | null = null;
+  private tileStatusFrame: number | null = null;
+  private editHoverFrame: number | null = null;
+  private pendingEditHover: L.LeafletMouseEvent | null = null;
   protected canEditRoute = false;
   protected styleRoute: MapRoute | null = null;
   private savedStyle: {color: string; weight: number; opacity: number} | null = null;
@@ -1490,6 +1494,15 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     document.removeEventListener("pointerdown", this.sheetPointerDownListener, true);
     document.removeEventListener("click", this.sheetClickListener, true);
     this.sheetAnimation?.cancel();
+    this.cancelPendingEditHover();
+    if (this.hudFrame !== null) {
+      cancelAnimationFrame(this.hudFrame);
+      this.hudFrame = null;
+    }
+    if (this.tileStatusFrame !== null) {
+      cancelAnimationFrame(this.tileStatusFrame);
+      this.tileStatusFrame = null;
+    }
     this.persistFollowSession(true);
     this.routeSave.setFollowScreenOpen(false);
     void this.routeSave.flushQueuedWebsiteSave();
@@ -1754,8 +1767,11 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     this.waypointGroup.addTo(map);
     this.editGroup.addTo(map);
     map.on("click", event => this.zone.run(() => this.onMapClick(event)));
-    map.on("mousemove", event => this.zone.run(() => this.onEditHover(event)));
-    map.on("mouseout", () => this.zone.run(() => this.clearInsertHover()));
+    map.on("mousemove", event => this.zone.runOutsideAngular(() => this.scheduleEditHover(event)));
+    map.on("mouseout", () => this.zone.run(() => {
+      this.cancelPendingEditHover();
+      this.clearInsertHover();
+    }));
     const container = map.getContainer();
     container.addEventListener("pointerdown", this.onEditPointerDown);
     container.addEventListener("pointerup", this.onEditPointerUp);
@@ -1774,7 +1790,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     map.on("dragstart", () => this.zone.run(() => {
       this.followUser = false;
     }));
-    map.on("zoom move", () => this.zone.run(() => this.refreshHud()));
+    map.on("zoom move", () => this.zone.runOutsideAngular(() => this.scheduleHudRefresh()));
     map.on("moveend zoomend", () => this.zone.run(() => this.persistFollowSession(true)));
     if (!this.headingUp) {
       this.gestures?.setBearing(this.mapBearing, false);
@@ -2487,6 +2503,46 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     requestAnimationFrame(() => this.mapRef?.invalidateSize());
   }
 
+  private scheduleHudRefresh(): void {
+    if (this.hudFrame === null) {
+      this.hudFrame = requestAnimationFrame(() => {
+        this.hudFrame = null;
+        this.zone.run(() => this.refreshHud());
+      });
+    }
+  }
+
+  private scheduleTileStatusRefresh(): void {
+    if (this.tileStatusFrame === null) {
+      this.tileStatusFrame = requestAnimationFrame(() => {
+        this.tileStatusFrame = null;
+        this.zone.run(() => this.changeDetector.markForCheck());
+      });
+    }
+  }
+
+  private cancelPendingEditHover(): void {
+    this.pendingEditHover = null;
+    if (this.editHoverFrame !== null) {
+      cancelAnimationFrame(this.editHoverFrame);
+      this.editHoverFrame = null;
+    }
+  }
+
+  private scheduleEditHover(event: L.LeafletMouseEvent): void {
+    this.pendingEditHover = event;
+    if (this.editHoverFrame === null) {
+      this.editHoverFrame = requestAnimationFrame(() => {
+        const pending = this.pendingEditHover;
+        this.editHoverFrame = null;
+        this.pendingEditHover = null;
+        if (pending) {
+          this.zone.run(() => this.onEditHover(pending));
+        }
+      });
+    }
+  }
+
   private refreshHud(): void {
     const map = this.mapRef;
     const pane = map?.getPane("mapPane");
@@ -2739,11 +2795,13 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     }
   }
 
-  private moveStartTo(position: {latitude: number; longitude: number}): void {
-    if (this.routeIsLoop) {
-      this.rememberEdit();
+  private moveStartTo(position: {latitude: number; longitude: number}, remember = true): void {
+    if (this.editVertices.length >= 2) {
+      if (remember) {
+        this.rememberEdit();
+      }
       this.editVertices = loopRestartedAt(this.editVertices, position);
-      this.draftPoints = isClosedLoop(this.draftPoints, ROUTE_FOLLOW_LOOP_CLOSURE_METRES)
+      this.draftPoints = this.draftPoints.length >= 2
         ? loopRestartedAt(this.draftPoints, position)
         : this.editVertices.map(point => ({...point}));
       this.followService.replaceTrack(this.editVertices);
@@ -2793,7 +2851,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   get startAlignmentLabel(): string {
-    return this.startAlignment ? routeStartAdjustLabel(this.startAlignment, this.walkStartName()) : "";
+    return this.startAlignment ? routeStartAdjustLabel(this.startAlignment) : "";
   }
 
   adjustRouteStart(): void {
@@ -2808,6 +2866,17 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
         this.reverseRoute();
       }
       this.persistMessage = ROUTE_START_COPY_NOTE;
+    }
+  }
+
+  chooseStartOnMap(): void {
+    if (this.progress?.mode !== RouteFollowMode.EDITING) {
+      this.editRoute();
+    }
+    if (this.progress?.mode === RouteFollowMode.EDITING) {
+      this.startAlignmentDismissed = true;
+      this.setEditTool(RouteFollowEditTool.START);
+      this.refreshArrows();
     }
   }
 
@@ -3445,30 +3514,32 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private async snapMovedVertex(index: number, vertices: {latitude: number; longitude: number}[], generation: number): Promise<void> {
-    const moved = vertices[index];
-    const previous = index > 0 ? vertices[index - 1] : null;
-    const next = index < vertices.length - 1 ? vertices[index + 1] : null;
-    if (generation !== this.pathSnapGeneration || this.editVertices !== vertices || !moved) {
-      this.logger.info("snapMovedVertex: the line changed before the path was found");
+    await this.snapEditConnections(vertices.slice(Math.max(0, index - 1), index + 2), generation);
+  }
+
+  private editConnectionIndex(anchors: {latitude: number; longitude: number}[]): number {
+    const index = this.editVertices.indexOf(anchors[0]);
+    return index >= 0 && anchors.every((anchor, offset) => this.editVertices[index + offset] === anchor) ? index : -1;
+  }
+
+  private async snapEditConnections(anchors: {latitude: number; longitude: number}[], generation: number): Promise<void> {
+    if (generation !== this.pathSnapGeneration || anchors.length < 2 || this.editConnectionIndex(anchors) < 0) {
+      this.logger.info("snapEditConnections: the line changed before the path was found");
     } else {
       this.snappingToPath = true;
-      const [inbound, outbound] = await Promise.all([
-        previous ? this.walkingPaths.pathBetween(previous, moved) : Promise.resolve([moved]),
-        next ? this.walkingPaths.pathBetween(moved, next) : Promise.resolve([moved])
-      ]);
+      const paths = await Promise.all(anchors.slice(1).map((anchor, index) => this.walkingPaths.pathBetween(anchors[index], anchor)));
       this.snappingToPath = false;
-      if (generation !== this.pathSnapGeneration || this.editVertices !== vertices) {
-        this.logger.info("snapMovedVertex: the line changed while the path was being found");
-      } else if (!inbound || !outbound) {
-        this.persistMessage = "No path found there, so the point was joined with straight lines.";
+      const index = this.editConnectionIndex(anchors);
+      if (generation !== this.pathSnapGeneration || index < 0) {
+        this.logger.info("snapEditConnections: the line changed while the path was being found");
+      } else if (paths.some(path => !path || path.length < 2)) {
+        this.persistMessage = "No path found there, so the remaining points were joined with straight lines.";
       } else {
-        const leading = previous ? inbound.slice(1) : inbound;
-        const trailing = next ? outbound.slice(1, -1) : outbound.slice(1);
+        const path = paths.flatMap((points, pathIndex) => pathIndex === 0 ? points : points.slice(1));
         this.editVertices = [
-          ...vertices.slice(0, Math.max(index, 0)),
-          ...leading.map(point => ({latitude: point.latitude, longitude: point.longitude})),
-          ...trailing.map(point => ({latitude: point.latitude, longitude: point.longitude})),
-          ...vertices.slice(index + 1)
+          ...this.editVertices.slice(0, index + 1),
+          ...path.slice(1, -1).map(point => ({latitude: point.latitude, longitude: point.longitude})),
+          ...this.editVertices.slice(index + anchors.length - 1)
         ];
         this.followService.replaceTrack(this.editVertices);
         this.refreshEditHandles();
@@ -3578,7 +3649,9 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
 
   private insertOffRouteVertex(click: {latitude: number; longitude: number}): void {
     const placement = this.pathPlacementFor(click);
-    if (this.snapToPaths && (placement.atStart || placement.atEnd)) {
+    if (!this.drawingNewLine && this.routeIsLoop && (placement.atStart || placement.atEnd)) {
+      this.persistMessage = "This is a circular route, so tapping the map away from it does not add a point. Tap the line itself to add a point there.";
+    } else if (this.snapToPaths && (placement.atStart || placement.atEnd)) {
       const generation = this.pathSnapGeneration;
       this.pathSnapQueue = this.pathSnapQueue
         .then(() => this.insertPathTo(click, generation))
@@ -3626,6 +3699,13 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     if (index >= 0 && this.editVertices.length > 2) {
       this.rememberEdit();
       this.editVertices = this.editVertices.filter((_, vertexIndex) => vertexIndex !== index);
+      if (this.snapToPaths && index > 0 && index < this.editVertices.length) {
+        const anchors = this.editVertices.slice(index - 1, index + 1);
+        const generation = this.pathSnapGeneration;
+        this.pathSnapQueue = this.pathSnapQueue
+          .then(() => this.snapEditConnections(anchors, generation))
+          .catch(error => this.logger.error("snapEditConnections failed", error));
+      }
       this.followService.replaceTrack(this.editVertices);
       this.refreshEditHandles();
       this.refreshArrows();
@@ -3833,6 +3913,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private followSessionSnapshot(): RouteFollowSession {
     const center = this.mapRef?.getCenter() || this.restoredMapView?.center || null;
     return {
+      savedAt: this.dateUtils.dateTimeNowAsValue(),
       recordingId: this.payload?.recordingId || null,
       recordingDetailsOpen: this.recordingDetailsOpen,
       walkId: this.payload?.walkId || null,
@@ -4209,7 +4290,8 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private openRequestedEdit(): void {
-    if (this.canEditRoute && this.route?.snapshot?.queryParamMap.get(StoredValue.EDIT_ROUTE) === "true") {
+    const hasRoute = (this.payload?.points?.length || 0) >= 2;
+    if (this.canEditRoute && !hasRoute && this.route?.snapshot?.queryParamMap.get(StoredValue.EDIT_ROUTE) === "true") {
       this.editRoute();
     }
   }
@@ -4228,10 +4310,21 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     if (layer instanceof L.LayerGroup) {
       layer.eachLayer(child => this.observeMapTiles(child));
     } else {
-      layer.on("loading", () => this.zone.run(() => { this.mapTilesLoading = true; this.redraw(); }));
-      layer.on("load", () => this.zone.run(() => { this.mapTilesLoading = false; this.redraw(); }));
-      layer.on("tileload", () => this.zone.run(() => { this.mapTileLoads += 1; this.mapTilesFailed = false; this.redraw(); }));
-      layer.on("tileerror", () => this.zone.run(() => { this.mapTilesFailed = true; this.redraw(); }));
+      layer.on("loading", () => this.zone.runOutsideAngular(() => {
+        this.mapTilesLoading = true;
+        this.scheduleTileStatusRefresh();
+      }));
+      layer.on("load", () => this.zone.run(() => { this.mapTilesLoading = false; }));
+      layer.on("tileload", () => this.zone.runOutsideAngular(() => {
+        this.mapTileLoads += 1;
+        this.mapTilesFailed = false;
+        this.scheduleTileStatusRefresh();
+      }));
+      layer.on("tileerror", () => {
+        if (!this.mapTilesFailed) {
+          this.zone.run(() => { this.mapTilesFailed = true; });
+        }
+      });
     }
   }
 
@@ -4284,7 +4377,7 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     const minZoom = this.mapTiles.minZoomForStyle(provider, style);
     const zoom = view ? Math.min(Math.max(view.zoom, minZoom), maxZoom) : Math.max(maxZoom - 2, minZoom);
     const center = view?.center || L.latLng(first.latitude, first.longitude);
-    const baseLayer = this.mapTiles.createBaseLayer(provider, style);
+    const baseLayer = this.zone.runOutsideAngular(() => this.mapTiles.createBaseLayer(provider, style));
     this.observeMapTiles(baseLayer);
     this.options = {
       layers: [baseLayer],
@@ -4308,16 +4401,17 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   private refreshWaypointPins(): void {
     this.waypointGroup.clearLayers();
     const editing = this.progress?.mode === RouteFollowMode.EDITING || this.progress?.mode === RouteFollowMode.RECORDING;
-    const showStartWhileEditing = this.progress?.mode === RouteFollowMode.EDITING && !!this.startWaypoint();
-    if (this.payload && ((this.stepPinsOnMap && !editing) || this.showingPlanningAnchors || showStartWhileEditing)) {
-      const displayedWaypoints = this.showingPlanningAnchors || showStartWhileEditing
-        ? this.payload.waypoints.filter(waypoint => waypoint.kind === RouteWaypointKind.START
-          || (this.showingPlanningAnchors && waypoint.kind === RouteWaypointKind.END))
+    const editAnchors = this.progress?.mode === RouteFollowMode.EDITING && !this.showingPlanningAnchors ? this.editAnchorWaypoints() : [];
+    if (editAnchors.length > 0) {
+      editAnchors.forEach(waypoint => this.waypointGroup.addLayer(this.editAnchorPin(waypoint)));
+    } else if (this.payload && ((this.stepPinsOnMap && !editing) || this.showingPlanningAnchors)) {
+      const displayedWaypoints = this.showingPlanningAnchors
+        ? this.payload.waypoints.filter(waypoint => waypoint.kind === RouteWaypointKind.START || waypoint.kind === RouteWaypointKind.END)
         : this.directedWaypoints;
       displayedWaypoints.forEach((waypoint, index) => {
         const draggableStart = waypoint.kind === RouteWaypointKind.START && this.progress?.mode === RouteFollowMode.EDITING;
         const pin = L.marker([waypoint.latitude, waypoint.longitude], {
-          icon: (this.showingPlanningAnchors || showStartWhileEditing) && waypoint.kind
+          icon: this.showingPlanningAnchors && waypoint.kind
             ? this.markerStyle.routeAnchorIcon(waypoint.kind)
             : this.markerStyle.numberedMarkerIcon(this.waypointNumber(waypoint, index), this.mapProvider, this.osStyle),
           keyboard: false,
@@ -4348,6 +4442,46 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
     }
   }
 
+  private editAnchorWaypoints(): RouteFollowWaypoint[] {
+    const first = this.editVertices[0];
+    const last = this.editVertices.at(-1);
+    if (this.editVertices.length < 2 || !first || !last) {
+      return [];
+    } else {
+      const start: RouteFollowWaypoint = {...(this.startWaypoint() || {id: "edit-start"}), kind: RouteWaypointKind.START, latitude: first.latitude, longitude: first.longitude};
+      const finish: RouteFollowWaypoint = {id: "edit-finish", kind: RouteWaypointKind.END, latitude: last.latitude, longitude: last.longitude};
+      return this.routeIsLoop ? [start] : [start, finish];
+    }
+  }
+
+  private editAnchorPin(waypoint: RouteFollowWaypoint): L.Marker {
+    const start = waypoint.kind === RouteWaypointKind.START;
+    const pin = L.marker([waypoint.latitude, waypoint.longitude], {
+      icon: this.markerStyle.routeAnchorIcon(waypoint.kind),
+      keyboard: false,
+      zIndexOffset: 900,
+      draggable: start,
+      autoPan: false
+    });
+    if (start) {
+      pin.on("dragstart", event => this.zone.run(() => this.onStartAnchorDragStart(event)));
+      pin.on("drag", event => this.zone.run(() => this.onStartAnchorDrag(waypoint, event.target as L.Marker)));
+      pin.on("dragend", event => this.zone.run(() => this.onStartAnchorDragEnd(waypoint, event.target as L.Marker)));
+      pin.bindTooltip(this.routeIsLoop ? "Drag along the route to move the start" : "Drag to move the start", {direction: "top", offset: [0, -36]});
+    } else {
+      pin.bindTooltip("Finish", {direction: "top", offset: [0, -36]});
+    }
+    return pin;
+  }
+
+  private startSlidesAlongRoute(): boolean {
+    return this.routeIsLoop && !this.showingPlanningAnchors;
+  }
+
+  private snappedToRoute(latLng: L.LatLng): RouteFollowPoint | null {
+    return this.followService.nearestSegment({latitude: latLng.lat, longitude: latLng.lng})?.point || null;
+  }
+
   private addPlanningAnchor(waypoint: RouteFollowWaypoint): void {
     if (this.mapRef) {
       const latLng = L.latLng(waypoint.latitude, waypoint.longitude);
@@ -4371,11 +4505,25 @@ export class RouteFollowComponent implements OnInit, OnDestroy {
   }
 
   private onStartAnchorDrag(waypoint: RouteFollowWaypoint, marker: L.Marker): void {
-    this.movePlotStart(waypoint, marker.getLatLng(), false);
+    if (this.startSlidesAlongRoute()) {
+      const snapped = this.snappedToRoute(marker.getLatLng());
+      if (snapped) {
+        marker.setLatLng([snapped.latitude, snapped.longitude]);
+      }
+    } else {
+      this.movePlotStart(waypoint, marker.getLatLng(), false);
+    }
   }
 
   private onStartAnchorDragEnd(waypoint: RouteFollowWaypoint, marker: L.Marker): void {
-    this.movePlotStart(waypoint, marker.getLatLng(), true);
+    if (this.startSlidesAlongRoute()) {
+      const snapped = this.snappedToRoute(marker.getLatLng());
+      if (snapped) {
+        this.moveStartTo(snapped, false);
+      }
+    } else {
+      this.movePlotStart(waypoint, marker.getLatLng(), true);
+    }
     this.mapRef?.dragging.enable();
   }
 

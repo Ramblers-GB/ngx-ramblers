@@ -4,7 +4,7 @@ import { provideHttpClient } from "@angular/common/http";
 import { provideHttpClientTesting } from "@angular/common/http/testing";
 import { firstValueFrom, of, timeout } from "rxjs";
 import { LoggerTestingModule } from "ngx-logger/testing";
-import { RouteFollowMode, RouteFollowSource } from "../../models/route-follow.model";
+import { RouteFollowMode, RouteFollowPoint, RouteFollowSource } from "../../models/route-follow.model";
 import { DateUtilsService } from "../date-utils.service";
 import { PageContentService } from "../page-content.service";
 import { UiActionsService } from "../ui-actions.service";
@@ -111,6 +111,15 @@ describe("RouteFollowSaveService", () => {
     expect(gpx).toContain("<trkpt lat=\"51.2\" lon=\"1\">");
     expect(gpx).toContain("<trkpt lat=\"51.21\" lon=\"1.01\">");
     expect(gpx).toContain("<name>Sunday walk</name>");
+  });
+
+  it("leaves out a height it does not know rather than writing zero", () => {
+    const gpx = service.pointsToGpx([
+      {latitude: 51.2, longitude: 1.0, elevation: 20},
+      {latitude: 51.21, longitude: 1.01}
+    ], "Sunday walk");
+    expect(gpx).toContain("<ele>20</ele>");
+    expect(gpx).not.toContain("<ele>0</ele>");
   });
 
   it("saves a standalone route through the shared import without changing a walk", async () => {
@@ -308,6 +317,7 @@ describe("RouteFollowSaveService", () => {
   });
 
   it("saves a walk line by uploading GPX and attaching it", async () => {
+    const gpxWriter = vi.spyOn(service, "pointsToGpx");
     const file = await service.save({
       source: RouteFollowSource.WALK,
       title: "Sunday walk",
@@ -330,6 +340,7 @@ describe("RouteFollowSaveService", () => {
       {latitude: 51.21, longitude: 1.01}
     ]);
     expect(file.awsFileName).toBe("gpx-routes/saved.gpx");
+    expect(gpxWriter.mock.calls.at(-1)?.[0].map(point => point.elevation)).toEqual([undefined, undefined]);
     expect(savedWalks[savedWalks.length - 1].fields.routeColor).toBe("#c21d4b");
   });
 

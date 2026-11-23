@@ -8,6 +8,7 @@ import { hasFileExtension } from "../shared/string-utils";
 import { parseExportedGpx } from "../os-maps/exported-gpx-parser";
 import { envConfig } from "../env-config/env-config";
 import debug from "debug";
+import { gpxWithHeights } from "../map-routes/gpx-height-enrichment";
 
 const debugLog: debug.Debugger = debug(envConfig.logNamespace("walk-gpx-persist"));
 debugLog.enabled = true;
@@ -18,13 +19,14 @@ export async function persistGpxContent(
   title?: string,
   walker?: RouteContributor
 ): Promise<ServerFileNameData> {
+  const enrichedContent = await gpxWithHeights(content);
   const safeName = hasFileExtension(originalFileName, ".gpx") ? originalFileName : `${originalFileName}.gpx`;
   const awsFileName = generateAwsFileName(safeName);
   const resolvedTitle = title || safeName.replace(/\.gpx$/i, "");
   const fileNameData = createFileNameData(RootFolder.gpxRoutes, safeName, awsFileName, resolvedTitle);
   Object.assign(fileNameData, gpxAudit(walker));
   try {
-    const summary = parseExportedGpx(content, safeName);
+    const summary = parseExportedGpx(enrichedContent, safeName);
     fileNameData.startLat = summary.startLat;
     fileNameData.startLng = summary.startLng;
     fileNameData.previewPoints = summary.previewPoints;
@@ -44,7 +46,7 @@ export async function persistGpxContent(
     fileNameData.walkedByName = walker.name;
   }
   debugLog("Uploading GPX file:", safeName, "as", awsFileName, "with start point:", fileNameData.startLat, fileNameData.startLng);
-  const response = await putBufferDirect(RootFolder.gpxRoutes, awsFileName, Buffer.from(content, "utf8"), "application/gpx+xml");
+  const response = await putBufferDirect(RootFolder.gpxRoutes, awsFileName, Buffer.from(enrichedContent, "utf8"), "application/gpx+xml");
   if (isAwsUploadErrorResponse(response)) {
     throw new Error(response.error || "Upload failed");
   } else {

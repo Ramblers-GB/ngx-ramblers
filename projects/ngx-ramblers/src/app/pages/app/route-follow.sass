@@ -854,7 +854,16 @@
   -webkit-overflow-scrolling: touch
 
 .follow-sheet:not(.is-minimised) .follow-sheet-body
+  display: flex
+  flex-direction: column
+  min-height: 100%
   padding-bottom: var(--space-3)
+
+.follow-sheet-body .alert > div
+  min-width: 0
+
+.follow-sheet-body .alert .btn
+  white-space: normal
 
 .follow-place-block
   position: relative
