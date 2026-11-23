@@ -80,7 +80,7 @@ export class CommitteeQueryService {
   groupEvents(groupEventsFilter: GroupEventsFilter): Promise<GroupEventSummary[]> {
     this.logger.info("groupEventsFilter", groupEventsFilter);
     const fromDate: DateValue = groupEventsFilter.fromDate;
-    const toDate: DateValue = groupEventsFilter.toDate;
+    const toDate: DateValue = groupEventsFilter.toDate ? this.dateUtils.asDateValue(this.dateUtils.asDateTime(groupEventsFilter.toDate.value).endOf("day")) : groupEventsFilter.toDate;
     this.logger.info("groupEventsFilter:fromDate", this.displayDatePipe.transform(fromDate), "toDate", this.displayDatePipe.transform(toDate));
     const events: GroupEventSummary[] = [];
     const promises = [];
