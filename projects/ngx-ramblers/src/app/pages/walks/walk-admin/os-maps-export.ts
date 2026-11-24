@@ -89,7 +89,7 @@ import { MapsLibraryComponent } from "../../app/maps-library";
                             [disabled]="busy()"
                             (imported)="onGpxFileImported()"
                             (failed)="onGpxFileImportFailed($event)"/>
-        @if (listing.listedAt) {
+        @if (routesAvailable()) {
           <button type="button" class="btn" [class.btn-primary]="nearbyOnly" [class.btn-quiet]="!nearbyOnly"
                   [attr.aria-pressed]="nearbyOnly" (click)="chooseNearby()">
             <fa-icon [icon]="nearbyOnly ? faCheck : faLocationDot" class="me-2"/>{{ nearbyPlaceName ? "Near " + nearbyPlaceName : "Near me" }}
@@ -222,7 +222,7 @@ import { MapsLibraryComponent } from "../../app/maps-library";
       }
             <p class="mb-3"><a [href]="routesHowToImportUrl" target="_blank" rel="noopener noreferrer">How to import routes from OS Maps</a></p>
       }
-          @if (listing.listedAt) {
+          @if (routesAvailable()) {
             <div class="mb-3 d-flex flex-wrap align-items-stretch gap-2">
               <app-venue-autocomplete class="flex-grow-1"
                                       placeholder="Town, postcode, pub or hill"
@@ -1039,6 +1039,10 @@ export class OsMapsExportPage implements OnInit, OnDestroy {
     } else {
       return this.dateUtils.displayDate(route.walkedAt);
     }
+  }
+
+  routesAvailable(): boolean {
+    return !!(this.listing.listedAt || this.listing.totalCount || this.listing.routes.length);
   }
 
   canEditRoute(route: OsMapsListedRoute): boolean {

@@ -1,3 +1,4 @@
+import { nativeWalkingStorageKey, scopeLocalWalkingStorage } from "../../functions/native-walking";
 import { TestBed } from "@angular/core/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MemberLoginService } from "../member/member-login.service";
@@ -31,12 +32,23 @@ describe("OS Maps route list cache", () => {
   it("restores a listing from session storage after a new service instance", () => {
     const first = TestBed.inject(OsMapsRouteListCacheService);
     first.save(OsMapsAccountScope.GROUP, {listedAt: 4, routes: []});
-    expect(window.sessionStorage.getItem(StoredValue.OS_MAPS_ROUTE_LIST_CACHE)).toContain("member-admin");
+    expect(window.sessionStorage.getItem(nativeWalkingStorageKey(StoredValue.OS_MAPS_ROUTE_LIST_CACHE))).toContain("member-admin");
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({providers: [
       {provide: MemberLoginService, useValue: member}
     ]});
     expect(TestBed.inject(OsMapsRouteListCacheService).snapshot(OsMapsAccountScope.GROUP)).toEqual({listedAt: 4, routes: []});
+  });
+
+  it("isolates listings when the local environment changes for the same member", () => {
+    const cache = TestBed.inject(OsMapsRouteListCacheService);
+    scopeLocalWalkingStorage("AA01");
+    cache.save(OsMapsAccountScope.GROUP, {listedAt: 4, routes: []});
+    scopeLocalWalkingStorage("AA02");
+    expect(cache.snapshot(OsMapsAccountScope.GROUP)).toBeNull();
+    cache.save(OsMapsAccountScope.GROUP, {listedAt: 8, routes: []});
+    scopeLocalWalkingStorage("AA01");
+    expect(cache.snapshot(OsMapsAccountScope.GROUP)?.listedAt).toBe(4);
   });
 
   it("does not return another member's stored listing", () => {

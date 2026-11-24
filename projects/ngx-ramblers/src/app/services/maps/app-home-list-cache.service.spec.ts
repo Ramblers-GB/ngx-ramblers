@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { saveNativeWalkingSite } from "../../functions/native-walking";
+import { scopeLocalWalkingStorage, saveNativeWalkingSite } from "../../functions/native-walking";
 import { AppHomeListSnapshot } from "../../models/app-home-list-cache.model";
 import { RouteFollowSummary } from "../../models/route-follow.model";
 import { StoredValue } from "../../models/ui-actions.model";
@@ -10,6 +10,21 @@ describe("group home list isolation", () => {
     vi.restoreAllMocks();
     window.localStorage.removeItem(StoredValue.APP_SITE_ORIGIN);
     window.sessionStorage.clear();
+  });
+
+  it("isolates local environment lists and ignores unscoped legacy data", () => {
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(false);
+    const cache = Object.create(AppHomeListCacheService.prototype) as AppHomeListCacheService;
+    cache["memberLogin"] = {loggedInMember: () => null} as unknown as typeof cache["memberLogin"];
+    const first = {routes: [{routeId: "first-route"} as RouteFollowSummary], walks: [], websiteMapKeys: [], importedOsMapsByKey: {}, previewPoints: {}, offlineByKey: {}} as AppHomeListSnapshot;
+    window.sessionStorage.setItem(StoredValue.APP_HOME_LIST_CACHE, JSON.stringify(first));
+    scopeLocalWalkingStorage("AA01");
+    expect(cache.snapshot()).toBeNull();
+    cache.save(first);
+    scopeLocalWalkingStorage("AA02");
+    expect(cache.snapshot()).toBeNull();
+    scopeLocalWalkingStorage("AA01");
+    expect(cache.snapshot()?.routes).toEqual(first.routes);
   });
 
   it("keeps memory and stored lists separate even when both groups are signed out", () => {

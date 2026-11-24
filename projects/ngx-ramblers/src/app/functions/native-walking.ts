@@ -71,8 +71,15 @@ export function returnNativeShell(): void {
   window.location.assign(nativeLocalShellUrl());
 }
 
+const localWalkingScope = {value: `pending-${crypto.randomUUID()}`};
+
+export function scopeLocalWalkingStorage(groupCode: string): void {
+  localWalkingScope.value = groupCode || localWalkingScope.value;
+}
+
 export function nativeWalkingStorageKey(key: string): string {
-  const site = nativeWalkingSite();
+  const localDevelopment = !Capacitor.isNativePlatform() && ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const site = nativeWalkingSite() || (localDevelopment ? `local:${localWalkingScope.value}` : null);
   return site ? `${key}:${site}` : key;
 }
 

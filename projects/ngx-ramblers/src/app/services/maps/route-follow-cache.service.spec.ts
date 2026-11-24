@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { saveNativeWalkingSite } from "../../functions/native-walking";
+import { scopeLocalWalkingStorage, saveNativeWalkingSite } from "../../functions/native-walking";
 import { StoredValue } from "../../models/ui-actions.model";
 import { RouteFollowCacheService } from "./route-follow-cache.service";
 import { CachedFollowRoute, RouteFollowOfflineStatus, RouteFollowPayload } from "../../models/route-follow.model";
@@ -89,6 +89,33 @@ describe("RouteFollowCacheService recovery", () => {
 });
 
 describe("group route database isolation", () => {
+  it("opens separate databases when the local environment changes", async () => {
+    const platform = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(false);
+    const opened: string[] = [];
+    const requests: IDBOpenDBRequest[] = [];
+    vi.stubGlobal("indexedDB", {open: (name: string) => {
+      opened.push(name);
+      const request = {result: {name}, onsuccess: null as (() => void) | null};
+      requests.push(request as unknown as IDBOpenDBRequest);
+      return request;
+    }});
+    try {
+      const cache = Object.create(RouteFollowCacheService.prototype) as RouteFollowCacheService;
+      scopeLocalWalkingStorage("AA01");
+      const first = cache["database"]();
+      requests[0].onsuccess.call(requests[0], new Event("success"));
+      await first;
+      scopeLocalWalkingStorage("AA02");
+      const second = cache["database"]();
+      requests[1].onsuccess.call(requests[1], new Event("success"));
+      await second;
+      expect(opened).toEqual(["ngx-follow:local:AA01", "ngx-follow:local:AA02"]);
+    } finally {
+      platform.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("opens separate databases when the selected native group changes", async () => {
     const platform = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
     const opened: string[] = [];

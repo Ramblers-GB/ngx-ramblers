@@ -1,3 +1,4 @@
+import { scopeLocalWalkingStorage } from "../../functions/native-walking";
 import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Observable, ReplaySubject } from "rxjs";
@@ -64,6 +65,7 @@ export class SystemConfigService {
   }
 
   private cacheAndNotify(systemConfig: SystemConfig) {
+    scopeLocalWalkingStorage(systemConfig.group?.groupCode);
     this.cachedSystemConfig = systemConfig;
     this.logger.info("notifying systemConfig subscribers with:", this.cachedSystemConfig);
     this.subject.next(this.cachedSystemConfig);

@@ -1,3 +1,4 @@
+import { nativeWalkingStorageKey } from "../../functions/native-walking";
 import { MemberLoginService } from "../member/member-login.service";
 import { inject, Injectable } from "@angular/core";
 import { OsMapsAccountScope, OsMapsRouteListing, OsMapsRouteListSnapshot } from "../../models/os-maps-export.model";
@@ -8,6 +9,7 @@ import { StoredValue } from "../../models/ui-actions.model";
 })
 export class OsMapsRouteListCacheService {
   private memberLogin = inject(MemberLoginService);
+  private memoryStorageKey: string | null = null;
   private memory: OsMapsRouteListSnapshot | null = null;
 
   snapshot(account: OsMapsAccountScope): OsMapsRouteListing | null {
@@ -22,9 +24,10 @@ export class OsMapsRouteListCacheService {
       memberId,
       listings: {...previous.listings, [account]: listing}
     };
+    this.memoryStorageKey = nativeWalkingStorageKey(StoredValue.OS_MAPS_ROUTE_LIST_CACHE);
     this.memory = snapshot;
     try {
-      window.sessionStorage.setItem(StoredValue.OS_MAPS_ROUTE_LIST_CACHE, JSON.stringify(snapshot));
+      window.sessionStorage.setItem(this.memoryStorageKey, JSON.stringify(snapshot));
     } catch {
       this.memory = snapshot;
     }
@@ -32,7 +35,7 @@ export class OsMapsRouteListCacheService {
 
   private currentSnapshot(): OsMapsRouteListSnapshot | null {
     const memberId = this.memberId();
-    if (this.memory && this.memory.memberId === memberId) {
+    if (this.memory && this.memoryStorageKey === nativeWalkingStorageKey(StoredValue.OS_MAPS_ROUTE_LIST_CACHE) && this.memory.memberId === memberId) {
       return this.memory;
     } else {
       return this.readStored();
@@ -41,7 +44,7 @@ export class OsMapsRouteListCacheService {
 
   private readStored(): OsMapsRouteListSnapshot | null {
     try {
-      const raw = window.sessionStorage.getItem(StoredValue.OS_MAPS_ROUTE_LIST_CACHE);
+      const raw = window.sessionStorage.getItem(nativeWalkingStorageKey(StoredValue.OS_MAPS_ROUTE_LIST_CACHE));
       if (!raw) {
         return null;
       } else {

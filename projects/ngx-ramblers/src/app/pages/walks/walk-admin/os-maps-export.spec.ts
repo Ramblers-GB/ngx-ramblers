@@ -254,6 +254,15 @@ describe("OS Maps export job reconnection", () => {
     expect(state.page.emptyMessage()).toBe("Loading saved routes…");
   });
 
+  it("shows stored routes without requiring an OS Maps listing", () => {
+    state.page.listing = {listedAt: 0, routes: [{id: "gpx-one", title: "Hillside Park"} as OsMapsListedRoute]};
+    expect(state.page.routesAvailable()).toBe(true);
+    state.page.listing = {listedAt: 0, routes: [], totalCount: 1};
+    expect(state.page.routesAvailable()).toBe(true);
+    state.page.listing = {listedAt: 0, routes: []};
+    expect(state.page.routesAvailable()).toBe(false);
+  });
+
   it("shows cached routes immediately while the listing request is in flight", () => {
     const cached = {listedAt: 9, routes: [{id: "cached-route", title: "Hillside Park"} as OsMapsListedRoute]};
     listCache.snapshot.mockReturnValue(cached);

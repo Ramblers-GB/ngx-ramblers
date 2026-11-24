@@ -18,7 +18,7 @@ import { NgTemplateOutlet } from "@angular/common";
 import { NgSelectModule } from "@ng-select/ng-select";
 import { FormsModule } from "@angular/forms";
 import { NgxLoggerLevel } from "ngx-logger";
-import { Subscription, take } from "rxjs";
+import { firstValueFrom, Subscription, take } from "rxjs";
 import { faArrowLeft, faArrowUpRightFromSquare, faPeopleGroup, faCompass, faCalendarDay, faCheck, faDownload, faRoute, faCircleExclamation, faCircleHalfStroke, faCircleInfo, faEyeSlash, faFileImport, faLocationDot, faMagnifyingGlass, faMap, faMoon, faPersonWalking, faArrowsRotate, faSliders, faSpinner, faStar, faSun, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeModule } from "@fortawesome/angular-fontawesome";
 import { TooltipModule } from "ngx-bootstrap/tooltip";
@@ -1562,6 +1562,7 @@ export class MapsLibraryComponent implements OnInit, OnDestroy {
   }
 
   private async load(): Promise<void> {
+    await firstValueFrom(this.systemConfigService.events().pipe(take(1)));
     const hadSnapshot = this.applyListSnapshot();
     if (!hadSnapshot) {
       this.loading = true;
