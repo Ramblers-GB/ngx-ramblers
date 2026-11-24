@@ -9,7 +9,7 @@ import { WalkStatus } from "../../../models/ramblers-walks-manager.model";
 import { Component, inject, Input } from "@angular/core";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
 import { AlertTarget } from "../../../models/alert-target.model";
-import { EventsData, EventsView } from "../../../models/group-events.model";
+import { EventNotice, eventNoticeFor, EventsData, EventsView } from "../../../models/group-events.model";
 import { DateUtilsService } from "../../../services/date-utils.service";
 import { AlertInstance } from "../../../services/notifier.service";
 import { GroupEventCard } from "../../../pages/group-events/group-event-card/group-event-card";
@@ -32,11 +32,11 @@ import { StringUtilsService } from "../../../services/string-utils.service";
       @for (extendedGroupEvent of currentPageFilteredEvents; track eventKey(extendedGroupEvent); let index = $index) {
         <div class="event-card-slot">
           @if (extendedGroupEvent.groupEvent.item_type === RamblersEventType.GROUP_EVENT) {
-            <app-group-event-card [groupEvent]="extendedGroupEvent" [maxColumns]="eventsData?.maxColumns" [cardDisplay]="eventsData?.cardDisplay"/>
+            <app-group-event-card [groupEvent]="extendedGroupEvent" [maxColumns]="eventsData?.maxColumns" [cardDisplay]="eventsData?.cardDisplay" [notice]="noticeFor(extendedGroupEvent)"/>
           } @else {
             <app-walk-card-view mapClass="map-card-image-events" cardImageClass="card-img-fixed-height" [index]="index"
                                 class="card shadow clickable h-100" [maxColumns]="eventsData?.maxColumns"
-                                [compact]="eventsData?.compact" [cardDisplay]="eventsData?.cardDisplay"
+                                [compact]="eventsData?.compact" [cardDisplay]="eventsData?.cardDisplay" [notice]="noticeFor(extendedGroupEvent)"
                                 navigateOnCardClick
                                 [displayedWalk]="walkDisplayService.toDisplayedWalk(extendedGroupEvent)"/>
           }
@@ -117,6 +117,10 @@ export class EventCardsList {
     const minCols = this.eventsData?.minColumns || 1;
     const maxCols = this.eventsData?.maxColumns || 2;
     return Math.max(minCols, Math.min(eventCount, maxCols));
+  }
+
+  noticeFor(extendedGroupEvent: ExtendedGroupEvent): EventNotice | null {
+    return eventNoticeFor(this.eventsData, [extendedGroupEvent?.id, extendedGroupEvent?.groupEvent?.id].filter(id => !!id));
   }
 
   eventKey(extendedGroupEvent: ExtendedGroupEvent): string {

@@ -1,4 +1,5 @@
-import { EventCardDisplayOptions } from "../../../models/group-events.model";
+import { EVENT_NOTICE_DEFAULT_TITLE, EventCardDisplayOptions, EventNotice } from "../../../models/group-events.model";
+import { EventNoticeAlert } from "../../../modules/common/event-notice-alert/event-notice-alert";
 import { booleanAttribute, Component, inject, Input, OnDestroy, OnInit } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
@@ -13,7 +14,7 @@ import { SystemConfigService } from "../../../services/system/system-config.serv
 import { SystemConfig } from "../../../models/system.model";
 import { StringUtilsService } from "../../../services/string-utils.service";
 import { MediaQueryService } from "../../../services/committee/media-query.service";
-import { faCircleExclamation, faEnvelope, faEye, faPencil, faPhone } from "@fortawesome/free-solid-svg-icons";
+import { faEnvelope, faEye, faPencil, faPhone } from "@fortawesome/free-solid-svg-icons";
 import { WalkGradingComponent } from "./walk-grading";
 import { TooltipDirective } from "ngx-bootstrap/tooltip";
 import { RelatedLinkComponent } from "../../../modules/common/related-links/related-link";
@@ -47,15 +48,10 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
           </a>
         </h3>
         @if (displayedWalk.walk?.groupEvent?.status === WalkStatus.CANCELLED) {
-          <div class="alert alert-warning mb-2 d-flex align-items-start gap-2">
-            <fa-icon [icon]="faCircleExclamation"/>
-            <div>
-              <strong>This walk has been cancelled</strong>
-              @if (displayedWalk.walk?.groupEvent?.cancellation_reason) {
-                <p class="mb-0 mt-1">{{ displayedWalk.walk?.groupEvent?.cancellation_reason }}</p>
-              }
-            </div>
-          </div>
+          <app-event-notice-alert title="This walk has been cancelled" [message]="displayedWalk.walk?.groupEvent?.cancellation_reason"/>
+        }
+        @if (notice) {
+          <app-event-notice-alert [title]="notice.title?.trim() || EVENT_NOTICE_DEFAULT_TITLE" [message]="notice.message"/>
         }
         @if (cardDisplay?.showDate !== false) {
         <dl class="d-flex mb-2">
@@ -177,7 +173,7 @@ import { JointLeaderNamesPipe } from "../../../pipes/joint-leader-names.pipe";
       max-width: 100%
       white-space: normal
   `],
-  imports: [WalkGradingComponent, TooltipDirective, RelatedLinkComponent, FontAwesomeModule, CopyIconComponent, DisplayDatePipe, DisplayTimePipe, CardImageOrMap, RouterLink, EventLeaderContactLinkComponent, EventLeaderPhoneLinkComponent, EventGroupComponent, JointLeaderNamesPipe]
+  imports: [WalkGradingComponent, EventNoticeAlert, TooltipDirective, RelatedLinkComponent, FontAwesomeModule, CopyIconComponent, DisplayDatePipe, DisplayTimePipe, CardImageOrMap, RouterLink, EventLeaderContactLinkComponent, EventLeaderPhoneLinkComponent, EventGroupComponent, JointLeaderNamesPipe]
 })
 
 export class WalkCardViewComponent implements OnInit, OnDestroy {
@@ -204,9 +200,10 @@ export class WalkCardViewComponent implements OnInit, OnDestroy {
   @Input() maxColumns!: number;
   @Input({transform: booleanAttribute}) compact = false;
   @Input() cardDisplay: EventCardDisplayOptions;
+  @Input() notice: EventNotice | null = null;
+  protected readonly EVENT_NOTICE_DEFAULT_TITLE = EVENT_NOTICE_DEFAULT_TITLE;
   @Input({transform: booleanAttribute}) navigateOnCardClick = false;
   private router = inject(Router);
-  protected readonly faCircleExclamation = faCircleExclamation;
   protected readonly faPhone = faPhone;
   protected readonly faEnvelope = faEnvelope;
   protected readonly faEye = faEye;

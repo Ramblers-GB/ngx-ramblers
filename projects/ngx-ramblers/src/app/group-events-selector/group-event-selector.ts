@@ -16,7 +16,7 @@ import { NumberUtilsService } from "../services/number-utils.service";
 import { StringUtilsService } from "../services/string-utils.service";
 import { FormsModule } from "@angular/forms";
 import { DatePicker } from "../date-and-time/date-picker";
-import { isUndefined } from "es-toolkit/compat";
+import { isUndefined, uniqBy } from "es-toolkit/compat";
 
 @Component({
     selector: "app-group-event-selector",
@@ -149,9 +149,11 @@ export class GroupEventSelectorComponent implements OnInit, OnChanges {
   @Output() imagedSavedOrReverted: EventEmitter<ContentMetadataItem> = new EventEmitter();
   @Output() eventChange: EventEmitter<GroupEventSummary> = new EventEmitter();
   @Output() eventsChange: EventEmitter<GroupEventSummary[]> = new EventEmitter();
+  @Output() pickedEventsLoad = new EventEmitter<GroupEventSummary[]>();
   @Output() eventCleared: EventEmitter<void> = new EventEmitter();
 
   public dataSource: string;
+  private readonly knownEvents = new Map<string, GroupEventSummary>();
   public groupEvents: GroupEventSummary[] = [];
   private search: string;
   public id: string;
@@ -180,6 +182,9 @@ export class GroupEventSelectorComponent implements OnInit, OnChanges {
     if (!this.toDate) {
       this.internalToDate = this.dateUtils.dateTimeNow().plus({ days: 1 }).toMillis();
     }
+    if (this.multiple && this.eventIds?.length > 0) {
+      await this.loadPickedEvents();
+    }
     if (this.eventId || (this.eventIds && this.eventIds.length > 0)) {
       const events = await this.queryGroupEvents();
       if (events.length === 1 && !this.hideDatePickers) {
@@ -201,12 +206,44 @@ export class GroupEventSelectorComponent implements OnInit, OnChanges {
     const toDateValue = this.dateUtils.asDateValue(this.toDate);
     this.logger.info("queryGroupEvents called - dataSource:", this.dataSource, "internal dates - from millis:", this.internalFromDate, "to millis:", this.internalToDate, "fromDateValue:", fromDateValue?.date, "toDateValue:", toDateValue?.date);
     const eventIdsForQuery = this.multiple ? [] : (this.eventId ? [this.eventId] : []);
-    const groupEventsFilter: GroupEventsFilter = {
-      search: this.search,
-      eventIds: eventIdsForQuery,
+    return this.committeeQueryService.groupEvents(this.groupEventsFilter(eventIdsForQuery, this.search))
+      .then(events => {
+        const described = this.describedEvents(events);
+        this.groupEvents = uniqBy([...this.selectedKnownEvents(), ...described], event => event.id);
+        this.logger.info("groupEventsFilter - from:", fromDateValue?.date, "to:", toDateValue?.date, "found:", events.length, "events");
+        return events;
+      });
+  }
+
+  private loadPickedEvents(): Promise<void> {
+    return this.committeeQueryService.groupEvents(this.groupEventsFilter(this.eventIds || [], null))
+      .then(events => {
+        this.describedEvents(events);
+        this.groupEvents = uniqBy([...this.selectedKnownEvents(), ...this.groupEvents], event => event.id);
+        this.pickedEventsLoad.emit(this.selectedKnownEvents());
+      });
+  }
+
+  private describedEvents(events: GroupEventSummary[]): GroupEventSummary[] {
+    const described = events.map(event => ({
+      ...event,
+      description: this.dateUtils.displayDate(event.eventDate) + ", " + event.contactName + ", " + event.title
+    }));
+    described.forEach(event => this.knownEvents.set(event.id, event));
+    return described;
+  }
+
+  private selectedKnownEvents(): GroupEventSummary[] {
+    return this.multiple ? (this.eventIds || []).map(id => this.knownEvents.get(id)).filter(event => !!event) : [];
+  }
+
+  private groupEventsFilter(eventIds: string[], search: string | null): GroupEventsFilter {
+    return {
+      search,
+      eventIds,
       selectAll: true,
-      fromDate: fromDateValue,
-      toDate: toDateValue,
+      fromDate: this.dateUtils.asDateValue(this.fromDate),
+      toDate: this.dateUtils.asDateValue(this.toDate),
       includeImage: true,
       includeContact: true,
       includeDescription: true,
@@ -216,16 +253,6 @@ export class GroupEventSelectorComponent implements OnInit, OnChanges {
       includeCommitteeEvents: this.dataSource === GroupEventTypes.COMMITTEE.area,
       sortBy: "-eventDate"
     };
-
-    return this.committeeQueryService.groupEvents(groupEventsFilter)
-      .then(events => {
-        this.groupEvents = events.map(event => ({
-          ...event,
-          description: this.dateUtils.displayDate(event.eventDate) + ", " + event.contactName + ", " + event.title
-        }));
-        this.logger.info("groupEventsFilter - from:", fromDateValue?.date, "to:", toDateValue?.date, "found:", events.length, "events");
-        return events;
-      });
   }
 
   selectClick(select: NgSelectComponent) {
@@ -235,7 +262,7 @@ export class GroupEventSelectorComponent implements OnInit, OnChanges {
 
   onChange() {
     if (this.multiple) {
-      const events: GroupEventSummary[] = this.groupEvents.filter(event => this.eventIds?.includes(event.id));
+      const events: GroupEventSummary[] = (this.eventIds || []).map(id => this.knownEvents.get(id) || ({id} as GroupEventSummary));
       this.logger.info("onChange (multiple):", events.length, "events selected, emitting:", events);
       this.eventsChange.emit(events);
     } else {

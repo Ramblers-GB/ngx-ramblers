@@ -20,7 +20,8 @@ import { NgSelectComponent } from "@ng-select/ng-select";
 import { DynamicContentMaxColumnsEditorComponent } from "./dynamic-content-max-columns-editor";
 import { BroadcastService } from "../../../services/broadcast-service";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
-import { DateRangeMode, EventCardDisplayOptions, EventsData, EventsDataAllows, EventsView } from "../../../models/group-events.model";
+import { DateRangeMode, EVENT_NOTICE_DEFAULT_TITLE, EventCardDisplayOptions, EventNotice, EventsData, EventsDataAllows, eventsArePicked, EventsSelection, EventsView } from "../../../models/group-events.model";
+import { NgTemplateOutlet } from "@angular/common";
 import { DYNAMIC_CONTENT_FILTER_OPTIONS, FilterCriteria, SortOrder } from "../../../models/api-request.model";
 import { GroupEventDisplayService } from "../../../pages/group-events/group-event-display.service";
 import { HasStartAndEndTime } from "../../../models/group-event.model";
@@ -39,6 +40,61 @@ import { TagEditorComponent } from "../../../pages/tag/tag-editor.component";
   styleUrls: ["./dynamic-content.sass"],
   template: `
     @if (row?.events?.eventTypes) {
+      <div class="thumbnail-heading-frame mb-3">
+        <div class="thumbnail-heading">What to show</div>
+        <div class="d-flex flex-wrap gap-3">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" [id]="id + '-selection-by-date'" [name]="id + '-selection'"
+                   [checked]="!picked()" (change)="changeSelection(EventsSelection.BY_DATE)">
+            <label class="form-check-label" [for]="id + '-selection-by-date'">Events by date</label>
+          </div>
+          <div class="form-check">
+            <input type="radio" class="form-check-input" [id]="id + '-selection-picked'" [name]="id + '-selection'"
+                   [checked]="picked()" (change)="changeSelection(EventsSelection.PICKED)">
+            <label class="form-check-label" [for]="id + '-selection-picked'">Picked walks and events</label>
+          </div>
+        </div>
+        @if (picked()) {
+          <p class="form-text mb-0">Shows only the walks and events picked below, whatever their date, as cards without search, filters or paging. Use this for a notice board of walk changes.</p>
+        }
+      </div>
+      @if (picked()) {
+        <div class="row mb-3">
+          <div class="col-md-12">
+            <app-group-event-selector
+              [multiple]="true"
+              [label]="'Walks to show'"
+              [dataSource]="eventTypeDataSource()"
+              [eventIds]="row.events.eventIds"
+              (eventsChange)="onEventsChange($event)"
+              (pickedEventsLoad)="pickedEvents = $event"/>
+          </div>
+        </div>
+        @if (pickedEvents.length > 0) {
+          <div class="thumbnail-heading-frame mb-3">
+            <div class="thumbnail-heading">Notices</div>
+            <p class="form-text">Give a walk a notice to show it in an alert on its card, in the same way as a cancellation. Leave both boxes empty for no notice.</p>
+            @for (event of pickedEvents; track event.id) {
+              <div class="mb-3">
+                <label class="form-label fw-bold" [for]="id + '-notice-title-' + event.id">{{ event.description || event.title }}</label>
+                <input type="text" class="form-control mb-2" [id]="id + '-notice-title-' + event.id"
+                       [placeholder]="EVENT_NOTICE_DEFAULT_TITLE"
+                       [ngModel]="noticeFor(event.id).title" (ngModelChange)="changeNotice(event.id, {title: $event})">
+                <textarea class="form-control" rows="2" [id]="id + '-notice-message-' + event.id"
+                          placeholder="What has changed, for example: Change of starting point. This circular walk now starts from Ightham Mote via Knole Park."
+                          [ngModel]="noticeFor(event.id).message" (ngModelChange)="changeNotice(event.id, {message: $event})"></textarea>
+              </div>
+            }
+          </div>
+        }
+        <ng-container *ngTemplateOutlet="presentation"/>
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <div class="form-group" app-dynamic-content-max-columns-editor [hasColumnRange]="row.events"
+                 (columnsChange)="broadcastChange()"></div>
+          </div>
+        </div>
+      } @else {
 
       <div class="row align-items-end mb-3 d-flex">
         <div class="col-md-12">
@@ -123,39 +179,7 @@ import { TagEditorComponent } from "../../../pages/tag/tag-editor.component";
       </div>
 
       @if (!row.events.allow.viewSelector) {
-        <div class="thumbnail-heading-frame mb-3">
-          <div class="thumbnail-heading">Event presentation</div>
-          <div class="form-group mb-3">
-            <label [for]="id + '-events-view'">View</label>
-            <select class="form-control" [id]="id + '-events-view'"
-                    [ngModel]="row.events.view || EventsView.CARDS"
-                    (ngModelChange)="row.events.view = $event; broadcastChange()">
-              <option [ngValue]="EventsView.CARDS">Cards</option>
-              <option [ngValue]="EventsView.ACTION_BUTTONS">Action buttons</option>
-            </select>
-          </div>
-          <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" [id]="id + '-include-cancellations'"
-                   [(ngModel)]="row.events.includeUpcomingCancellations" (ngModelChange)="broadcastChange()">
-            <label class="form-check-label" [for]="id + '-include-cancellations'">Automatically include all upcoming cancellations</label>
-            <div class="form-text">Add cancelled events from today onwards for the selected event types, even outside this block's date or tag filters. Each event appears once.</div>
-          </div>
-          <div class="d-flex flex-wrap gap-2 mb-3">
-            <button type="button" class="btn btn-primary" (click)="applyCardDetail(false)">Full details</button>
-            <button type="button" class="btn btn-primary" (click)="applyCardDetail(true)">Compact summary</button>
-          </div>
-          <p class="form-text">Choose which details appear on this events block. Titles and cancellation notices are always shown. Select a title to read the full event. Action buttons use the column settings below to form a grid.</p>
-          <div class="d-flex flex-wrap gap-3">
-            @for (option of visibleCardDetailOptions(); track option.key) {
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" [id]="id + '-' + option.key"
-                       [ngModel]="row.events.cardDisplay?.[option.key] !== false"
-                       (ngModelChange)="changeCardDetail(option.key, $event)">
-                <label class="form-check-label" [for]="id + '-' + option.key">{{ option.value }}</label>
-              </div>
-            }
-          </div>
-        </div>
+        <ng-container *ngTemplateOutlet="presentation"/>
         <div class="row align-items-end mb-3 d-flex">
           <div class="col-md-4">
             <div class="form-group">
@@ -321,9 +345,50 @@ import { TagEditorComponent } from "../../../pages/tag/tag-editor.component";
           </div>
         }
       }
+      }
     }
-    <app-events-row [row]="row" [rowIndex]="rowIndex" [queryIndex]="queryIndex"/>`,
-  imports: [FormsModule, EventsRow, DatePicker, NgSelectComponent, DynamicContentMaxColumnsEditorComponent, GroupEventSelectorComponent, DateRangeSlider, TagEditorComponent]
+    <div class="thumbnail-heading-frame mt-3">
+      <div class="thumbnail-heading">Preview</div>
+      <app-events-row [row]="row" [rowIndex]="rowIndex" [queryIndex]="queryIndex"/>
+    </div>
+    <ng-template #presentation>
+        <div class="thumbnail-heading-frame mb-3">
+          <div class="thumbnail-heading">Event presentation</div>
+          <div class="form-group mb-3">
+            <label [for]="id + '-events-view'">View</label>
+            <select class="form-control" [id]="id + '-events-view'"
+                    [ngModel]="row.events.view || EventsView.CARDS"
+                    (ngModelChange)="row.events.view = $event; broadcastChange()">
+              <option [ngValue]="EventsView.CARDS">Cards</option>
+              <option [ngValue]="EventsView.ACTION_BUTTONS">Action buttons</option>
+            </select>
+          </div>
+          @if (!picked()) {
+          <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" [id]="id + '-include-cancellations'"
+                   [(ngModel)]="row.events.includeUpcomingCancellations" (ngModelChange)="broadcastChange()">
+            <label class="form-check-label" [for]="id + '-include-cancellations'">Automatically include all upcoming cancellations</label>
+            <div class="form-text">Add cancelled events from today onwards for the selected event types, even outside this block's date or tag filters. Each event appears once.</div>
+          </div>
+          }
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="btn btn-primary" (click)="applyCardDetail(false)">Full details</button>
+            <button type="button" class="btn btn-primary" (click)="applyCardDetail(true)">Compact summary</button>
+          </div>
+          <p class="form-text">Choose which details appear on this events block. Titles and cancellation notices are always shown. Select a title to read the full event. Action buttons use the column settings below to form a grid.</p>
+          <div class="d-flex flex-wrap gap-3">
+            @for (option of visibleCardDetailOptions(); track option.key) {
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" [id]="id + '-' + option.key"
+                       [ngModel]="row.events.cardDisplay?.[option.key] !== false"
+                       (ngModelChange)="changeCardDetail(option.key, $event)">
+                <label class="form-check-label" [for]="id + '-' + option.key">{{ option.value }}</label>
+              </div>
+            }
+          </div>
+        </div>
+    </ng-template>`,
+  imports: [FormsModule, EventsRow, DatePicker, NgSelectComponent, DynamicContentMaxColumnsEditorComponent, GroupEventSelectorComponent, DateRangeSlider, TagEditorComponent, NgTemplateOutlet]
 })
 export class DynamicContentSiteEditEvents implements OnInit {
   public display: GroupEventDisplayService = inject(GroupEventDisplayService);
@@ -364,6 +429,9 @@ export class DynamicContentSiteEditEvents implements OnInit {
   }));
 
   protected readonly EventsView = EventsView;
+  protected readonly EventsSelection = EventsSelection;
+  protected readonly EVENT_NOTICE_DEFAULT_TITLE = EVENT_NOTICE_DEFAULT_TITLE;
+  protected pickedEvents: GroupEventSummary[] = [];
 
   visibleCardDetailOptions(): TypedKeyValue<keyof EventCardDisplayOptions, string>[] {
     return this.row.events.view === EventsView.ACTION_BUTTONS
@@ -502,8 +570,30 @@ export class DynamicContentSiteEditEvents implements OnInit {
     return GroupEventTypes.WALK.area;
   }
 
+  picked(): boolean {
+    return eventsArePicked(this.row?.events);
+  }
+
+  noticeFor(eventId: string): EventNotice {
+    return (this.row.events.eventNotices || []).find(notice => notice.eventId === eventId) || {eventId};
+  }
+
+  changeNotice(eventId: string, change: Partial<EventNotice>): void {
+    const updated: EventNotice = {...this.noticeFor(eventId), ...change, eventId};
+    const others = (this.row.events.eventNotices || []).filter(notice => notice.eventId !== eventId);
+    const keep = !!(updated.title?.trim() || updated.message?.trim());
+    this.row.events.eventNotices = keep ? [...others, updated] : others;
+  }
+
+  changeSelection(selection: EventsSelection): void {
+    this.row.events.selection = selection;
+    this.broadcastChange();
+  }
+
   onEventsChange(events: GroupEventSummary[]) {
     this.row.events.eventIds = events.map(event => event.id);
+    this.pickedEvents = events;
+    this.row.events.eventNotices = (this.row.events.eventNotices || []).filter(notice => this.row.events.eventIds.includes(notice.eventId));
     this.logger.info("onEventsChange:", events.length, "events selected, eventIds:", this.row.events.eventIds);
     this.broadcastChange();
   }

@@ -48,6 +48,19 @@ export interface EventsDataAllows {
   allowSortChange?: boolean;
 }
 
+export interface EventNotice {
+  eventId: string;
+  title?: string;
+  message?: string;
+}
+
+export const EVENT_NOTICE_DEFAULT_TITLE = "Walk details changed";
+
+export enum EventsSelection {
+  BY_DATE = "by-date",
+  PICKED = "picked"
+}
+
 export enum EventsView {
   CARDS = "cards",
   ACTION_BUTTONS = "action-buttons"
@@ -69,6 +82,8 @@ export interface EventsData extends HasColumnRange {
   sortOrder: SortOrder;
   allow: EventsDataAllows;
   eventTypes: RamblersEventType[];
+  selection?: EventsSelection;
+  eventNotices?: EventNotice[];
   includeUpcomingCancellations?: boolean;
   view?: EventsView;
   compact?: boolean;
@@ -80,4 +95,13 @@ export interface EventsData extends HasColumnRange {
   eventIds?: string[];
   tagsAny?: number[];
   tagsExclude?: number[];
+}
+
+export function eventsArePicked(eventsData: EventsData | null | undefined): boolean {
+  return eventsData?.selection === EventsSelection.PICKED;
+}
+
+export function eventNoticeFor(eventsData: EventsData | null | undefined, eventIds: string[]): EventNotice | null {
+  const notice = (eventsData?.eventNotices || []).find(item => eventIds.includes(item.eventId));
+  return notice && (notice.title?.trim() || notice.message?.trim()) ? notice : null;
 }

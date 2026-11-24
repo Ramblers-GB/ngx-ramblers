@@ -1,4 +1,5 @@
-import { EventCardDisplayOptions } from "../../../models/group-events.model";
+import { EVENT_NOTICE_DEFAULT_TITLE, EventCardDisplayOptions, EventNotice } from "../../../models/group-events.model";
+import { EventNoticeAlert } from "../../../modules/common/event-notice-alert/event-notice-alert";
 import { Component, inject, Input, OnInit } from "@angular/core";
 import { faSearch } from "@fortawesome/free-solid-svg-icons";
 import { NgxLoggerLevel } from "ngx-logger";
@@ -30,6 +31,9 @@ import { EventLeaderContactLinkComponent } from "../../walks/walk-view/event-lea
                [href]="display.groupEventLink(groupEvent, true)"
                target="_self">{{ groupEvent?.groupEvent?.title }}</a>
           </h4>
+          @if (notice) {
+            <app-event-notice-alert [title]="notice.title?.trim() || EVENT_NOTICE_DEFAULT_TITLE" [message]="notice.message"/>
+          }
           @if (cardDisplay?.showDate !== false) {
             <div>{{ groupEvent?.groupEvent | eventDatesAndTimes }}</div>
           }
@@ -53,7 +57,7 @@ import { EventLeaderContactLinkComponent } from "../../walks/walk-view/event-lea
       min-width: 0
   `],
   providers: [DateUtilsService],
-  imports: [EventDatesAndTimesPipe, CardImageOrMap, EventGroupComponent, EventLeaderContactLinkComponent]
+  imports: [EventNoticeAlert, EventDatesAndTimesPipe, CardImageOrMap, EventGroupComponent, EventLeaderContactLinkComponent]
 })
 export class GroupEventCard implements OnInit {
 
@@ -72,6 +76,8 @@ export class GroupEventCard implements OnInit {
   protected displayedWalk: DisplayedWalk;
   @Input() maxColumns!: number;
   @Input() cardDisplay: EventCardDisplayOptions;
+  @Input() notice: EventNotice | null = null;
+  protected readonly EVENT_NOTICE_DEFAULT_TITLE = EVENT_NOTICE_DEFAULT_TITLE;
 
   ngOnInit() {
     this.logger.info("groupEvent:", this.groupEvent);

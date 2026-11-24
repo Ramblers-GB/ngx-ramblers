@@ -8,7 +8,7 @@ import { Subscription } from "rxjs";
 import { AlertTarget } from "../../../models/alert-target.model";
 import { DataQueryOptions, FilterCriteria, SortOrder } from "../../../models/api-request.model";
 import { NamedEvent, NamedEventType } from "../../../models/broadcast.model";
-import { EventsData } from "../../../models/group-events.model";
+import { EventsData, eventsArePicked } from "../../../models/group-events.model";
 import { RelativeDateRange, relativeDateRangeBounds } from "../../../models/search.model";
 import { SearchFilterPipe } from "../../../pipes/search-filter.pipe";
 import { BroadcastService } from "../../../services/broadcast-service";
@@ -46,10 +46,12 @@ import { StoredValue, StoredValueQueryParameters } from "../../../models/ui-acti
       @if (eventsData?.allow?.viewSelector) {
         <app-events-full [eventsData]="eventsData"/>
       } @else {
+        @if (!picked()) {
         <app-events-header [totalItems]="filteredExtendedGroupEvents?.length" [filterParameters]="filterParameters" [currentPageFilteredEvents]="currentPageFilteredEvents"
                            [notifyTarget]="notifyTarget" [eventsData]="eventsData" [pageNumber]="pageNumber"
                            [itemsPerPage]="pageSize" [queryIndex]="queryIndex"
                            (pageChanged)="pageChanged($event)"/>
+        }
         <app-event-cards-list [eventsData]="eventsData"
                               [notifyTarget]="notifyTarget"
                               [currentPageFilteredEvents]="currentPageFilteredEvents"/>
@@ -160,14 +162,21 @@ export class Events implements OnInit, OnDestroy {
         tagsAny,
         tagsExclude,
         eventsData.allow?.viewSelector ? "selector" : "list",
-        eventsData.includeUpcomingCancellations ? "cancellations" : "selected"
+        eventsData.includeUpcomingCancellations ? "cancellations" : "selected",
+        eventsData.selection || ""
       ].join("|");
     }
   }
 
+  picked(): boolean {
+    return eventsArePicked(this.eventsData);
+  }
+
   public refreshEvents() {
     if (!this.eventsData?.allow?.viewSelector) {
-      this.persistFilterQueryParams();
+      if (!this.picked()) {
+        this.persistFilterQueryParams();
+      }
       this.notify.progress({title: "Events", message: "Querying events"}, true);
       const dataQueryOptions: DataQueryOptions = {criteria: this.criteria(), sort: this.sort()};
       this.logger.info("refreshEvents:dataQueryOptions", dataQueryOptions, "eventIds:", this?.eventsData?.eventIds);
@@ -201,8 +210,13 @@ export class Events implements OnInit, OnDestroy {
   }
 
   async eventsForDisplay(dataQueryOptions: DataQueryOptions): Promise<ExtendedGroupEvent[]> {
-    const selectedEvents = this.queryAndReturnEvents(dataQueryOptions).then(events => this.filterByEventIds(events));
-    if (this.eventsData?.includeUpcomingCancellations) {
+    const pickedIds = this.eventsData?.eventIds || [];
+    if (this.picked() && pickedIds.length === 0) {
+      return [];
+    } else if (this.picked()) {
+      return this.queryAndReturnEvents({criteria: this.eventIdsCriteria(pickedIds), sort: this.sort()}, pickedIds, enumValues(RamblersEventType)).then(events => this.filterByEventIds(events));
+    } else if (this.eventsData?.includeUpcomingCancellations) {
+      const selectedEvents = this.queryAndReturnEvents(dataQueryOptions).then(events => this.filterByEventIds(events));
       const cancellationQuery: DataQueryOptions = {
         criteria: {
           [GroupEventField.STATUS]: WalkStatus.CANCELLED,
@@ -215,16 +229,16 @@ export class Events implements OnInit, OnDestroy {
       return orderBy(combined, event => event.groupEvent.start_date_time,
         this.resolvedSortOrder() === SortOrder.DATE_DESCENDING ? "desc" : "asc");
     } else {
-      return selectedEvents;
+      return this.queryAndReturnEvents(dataQueryOptions).then(events => this.filterByEventIds(events));
     }
   }
 
-  private queryAndReturnEvents(dataQueryOptions: DataQueryOptions, ids = this.eventsData?.eventIds || []): Promise<ExtendedGroupEvent[]> {
+  private queryAndReturnEvents(dataQueryOptions: DataQueryOptions, ids = this.eventsData?.eventIds || [], types = this?.eventsData?.eventTypes || [RamblersEventType.GROUP_EVENT]): Promise<ExtendedGroupEvent[]> {
     const eventQueryParameters: EventQueryParameters = {
       inputSource: this.walkDisplayService.walkPopulationLocal() ? InputSource.MANUALLY_CREATED : InputSource.WALKS_MANAGER_CACHE,
       suppressEventLinking: false,
       ids: ids.length > 0 ? ids : null,
-      types: this?.eventsData?.eventTypes || [RamblersEventType.GROUP_EVENT],
+      types,
       dataQueryOptions
     };
     if (this.memberLoginService.memberLoggedIn()) {
@@ -407,7 +421,11 @@ export class Events implements OnInit, OnDestroy {
   }
 
   applyFilterToGroupEvents(searchTerm?: NamedEvent<string>) {
-    if (!this.eventsData?.allow?.viewSelector) {
+    if (this.picked()) {
+      this.filteredExtendedGroupEvents = this.extendedGroupEvents;
+      this.currentPageFilteredEvents = this.extendedGroupEvents;
+      this.notify.hide();
+    } else if (!this.eventsData?.allow?.viewSelector) {
       this.logger.info("applyFilterToGroupEvents:searchTerm:", searchTerm, "filterParameters.quickSearch:", this.filterParameters.quickSearch);
       this.persistFilterQueryParams();
       this.notify.setBusy();
