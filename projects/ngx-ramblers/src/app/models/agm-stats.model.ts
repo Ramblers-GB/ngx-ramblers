@@ -49,6 +49,8 @@ export interface CommitteeStatisticsEvent {
   date: number;
   label: string;
   meetingCategory: string;
+  sourceDates?: number[];
+  ambiguous?: boolean;
 }
 
 export enum AgmStatsEmailSection {

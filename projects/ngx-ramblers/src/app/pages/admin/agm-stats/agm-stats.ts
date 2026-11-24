@@ -1,5 +1,5 @@
 import { DatePipe } from "@angular/common";
-import { Component, inject, OnInit } from "@angular/core";
+import { Component, inject, OnDestroy, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Chart, ChartConfiguration, registerables } from "chart.js";
@@ -35,9 +35,9 @@ import { SortDirection } from "../../../models/sort.model";
 import { entries } from "../../../functions/object-utils";
 import { CommitteeFileService } from "../../../services/committee/committee-file.service";
 import { CommitteeConfigService } from "../../../services/committee/commitee-config.service";
-import { firstValueFrom } from "rxjs";
+import { firstValueFrom, Subscription } from "rxjs";
 import { take } from "rxjs/operators";
-import { committeeEventComparisonPeriods, committeeStatisticsEvents, latestAgmReportingRange } from "../../../functions/committee-statistics-events";
+import { committeeEventComparisonPeriods, committeeStatisticsEventMatching, committeeStatisticsEvents, latestAgmReportingRange } from "../../../functions/committee-statistics-events";
 import { CommitteeRoleMultiSelectComponent } from "../../../committee/role-multi-select/committee-role-multi-select";
 import { AlertPanelComponent } from "../../../modules/common/alert-panel/alert-panel";
 import { EmailPreviewComponent } from "../../../modules/common/email-preview/email-preview.component";
@@ -156,12 +156,24 @@ Chart.register(...registerables);
                                  [disabled]="eventPresetSelected()"
                                  (presetChange)="onSliderPresetChange($event)"
                                  (rangeChange)="onDateRangeChange($event)"/>
+          @if (eventPresetSelected() && committeeEvents.length) {
+            <div class="mt-2">
+              <label for="committeeEventCategory" class="form-label">Meeting type</label>
+              <select id="committeeEventCategory" class="form-select" [(ngModel)]="committeeEventCategory"
+                      (ngModelChange)="onCommitteeEventCategoryChange()" [disabled]="committeeEventsLoading">
+                @for (category of committeeEventCategories(); track category) {
+                  <option [ngValue]="category">{{ category }}</option>
+                }
+              </select>
+              <small class="text-muted">AGM reports use one meeting per year. Agenda dates take priority over minutes dates.</small>
+            </div>
+          }
           @if (preset === AgmStatsPreset.SINCE_COMMITTEE_EVENT) {
             <div class="mt-2">
               <label for="fromCommitteeEvent" class="form-label">From Committee Event</label>
               <select id="fromCommitteeEvent" class="form-select" [(ngModel)]="fromCommitteeEventDate"
                       (ngModelChange)="onCommitteeEventChange()" [disabled]="committeeEventsLoading">
-                @for (event of committeeEvents; track event.date) {
+                @for (event of filteredCommitteeEvents(); track event.date) {
                   <option [ngValue]="event.date">{{ event.label }}</option>
                 }
               </select>
@@ -172,7 +184,7 @@ Chart.register(...registerables);
               <label for="fromCommitteeEvent" class="form-label">From Committee Event</label>
               <select id="fromCommitteeEvent" class="form-select" [(ngModel)]="fromCommitteeEventDate"
                       (ngModelChange)="onCommitteeEventChange()" [disabled]="committeeEventsLoading">
-                @for (event of committeeEvents; track event.date) {
+                @for (event of filteredCommitteeEvents(); track event.date) {
                   <option [ngValue]="event.date">{{ event.label }}</option>
                 }
               </select>
@@ -181,7 +193,7 @@ Chart.register(...registerables);
               <label for="toCommitteeEvent" class="form-label">To Committee Event</label>
               <select id="toCommitteeEvent" class="form-select" [(ngModel)]="toCommitteeEventDate"
                       (ngModelChange)="onCommitteeEventChange()" [disabled]="committeeEventsLoading">
-                @for (event of committeeEvents; track event.date) {
+                @for (event of filteredCommitteeEvents(); track event.date) {
                   <option [ngValue]="event.date">{{ event.label }}</option>
                 }
               </select>
@@ -220,6 +232,7 @@ Chart.register(...registerables);
             </button>
           </div>
         </div>
+        @if (stats || loading) {
         <tabset class="custom-tabset">
           <tab app-agm-walks-tab
                [active]="tabActive(AGMStatsTab.WALKS)"
@@ -300,11 +313,12 @@ Chart.register(...registerables);
           </tab>
         </tabset>
         }
+        }
       </div>
     </app-page>
   `
 })
-export class AGMStatsComponent implements OnInit {
+export class AGMStatsComponent implements OnInit, OnDestroy {
   private logger: Logger = inject(LoggerFactory).createLogger("AGMStatsComponent", NgxLoggerLevel.ERROR);
   private agmStatsService = inject(AGMStatsService);
   private fileUploadService = inject(FileUploadService);
@@ -347,12 +361,14 @@ export class AGMStatsComponent implements OnInit {
   sliderMinDate: DateTime | null = null;
   sliderMaxDate: DateTime | null = null;
   sliderRange: DateRange | null = null;
+  private subscriptions: Subscription[] = [];
   private statsRequestFrom: number | null = null;
   private statsRequestTo: number | null = null;
   private statsRequestPeriodsKey: string | null = null;
   chartType: AgmChartType = AgmChartType.BAR;
   committeeEvents: CommitteeStatisticsEvent[] = [];
   committeeEventsLoading = true;
+  committeeEventCategory: string | null = null;
   fromCommitteeEventDate: number | null = null;
   toCommitteeEventDate: number | null = null;
   private datesRestoredFromUrl = false;
@@ -450,6 +466,15 @@ export class AGMStatsComponent implements OnInit {
     }
   }
 
+  ngOnDestroy() {
+    this.cancelStatsRequest();
+  }
+
+  private cancelStatsRequest() {
+    this.subscriptions.forEach(subscription => subscription.unsubscribe());
+    this.subscriptions = [];
+  }
+
   private async loadCommitteeEvents() {
     try {
       const config = await firstValueFrom(this.committeeConfigService.committeeConfigEvents().pipe(take(1)));
@@ -473,19 +498,18 @@ export class AGMStatsComponent implements OnInit {
           this.fromCommitteeEventDate = this.committeeEvents[1]?.date || this.fromCommitteeEventDate;
         }
       }
-      if (this.eventPresetSelected() && !this.datesRestoredFromUrl) {
+      this.committeeEventCategory = this.committeeEventCategory || this.committeeEventMatching(this.fromCommitteeEventDate)?.meetingCategory || this.committeeEvents[0]?.meetingCategory || null;
+      if (this.eventPresetSelected()) {
         this.applyCommitteeEventDates();
       } else {
         this.rescaleSliderToCurrentDates();
         this.persistState();
-        if (this.eventPresetSelected()) {
-          this.loadStats(true);
-        }
       }
     } catch (error) {
       this.logger.error("Failed to load committee events:", error);
       if (this.eventPresetSelected()) {
-        this.loadStats(true);
+        this.clearStats();
+        this.error = "The committee events could not be loaded. Reload the page to try again.";
       }
     } finally {
       this.committeeEventsLoading = false;
@@ -718,6 +742,7 @@ export class AGMStatsComponent implements OnInit {
 
   private loadFromQueryParams() {
     const params = this.route.snapshot.queryParamMap;
+    this.committeeEventCategory = params.get(StoredValue.MEETING_TYPE);
     this.chartType = this.resolveChartType(params.get(StoredValue.CHART_TYPE), this.chartType);
     const resolvedPreset = this.resolvePreset(params.get(StoredValue.DATE_RANGE_PRESET) || params.get(StoredValue.PRESET));
     if (resolvedPreset) {
@@ -778,6 +803,7 @@ export class AGMStatsComponent implements OnInit {
       [StoredValue.CHART_TYPE]: this.chartType,
       [StoredValue.DATE_RANGE_PRESET]: this.preset,
       [StoredValue.TAB]: this.tab || kebabCase(AGMStatsTab.WALKS),
+      [StoredValue.MEETING_TYPE]: this.eventPresetSelected() ? this.committeeEventCategory : null,
       preset: null
     });
   }
@@ -811,8 +837,9 @@ export class AGMStatsComponent implements OnInit {
       return committeeEventComparisonPeriods(
         selectedFrom,
         selectedTo,
-        this.committeeEvents,
-        value => this.dateUtils.asValueNoTime(value)
+        this.filteredCommitteeEvents(),
+        value => this.dateUtils.asValueNoTime(value),
+        this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS
       );
     } else {
       return null;
@@ -820,11 +847,36 @@ export class AGMStatsComponent implements OnInit {
   }
 
   loadStats(force = false) {
+    try {
+      this.requestStats(force);
+    } catch (error) {
+      this.cancelStatsRequest();
+      this.statsRequestPeriodsKey = null;
+      this.clearStats();
+      this.loading = false;
+      this.error = extractErrorMessage(error);
+      this.logger.error("Invalid committee reporting period:", error);
+    }
+  }
+
+  private clearStats() {
+    this.stats = null;
+    this.currentLeaders = [];
+    this.aggregateLeaders = [];
+    this.walkChartData = {labels: [], datasets: []};
+    this.leaderChartData = {labels: [], datasets: []};
+    this.socialChartData = {labels: [], datasets: []};
+    this.membershipChartData = {labels: [], datasets: []};
+  }
+
+  private requestStats(force: boolean) {
     const fromKey = this.startOfDayMillis(this.fromDate);
     const toKey = this.startOfDayMillis(this.toDate);
     const periods = this.comparisonPeriods();
     const periodsKey = (periods || []).map(period => `${period.fromDate}:${period.toDate}`).join("|");
     if (force || this.statsRequestFrom !== fromKey || this.statsRequestTo !== toKey || this.statsRequestPeriodsKey !== periodsKey) {
+      this.cancelStatsRequest();
+      this.clearStats();
       this.statsRequestFrom = fromKey;
       this.statsRequestTo = toKey;
       this.statsRequestPeriodsKey = periodsKey;
@@ -835,7 +887,7 @@ export class AGMStatsComponent implements OnInit {
 
       this.logger.info("Loading AGM stats for:", { fromDate: this.fromDate, toDate: this.toDate, periods });
 
-      this.agmStatsService.agmStats(this.fromDate, this.toDate, periods).subscribe({
+      this.subscriptions.push(this.agmStatsService.agmStats(this.fromDate, this.toDate, periods).subscribe({
         next: (response) => {
           this.stats = response;
           if (response.earliestDate && this.preset === AgmStatsPreset.ALL_TIME) {
@@ -843,7 +895,7 @@ export class AGMStatsComponent implements OnInit {
             this.statsRequestFrom = this.startOfDayMillis(this.fromDate);
             this.rescaleSliderToCurrentDates();
             this.persistState();
-          } else if (response.earliestDate && this.fromDate < response.earliestDate) {
+          } else if (!this.eventPresetSelected() && response.earliestDate && this.fromDate < response.earliestDate) {
             this.fromDate = response.earliestDate;
             this.statsRequestFrom = this.startOfDayMillis(this.fromDate);
             this.rescaleSliderToCurrentDates();
@@ -860,8 +912,9 @@ export class AGMStatsComponent implements OnInit {
             : message || "The statistics could not be loaded.";
           this.loading = false;
           this.logger.error("Error loading AGM stats:", err);
+          this.statsRequestPeriodsKey = null;
         }
-      });
+      }));
     }
   }
 
@@ -893,6 +946,7 @@ export class AGMStatsComponent implements OnInit {
     if (this.preset === AgmStatsPreset.ALL_TIME) {
       this.applyAllTimePreset();
     } else if (this.eventPresetSelected()) {
+      this.committeeEventCategory = null;
       if (this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS) {
         const agmRange = latestAgmReportingRange(this.committeeEvents);
         if (agmRange) {
@@ -902,6 +956,7 @@ export class AGMStatsComponent implements OnInit {
           this.fromCommitteeEventDate = this.committeeEvents[1]?.date || this.fromCommitteeEventDate;
         }
       }
+      this.committeeEventCategory = this.committeeEventMatching(this.fromCommitteeEventDate)?.meetingCategory || null;
       this.applyCommitteeEventDates();
     } else {
       this.persistState();
@@ -917,6 +972,21 @@ export class AGMStatsComponent implements OnInit {
     return this.preset === AgmStatsPreset.SINCE_COMMITTEE_EVENT || this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS;
   }
 
+  committeeEventCategories(): string[] {
+    return [...new Set(this.committeeEvents.map(event => event.meetingCategory))].sort();
+  }
+
+  filteredCommitteeEvents(): CommitteeStatisticsEvent[] {
+    return this.committeeEvents.filter(event => event.meetingCategory === this.committeeEventCategory);
+  }
+
+  onCommitteeEventCategoryChange() {
+    const events = this.filteredCommitteeEvents();
+    this.fromCommitteeEventDate = (this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS ? events[1]?.date : events[0]?.date) || events[0]?.date || null;
+    this.toCommitteeEventDate = events[0]?.date || null;
+    this.onCommitteeEventChange();
+  }
+
   onCommitteeEventChange() {
     this.datesRestoredFromUrl = false;
     this.applyCommitteeEventDates();
@@ -924,10 +994,12 @@ export class AGMStatsComponent implements OnInit {
 
   private applyCommitteeEventDates() {
     if (this.fromCommitteeEventDate) {
+      this.fromCommitteeEventDate = this.committeeEventMatching(this.fromCommitteeEventDate)?.date || this.fromCommitteeEventDate;
+      this.toCommitteeEventDate = this.committeeEventMatching(this.toCommitteeEventDate)?.date || this.toCommitteeEventDate;
       const selectedToDate = this.preset === AgmStatsPreset.BETWEEN_COMMITTEE_EVENTS && this.toCommitteeEventDate
         ? this.toCommitteeEventDate
         : this.dateUtils.dateTimeNow().toMillis();
-      this.fromDate = Math.min(this.fromCommitteeEventDate, selectedToDate);
+      this.fromDate = this.startOfDayMillis(Math.min(this.fromCommitteeEventDate, selectedToDate));
       this.toDate = this.endOfDay(this.dateUtils.asDateTime(Math.max(this.fromCommitteeEventDate, selectedToDate))).toMillis();
       this.rescaleSliderToCurrentDates();
       this.loadStats();
@@ -935,8 +1007,8 @@ export class AGMStatsComponent implements OnInit {
   }
 
   private committeeEventMatching(value: number): CommitteeStatisticsEvent | null {
-    const formattedValue = this.formatDateForParam(value);
-    return this.committeeEvents.find(event => this.formatDateForParam(event.date) === formattedValue) || null;
+    const events = this.committeeEventCategory ? this.filteredCommitteeEvents() : this.committeeEvents;
+    return committeeStatisticsEventMatching(events, value, date => this.startOfDayMillis(date));
   }
 
   private applyAllTimePreset() {
@@ -1052,27 +1124,10 @@ export class AGMStatsComponent implements OnInit {
       return `${from} - ${to}`;
     };
 
-    const effectiveFrom = this.stats.earliestDate ? Math.max(this.fromDate, this.stats.earliestDate) : this.fromDate;
-    const totalRange = this.toDate - this.fromDate;
-    const periodLength = totalRange / 3;
-    const period3To = this.toDate;
-    const period3From = this.toDate - periodLength;
-    const period2To = period3From;
-    const period2From = period2To - periodLength;
-    const period1To = period2From;
-    const period1From = this.fromDate;
-    const walkPeriods = [
-      this.stats.twoYearsAgo ? { label: formatDateRange(period1From, period1To), data: this.stats.twoYearsAgo.walks } : null,
-      this.stats.previousYear ? { label: formatDateRange(period2From, period2To), data: this.stats.previousYear.walks } : null,
-      { label: formatDateRange(period3From, period3To), data: this.stats.currentYear.walks }
-    ].filter(p => !isNull(p));
-    const socialPeriods = [
-      this.stats.twoYearsAgo ? { label: walkPeriods[0].label, data: this.stats.twoYearsAgo.socials } : null,
-      this.stats.previousYear ? { label: walkPeriods[1].label, data: this.stats.previousYear.socials } : null,
-      { label: walkPeriods[walkPeriods.length - 1].label, data: this.stats.currentYear.socials }
-    ].filter(p => !isNull(p));
-    const yearlyPeriods = this.stats.yearlyStats?.filter(yearStat => yearStat.year >= this.dateUtils.asDateTime(effectiveFrom).year && yearStat.year <= this.dateUtils.asDateTime(this.toDate).year)
-      .map(yearStat => ({
+    const comparisons = [this.stats.twoYearsAgo, this.stats.previousYear, this.stats.currentYear].filter(Boolean);
+    const walkPeriods = comparisons.map(period => ({label: formatDateRange(period.periodFrom, period.periodTo), data: period.walks}));
+    const socialPeriods = comparisons.map(period => ({label: formatDateRange(period.periodFrom, period.periodTo), data: period.socials}));
+    const yearlyPeriods = this.stats.yearlyStats?.map(yearStat => ({
         label: formatCompactDateRange(yearStat.periodFrom, yearStat.periodTo),
         walks: yearStat.walks,
         socials: yearStat.socials,
