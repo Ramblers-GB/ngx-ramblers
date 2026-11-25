@@ -19,7 +19,7 @@ import { SectionToggleTab } from "../../../models/section-toggle.model";
 import { Logger, LoggerFactory } from "../../../services/logger-factory.service";
 import { InboxService } from "../../../services/inbox/inbox.service";
 import { InboxReplyHandoffService } from "../../../services/inbox/inbox-reply-handoff.service";
-import { addressLabel, aliasMailboxAddresses, aliasMailboxExtraCaption, aliasMailboxHeading, aliasMailboxLabel, collapseInboxSends, formatInboxAddress, inboxDisplayedAddressLine, inboxFolderMovedToTrash, inboxMessageRecipientLine, inboxSendWasSeparateCopies, inboxThreadHeaderFrom, inboxThreadHeaderTo, inboxThreadId, inboxThreadLocationLabel, inboxThreadRoleLine, inboxThreadRowFrom, inboxThreadRowPreview, inboxThreadRowTo, inboxThreadUrlSlug, inboxUserFolderIdFromView, inboxUserFolderView, isInboxUserFolderView, newestInboxMessage, replyAllRecipients, validatedInboxColumnShare } from "../../../functions/inbox-thread";
+import { addressLabel, aliasMailboxAddresses, aliasMailboxExtraCaption, aliasMailboxHeading, aliasMailboxLabel, collapseInboxSends, formatInboxAddress, inboxDisplayedAddressLine, inboxFolderMovedToTrash, inboxMessageIdsEqual, inboxMessageMatchingId, inboxMessageRecipientLine, inboxSendWasSeparateCopies, inboxThreadHeaderFrom, inboxThreadHeaderTo, inboxThreadId, inboxThreadLocationLabel, inboxThreadRoleLine, inboxThreadRowFrom, inboxThreadRowPreview, inboxThreadRowTo, inboxThreadUrlSlug, inboxUserFolderIdFromView, inboxUserFolderView, isInboxUserFolderView, newestInboxMessage, replyAllRecipients, validatedInboxColumnShare } from "../../../functions/inbox-thread";
 import { InboxPushSubscriptionService } from "../../../services/inbox/inbox-push-subscription.service";
 import { InboxNotificationService } from "../../../services/inbox/inbox-notification.service";
 import { WebSocketClientService } from "../../../services/websockets/websocket-client.service";
@@ -960,8 +960,27 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.layout.mobile && this.layout.mobileShowDetail;
   }
 
-  private matchingThread(threads: InboxThread[], slugOrId: string): InboxThread | null {
-    return threads.find(thread => this.threadSlug(thread) === slugOrId || this.threadIdOf(thread) === slugOrId) ?? null;
+  private matchingThread(threads: InboxThread[], slugOrId: string, messageId: string | null = null): InboxThread | null {
+    return threads.find(thread => (this.threadSlug(thread) === slugOrId || this.threadIdOf(thread) === slugOrId)
+      && (!messageId || inboxMessageIdsEqual(thread.sentMessageId, messageId))) ?? null;
+  }
+
+  private async sentThreadRequestedInUrl(thread: InboxThread, messages: InboxMessage[], messageId: string | null, offset = 0): Promise<InboxThread | null> {
+    const message = inboxMessageMatchingId(messages, messageId);
+    if (messageId && (!message || message.direction !== InboxMessageDirection.OUTBOUND || message.autoReply)) {
+      return null;
+    } else {
+      const response = await this.inboxService.listThreads(null, InboxViewScope.ALL_ACCESSIBLE, false, 200, InboxThreadFolder.SENT, offset, message?.subject || thread.subject);
+      const requested = this.matchingThread(response.threads, this.threadIdOf(thread), messageId);
+      const nextOffset = offset + response.threads.length;
+      if (requested) {
+        return requested;
+      } else if (response.threads.length > 0 && nextOffset < response.totalCount) {
+        return this.sentThreadRequestedInUrl(thread, messages, messageId, nextOffset);
+      } else {
+        return null;
+      }
+    }
   }
 
   private async threadRequestedInUrl(): Promise<InboxThread | null> {
@@ -969,21 +988,26 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!requestedSlug) {
       return null;
     } else {
-      const alreadyLoaded = this.matchingThread(this.threads, requestedSlug);
+      const requestedMessageId = this.viewingSent ? this.route.snapshot.queryParams[StoredValue.MESSAGE] ?? null : null;
+      const alreadyLoaded = this.matchingThread(this.threads, requestedSlug, requestedMessageId);
       if (alreadyLoaded) {
         return alreadyLoaded;
       } else {
         try {
           const response = await this.inboxService.getThread(requestedSlug, this.aliases.find(alias => alias.roleType === this.selectedMailboxView)?.roleType ?? null);
-          const requested = response.thread;
-          if (!this.threadBelongsToCurrentView(requested) && this.route.snapshot.queryParams[StoredValue.MAILBOX_VIEW]) {
+          const requested = this.viewingSent
+            ? await this.sentThreadRequestedInUrl(response.thread, response.messages, requestedMessageId)
+            : response.thread;
+          if (!requested) {
+            return null;
+          } else if (!this.threadBelongsToCurrentView(requested) && this.route.snapshot.queryParams[StoredValue.MAILBOX_VIEW]) {
             return null;
           } else {
             if (!this.threadBelongsToCurrentView(requested)) {
               this.selectedMailboxView = this.viewForThread(requested);
               this.filteredThreadsDirty = true;
             }
-            if (this.threadBelongsToCurrentView(requested) && !this.matchingThread(this.threads, this.threadIdOf(requested))) {
+            if (this.threadBelongsToCurrentView(requested) && !this.matchingThread(this.threads, this.threadIdOf(requested), requestedMessageId)) {
               this.threads = [requested, ...this.threads];
             }
             return this.threadBelongsToCurrentView(requested) ? requested : null;
@@ -1032,7 +1056,9 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
       return this.viewingSent;
     } else if (folder === InboxThreadFolder.DRAFTS) {
       return this.viewingDrafts;
-    } else if (this.viewingDeleted || this.viewingJunk || this.viewingSent || this.viewingDrafts) {
+    } else if (this.viewingSent) {
+      return !!thread.sentMessageId;
+    } else if (this.viewingDeleted || this.viewingJunk || this.viewingDrafts) {
       return false;
     } else if (this.viewingAllFolders) {
       return !!thread.userFolderId;
@@ -2055,7 +2081,15 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
         this.threadListUnreadCount = sentResponse.unreadCount;
         this.threadListTotalCount = sentResponse.totalCount;
         this.loadedOnce = true;
-        await this.reloadVisibleConversation(this.threads[0] ?? null);
+        const requestedSentThread = await this.threadRequestedInUrl();
+        if (this.route.snapshot.queryParams[StoredValue.THREAD] && !requestedSentThread) {
+          this.selectedThread = null;
+          this.selectedThreadId = null;
+          this.clearSelectedMessages();
+          this.notify.warning({title: "Sent item unavailable", message: "This sent item could not be found. It may have been moved or removed."});
+        } else {
+          await this.reloadVisibleConversation(requestedSentThread ?? this.threads[0] ?? null);
+        }
       } else if (this.viewingAllFolders || this.viewingUserFolder) {
         const folderResponse = await this.inboxService.listThreads(null, InboxViewScope.ALL_ACCESSIBLE, this.readFilter === InboxReadFilter.UNREAD, null, null, null, this.conversationSearchTerm, this.listMailboxUserFolderId);
         this.threads = folderResponse.threads;
@@ -2116,9 +2150,9 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private async reloadVisibleConversation(fallback: InboxThread | null): Promise<void> {
     const selectedId = this.selectedThreadId;
-    const updated = selectedId ? this.matchingThread(this.threads, selectedId) : null;
-    const fallbackInView = fallback && this.matchingThread(this.threads, this.threadIdOf(fallback))
-      ? this.matchingThread(this.threads, this.threadIdOf(fallback))
+    const updated = selectedId ? this.matchingThread(this.threads, selectedId, this.viewingSent ? this.sentFocusMessageId : null) : null;
+    const fallbackInView = fallback && this.matchingThread(this.threads, this.threadIdOf(fallback), this.viewingSent ? fallback.sentMessageId : null)
+      ? this.matchingThread(this.threads, this.threadIdOf(fallback), this.viewingSent ? fallback.sentMessageId : null)
       : null;
     const alreadyOpen = updated && this.selectedThread && this.selectedMessages.length > 0
       && this.threadIdOf(this.selectedThread) === this.threadIdOf(updated);
@@ -2233,7 +2267,8 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
       relativeTo: this.route,
       queryParams: {
         [StoredValue.MAILBOX_VIEW]: this.mailboxViewParam(),
-        [StoredValue.THREAD]: null
+        [StoredValue.THREAD]: null,
+        [StoredValue.MESSAGE]: null
       },
       queryParamsHandling: "merge",
       replaceUrl: true
@@ -2769,6 +2804,7 @@ export class InboxComponent implements OnInit, AfterViewInit, OnDestroy {
       relativeTo: this.route,
       queryParams: {
         [StoredValue.THREAD]: thread ? this.threadSlug(thread) : null,
+        [StoredValue.MESSAGE]: this.viewingSent ? thread?.sentMessageId ?? null : null,
         ...(this.readingOnMobile ? {[StoredValue.MAXIMISE]: "true"} : {})
       },
       queryParamsHandling: "merge",
