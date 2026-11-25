@@ -24,8 +24,8 @@ import { StoredValue } from "../../../models/ui-actions.model";
       color: var(--bs-warning-text-emphasis)
   `],
   template: `
-    @for (site of sites; track site.environment; let last = $last) {
-      <span class="text-nowrap">
+    @for (site of sites; track site.environment) {
+      <span class="d-block text-nowrap">
         @if (site.url) {
           <a [href]="site.url" target="_blank" rel="noopener" [attr.aria-label]="'Open ' + site.environment + ' in a new tab'">{{ site.environment }}</a>
         } @else {
@@ -39,13 +39,7 @@ import { StoredValue } from "../../../models/ui-actions.model";
              [tooltip]="'Move ' + site.environment + ' to another database server'" container="body"
              [attr.aria-label]="'Move ' + site.environment + ' to another database server'"><fa-icon [icon]="faArrowRightArrowLeft"/></a>
         }
-        @if (!last) {
-          <span>,</span>
-        }
       </span>
-      @if (!last) {
-        <span> </span>
-      }
     } @empty {
       <span>—</span>
     }
