@@ -1009,8 +1009,10 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
       });
     });
     document.addEventListener("pointerdown", this.onDocumentPointerDown, true);
-    this.editor.on("transaction", () => {
-      this.refreshHistoryState();
+    this.editor.on("transaction", ({transaction}) => {
+      if (transaction.docChanged) {
+        this.refreshHistoryState();
+      }
     });
     this.editor.on("update", ({transaction}) => {
       const contentChanged = !transaction || transaction.docChanged;
@@ -1018,11 +1020,9 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
         this.scheduleMarkdownEmit();
         this.refreshEmojiSuggestions();
       }
-      this.refreshHistoryState();
       this.positionEventImageResizer();
     });
     this.editor.on("selectionUpdate", () => {
-      this.refreshHistoryState();
       this.updateSelectionChrome();
       this.refreshEmojiSuggestions();
     });
@@ -1177,6 +1177,7 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
   private mermaidPreviewTimer: ReturnType<typeof setTimeout> | null = null;
   private markdownEmitTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly MARKDOWN_EMIT_DELAY_MS = 150;
+  private static readonly EMOJI_SCAN_CHARS = 80;
 
   private sourceEditorFocused(): boolean {
     return this.sourceMode && this.host.nativeElement.contains(document.activeElement);
@@ -1284,19 +1285,25 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
   }
 
   private positionEventImageResizer(): void {
-    const shell = this.editor?.view?.dom.closest(".tiptap-editor-shell") as HTMLElement;
-    const imageField = this.editor?.view?.dom.querySelector(`merge-field[data-token^="${ProgrammeEventToken.IMAGE}"]`) as HTMLElement;
-    const target = imageField || (this.imageSelected ? this.editor?.view?.dom.querySelector("img.ProseMirror-selectednode") as HTMLElement : null);
-    if (shell && target) {
-      const shellRect = shell.getBoundingClientRect();
-      const imageRect = target.getBoundingClientRect();
-      this.eventImageResizerTop = imageRect.bottom - shellRect.top;
-      this.eventImageResizerLeft = imageRect.left - shellRect.left;
-      this.eventImageResizerWidth = imageRect.width;
-    } else {
+    if (this.eventImageHeight == null) {
       this.eventImageResizerTop = 0;
       this.eventImageResizerLeft = 0;
       this.eventImageResizerWidth = 0;
+    } else {
+      const shell = this.editor?.view?.dom.closest(".tiptap-editor-shell") as HTMLElement;
+      const imageField = this.editor?.view?.dom.querySelector(`merge-field[data-token^="${ProgrammeEventToken.IMAGE}"]`) as HTMLElement;
+      const target = imageField || (this.imageSelected ? this.editor?.view?.dom.querySelector("img.ProseMirror-selectednode") as HTMLElement : null);
+      if (shell && target) {
+        const shellRect = shell.getBoundingClientRect();
+        const imageRect = target.getBoundingClientRect();
+        this.eventImageResizerTop = imageRect.bottom - shellRect.top;
+        this.eventImageResizerLeft = imageRect.left - shellRect.left;
+        this.eventImageResizerWidth = imageRect.width;
+      } else {
+        this.eventImageResizerTop = 0;
+        this.eventImageResizerLeft = 0;
+        this.eventImageResizerWidth = 0;
+      }
     }
   }
 
@@ -1612,7 +1619,8 @@ export class TiptapMarkdownEditor implements OnInit, OnDestroy {
     } else {
       const selection = this.editor.state.selection;
       const $from = selection.$from;
-      const textBefore = $from.parent.textBetween(0, $from.parentOffset, undefined, "\ufffc");
+      const scanFrom = Math.max(0, $from.parentOffset - TiptapMarkdownEditor.EMOJI_SCAN_CHARS);
+      const textBefore = $from.parent.textBetween(scanFrom, $from.parentOffset, undefined, "\ufffc");
       const match = textBefore.match(/:([a-z0-9_+-]*)$/i);
       if (match) {
         const from = $from.pos - match[0].length;

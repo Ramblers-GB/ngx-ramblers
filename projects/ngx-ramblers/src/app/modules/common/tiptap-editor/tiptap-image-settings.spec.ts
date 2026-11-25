@@ -87,6 +87,20 @@ describe("image settings trigger", () => {
     expect(instance.imageSettingsTarget).toBe(null);
   });
 
+  it("skips event image layout work when event image sizing is off", () => {
+    const instance = imageEditor();
+    const querySelector = vi.spyOn(instance.editor.view.dom, "querySelector");
+    instance.eventImageResizerTop = 42;
+    instance.eventImageResizerLeft = 13;
+    instance.eventImageResizerWidth = 200;
+    instance["positionEventImageResizer"]();
+    expect(instance.eventImageResizerTop).toBe(0);
+    expect(instance.eventImageResizerLeft).toBe(0);
+    expect(instance.eventImageResizerWidth).toBe(0);
+    expect(querySelector).not.toHaveBeenCalled();
+    querySelector.mockRestore();
+  });
+
   it("does not emit a save merely because an existing image URL is normalised for editing", () => {
     const editor = new Editor({extensions: [StarterKit, SpacedImage, Markdown], content: "Initial", contentType: "markdown"});
     editors.push(editor);

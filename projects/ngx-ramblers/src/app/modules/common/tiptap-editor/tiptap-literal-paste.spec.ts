@@ -160,4 +160,36 @@ describe("emoji suggestions while composer change detection is detached", () => 
     expect(detectChanges).toHaveBeenCalled();
     expect(view["changeDetector"].markForCheck).not.toHaveBeenCalled();
   });
+
+  it("only scans the short prefix before the cursor for emoji shortcodes", () => {
+    const textBetween = vi.fn(() => ":sun");
+    const view = Object.assign(Object.create(TiptapMarkdownEditor.prototype), {
+      editable: true,
+      emojiSuggestions: [],
+      emojiActiveIndex: 0,
+      emojiShortcodeRange: null,
+      changeDetector: {detectChanges: vi.fn(), markForCheck: vi.fn()},
+      zone: {run: (fn: () => void) => fn()},
+      emojiShortcodeService: {suggestionsFor: () => [{shortname: ":sun:", unicode: "☀️"}]},
+      editor: {
+        isActive: () => false,
+        state: {
+          selection: {
+            $from: {
+              pos: 60000,
+              parentOffset: 18000,
+              parent: {textBetween}
+            }
+          }
+        },
+        view: {
+          coordsAtPos: () => ({bottom: 0, left: 0}),
+          dom: {closest: () => null}
+        }
+      }
+    }) as TiptapMarkdownEditor;
+    view["refreshEmojiSuggestions"]();
+    expect(textBetween).toHaveBeenCalledWith(17920, 18000, undefined, "\ufffc");
+    expect(view["emojiSuggestions"]).toEqual([{shortname: ":sun:", unicode: "☀️"}]);
+  });
 });
