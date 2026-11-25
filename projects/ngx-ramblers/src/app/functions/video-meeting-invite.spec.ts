@@ -13,6 +13,10 @@ import {
 
 describe("meetingInviteKindPhrase", () => {
 
+  it("describes the Other category as a meeting", () => {
+    expect(meetingInviteKindPhrase("Other")).toEqual("a meeting");
+  });
+
   it("uses the for an acronym such as AGM", () => {
     expect(meetingInviteKindPhrase("AGM")).toEqual("the AGM");
   });
@@ -25,6 +29,21 @@ describe("meetingInviteKindPhrase", () => {
 });
 
 describe("meetingInviteBodyMarkdown", () => {
+
+  it("uses natural wording for an online meeting in the Other category", () => {
+    const body = meetingInviteBodyMarkdown({
+      dateLabel: "Thursday 26 November 2026",
+      timeLabel: "7:00 pm",
+      joinUrl: "https://group.example.org.uk/video-meetings/guest/room-1",
+      location: "Online",
+      note: "",
+      guestInstructions: "",
+      signoff: "",
+      meetingKind: "Other"
+    });
+    expect(body).toContain("## You are invited to a meeting on Thursday 26 November 2026 at 7:00 pm.");
+    expect(body).toContain("Please join using [this link]");
+  });
 
   it("names the meeting type in the opening line", () => {
     const body = meetingInviteBodyMarkdown({

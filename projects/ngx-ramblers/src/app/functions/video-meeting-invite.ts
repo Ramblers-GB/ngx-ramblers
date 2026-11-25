@@ -1,5 +1,5 @@
 import { ComposerExternalRecipient } from "../models/email-composer.model";
-import { CommitteeMember } from "../models/committee.model";
+import { CommitteeMember, OTHER_MEETING_CATEGORY } from "../models/committee.model";
 import { Member } from "../models/member.model";
 import { committeeAssignedEmailsForMemberId, memberHoldsCommitteeRole } from "./committee-members";
 import { GUEST_MEETING_EMAIL_PARAM, GUEST_MEETING_NAME_PARAM, MEETING_JOIN_LINK_LABEL } from "./video-meeting-join";
@@ -83,7 +83,9 @@ export function personaliseGuestMeetingLinksInHtml(html: string): string {
 
 export function meetingInviteKindPhrase(kind: string): string {
   const trimmed = (kind || "").trim() || "committee meeting";
-  if (/^[A-Z]{2,}$/.test(trimmed)) {
+  if (trimmed.toLowerCase() === OTHER_MEETING_CATEGORY.toLowerCase()) {
+    return "a meeting";
+  } else if (/^[A-Z]{2,}$/.test(trimmed)) {
     return `the ${trimmed}`;
   } else {
     const article = /^[aeiou]/i.test(trimmed) ? "an" : "a";
