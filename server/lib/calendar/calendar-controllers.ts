@@ -18,7 +18,7 @@ import { dateTimeNow } from "../shared/dates";
 import committeeFile from "../mongo/models/committee-file";
 import { queryKey } from "../mongo/controllers/config";
 import { ConfigKey } from "../../../projects/ngx-ramblers/src/app/models/config.model";
-import { CommitteeConfig, CommitteeFile, meetingHasVenue } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
+import { CommitteeConfig, CommitteeFile, CommitteeFileMeeting, meetingHasVenue, meetingIsOnline } from "../../../projects/ngx-ramblers/src/app/models/committee.model";
 import { committeeFileMeetingTitle } from "../../../projects/ngx-ramblers/src/app/functions/committee-meeting-agenda";
 import { stripTrailingSlash } from "../../../projects/ngx-ramblers/src/app/functions/strings";
 
@@ -87,14 +87,17 @@ export async function meetingCalendarFile(committeeFileId: string, req?: Request
     const fallbackOrganiser = committeeSecretaryEmail(committeeConfigDoc?.value as CommitteeConfig || null);
     const host = baseUrl.replace(/^https?:\/\//, "") || "ngx-ramblers";
     const venue = meetingHasVenue(meetingFile.meeting.format) ? meetingFile.meeting.location : null;
-    const descriptionLines = [venue ? `Location: ${venue}` : null].filter(Boolean);
+    const title = committeeFileMeetingTitle(meetingFile);
+    const pagePath = meetingFile.meeting.committeePagePath;
+    const pageUrl = baseUrl && pagePath ? `${baseUrl}/${pagePath.replace(/^\/+/, "")}` : null;
     const document = meetingIcalDocument({
       uid: `meeting-${id}@${host}`,
-      title: committeeFileMeetingTitle(meetingFile),
+      title,
       startTime: meetingFile.eventDate,
       durationMinutes: meetingFile.meeting.durationMinutes,
-      description: descriptionLines.join("\n") || undefined,
+      description: meetingInviteDescription(meetingFile.meeting, title, pageUrl),
       location: venue || undefined,
+      url: pageUrl || undefined,
       organiserName: meetingFile.meeting.organiserName || fallbackOrganiser.name,
       organiserEmail: meetingFile.meeting.organiserEmail || fallbackOrganiser.email
     }, calendarNameFor(config));
@@ -151,4 +154,15 @@ export async function eventsCalendarFeed(req: Request, res: Response): Promise<v
     errorDebugLog("eventsCalendarFeed failed, error:", error);
     res.status(500).json({message: "Calendar generation failed"});
   }
+}
+
+export function meetingInviteDescription(meeting: CommitteeFileMeeting, title: string, pageUrl: string | null): string {
+  const venue = meetingHasVenue(meeting.format) ? meeting.location : null;
+  return [
+    title,
+    venue ? `Location: ${venue}` : null,
+    meetingIsOnline(meeting.format) ? "Join online using the link in the invitation email." : null,
+    (meeting.inviteNote || "").trim() || null,
+    pageUrl ? `Meeting papers: ${pageUrl}` : null
+  ].filter(Boolean).join("\n\n");
 }

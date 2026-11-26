@@ -145,6 +145,7 @@ export function meetingIcalDocument(meeting: MeetingInvite, calendarName: string
     `SUMMARY:${escapeIcalText(meeting.title)}`,
     withoutVideoMeetingGuestLines(meeting.description) ? `DESCRIPTION:${escapeIcalText(withoutVideoMeetingGuestLines(meeting.description))}` : null,
     (meeting.location && !isVideoMeetingGuestUrl(meeting.location)) ? `LOCATION:${escapeIcalText(meeting.location)}` : null,
+    (meeting.url && !isVideoMeetingGuestUrl(meeting.url)) ? `URL:${escapeIcalText(meeting.url)}` : null,
     organiser,
     ...attendeeLines,
     "STATUS:CONFIRMED",
