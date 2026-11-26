@@ -66,11 +66,13 @@ describe("log viewer cancellation", () => {
     const clock = sandbox.useFakeTimers();
     const viewer = stubLogViewer();
     viewer.exists.returns(false);
+    const output = sandbox.stub(console, "log");
     const cancellation = new AbortController();
     const opened = openLogViewer({...config, signal: cancellation.signal});
     cancellation.abort();
     await opened;
     clock.tick(30000);
+    expect(output.calledWith("Waiting for log files...")).toBe(true);
     expect(viewer.spawn.called).toBe(false);
     expect(viewer.spawnSync.called).toBe(false);
   });

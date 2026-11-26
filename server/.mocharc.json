@@ -1,5 +1,6 @@
 {
   "extension": ["ts"],
   "spec": "lib/**/*.spec.ts",
+  "node-option": ["no-experimental-strip-types"],
   "require": ["ts-node/register", "./test/isolate-from-real-services.ts"]
 }

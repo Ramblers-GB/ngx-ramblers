@@ -13,7 +13,7 @@ const volunteerImportAuditSchema = new mongoose.Schema({
   errors: [String],
   createdAt: {type: Number, required: true},
   createdBy: {type: String, required: true}
-}, {collection: "volunteerImportAudit"});
+}, {collection: "volunteerImportAudit", suppressReservedKeysWarning: true});
 
 volunteerImportAuditSchema.index({groupCode: 1, createdAt: -1});
 

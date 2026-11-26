@@ -1,7 +1,6 @@
 import * as messageHandlers from "../shared/message-handlers";
 import { envConfig } from "../env-config/env-config";
 import debug from "debug";
-import url from "url";
 import querystring from "querystring";
 import {
   GridReferenceLookupResponse,
@@ -59,7 +58,7 @@ function postCodeMapper(response: PostcodeLookupServiceResponse): GridReferenceL
 
 export async function postcodeLookupFromPostcodesIo(postcode: string): Promise<GridReferenceLookupApiResponse> {
   const trimmed = normalisePostcode(postcode || "");
-  const baseUrl = url.parse(ENDPOINT, false);
+  const baseUrl = new URL(ENDPOINT);
   return messageHandlers.httpRequest({
     apiRequest: {
       hostname: baseUrl.hostname,

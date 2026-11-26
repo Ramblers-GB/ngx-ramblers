@@ -5,3 +5,5 @@ process.env.FLY_API_TOKEN = "";
 process.env.AWS_ACCESS_KEY_ID = "";
 process.env.AWS_SECRET_ACCESS_KEY = "";
 process.env.AUTH_SECRET = "isolated-tests-signing-secret";
+import createDebug from "debug";
+createDebug.log = () => undefined;

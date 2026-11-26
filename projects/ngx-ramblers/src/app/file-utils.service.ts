@@ -110,14 +110,18 @@ export class FileUtilsService {
 
   private async photoDateTaken(file: File): Promise<number | null> {
     try {
-      const {parse} = await import("exifr");
-      const metadata = await parse(file, ["DateTimeOriginal", "CreateDate"]);
+      const metadata = await this.photoCaptureMetadata(file);
       const date = metadata?.DateTimeOriginal || metadata?.CreateDate;
       return date instanceof Date && Number.isFinite(date.getTime()) ? date.getTime() : null;
     } catch (error) {
       this.logger.debug("No capture date found in photo metadata", file.name, error);
       return null;
     }
+  }
+
+  public async photoCaptureMetadata(file: File): Promise<{DateTimeOriginal?: unknown; CreateDate?: unknown} | null> {
+    const {parse} = await import("exifr");
+    return parse(file, ["DateTimeOriginal", "CreateDate"]);
   }
 
   public isResizableName(name: string): boolean {

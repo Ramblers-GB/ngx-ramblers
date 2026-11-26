@@ -7,13 +7,12 @@ import {
   NominatimPlaceResult
 } from "../../../projects/ngx-ramblers/src/app/models/address.model";
 import * as messageHandlers from "../shared/message-handlers";
-import url from "url";
 import querystring from "querystring";
 import { isArray } from "es-toolkit/compat";
 import { gridReferenceLookupFromLatLng } from "./reverse-geocode";
 
 export const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org";
-const nominatimUrl = url.parse(NOMINATIM_ENDPOINT, false);
+const nominatimUrl = new URL(NOMINATIM_ENDPOINT);
 
 const NOMINATIM_REQUEST_SPACING_MILLISECONDS = 1100;
 

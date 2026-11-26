@@ -1,7 +1,6 @@
 import { vi } from "vitest";
 import { webcrypto } from "node:crypto";
 import { DateTime } from "luxon";
-import { parse } from "exifr";
 
 import { provideHttpClientTesting } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
@@ -13,8 +12,6 @@ import { SearchFilterPipe } from "./pipes/search-filter.pipe";
 import { ContentMetadataService } from "./services/content-metadata.service";
 import { FullNamePipe } from "./pipes/full-name.pipe";
 import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
-
-vi.mock("exifr", () => ({parse: vi.fn()}));
 
 describe("FileUtilsService", () => {
   beforeEach(() => TestBed.configureTestingModule({
@@ -38,7 +35,7 @@ describe("FileUtilsService", () => {
   });
   beforeEach(() => {
     vi.stubGlobal("crypto", webcrypto);
-    vi.mocked(parse).mockResolvedValue(null);
+    vi.spyOn(FileUtilsService.prototype, "photoCaptureMetadata").mockResolvedValue(null);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       clearRect: vi.fn(),
       drawImage: vi.fn(),
@@ -200,11 +197,11 @@ describe("FileUtilsService", () => {
   it("uses capture metadata from the original HEIC before converting it", async () => {
     const service = TestBed.inject(FileUtilsService);
     const file = new File(["HEIC"], "photo.heic", {type: "image/heic", lastModified: 1800000000000});
-    vi.mocked(parse).mockResolvedValue({DateTimeOriginal: DateTime.fromMillis(1700000000000).toJSDate()});
+    const metadata = vi.spyOn(service, "photoCaptureMetadata").mockResolvedValue({DateTimeOriginal: DateTime.fromMillis(1700000000000).toJSDate()});
     vi.spyOn(service, "fileListToBase64Files").mockResolvedValue([{file, base64Content: "data:image/heic;base64,SEVJQw=="}]);
     vi.spyOn(service, "convertHEICFile").mockImplementation(async file => ({file, isImage: true}));
     const prepared = await service.prepareDroppedFiles([file]);
-    expect(parse).toHaveBeenCalledWith(file, ["DateTimeOriginal", "CreateDate"]);
+    expect(metadata).toHaveBeenCalledWith(file);
     expect(service.contentMetadataItemFromBase64File(prepared.images[0]).date).toBe(1700000000000);
   });
 
