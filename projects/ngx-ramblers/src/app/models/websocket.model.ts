@@ -26,6 +26,7 @@ export enum EventType {
   BACKUP_RESTORE = "backup-restore",
   BATCH_SEND_PROGRESS = "batch-send-progress",
   CAMPAIGN_RECIPIENT_EXPORT = "campaign-recipient-export",
+  CONTRIBUTOR_BUNDLE = "contributor-bundle",
   CONTENT_MIGRATION_CANCEL = "content-migration-cancel",
   CONTENT_MIGRATION_EXECUTE = "content-migration-execute",
   CONTENT_MIGRATION_SCAN = "content-migration-scan",

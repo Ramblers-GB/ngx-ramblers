@@ -10,7 +10,7 @@ import { storedMongoUri } from "../shared/stored-mongo-uri";
 import { dateTimeFromIso, dateTimeFromJsDate, dateTimeFromMillis, dateTimeNow } from "../shared/dates";
 import { atlasRequest } from "./atlas-admin-api";
 import { AtlasDatabaseUser, AtlasDatabaseUserList, AtlasError, ProjectLogin } from "./atlas-admin-api.model";
-import { managedAtlasClusters } from "./atlas-clusters";
+import { atlasAccessInProject, managedAtlasClusters } from "./atlas-clusters";
 import { deleteEnvironmentMongoUser, platformAtlasAccess, sanitisedEnvironmentName, waitForMongoLogin } from "./mongo-database-user";
 import { AtlasClusterRow, AtlasGhostDatabase, AtlasGhostDatabaseDeleteRequest, AtlasLeftoverLogin, AtlasLeftoverLoginDeleteRequest } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { EnvironmentConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
@@ -95,7 +95,7 @@ export async function deleteGhostDatabase(request: AtlasGhostDatabaseDeleteReque
   } else if (!cluster?.projectId || !cluster.inProvisioningProject) {
     throw new Error(`Cluster ${ghost.cluster} is not one this page manages, so ${ghost.database} cannot be deleted from here.`);
   } else {
-    const atlas = {...await platformAtlasAccess(), projectId: cluster.projectId};
+    const atlas = atlasAccessInProject(await platformAtlasAccess(), cluster.projectId);
     const login = {username: cleanupLoginName(), password: randomBytes(24).toString("base64url")};
     const removal = {found: 0};
     const created = await atlasRequest<AtlasError>(atlas, "POST", `/groups/${cluster.projectId}/databaseUsers`, {

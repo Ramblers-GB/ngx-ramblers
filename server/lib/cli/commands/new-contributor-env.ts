@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { homedir } from "os";
 import { log } from "../cli-logger";
+import { pluraliseWithCount } from "../../shared/string-utils";
 import { resolveClientPath } from "../../shared/path-utils";
 import { buildEnvironmentsManifest, generateAuthSecret } from "../../contributor-environment/contributor-bundle";
 
@@ -11,6 +12,19 @@ function runGit(args: string[]): void {
   const result = spawnSync("git", args, { stdio: ["ignore", "inherit", "inherit"] });
   if (result.status !== 0) {
     throw new Error(`git ${args.join(" ")} failed`);
+  }
+}
+
+export function uncommittedChanges(porcelainStatus: string): string[] {
+  return porcelainStatus.split(/\r?\n/).filter(line => line.trim().length > 0);
+}
+
+function gitStatus(destPath: string): string {
+  const result = spawnSync("git", ["-C", destPath, "status", "--porcelain"], { encoding: "utf-8" });
+  if (result.status !== 0) {
+    throw new Error(`git status failed in ${destPath}`);
+  } else {
+    return result.stdout;
   }
 }
 
@@ -26,9 +40,14 @@ function ensureCheckout(sourceDir: string, destPath: string): void {
     if (!fs.existsSync(path.join(destPath, ".git"))) {
       throw new Error(`${destPath} exists but is not a git checkout`);
     }
-    log("Refreshing existing checkout at %s to latest main", destPath);
-    runGit(["-C", destPath, "fetch", "origin"]);
-    runGit(["-C", destPath, "reset", "--hard", "origin/main"]);
+    const changes = uncommittedChanges(gitStatus(destPath));
+    if (changes.length > 0) {
+      throw new Error(`${destPath} has ${pluraliseWithCount(changes.length, "uncommitted change")}. Commit or stash them, then run this again.`);
+    } else {
+      log("Updating existing checkout at %s onto the latest main", destPath);
+      runGit(["-C", destPath, "fetch", "origin"]);
+      runGit(["-C", destPath, "rebase", "origin/main"]);
+    }
   } else {
     log("Cloning %s into %s", sourceDir, destPath);
     runGit(["clone", "--no-hardlinks", sourceDir, destPath]);

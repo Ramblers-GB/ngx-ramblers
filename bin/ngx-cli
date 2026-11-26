@@ -45,11 +45,50 @@ needs_install() {
   return 1
 }
 
+major_version() {
+  echo "${1#v}" | cut -d. -f1
+}
+
+toolchain_help() {
+  echo "NGX needs Node $required_node and npm $required_npm." >&2
+  echo "Install them with nvm (https://github.com/nvm-sh/nvm), then run:" >&2
+  echo "  nvm install $required_node && nvm use $required_node && npm install --global npm@$required_npm" >&2
+  echo "On macOS, Node $(major_version "$required_node") needs macOS 13.5 or newer." >&2
+}
+
+check_toolchain() {
+  required_node="$(tr -d '[:space:]' < .nvmrc)"
+  required_npm="$(sed -n 's/.*"npm": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+  if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    echo "Node.js and npm were not found." >&2
+    toolchain_help
+    exit 1
+  fi
+  local node_version npm_version
+  node_version="$(node --version)"
+  npm_version="$(npm --version)"
+  if [ "$(major_version "$node_version")" != "$(major_version "$required_node")" ] || [ "$(major_version "$npm_version")" != "$(major_version "$required_npm")" ]; then
+    echo "Found Node $node_version and npm $npm_version." >&2
+    toolchain_help
+    exit 1
+  fi
+  if [ "$node_version" != "$required_node" ] || [ "$npm_version" != "$required_npm" ]; then
+    echo "Warning: found Node $node_version and npm $npm_version; NGX is pinned to Node $required_node and npm $required_npm." >&2
+  fi
+}
+
+check_toolchain
+
 if needs_install; then
   echo "Installing dependencies..."
-  npm install
-  npm install --prefix server
-  compute_hash > "$HASH_FILE"
+  if npm install && npm install --prefix server; then
+    compute_hash > "$HASH_FILE"
+  else
+    rm -f "$HASH_FILE"
+    echo "Dependency install failed. Fix the error above, then run ./bin/ngx-cli again." >&2
+    echo "If it keeps failing, start clean with: npm run reinstall" >&2
+    exit 1
+  fi
 fi
 
 ./node_modules/.bin/ts-node server/lib/cli/index.ts "$@"

@@ -161,6 +161,10 @@ function sortEnvironments(config: EnvironmentsConfig): EnvironmentsConfig {
   }
 }
 
+export async function platformEnvironmentsAvailable(): Promise<boolean> {
+  return !!(await loadFromDatabase()) || !!(await loadFromStagingEnvFile());
+}
+
 export async function configuredEnvironments(): Promise<EnvironmentsConfig> {
   const dbConfig = await loadFromDatabase();
   if (dbConfig) {

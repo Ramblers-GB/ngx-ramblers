@@ -1319,3 +1319,26 @@ export interface BackupArchiveProvisionResult {
   bucket: string;
   region: string;
 }
+
+export interface ContributorBundleWsRequest {
+  requestId: string;
+  environmentName: string;
+  schema: string;
+  clone: boolean;
+}
+
+export interface ContributorBundleWsProgress {
+  requestId: string;
+  message: string;
+}
+
+export interface ContributorBundleWsComplete {
+  requestId: string;
+  fileName: string;
+  zipBase64: string;
+}
+
+export interface ContributorBundleWsError {
+  requestId: string;
+  message: string;
+}

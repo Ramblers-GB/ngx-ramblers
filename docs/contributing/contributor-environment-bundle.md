@@ -81,8 +81,14 @@ bin/new-contributor-env <environment> <destination-path>
 Run it from an existing checkout that has the group's secrets file. It clones the
 repository to the destination, copies the group's secrets file, generates a fresh
 `AUTH_SECRET`, writes the `environments.local.json` manifest, and starts the stack.
-Re-running it against an existing destination refreshes that checkout to the latest
-`main` and restarts, so it is safe to run repeatedly while iterating.
+Re-running it against an existing destination rebases that checkout onto the
+latest `main` and restarts. It stops without touching anything if the destination
+has uncommitted changes.
+
+`local dev` only turns on platform admin (`PLATFORM_ADMIN_ENABLED`) when the
+environments come from the platform configuration database or a staging
+`server/.env`. A contributor running from `environments.local.json` alone gets
+it switched off, so platform-only scheduled jobs do not run on their machine.
 
 It copies the real environment file, so it is a testing convenience rather than a
 sanitised handover bundle — for a genuine external contributor, assemble the bundle
@@ -94,10 +100,29 @@ as described below.
    dedicated MongoDB Atlas database with a user whose role is scoped to that one
    database (not a cluster-wide `atlasAdmin` or `readWriteAnyDatabase` user), or
    instructions to run a local `mongod` and seed it (see Development data).
-   Cloning from Admin → Contributor Environment grants the site's existing
-   database user `readWrite` and `dbAdmin` on a new schema whose name starts
-   with the live database name, then copies the collections. That grant uses
-   the platform Atlas API keys, delivered to each site as `ATLAS_CONFIG`.
+   Cloning from Admin → Contributor Environment runs over the websocket and
+   reports progress. The site asks the platform app (`POST
+   /api/environment-setup/contributor-clone-access`, using the site's
+   `ENVIRONMENT_SETUP_API_KEY`) for three things: `readWrite` and `dbAdmin` on
+   the new schema for the site's own user so it can copy, a new database user
+   (`ngx_contrib_<clone>`) whose roles cover only the clone, and read-only S3
+   keys for the group's bucket (`<bucket>-contributor-read`, one per group;
+   generating another clone bundle replaces its keys). The copy leaves out
+   inbox mail, audit history, refresh tokens, expense claims, drafts and the
+   `AUTH_SECRET`-encrypted credential stores (the full list is
+   `CONTRIBUTOR_CLONE_EXCLUDED_COLLECTIONS` in
+   `server/lib/contributor-environment/contributor-clone-sanitise.ts`). It then
+   clears the Brevo, Mailchimp, Salesforce and Walks Manager credentials,
+   disconnects inbox mailboxes, removes any `environments` or
+   `site-registration` config, switches sending off with
+   `platform-send-control`, points the site URL at `http://localhost:4200` and
+   anonymises every member except the admin who generated the bundle. The
+   bundle carries the clone-only user and the read-only keys, so the
+   contributor cannot change the live database or the live bucket.
+
+   Choosing "Develop against the current database" still hands over the
+   site's own database and storage credentials. Use it only for someone you
+   would trust with the live site.
 2. **S3 bucket.** Create or designate the group's bucket and an IAM user whose
    policy allows actions only on `arn:aws:s3:::<bucket>` and
    `arn:aws:s3:::<bucket>/*`. Do not reuse a platform-wide AWS key.
@@ -113,6 +138,19 @@ as described below.
 7. **Hand over** the two files plus the database. The contributor drops the files
    into `non-vcs/secrets/` in their clone and runs
    `./bin/ngx-cli local dev <environment> --no-docker-worker`.
+
+## Contributor prerequisites
+
+The contributor needs Node.js at the version in `.nvmrc` and npm at the version in
+`package.json` `engines`. Operating system packages are usually too old (Debian 12
+ships Node 18), so point them at [nvm](https://github.com/nvm-sh/nvm). On macOS the
+current Node.js needs macOS 13.5 or newer, which rules out Macs that stop at
+Monterey.
+
+`./bin/ngx-cli` checks both versions before installing anything and stops with the
+exact `nvm` commands if the major versions differ. If the first dependency install
+fails part way, it does not mark the install as done, so the next run tries again.
+`npm run reinstall` starts completely clean.
 
 ## Development data
 

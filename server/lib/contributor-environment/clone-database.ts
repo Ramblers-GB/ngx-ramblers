@@ -2,11 +2,15 @@ import debug from "debug";
 import mongoose from "mongoose";
 import { MongoClient } from "mongodb";
 import { envConfig } from "../env-config/env-config";
-import { copyCollectionIndexes } from "../mongo/utils/collection-indexes";
 import { ParsedMongoUri, buildMongoUri } from "../shared/mongodb-uri";
-import { grantDatabaseAccessToUser, siteAtlasAccess } from "../environment-setup/mongo-database-user";
+import { waitForMongoLogin } from "../environment-setup/mongo-database-user";
+import { cloneSourceDatabase } from "../environment-setup/full-duplicate";
+import { connectToDatabase } from "../environment-setup/database-initialiser";
 import { Environment } from "../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { booleanOf, pluraliseWithCount } from "../shared/string-utils";
+import { ContributorCloneAccess, ContributorCloneAccessRequest } from "./contributor-environment.model";
+import { contributorCloneEnvironment, provisionContributorCloneAccess } from "./contributor-clone-access";
+import { CONTRIBUTOR_CLONE_EXCLUDED_COLLECTIONS, sanitiseContributorClone } from "./contributor-clone-sanitise";
 
 const debugLog = debug(envConfig.logNamespace("contributor-environment:clone-database"));
 debugLog.enabled = true;
@@ -16,11 +20,7 @@ const CLONE_ACCESS_RETRY_MS = 2000;
 const PLATFORM_ORIGIN = "http://ngx-ramblers.internal:5001";
 
 export function platformCloneAccessUrl(): string {
-  return `${PLATFORM_ORIGIN}/api/environment-setup/grant-clone-schema-access`;
-}
-
-export function cloneSchemaNameAllowed(sourceDatabase: string, targetDatabase: string): boolean {
-  return !!sourceDatabase && !!targetDatabase && targetDatabase.startsWith(`${sourceDatabase}-`);
+  return `${PLATFORM_ORIGIN}/api/environment-setup/contributor-clone-access`;
 }
 
 function isMongoUnauthorized(error: {code?: number; message?: string} | null | undefined): boolean {
@@ -41,13 +41,12 @@ export async function databaseHasCollections(databaseName: string): Promise<bool
   }
 }
 
+function databaseUri(mongo: ParsedMongoUri, databaseName: string): string {
+  return buildMongoUri({cluster: mongo.cluster, username: mongo.username, password: mongo.password, database: databaseName});
+}
+
 async function listCollectionsWorks(mongo: ParsedMongoUri, databaseName: string): Promise<boolean> {
-  const client = new MongoClient(buildMongoUri({
-    cluster: mongo.cluster,
-    username: mongo.username,
-    password: mongo.password,
-    database: databaseName
-  }), {serverSelectionTimeoutMS: 15000, connectTimeoutMS: 15000});
+  const client = new MongoClient(databaseUri(mongo, databaseName), {serverSelectionTimeoutMS: 15000, connectTimeoutMS: 15000});
   try {
     await client.connect();
     await client.db(databaseName).listCollections().toArray();
@@ -74,48 +73,64 @@ async function waitForCloneSchemaAccess(mongo: ParsedMongoUri, databaseName: str
   }
 }
 
-async function grantCloneAccessOnPlatform(username: string, sourceDatabase: string, targetDatabase: string): Promise<void> {
+async function requestCloneAccessFromPlatform(request: ContributorCloneAccessRequest): Promise<ContributorCloneAccess> {
   const setupKey = envConfig.value(Environment.ENVIRONMENT_SETUP_API_KEY);
   if (!setupKey) {
-    throw new Error("ENVIRONMENT_SETUP_API_KEY is not set, so this site cannot ask the platform to grant clone-schema access.");
+    throw new Error("ENVIRONMENT_SETUP_API_KEY is not set, so this site cannot ask the platform to set up clone access.");
   } else {
     const response = await fetch(platformCloneAccessUrl(), {
       method: "POST",
       headers: {"content-type": "application/json", "x-setup-api-key": setupKey},
-      body: JSON.stringify({username, sourceDatabase, targetDatabase})
+      body: JSON.stringify(request)
     });
+    const body = await response.json().catch(() => ({error: response.statusText})) as ContributorCloneAccess & {error?: string};
     if (!response.ok) {
-      const body = await response.json().catch(() => ({error: response.statusText})) as {error?: string};
-      throw new Error(body.error || `The platform would not grant clone access (${response.status})`);
+      throw new Error(body.error || `The platform would not set up clone access (${response.status})`);
+    } else if (!body.mongo?.username || !body.aws?.accessKeyId) {
+      throw new Error("The platform did not return clone credentials. It may be running an older release; redeploy the platform app and retry.");
+    } else {
+      return body;
     }
   }
 }
 
-export async function ensureCloneSchemaAccess(mongo: ParsedMongoUri, targetDatabase: string): Promise<void> {
-  if (await listCollectionsWorks(mongo, targetDatabase)) {
-    debugLog("Current database user already has access to %s", targetDatabase);
-  } else if (booleanOf(process.env[Environment.PLATFORM_ADMIN_ENABLED])) {
-    const atlas = await siteAtlasAccess();
-    await grantDatabaseAccessToUser(atlas, mongo.username, targetDatabase);
-    await waitForCloneSchemaAccess(mongo, targetDatabase);
+async function provisionOnThisPlatform(request: ContributorCloneAccessRequest): Promise<ContributorCloneAccess> {
+  const environment = await contributorCloneEnvironment(request);
+  if (!environment) {
+    throw new Error("This clone is not for a known environment on this platform");
   } else {
-    await grantCloneAccessOnPlatform(mongo.username, mongo.database, targetDatabase);
-    await waitForCloneSchemaAccess(mongo, targetDatabase);
+    return provisionContributorCloneAccess(environment, request);
   }
 }
 
-export async function cloneDatabase(sourceDatabase: string, targetDatabase: string): Promise<void> {
-  const client = mongoose.connection.getClient();
-  const source = client.db(sourceDatabase);
-  const target = client.db(targetDatabase);
-  const collections = await source.listCollections().toArray();
-  debugLog("Cloning %d collections from %s to %s", collections.length, sourceDatabase, targetDatabase);
-  for (const collection of collections) {
-    const documents = await source.collection(collection.name).find().toArray();
-    if (documents.length > 0) {
-      await copyCollectionIndexes(source.collection(collection.name), target.collection(collection.name));
-      await target.collection(collection.name).insertMany(documents);
+export async function contributorCloneAccess(mongo: ParsedMongoUri, targetDatabase: string, onProgress: (message: string) => void): Promise<ContributorCloneAccess> {
+  const request: ContributorCloneAccessRequest = {username: mongo.username, sourceDatabase: mongo.database, targetDatabase};
+  const access = booleanOf(process.env[Environment.PLATFORM_ADMIN_ENABLED])
+    ? await provisionOnThisPlatform(request)
+    : await requestCloneAccessFromPlatform(request);
+  onProgress("Waiting for MongoDB Atlas to activate access to the clone");
+  await waitForCloneSchemaAccess(mongo, targetDatabase);
+  await waitForMongoLogin(mongo.cluster, access.mongo, targetDatabase, attempt => {
+    if (attempt > 0) {
+      onProgress(`Waiting for the contributor database user to become active (${pluraliseWithCount(attempt, "check")})`);
     }
-    debugLog("Cloned %d documents into %s.%s", documents.length, targetDatabase, collection.name);
+  });
+  return access;
+}
+
+export async function copyIntoContributorClone(mongo: ParsedMongoUri, targetDatabase: string, keepMemberId: string | null, onProgress: (message: string) => void): Promise<void> {
+  const target = {uri: databaseUri(mongo, targetDatabase), database: targetDatabase};
+  const result = await cloneSourceDatabase(
+    {uri: databaseUri(mongo, mongo.database), database: mongo.database},
+    target,
+    progress => onProgress(progress.message),
+    CONTRIBUTOR_CLONE_EXCLUDED_COLLECTIONS
+  );
+  onProgress(`Copied ${pluraliseWithCount(result.documents, "document")} in ${pluraliseWithCount(result.collections, "collection")}; removing live credentials and personal data`);
+  const connection = await connectToDatabase(target);
+  try {
+    await sanitiseContributorClone(connection.db, keepMemberId);
+  } finally {
+    await connection.client.close();
   }
 }

@@ -37,6 +37,7 @@ import { handleLegacyUrlScrape } from "../legacy-redirect/legacy-redirect-ws-han
 import { handleScheduledTaskEventsWebSocket } from "../cron/scheduled-task-events-ws-handler";
 import { handleSocialPublishAlbum } from "../social/social-publish-ws-handler";
 import { handleCampaignRecipientExport } from "../brevo/campaigns/campaign-recipients-ws-handler";
+import { handleContributorBundle } from "../contributor-environment/contributor-bundle-ws-handler";
 import { handleSystemLogsWebSocket } from "../logging/system-logs-ws-handler";
 
 const debugLog = debug(envConfig.logNamespace("websocket-server"));
@@ -55,6 +56,7 @@ const messageHandlers: MessageHandlers = {
   [EventType.SITE_MIGRATION]: async (ws: WebSocket, data: any) => handleSiteMigration(ws, data),
   [EventType.BACKUP_RESTORE]: async (ws: WebSocket, data: any) => handleBackupRestoreWebSocket(ws, data),
   [EventType.CAMPAIGN_RECIPIENT_EXPORT]: async (ws: WebSocket, data: any, authToken: string) => handleCampaignRecipientExport(ws, data, authToken),
+  [EventType.CONTRIBUTOR_BUNDLE]: async (ws: WebSocket, data: any, authToken: string) => handleContributorBundle(ws, data, authToken),
   [EventType.BACKUP_EVENTS]: async (ws: WebSocket, data: any) => handleBackupEventsWebSocket(ws, data),
   [EventType.ESRI_ROUTE_IMPORT]: async (ws: WebSocket, data: any) => handleEsriRouteImport(ws, data),
   [EventType.WALKS_MANAGER_SYNC]: async (ws: WebSocket, data: any) => handleWalksManagerSync(ws, data),

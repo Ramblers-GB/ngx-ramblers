@@ -1,5 +1,6 @@
 import expect from "expect";
 import sinon from "sinon";
+import { keys } from "es-toolkit/compat";
 import * as databaseInitialiser from "./database-initialiser";
 import { describe, it } from "mocha";
 import { InboxAliasConnectionStatus } from "../../../projects/ngx-ramblers/src/app/models/inbox.model";
@@ -16,7 +17,49 @@ import {
   flySafeResourceName
 } from "../../../projects/ngx-ramblers/src/app/models/environment-setup.model";
 
+function cursorOver(documents: Record<string, unknown>[]) {
+  const position = {index: 0};
+  return {
+    next: async () => position.index < documents.length ? documents[position.index++] : null,
+    close: async () => undefined
+  };
+}
+
+function fakeConnections(sandbox: sinon.SinonSandbox, sourceCollections: Record<string, Record<string, unknown>[]>) {
+  const insertMany = sandbox.stub().resolves();
+  const createCollection = sandbox.stub().resolves();
+  const source = {
+    client: {close: sandbox.stub().resolves()},
+    db: {
+      listCollections: () => ({toArray: async () => keys(sourceCollections).map(name => ({name, type: "collection"}))}),
+      collection: (name: string) => ({find: () => cursorOver(sourceCollections[name]), indexes: async () => []})
+    }
+  };
+  const target = {
+    client: {close: sandbox.stub().resolves()},
+    db: {listCollections: () => ({toArray: async () => []}), createCollection, collection: (name: string) => ({createIndex: sandbox.stub().resolves(), insertMany: (batch: unknown[]) => insertMany(name, batch.length)})}
+  };
+  const connect = sandbox.stub(databaseInitialiser, "connectToDatabase");
+  connect.onFirstCall().resolves(source as never);
+  connect.onSecondCall().resolves(target as never);
+  return {insertMany, createCollection};
+}
+
 describe("full-duplicate", () => {
+
+  it("leaves out excluded collections and copies large collections in batches of 1000", async () => {
+    const sandbox = sinon.createSandbox();
+    const walks = Array.from({length: 2500}, (_unused, index) => ({index}));
+    const {insertMany, createCollection} = fakeConnections(sandbox, {walks, inboxMessages: [{subject: "Private"}]});
+    try {
+      const result = await cloneSourceDatabase({uri: "mongodb://source.example.org", database: "source"}, {uri: "mongodb://target.example.org", database: "target"}, undefined, ["inboxMessages"]);
+      expect(result).toEqual({collections: 1, documents: 2500});
+      expect(createCollection.args).toEqual([["walks"]]);
+      expect(insertMany.args).toEqual([["walks", 1000], ["walks", 1000], ["walks", 500]]);
+    } finally {
+      sandbox.restore();
+    }
+  });
 
   it("copies populated collections with their indexes and leaves empty collections absent", async () => {
     const sandbox = sinon.createSandbox();
@@ -28,7 +71,7 @@ describe("full-duplicate", () => {
       db: {
         listCollections: () => ({toArray: async () => [{name: "populated", type: "collection"}, {name: "unused", type: "collection"}]}),
         collection: (name: string) => ({
-          find: () => ({toArray: async () => name === "populated" ? [{name: "Fictional"}] : []}),
+          find: () => cursorOver(name === "populated" ? [{name: "Fictional"}] : []),
           indexes: async () => [{name: "name_1", key: {name: 1}, unique: true, v: 2}]
         })
       }

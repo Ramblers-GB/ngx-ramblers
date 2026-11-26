@@ -26,7 +26,7 @@ export function migrationLoginFor(environmentName: string, loginsInUse: (string 
   return loginsInUse.includes(first) ? migrationLoginName(environmentName, MigrationLoginSlot.B) : first;
 }
 
-export async function ensureMigrationMongoUser(atlas: AtlasApiAccess, database: string, username: string): Promise<CreatedEnvironmentMongoUser> {
+export async function ensureScopedMongoUser(atlas: AtlasApiAccess, database: string, username: string): Promise<CreatedEnvironmentMongoUser> {
   return persistDatabaseUser(atlas, database, username, databaseUserPassword(), true);
 }
 

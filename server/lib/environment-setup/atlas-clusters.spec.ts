@@ -3,7 +3,7 @@ import sinon from "sinon";
 import { afterEach, describe, it } from "mocha";
 import { AtlasAlertStatus, AtlasClusterTier, clusterAcceptsMigratedSite, connectionsNearLimit, clusterCanBeDeleted, clusterCapacity, clusterFullness, ClusterFullnessLevel, flexMonthlyDollars, nextSharedSitesClusterName } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { AwsRegion } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-import { atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, connectionsFromMeasurements, inBatches, recentClusterAlerts, usageFromDatabaseStats, createAtlasCluster, deleteAtlasCluster, loadFromMeasurements, processesForCluster, registrationMongoCluster } from "./atlas-clusters";
+import { atlasAccessForClusterHost, atlasAccessInProject, atlasClusterCreateBody, atlasFlexClusterCreateBody, clusterHostFromSrv, connectionsFromMeasurements, inBatches, recentClusterAlerts, usageFromDatabaseStats, createAtlasCluster, deleteAtlasCluster, loadFromMeasurements, processesForCluster, registrationMongoCluster } from "./atlas-clusters";
 import * as environmentsConfig from "../environments/environments-config";
 import * as registrationStore from "../site-registration/registration-store";
 import * as mongoDatabaseUser from "./mongo-database-user";
@@ -358,5 +358,24 @@ sandbox.stub(ghostDatabases, "atlasLeftoverLogins").resolves([]);
     expect(alerts.length).toBe(1);
     expect(alerts[0].status).toBe(AtlasAlertStatus.CLOSED);
     expect(alerts[0].currentValue).toBe(31.6);
+  });
+});
+
+describe("atlas access for a cluster", () => {
+  const atlas = {projectId: "default-project", publicKey: "public-key", privateKey: "private-key"};
+  const clusters = [{host: "cluster0.example", projectId: "default-project"}, {host: "shared-sites-03.example", projectId: "moved-sites-project"}];
+
+  it("uses the Atlas project the cluster belongs to", () => {
+    expect(atlasAccessForClusterHost(atlas, clusters, "shared-sites-03.example")).toEqual({...atlas, projectId: "moved-sites-project"});
+    expect(atlasAccessForClusterHost(atlas, clusters, "cluster0.example")).toEqual(atlas);
+  });
+
+  it("refuses a cluster outside the managed projects", () => {
+    expect(() => atlasAccessForClusterHost(atlas, clusters, "elsewhere.example")).toThrow("Cluster elsewhere.example is not in any MongoDB Atlas project this platform manages");
+  });
+
+  it("keeps the default project when no project is given", () => {
+    expect(atlasAccessInProject(atlas, "other-project").projectId).toEqual("other-project");
+    expect(atlasAccessInProject(atlas, undefined).projectId).toEqual("default-project");
   });
 });

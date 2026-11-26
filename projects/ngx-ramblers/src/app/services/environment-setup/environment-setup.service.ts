@@ -94,15 +94,6 @@ export class EnvironmentSetupService {
     );
   }
 
-  async generateContributorBundle(environmentName: string, schema: string, clone: boolean): Promise<Blob> {
-    const options = {...this.opts, responseType: "blob" as const};
-    try {
-      return await firstValueFrom(this.http.post(`${this.BASE_URL}/contributor-bundle`, {environmentName, schema, clone}, options));
-    } catch (error) {
-      throw new Error(await this.bundleErrorMessage(error));
-    }
-  }
-
   async estateRebuildCaptureSummary(): Promise<EstateRebuildCaptureSummary> {
     return firstValueFrom(
       this.http.get<EstateRebuildCaptureSummary>(`${this.BASE_URL}/estate-rebuild-capture/summary`, this.opts)

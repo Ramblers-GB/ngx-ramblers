@@ -1,8 +1,8 @@
 import { keys } from "es-toolkit/compat";
 import { Request, Response } from "express";
 import { configuredEnvironments } from "../environments/environments-config";
-import { atlasClusterView } from "../environment-setup/atlas-clusters";
-import { ensureMigrationMongoUser, migrationLoginFor, platformAtlasAccess } from "../environment-setup/mongo-database-user";
+import { atlasAccessInProject, atlasClusterView } from "../environment-setup/atlas-clusters";
+import { ensureScopedMongoUser, migrationLoginFor, platformAtlasAccess } from "../environment-setup/mongo-database-user";
 import { AtlasClusterState } from "../../../projects/ngx-ramblers/src/app/models/atlas-cluster.model";
 import { EnvironmentMigrationMongoProvisionRequest, EnvironmentMigrationMongoTarget } from "../../../projects/ngx-ramblers/src/app/models/environment-migration.model";
 import { createErrorDebugLog } from "../shared/error-debug-log";
@@ -29,7 +29,7 @@ export async function provisionMigrationMongoTarget(request: EnvironmentMigratio
       throw new Error(target.limitHeadline);
     } else {
       const atlas = await platformAtlasAccess();
-      const created = await ensureMigrationMongoUser({...atlas, projectId: target.projectId || atlas.projectId}, source.mongo.db, migrationLoginFor(request.environment, [source.mongo.username, storedMongoUri(source).parsed?.username]));
+      const created = await ensureScopedMongoUser(atlasAccessInProject(atlas, target.projectId), source.mongo.db, migrationLoginFor(request.environment, [source.mongo.username, storedMongoUri(source).parsed?.username]));
       return {cluster: target.host, db: source.mongo.db, ...created};
     }
   }

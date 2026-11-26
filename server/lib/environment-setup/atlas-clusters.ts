@@ -410,6 +410,23 @@ export async function clusterHealth(atlas: AtlasApiAccess, clusters: Pick<AtlasC
   return new Map(perProject.flat());
 }
 
+export function atlasAccessInProject(atlas: AtlasApiAccess, projectId: string | null | undefined): AtlasApiAccess {
+  return {...atlas, projectId: projectId || atlas.projectId};
+}
+
+export function atlasAccessForClusterHost(atlas: AtlasApiAccess, clusters: Pick<AtlasClusterRow, "host" | "projectId">[], host: string): AtlasApiAccess {
+  const cluster = clusters.find(candidate => candidate.host === host);
+  if (!cluster?.projectId) {
+    throw new Error(`Cluster ${host} is not in any MongoDB Atlas project this platform manages, so its database users cannot be changed from here.`);
+  } else {
+    return atlasAccessInProject(atlas, cluster.projectId);
+  }
+}
+
+export async function atlasAccessForCluster(host: string): Promise<AtlasApiAccess> {
+  return atlasAccessForClusterHost(await platformAtlasAccess(), await managedAtlasClusters(), host);
+}
+
 export async function managedAtlasClusters(): Promise<AtlasClusterRow[]> {
   const config = await configuredEnvironments();
   const atlas = await platformAtlasAccess();

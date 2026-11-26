@@ -1,25 +1,8 @@
 import { randomBytes } from "crypto";
 import { buildSecretsContent } from "../shared/secrets";
+import AdmZip from "adm-zip";
 import { EnvironmentsConfig } from "../../../projects/ngx-ramblers/src/app/models/environment-config.model";
-
-export interface ContributorBundleAws {
-  region: string;
-  bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-}
-
-export interface ContributorBundleRequest {
-  environment: string;
-  appName: string;
-  mongoUri: string;
-  aws: ContributorBundleAws;
-}
-
-export interface ContributorBundleFile {
-  path: string;
-  content: string;
-}
+import { ContributorBundleFile, ContributorBundleRequest } from "./contributor-environment.model";
 
 export function generateAuthSecret(): string {
   return randomBytes(32).toString("hex");
@@ -48,8 +31,19 @@ function buildReadme(request: ContributorBundleRequest): string {
   return [
     `Contributor environment bundle for ${request.environment}`,
     "",
+    "Before you start:",
+    "  Install the Node.js version named in the checkout's .nvmrc file and the",
+    "  npm version in package.json \"engines\". nvm (https://github.com/nvm-sh/nvm)",
+    "  is the easiest way. Operating system packages are usually too old, and on",
+    "  macOS the current Node.js needs macOS 13.5 or newer. ./bin/ngx-cli checks",
+    "  both versions before it installs anything and tells you what it needs.",
+    "",
     "Unpack the two files below into the root of an ngx-ramblers checkout, then run:",
     `  ./bin/ngx-cli local dev ${request.environment} --no-docker-worker`,
+    "",
+    "The first run installs dependencies, which takes a few minutes. If that",
+    "install stops part way, fix the error it shows and run the command again.",
+    "To start completely clean, run: npm run reinstall",
     "",
     "Files:",
     `  non-vcs/secrets/secrets.${request.appName}.env  - environment secrets (local use only)`,
@@ -80,4 +74,14 @@ export function buildContributorBundle(request: ContributorBundleRequest): Contr
       content: buildReadme(request)
     }
   ];
+}
+
+export function contributorBundleFileName(environment: string): string {
+  return `contributor-environment-${environment}.zip`;
+}
+
+export function contributorBundleZip(request: ContributorBundleRequest): Buffer {
+  const zip = new AdmZip();
+  buildContributorBundle(request).forEach(file => zip.addFile(file.path, Buffer.from(file.content, "utf-8")));
+  return zip.toBuffer();
 }

@@ -192,18 +192,13 @@ export function generatePolicyName(environmentName: string): string {
   return `${generateBucketName(environmentName)}-policy`;
 }
 
-function createBucketPolicy(bucketName: string): string {
+function bucketPolicyAllowing(bucketName: string, actions: string[]): string {
   return JSON.stringify({
     Version: "2012-10-17",
     Statement: [
       {
         Effect: "Allow",
-        Action: [
-          "s3:PutObject",
-          "s3:GetObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ],
+        Action: actions,
         Resource: [
           `arn:aws:s3:::${bucketName}`,
           `arn:aws:s3:::${bucketName}/*`
@@ -211,6 +206,14 @@ function createBucketPolicy(bucketName: string): string {
       }
     ]
   });
+}
+
+function createBucketPolicy(bucketName: string): string {
+  return bucketPolicyAllowing(bucketName, ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]);
+}
+
+export function readOnlyBucketPolicy(bucketName: string): string {
+  return bucketPolicyAllowing(bucketName, ["s3:GetObject", "s3:ListBucket"]);
 }
 
 export async function bucketExists(s3Client: S3Client, bucketName: string): Promise<boolean> {
@@ -433,7 +436,8 @@ export async function createIamUserWithBucketPolicy(
   bucketName: string,
   policyName: string,
   replaceAccessKeys = true,
-  keepAccessKeyId?: string
+  keepAccessKeyId?: string,
+  policyDocument: string = createBucketPolicy(bucketName)
 ): Promise<{ accessKeyId: string; secretAccessKey: string; policyArn: string }> {
   debugLog("Setting up IAM user:", userName, "with policy for bucket:", bucketName);
 
@@ -449,7 +453,6 @@ export async function createIamUserWithBucketPolicy(
     debugLog("Created IAM user:", userName);
   }
 
-  const policyDocument = createBucketPolicy(bucketName);
   let policyArn: string;
 
   const expectedPolicyArn = generatePolicyArn(accountId, policyName);
@@ -552,6 +555,33 @@ export async function setupAwsForBucket(
   return {
     bucket: bucketName,
     region: effectiveRegion,
+    iamUserName: userName,
+    accessKeyId,
+    secretAccessKey,
+    policyArn
+  };
+}
+
+export async function setupReadOnlyAwsForBucket(
+  adminConfig: AwsAdminConfig,
+  userName: string,
+  bucketName: string,
+  region: string
+): Promise<AwsSetupResult> {
+  const policyName = `${userName}-policy`;
+  const { accessKeyId, secretAccessKey, policyArn } = await createIamUserWithBucketPolicy(
+    createIamClient(adminConfig),
+    adminConfig,
+    userName,
+    bucketName,
+    policyName,
+    true,
+    undefined,
+    readOnlyBucketPolicy(bucketName)
+  );
+  return {
+    bucket: bucketName,
+    region,
     iamUserName: userName,
     accessKeyId,
     secretAccessKey,

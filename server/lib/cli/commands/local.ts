@@ -5,7 +5,7 @@ import http from "http";
 import net from "net";
 import path from "path";
 import fs from "fs";
-import { configuredEnvironments, findEnvironmentFromDatabase, listEnvironmentSummariesFromDatabase } from "../../environments/environments-config";
+import { configuredEnvironments, findEnvironmentFromDatabase, listEnvironmentSummariesFromDatabase, platformEnvironmentsAvailable } from "../../environments/environments-config";
 import { Environment } from "../../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { UIDateFormat } from "../../../../projects/ngx-ramblers/src/app/models/date-format.model";
 import { resolveSecretsForDeploy, secretsExist } from "../../shared/secrets";
@@ -283,6 +283,7 @@ function buildEnvironmentVariables(
   secrets: Record<string, string>,
   mode: "dev" | "prod",
   port: number,
+  platformAccess: boolean,
   s3BucketOverride?: string
 ): NodeJS.ProcessEnv {
   const cleanEnv = buildCleanEnvironment();
@@ -295,7 +296,7 @@ function buildEnvironmentVariables(
     DEBUG: secrets.DEBUG || "ngx-ramblers:*",
     DEBUG_COLORS: "true",
     NODE_OPTIONS: "--max_old_space_size=2560",
-    PLATFORM_ADMIN_ENABLED: "true",
+    PLATFORM_ADMIN_ENABLED: platformAccess ? "true" : "false",
     CHROME_VERSION: secrets.CHROME_VERSION || DEFAULT_CHROME_VERSION
   };
 
@@ -756,7 +757,7 @@ async function runDev(config: LocalRunConfig, frontend: LocalDevFrontendSession)
   const s3BucketOverride = config.s3BucketOverride === false
     ? null
     : config.s3BucketOverride ?? await selectS3BucketOverride(config.environmentName, completeSecrets.AWS_BUCKET || "unknown");
-  const env = buildEnvironmentVariables(completeSecrets, "dev", config.port, s3BucketOverride);
+  const env = buildEnvironmentVariables(completeSecrets, "dev", config.port, await platformEnvironmentsAvailable(), s3BucketOverride);
 
   let dynamicWorkerTunnel: QuickTunnel | null = null;
   const stopWorkerWatchers: (() => void)[] = [];
@@ -1022,7 +1023,7 @@ async function runProd(config: LocalRunConfig): Promise<void> {
   const s3BucketOverride = config.s3BucketOverride === false
     ? null
     : config.s3BucketOverride ?? await selectS3BucketOverride(config.environmentName, completeSecrets.AWS_BUCKET || "unknown");
-  const env = buildEnvironmentVariables(completeSecrets, "prod", config.port, s3BucketOverride);
+  const env = buildEnvironmentVariables(completeSecrets, "prod", config.port, await platformEnvironmentsAvailable(), s3BucketOverride);
   const logDir = resolveLogDir(config.logDir);
   const timestamp = buildLogTimestamp(config.logTimestamp);
   const frontendLogPath = buildLogFilePath(logDir, applyLogTimestamp("frontend.log", timestamp));

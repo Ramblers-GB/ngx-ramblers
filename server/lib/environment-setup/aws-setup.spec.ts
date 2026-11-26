@@ -1,6 +1,6 @@
 import expect from "expect";
 import { describe, it } from "mocha";
-import { pickAwsConfigForBucket, s3RegionFromError, s3RegionFromLocationConstraint } from "./aws-setup";
+import { pickAwsConfigForBucket, readOnlyBucketPolicy, s3RegionFromError, s3RegionFromLocationConstraint } from "./aws-setup";
 
 describe("s3RegionFromLocationConstraint", () => {
   it("maps an empty constraint to us-east-1", () => {
@@ -42,5 +42,18 @@ describe("pickAwsConfigForBucket", () => {
 
   it("returns null when no credentials own the bucket", () => {
     expect(pickAwsConfigForBucket([{aws: hillside}], running, "ngx-ramblers-demo-staging")).toBe(null);
+  });
+});
+
+describe("readOnlyBucketPolicy", () => {
+  it("allows reading and listing one bucket and nothing else", () => {
+    expect(JSON.parse(readOnlyBucketPolicy("ngx-ramblers-hillside"))).toEqual({
+      Version: "2012-10-17",
+      Statement: [{
+        Effect: "Allow",
+        Action: ["s3:GetObject", "s3:ListBucket"],
+        Resource: ["arn:aws:s3:::ngx-ramblers-hillside", "arn:aws:s3:::ngx-ramblers-hillside/*"]
+      }]
+    });
   });
 });
