@@ -71,9 +71,7 @@ describe("committeeMeetingMinutesMarkdown", () => {
       location: "Online",
       bodyMarkdown: "## Discussion\n- The react button does not work."
     })).toEqual([
-      "# Committee Meeting",
-      "",
-      "## Minutes",
+      "# Committee Meeting Minutes",
       "",
       "**Date:** Sunday 30 August 2026, 9:07 pm - 9:11 pm",
       "",
@@ -105,6 +103,18 @@ describe("committeeMeetingMinutesMarkdown", () => {
       location: "Online",
       bodyMarkdown: first
     })).not.toContain("9:07 pm");
+  });
+
+  it("uses one title heading and drops a Minutes heading written into the summary", () => {
+    const markdown = committeeMeetingMinutesMarkdown({
+      heading: "AGM",
+      dateLine: "Thursday 26 November 2026, 7:08 pm - 7:56 pm",
+      location: "Online",
+      bodyMarkdown: "## Minutes\n\n## Apologies for Absence\n- Jon"
+    });
+    expect(markdown.startsWith("# AGM Minutes\n")).toBe(true);
+    expect(markdown).not.toContain("## Minutes");
+    expect(markdown).toContain("## Apologies for Absence");
   });
 
 });

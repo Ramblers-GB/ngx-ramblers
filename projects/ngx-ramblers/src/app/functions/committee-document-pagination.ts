@@ -28,8 +28,32 @@ export function blockHasContent(block: HTMLElement): boolean {
   }
 }
 
+export function listItemParts(block: HTMLElement): HTMLElement[] {
+  const items = (Array.from(block.children) as HTMLElement[]).filter(child => child.tagName === "LI");
+  if (!["UL", "OL"].includes(block.tagName) || items.length < 2) {
+    return [block];
+  } else {
+    const start = Number(block.getAttribute("start") || 1);
+    return items.map((item, index) => {
+      const part = block.cloneNode(false) as HTMLElement;
+      part.classList.add("committee-document-list-part");
+      if (index > 0) {
+        part.classList.add("committee-document-list-part-continued");
+      }
+      if (index < items.length - 1) {
+        part.classList.add("committee-document-list-part-open");
+      }
+      if (block.tagName === "OL") {
+        part.setAttribute("start", String(start + index));
+      }
+      part.appendChild(item.cloneNode(true));
+      return part;
+    });
+  }
+}
+
 export function keepTogetherUnits(blocks: HTMLElement[]): KeepUnit[] {
-  return blocks.filter(blockHasContent).reduce((units: KeepUnit[], block) => {
+  return blocks.filter(blockHasContent).flatMap(listItemParts).reduce((units: KeepUnit[], block) => {
     if (block.classList?.contains("committee-document-page-break")) {
       return [...units, {kind: KeepUnitKind.BREAK, nodes: [block]}];
     } else if (block.tagName === "TABLE") {
@@ -51,7 +75,8 @@ export function keepTogetherUnits(blocks: HTMLElement[]): KeepUnit[] {
       return [...units, {kind: KeepUnitKind.KEEP, nodes: [block]}];
     } else {
       const previous = units[units.length - 1];
-      if (previous?.kind === KeepUnitKind.KEEP && headingLevel(previous.nodes[0]) !== null) {
+      const continuesList = block.classList?.contains("committee-document-list-part-continued");
+      if (previous?.kind === KeepUnitKind.KEEP && headingLevel(previous.nodes[0]) !== null && !continuesList) {
         return [...units.slice(0, -1), {kind: KeepUnitKind.KEEP, nodes: [...previous.nodes, block]}];
       } else {
         return [...units, {kind: KeepUnitKind.FLOW, nodes: [block]}];

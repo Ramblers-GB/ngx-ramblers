@@ -40,9 +40,7 @@ export function committeeMeetingMinutesMarkdown(input: {
 }): string {
   const body = committeeMeetingMinutesBody(input.bodyMarkdown);
   return [
-    `# ${input.heading}`,
-    "",
-    "## Minutes",
+    `# ${input.heading} Minutes`,
     "",
     `**Date:** ${input.dateLine}`,
     "",
@@ -56,6 +54,7 @@ export function committeeMeetingMinutesMarkdown(input: {
 export function committeeMeetingMinutesBody(markdown: string): string {
   return (markdown || "")
     .replace(/^# [^\n]+\n+(?:## Minutes\n+)?(?:\*\*Date:\*\*.*\n+)?(?:\*\*Location:\*\*.*\n+)*/, "")
+    .replace(/^## Minutes[ \t]*\n+/, "")
     .trim();
 }
 

@@ -87,6 +87,34 @@ describe("keep-together document pagination", () => {
   });
 });
 
+describe("long lists under a heading", () => {
+  const itemHeight = (nodes: HTMLElement[]) => nodes.reduce((sum, node) => sum + (node.tagName === "H3" ? 40 : node.querySelectorAll("li").length * 30), 0);
+
+  it("keeps the heading with its first item and lets the rest of the list flow", () => {
+    const intro = document.createElement("ul");
+    intro.innerHTML = "<li>Jon</li><li>Amanda</li><li>Mike</li>";
+    const heading = block("H3", 40, "", "Matters Arising");
+    const list = document.createElement("ul");
+    list.innerHTML = "<li>One</li><li>Two</li><li>Three</li><li>Four</li>";
+    const units = keepTogetherUnits([intro, heading, list]);
+    expect(units[3].nodes.map(node => node.textContent)).toEqual(["Matters Arising", "One"]);
+    const pages = paginateKeepTogether(units, 200, itemHeight);
+    expect(pages).toHaveLength(2);
+    expect(pages[0].flatMap(unit => unit.nodes).map(node => node.textContent)).toEqual(["Jon", "Amanda", "Mike", "Matters Arising", "One", "Two"]);
+    expect(pages[1].flatMap(unit => unit.nodes).map(node => node.textContent)).toEqual(["Three", "Four"]);
+  });
+
+  it("continues ordered list numbering across parts", () => {
+    const list = document.createElement("ol");
+    list.innerHTML = "<li>One</li><li>Two</li><li>Three</li>";
+    const parts = keepTogetherUnits([list]).flatMap(unit => unit.nodes);
+    expect(parts.map(part => part.getAttribute("start"))).toEqual(["1", "2", "3"]);
+    expect(parts[0].classList.contains("committee-document-list-part-open")).toBe(true);
+    expect(parts[2].classList.contains("committee-document-list-part-continued")).toBe(true);
+    expect(parts[2].classList.contains("committee-document-list-part-open")).toBe(false);
+  });
+});
+
 describe("oversized paragraph continuation", () => {
   it("preserves formatted text across pages", () => {
     const paragraph = document.createElement("p");

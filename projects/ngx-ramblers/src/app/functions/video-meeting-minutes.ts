@@ -69,7 +69,7 @@ export function meetingMinutesSummaryPrompt(): string {
     "Do not add, infer or embellish anything, do not guess at intentions, and do not pad thin material - if little was said, write little.",
     "Minute a spoken account in full: every name, what people did, where they went and what happened, in the order it was told. Do not shrink it to a single bullet or dismiss it as small talk.",
     "Keep the order in which things were discussed, and keep every distinct topic, however briefly it was raised.",
-    "Use headings and bullet points. Use Discussion for what was talked about, and add Decisions, Actions or Next meeting only when the record actually contains one; omit a heading rather than writing that nothing was recorded.",
+    "Use headings and bullet points. Write every section heading as a level-two markdown heading (## Heading), never ### or deeper, and do not add a Minutes or meeting title heading because the document already has one. Use Discussion for what was talked about, and add Decisions, Actions or Next meeting only when the record actually contains one; omit a heading rather than writing that nothing was recorded.",
     "If a date is given for the next meeting, put it under Next meeting. Never treat that date as the date of this meeting, and do not add your own Date or Location headings.",
     "Leave out greetings, connection small talk, repeated words and false starts.",
     `Write British English (${siteLocale()}) with UK spelling throughout, even where the record used American forms.`,
