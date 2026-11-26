@@ -1,6 +1,12 @@
 import expect from "expect";
 import { describe, it } from "mocha";
-import { cloneSchemaNameAllowed } from "./clone-database";
+import { cloneSchemaNameAllowed, platformCloneAccessUrl } from "./clone-database";
+
+describe("platformCloneAccessUrl", () => {
+  it("uses the platform app's internal HTTP service", () => {
+    expect(platformCloneAccessUrl()).toEqual("http://ngx-ramblers.internal:5001/api/environment-setup/grant-clone-schema-access");
+  });
+});
 
 describe("cloneSchemaNameAllowed", () => {
   it("allows a schema that starts with the live database name", () => {

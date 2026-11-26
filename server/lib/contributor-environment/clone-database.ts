@@ -13,6 +13,11 @@ debugLog.enabled = true;
 
 const CLONE_ACCESS_ATTEMPTS = 15;
 const CLONE_ACCESS_RETRY_MS = 2000;
+const PLATFORM_ORIGIN = "http://ngx-ramblers.internal:5001";
+
+export function platformCloneAccessUrl(): string {
+  return `${PLATFORM_ORIGIN}/api/environment-setup/grant-clone-schema-access`;
+}
 
 export function cloneSchemaNameAllowed(sourceDatabase: string, targetDatabase: string): boolean {
   return !!sourceDatabase && !!targetDatabase && targetDatabase.startsWith(`${sourceDatabase}-`);
@@ -74,8 +79,7 @@ async function grantCloneAccessOnPlatform(username: string, sourceDatabase: stri
   if (!setupKey) {
     throw new Error("ENVIRONMENT_SETUP_API_KEY is not set, so this site cannot ask the platform to grant clone-schema access.");
   } else {
-    const origin = "http://ngx-ramblers-staging.internal:8080";
-    const response = await fetch(`${origin}/api/environment-setup/grant-clone-schema-access`, {
+    const response = await fetch(platformCloneAccessUrl(), {
       method: "POST",
       headers: {"content-type": "application/json", "x-setup-api-key": setupKey},
       body: JSON.stringify({username, sourceDatabase, targetDatabase})
