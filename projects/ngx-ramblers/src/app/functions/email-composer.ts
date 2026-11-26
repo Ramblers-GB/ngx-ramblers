@@ -1050,3 +1050,12 @@ export function fragmentIdsWithContent(state: EmailComposerState): string[] {
     .filter(fragment => fragmentHasContent(fragment, state))
     .map(fragment => fragment.id);
 }
+
+export function emailSectionHasContent(html: string | null | undefined): boolean {
+  const content = (html ?? "").replace(/<!--[\s\S]*?-->/g, "");
+  if (/<(img|hr|table|iframe|video|svg)\b/i.test(content)) {
+    return true;
+  } else {
+    return content.replace(/<[^>]*>/g, "").replace(/&nbsp;|&#160;/gi, " ").trim().length > 0;
+  }
+}

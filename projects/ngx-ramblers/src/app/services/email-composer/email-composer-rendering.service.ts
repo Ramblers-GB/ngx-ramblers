@@ -12,7 +12,7 @@ import {
 } from "../../models/email-composer.model";
 import { UrlService } from "../url.service";
 import { renderEmailComposerMarkdown } from "../../functions/email-composer-markdown";
-import { dividerHtml } from "../../functions/email-composer";
+import { dividerHtml, emailSectionHasContent } from "../../functions/email-composer";
 import { escapeHtml } from "../../functions/strings";
 
 @Injectable({ providedIn: "root" })
@@ -100,7 +100,7 @@ export class EmailComposerRenderingService {
   }
 
   joinSectionsWithPerSectionDividers(sections: { content: string; dividerAfter: SectionDividerStyle }[], appendTrailing = false): string {
-    const filtered = sections.filter(s => !!s.content && s.content.trim().length > 0);
+    const filtered = sections.filter(section => emailSectionHasContent(section.content));
     if (filtered.length === 0) return "";
     return filtered.map((section, idx) => {
       if (idx === filtered.length - 1 && !appendTrailing) return section.content;

@@ -111,8 +111,12 @@ export class EmailComposerDocumentsService {
         if (this.allCommitteeFiles.length === 0) {
           await this.loadAllCommitteeFiles();
         }
+        const before = this.committeeFileResolution(ids);
         await this.resolveCommitteeFiles(ids);
-        this.session.contentChanged.next();
+        const after = this.committeeFileResolution(ids);
+        if (after.some((resolved, index) => resolved.file !== before[index].file || resolved.pagePath !== before[index].pagePath)) {
+          this.session.contentChanged.next();
+        }
       }
       const unresolved = this.committeeFileFragmentsFrom(this.session.state.fragmentOrder ?? []).flatMap(fragment => this.committeeFilesFor(fragment).filter(file => {
         const include = resolvedCommitteeFileEmailInclude(file, fragment.committeeFileInclude || null);
@@ -124,6 +128,10 @@ export class EmailComposerDocumentsService {
         const isPlural = unresolved.length > 1;
         throw new Error(`This email links to a committee ${isPlural ? "documents" : "document"} (${titles}) that ${isPlural ? "aren't" : "isn't"} published on any committee page yet, so there's no web address for the email to point to. Add ${isPlural ? "them" : "it"} to a committee documents page, or remove ${isPlural ? "them" : "it"} from the email.`);
       }
+    }
+
+  private committeeFileResolution(ids: string[]): {file: CommitteeFile | undefined; pagePath: string | undefined}[] {
+      return ids.map(id => ({file: this.committeeFiles.get(id), pagePath: this.committeeFilePagePathById.get(id)}));
     }
 
   allFragmentCommitteeFileIds(): string[] {
