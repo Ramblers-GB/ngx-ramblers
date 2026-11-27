@@ -115,3 +115,8 @@ export async function routesWithWalkReferences(routes: OsMapsListedRoute[]): Pro
     return withRouteWalks(routes, walks.map(walk => ({...walk, id: String(walk._id)})));
   }
 }
+
+export async function walkUsesGpxFile(awsFileName: string): Promise<boolean> {
+  const found = await mongooseClient.execute(() => extendedGroupEvent.exists({"fields.gpxFile.awsFileName": awsFileName}));
+  return !!found;
+}

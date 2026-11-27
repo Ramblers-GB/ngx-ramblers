@@ -2,8 +2,10 @@ import { NextFunction, Request, Response } from "express";
 import { MemberCookie } from "../../../projects/ngx-ramblers/src/app/models/member.model";
 import { OsMapsImportContext, OsMapsListedRoute } from "../../../projects/ngx-ramblers/src/app/models/os-maps-export.model";
 import { routeEditableByMember, routeMemberIsAdmin, routeVisibleToMember } from "../../../projects/ngx-ramblers/src/app/functions/route-access";
-import { osMapsImportedRoute } from "../mongo/models/os-maps-imported-route";
+import { OsMapsImportedRouteRecord, osMapsImportedRoute } from "../mongo/models/os-maps-imported-route";
 import * as mongooseClient from "../mongo/mongoose-client";
+import { pagesReferencingRoute } from "./os-maps-route-pages";
+import { walkUsesGpxFile } from "./os-maps-route-walks";
 
 export function routeAdmin(member: MemberCookie | null): boolean {
   return routeMemberIsAdmin(member);
@@ -27,7 +29,7 @@ export async function requireRouteFileAccess(req: Request, res: Response, next: 
     const record = key.startsWith("gpx-routes/")
       ? await mongooseClient.execute(() => osMapsImportedRoute.findOne({"gpxFile.awsFileName": key.substring("gpx-routes/".length)}).lean())
       : null;
-    if (record && !canViewImportedRoute(record, req.user as MemberCookie || null)) {
+    if (record && !canViewImportedRoute(record, req.user as MemberCookie || null) && !await routeFilePublished(record as OsMapsImportedRouteRecord)) {
       res.status(404).json({error: "That route file was not found"});
     } else {
       if (record?.visibility) {
@@ -37,5 +39,15 @@ export async function requireRouteFileAccess(req: Request, res: Response, next: 
     }
   } catch (error) {
     next(error);
+  }
+}
+
+export async function routeFilePublished(record: OsMapsImportedRouteRecord): Promise<boolean> {
+  const awsFileName = record.gpxFile?.awsFileName || null;
+  if (!awsFileName) {
+    return false;
+  } else {
+    const [pages, usedByWalk] = await Promise.all([pagesReferencingRoute(record.routeId || "", awsFileName), walkUsesGpxFile(awsFileName)]);
+    return pages.length > 0 || usedByWalk;
   }
 }
