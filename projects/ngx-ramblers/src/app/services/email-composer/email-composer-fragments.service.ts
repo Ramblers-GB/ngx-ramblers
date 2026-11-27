@@ -2,6 +2,7 @@ import { inject } from "@angular/core";
 import { kebabCase } from "es-toolkit/compat";
 import { ArticleBlock, ArticleBlockPosition, BrandingMode, ComposerFragment, ComposerFragmentKind, DragHoverPosition, EmailComposerState, EventInclusionMode, SectionDividerStyle } from "../../models/email-composer.model";
 import { buildDefaultFragmentOrder, newDividerFragment, newMultiColumnFragment } from "../../functions/email-composer";
+import { notificationBodyHasContent } from "../../models/mail.model";
 import { StringUtilsService } from "../string-utils.service";
 import { DateUtilsService } from "../date-utils.service";
 import { Injectable } from "@angular/core";
@@ -316,7 +317,7 @@ export class EmailComposerFragmentsService {
         const isUnbranded = state.brandingMode === BrandingMode.UNBRANDED;
         const fragments = state.fragmentOrder?.length > 0
             ? state.fragmentOrder
-            : buildDefaultFragmentOrder(state, {includeTemplateContent: !isUnbranded && !!state.notificationConfig?.body?.trim(), unbranded: isUnbranded});
+            : buildDefaultFragmentOrder(state, {includeTemplateContent: !isUnbranded && notificationBodyHasContent(state.notificationConfig?.body), unbranded: isUnbranded});
         if (isUnbranded) {
             const visibleFragments = (list: ComposerFragment[]): ComposerFragment[] => list
                 .filter(fragment => this.fragmentVisible(state, fragment))

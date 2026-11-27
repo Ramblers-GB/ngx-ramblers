@@ -390,6 +390,10 @@ export function mergeFieldToken(group: MergeFieldParamsGroup, field: string): st
 
 export const EMAIL_COMPOSER_BODY_PLACEHOLDER = mergeFieldToken(MergeFieldParamsGroup.MESSAGE, MessageMergeField.BODY_CONTENT);
 
+export function notificationBodyHasContent(body: string): boolean {
+  return (body || "").split(EMAIL_COMPOSER_BODY_PLACEHOLDER).join("").trim() !== "";
+}
+
 export interface SystemMergeFields {
   [SystemMergeField.APP_URL]: string;
   [SystemMergeField.APP_SHORTNAME]: string;

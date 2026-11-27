@@ -204,6 +204,7 @@ import {
   emailAttachmentSupported,
   MemberSelection,
   NotificationConfig,
+  notificationBodyHasContent,
   SendSmtpEmailParams,
   SendStatus,
   StatusMappedResponseSingleInput,
@@ -260,7 +261,7 @@ import { NotificationDirective } from "../../notifications/common/notification.d
 import { CommitteeReferenceData } from "../../services/committee/committee-reference-data";
 import { CommitteeConfigService } from "../../services/committee/commitee-config.service";
 
-import { CommitteeDocumentLayout, GroupEventSummary, Notification } from "../../models/committee.model";
+import { CommitteeDocumentLayout, CommitteeFile, GroupEventSummary, Notification } from "../../models/committee.model";
 import { DocumentConversionService } from "../../services/committee/document-conversion.service";
 import { CONVERTIBLE_DOCUMENT_EXTENSIONS } from "../../models/aws-object.model";
 import { CommitteeDisplayService } from "../committee/committee-display.service";
@@ -1218,7 +1219,7 @@ const TRACKING_PIXEL_MAX_DIMENSION = 2;
                   }
                   @case (ComposerFragmentKind.TEMPLATE_CONTENT) {
                     <div class="fragment-template-content">
-                      @if (state.notificationConfig?.body) {
+                      @if (templateBodyHasContent(state.notificationConfig)) {
                         <div class="text-muted small mb-2">Read-only preview of this email's content. Edit it under Mail Settings &rarr; Email Configurations.</div>
                         <app-tiptap-markdown-editor [value]="state.notificationConfig.body"
                                                     [editable]="false"
@@ -1725,6 +1726,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   private workflowArrivalConfigId: string | null = null;
+  private subjectSeededFromCommitteeFileSlug: string | null = null;
 
   protected precedingConfig(): NotificationConfig | null {
     const currentId = this.session.state.notificationConfig?.id;
@@ -1816,6 +1818,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
         if (matched) {
           this.documents.ensureCommitteeFileFragmentForIds([matched.id]);
           await this.documents.resolveCommitteeFiles(this.documents.allFragmentCommitteeFileIds());
+          this.seedSubjectFromCommitteeFile(committeeFile, matched);
         } else {
           this.logger.warn("applyContextFromRoute:no committee file matched slug:", committeeFile);
         }
@@ -1843,6 +1846,17 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     } else {
       this.session.state.context = {source: EmailComposerContextSource.ADMIN};
       this.session.state.eventInclusion = EventInclusionMode.NONE;
+    }
+  }
+
+  private seedSubjectFromCommitteeFile(slug: string, file: CommitteeFile): void {
+    const currentSubject = this.session.state.subject?.trim() ?? "";
+    const configSubject = this.session.state.notificationConfig?.subject?.text?.trim() ?? "";
+    const subjectIsDefault = !currentSubject || currentSubject === configSubject;
+    const editingDraft = !!this.session.currentDraftId || !!this.pendingDraftLoad;
+    if (this.subjectSeededFromCommitteeFileSlug !== slug && subjectIsDefault && !editingDraft) {
+      this.subjectSeededFromCommitteeFileSlug = slug;
+      this.session.state.subject = this.documents.committeeFileNotificationItemFor(file).subject;
     }
   }
 
@@ -2995,6 +3009,10 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
     }
   }
 
+  protected templateBodyHasContent(config: NotificationConfig): boolean {
+    return notificationBodyHasContent(config?.body);
+  }
+
   private templateHasTopBottomPlaceholders(): boolean {
     if (!this.templateContentHtml) {
       return false;
@@ -3004,7 +3022,7 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
   }
 
   private applyTemplateContentFragmentPresence(): void {
-    if (this.templateHasTopBottomPlaceholders() || !!this.session.state.notificationConfig?.body?.trim()) {
+    if (this.templateHasTopBottomPlaceholders() || notificationBodyHasContent(this.session.state.notificationConfig?.body)) {
       this.ensureTemplateContentFragment();
     } else {
       this.removeTemplateContentFragment();

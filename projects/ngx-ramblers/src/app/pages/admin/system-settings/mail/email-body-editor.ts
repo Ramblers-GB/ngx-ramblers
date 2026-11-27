@@ -11,6 +11,7 @@ import {
   EmailTemplateKind,
   EmailTemplateName,
   NotificationConfig,
+  notificationBodyHasContent,
   overrideKeyToLabel,
   TemplateOverrides,
   TemplateOverrideState,
@@ -328,7 +329,7 @@ export class EmailBodyEditorComponent implements OnInit, OnChanges {
       if (this.isBuiltInProcess && this.processTemplate()) {
         this.isAutomaticallyGenerated = true;
       } else if (!this.notificationConfig.templateName) {
-        this.isAutomaticallyGenerated = this.isBuiltInProcess && this.isPlaceholderOrEmpty(this.notificationConfig.body);
+        this.isAutomaticallyGenerated = this.isBuiltInProcess && !notificationBodyHasContent(this.notificationConfig.body);
       }
     }
   }
@@ -345,7 +346,7 @@ export class EmailBodyEditorComponent implements OnInit, OnChanges {
         await this.loadBody(this.notificationConfig.templateOverrides);
       }
     } else {
-      this.isAutomaticallyGenerated = this.isBuiltInProcess && this.isPlaceholderOrEmpty(this.notificationConfig.body);
+      this.isAutomaticallyGenerated = this.isBuiltInProcess && !notificationBodyHasContent(this.notificationConfig.body);
       if (this.notificationConfig.body == null) {
         this.notificationConfig.body = "";
       }
@@ -353,15 +354,11 @@ export class EmailBodyEditorComponent implements OnInit, OnChanges {
     this.ready = true;
   }
 
-  private isPlaceholderOrEmpty(body: string): boolean {
-    return (body || "").split(EMAIL_COMPOSER_BODY_PLACEHOLDER).join("").trim() === "";
-  }
-
   private async loadBody(overrides?: NotificationConfig["templateOverrides"]): Promise<void> {
     this.busy = true;
     try {
       const response = await this.mailService.editableBody({templateName: this.notificationConfig.templateName, templateOverrides: overrides});
-      this.isAutomaticallyGenerated = this.isBuiltInProcess && (this.processTemplate() || this.isPlaceholderOrEmpty(response.body));
+      this.isAutomaticallyGenerated = this.isBuiltInProcess && (this.processTemplate() || !notificationBodyHasContent(response.body));
       if (!this.isAutomaticallyGenerated && this.notificationConfig.body == null) {
         this.notificationConfig.body = response.body;
       }
