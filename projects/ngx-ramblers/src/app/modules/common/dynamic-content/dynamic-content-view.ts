@@ -92,7 +92,8 @@ import { DocumentationLinksComponent } from "../documentation-links/documentatio
               <div class="col-12">
                 <app-dynamic-content-view [pageContent]="fragmentContentFor(row)" [contentPath]="fragmentPathFor(row)"
                                           [contentDescription]="contentDescription || fragmentPathFor(row)"
-                                          [liftPageTitle]="false"/>
+                                          [liftPageTitle]="false"
+                                          sharedFragment/>
               </div>
             </div>
           }
@@ -138,6 +139,7 @@ export class DynamicContentViewComponent implements OnInit, AfterViewInit, OnDes
   @Input()
   public notify: AlertInstance;
   @Input({ transform: booleanAttribute }) liftPageTitle = false;
+  @Input({ transform: booleanAttribute }) sharedFragment = false;
   public area: string;
   public viewablePageContent: PageContent;
   private subscriptions: Subscription[] = [];
@@ -181,7 +183,9 @@ export class DynamicContentViewComponent implements OnInit, AfterViewInit, OnDes
   }
 
   private withLiftedPageTitle(pageContent: PageContent): PageContent {
-    if (!this.liftPageTitle || !pageContent?.rows?.length) {
+    if (this.sharedFragment) {
+      return pageContent;
+    } else if (!this.liftPageTitle || !pageContent?.rows?.length) {
       this.pageService.setContentPageTitle(null);
       return pageContent;
     } else {

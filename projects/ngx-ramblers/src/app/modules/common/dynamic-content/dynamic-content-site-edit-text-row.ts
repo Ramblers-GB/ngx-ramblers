@@ -769,7 +769,8 @@ import { ClipboardService } from "../../../services/clipboard.service";
                               <div class="mt-2 panel-border">
                                 <app-dynamic-content-view [pageContent]="fragmentContent(nestedRow)"
                                                           [contentPath]="fragmentPath(nestedRow)"
-                                                          [forceView]="true"/>
+                                                          [forceView]="true"
+                                                          sharedFragment/>
                               </div>
                               @if (!fragmentContent(nestedRow) && fragmentService.failedToLoad(nestedRow.fragment.pageContentId)) {
                                 <div class="alert alert-warning mt-2">Fragment not

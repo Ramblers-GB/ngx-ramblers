@@ -24,6 +24,24 @@ describe("dynamic content title lifting", () => {
     expect(component["pageService"].setContentPageTitle).toHaveBeenCalledWith(null);
   });
 
+  it("leaves the lifted page title alone when rendering a shared fragment inside the page", () => {
+    const component = view(false);
+    component.sharedFragment = true;
+    component["filterAndSet"]({
+      path: "fragments/council-footer",
+      rows: [
+        {
+          type: PageContentType.TEXT,
+          showSwiper: false,
+          maxColumns: 1,
+          columns: [{columns: 12, accessLevel: AccessLevel.PUBLIC, contentText: "Council footer"}]
+        }
+      ]
+    });
+    expect(component["pageService"].setContentPageTitle).not.toHaveBeenCalled();
+    expect(component.viewablePageContent.rows[0].columns[0].contentText).toBe("Council footer");
+  });
+
   it("lifts a CMS page heading into the page shell and removes the duplicate row", () => {
     const component = view(true);
     component["filterAndSet"]({

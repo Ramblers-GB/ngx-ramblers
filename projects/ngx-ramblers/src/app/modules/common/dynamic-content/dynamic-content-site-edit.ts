@@ -643,7 +643,8 @@ import { DateUtilsService } from "../../../services/date-utils.service";
                           (click)="openFragmentInNewTab(row)"/>
                       </div>
                       <app-dynamic-content-view [pageContent]="fragmentContent(row)" [contentPath]="fragmentPath(row)"
-                                                [forceView]="true"/>
+                                                [forceView]="true"
+                                                sharedFragment/>
                     </div>
                     @if (!fragmentContent(row) && fragmentService.failedToLoad(row.fragment.pageContentId)) {
                       <div class="alert alert-warning mt-2">Fragment not found: {{ row.fragment.pageContentId }}</div>
