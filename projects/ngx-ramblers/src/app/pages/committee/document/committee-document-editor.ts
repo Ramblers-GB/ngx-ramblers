@@ -1,7 +1,7 @@
 import {booleanAttribute, Component, ElementRef, EventEmitter, inject, Input, Output, signal, ViewChild} from "@angular/core";
 import {firstValueFrom} from "rxjs";
 import {FontAwesomeModule} from "@fortawesome/angular-fontawesome";
-import {faCircleExclamation, faEye, faFileWord, faPencil, faPrint} from "@fortawesome/free-solid-svg-icons";
+import {faCircleExclamation, faEye, faFileLines, faFileWord, faPencil, faPrint, faScroll} from "@fortawesome/free-solid-svg-icons";
 import {NgxLoggerLevel} from "ngx-logger";
 import {CommitteeDocumentLayout, committeeDocumentPageSize, CommitteeFile} from "../../../models/committee.model";
 import {UIDateFormat} from "../../../models/date-format.model";
@@ -27,7 +27,7 @@ import {CommitteeDocumentView} from "./committee-document-view";
   `],
   template: `
     <div appStickyControls class="committee-file-editor-actions d-print-none">
-      <div class="d-flex gap-2 align-items-center" [class.flex-nowrap]="editable" [class.flex-wrap]="!editable">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
         <ng-content/>
         @if (editable) {
           <button type="button" class="btn btn-quiet" [disabled]="disabled || printing() || exporting()" (click)="togglePreview()">
@@ -39,6 +39,10 @@ import {CommitteeDocumentView} from "./committee-document-view";
           <button type="button" class="btn btn-primary" [disabled]="disabled || printing() || exporting()" (click)="print()">
             <fa-icon [icon]="faPrint" class="me-2"/>
             {{ printing() ? 'Preparing print…' : 'Print / Save as PDF' }}
+          </button>
+          <button type="button" class="btn btn-quiet" [disabled]="disabled || printing()" (click)="togglePaginated()">
+            <fa-icon [icon]="paginated() ? faScroll : faFileLines" class="me-2"/>
+            {{ paginated() ? 'Continuous view' : 'Page view' }}
           </button>
           <button type="button" class="btn btn-quiet" [disabled]="disabled || printing() || exporting()" (click)="downloadWord()">
             <fa-icon [icon]="faFileWord" class="me-2"/>
@@ -66,7 +70,7 @@ import {CommitteeDocumentView} from "./committee-document-view";
       </div>
     }
     <div #documentPreview>
-      <app-committee-document-view [committeeFile]="committeeFile" [layout]="resolvedLayout()" [style.--document-image-height.px]="imageHeight"/>
+      <app-committee-document-view [committeeFile]="committeeFile" [layout]="resolvedLayout()" [paginated]="paginated()" [style.--document-image-height.px]="imageHeight"/>
     </div>
   `
 })
@@ -86,6 +90,8 @@ export class CommitteeDocumentEditor {
   @Output() valueChange = new EventEmitter<string>();
   @Output() previewingChange = new EventEmitter<boolean>();
   @ViewChild("documentPreview") private documentPreview: ElementRef<HTMLElement>;
+  @ViewChild(CommitteeDocumentView) private documentView: CommitteeDocumentView;
+  protected paginated = signal(false);
   protected printing = signal(false);
   protected printFailed = signal(false);
   protected exporting = signal(false);
@@ -94,6 +100,8 @@ export class CommitteeDocumentEditor {
   protected readonly faPencil = faPencil;
   protected readonly faPrint = faPrint;
   protected readonly faFileWord = faFileWord;
+  protected readonly faFileLines = faFileLines;
+  protected readonly faScroll = faScroll;
   protected readonly faCircleExclamation = faCircleExclamation;
 
   protected resolvedLayout(): CommitteeDocumentLayout {
@@ -105,12 +113,17 @@ export class CommitteeDocumentEditor {
     this.previewingChange.emit(this.previewing);
   }
 
+  protected togglePaginated(): void {
+    this.paginated.set(!this.paginated());
+  }
+
   async print(): Promise<void> {
     if (this.documentPreview && !this.printing()) {
       this.printing.set(true);
       this.printFailed.set(false);
       try {
-        await this.printer.print(this.documentPreview.nativeElement, this.committeeFile?.document?.title || this.committeeFile?.fileType || "Document", committeeDocumentPageSize(this.resolvedLayout()));
+        const printPreview = () => this.printer.print(this.documentPreview.nativeElement, this.committeeFile?.document?.title || this.committeeFile?.fileType || "Document", committeeDocumentPageSize(this.resolvedLayout()));
+        await (this.documentView ? this.documentView.withPaginatedPages(printPreview) : printPreview());
       } catch (error) {
         this.logger.error("Document printing failed", error);
         this.printFailed.set(true);

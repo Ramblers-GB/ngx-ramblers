@@ -2066,8 +2066,8 @@ export class EmailComposer implements OnInit, DoCheck, OnDestroy, ComposerLeaveC
       subject: this.documents.committeeFileNotificationItemFor(file).subject,
       markdown: hasCommitteeDocumentContent(file) ? file.document?.markdown || "" : "",
       link: {
-        href: this.committeeDisplayService.fileUrl(file, this.documents.committeeFileLinkPath(file)),
-        label: this.documents.committeeFileDownloadLabel(file)
+        href: this.documents.committeeFileEmailUrl(file),
+        label: this.documents.committeeFileLinkLabel(file)
       },
       sourcePage,
       include: this.documents.committeeFileInclude(fragment)

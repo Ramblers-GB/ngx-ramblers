@@ -1,6 +1,6 @@
 import { FileUtilsService } from "../../../file-utils.service";
 import {DocumentAppearance, documentAppearance} from "../../../models/document-appearance.model";
-import { AfterViewInit, Component, ElementRef, inject, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild } from "@angular/core";
+import { AfterViewInit, booleanAttribute, Component, ElementRef, inject, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleChanges, ViewChild } from "@angular/core";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { NgxLoggerLevel } from "ngx-logger";
 import { fromEvent, Subscription } from "rxjs";
@@ -120,6 +120,7 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
   private contentBlocks: HTMLElement[] = [];
   private paginationTimer: ReturnType<typeof setTimeout>;
   private paginationGeneration = 0;
+  private paginatingForPrint = false;
   private viewReady = false;
   public group: Organisation;
   public logo: Image;
@@ -131,6 +132,7 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
   private configuredAppearance = documentAppearance(null);
   @Input() layout: CommitteeDocumentLayout | null = null;
   @Input() gridPreview = true;
+  @Input({transform: booleanAttribute}) paginated = false;
   @ViewChild("pagesHost") pagesHost: ElementRef<HTMLDivElement>;
   @ViewChild("measureHost") measureHost: ElementRef<HTMLDivElement>;
   @ViewChild("masterHeader") masterHeader: ElementRef<HTMLDivElement>;
@@ -156,7 +158,7 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes.appearance || changes.layout || changes.committeeFile || changes.gridPreview) {
+    if (changes.appearance || changes.layout || changes.committeeFile || changes.gridPreview || changes.paginated) {
       this.schedulePagination();
     }
   }
@@ -338,10 +340,36 @@ export class CommitteeDocumentView implements OnInit, AfterViewInit, OnDestroy, 
     if (!host || !this.masterContent?.nativeElement || !measureBody) {
     } else {
       this.collectBlocks();
-      if (this.contentBlocks.length > 0) {
+      if (this.contentBlocks.length > 0 && (this.paginated || this.paginatingForPrint)) {
         this.renderPages(host, measureBody, this.pageBodyHeight(), 0);
+      } else if (this.contentBlocks.length > 0) {
+        this.renderContinuous(host);
       }
     }
+  }
+
+  async withPaginatedPages<T>(action: () => Promise<T>): Promise<T> {
+    clearTimeout(this.paginationTimer);
+    this.paginationGeneration += 1;
+    this.paginatingForPrint = true;
+    try {
+      await this.waitForImages();
+      this.paginate();
+      return await action();
+    } finally {
+      this.paginatingForPrint = false;
+      this.paginate();
+    }
+  }
+
+  private renderContinuous(host: HTMLElement): void {
+    host.innerHTML = "";
+    host.setAttribute("data-layout", this.resolvedLayout());
+    host.style.removeProperty("--booklet-scale");
+    const sheet = this.buildSheet(keepTogetherUnits(this.contentBlocks));
+    sheet.classList.add("committee-document-sheet-continuous");
+    host.appendChild(sheet);
+    this.logger.info("rendered document as one continuous sheet", this.resolvedLayout());
   }
 
   private renderPages(host: HTMLElement, measureBody: HTMLElement, availableHeight: number, attempt: number): void {

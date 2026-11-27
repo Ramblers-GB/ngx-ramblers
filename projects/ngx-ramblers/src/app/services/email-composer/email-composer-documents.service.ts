@@ -10,6 +10,7 @@ import { StringUtilsService } from "../../services/string-utils.service";
 import { UrlService } from "../../services/url.service";
 import { DateUtilsService } from "../../services/date-utils.service";
 import { CommitteeFile, NotificationItem } from "../../models/committee.model";
+import { StoredValue } from "../../models/ui-actions.model";
 import { CommitteeFileService } from "../../services/committee/committee-file.service";
 import { CommitteeDisplayService } from "../../pages/committee/committee-display.service";
 import { PageService } from "../../services/page.service";
@@ -78,7 +79,27 @@ export class EmailComposerDocumentsService {
           this.logger.warn("resolveCommitteeFiles:no files found for ids:", missing);
         }
         await this.resolveCommitteeFilePagePaths(ids);
+        await this.resolveEmailedAccessKeys(ids);
       }
+    }
+
+  emailedAccessKeyById = new Map<string, string>();
+
+  async resolveEmailedAccessKeys(ids: string[]): Promise<void> {
+      const unresolved = ids.filter(id => this.committeeFiles.has(id) && !this.emailedAccessKeyById.has(id));
+      await Promise.all(unresolved.map(async id => {
+        try {
+          this.emailedAccessKeyById.set(id, await this.committeeFileService.emailedAccessKey(this.committeeFiles.get(id)));
+        } catch (error) {
+          this.logger.warn("resolveEmailedAccessKeys failed for id:", id, error);
+        }
+      }));
+    }
+
+  committeeFileEmailUrl(file: CommitteeFile): string {
+      const url = this.committeeDisplayService.fileUrl(file, this.committeeFileLinkPath(file));
+      const key = this.emailedAccessKeyById.get(file.id);
+      return url && key && this.committeeDisplayService.fileUrlOpensDocumentPage(file) ? `${url}&${StoredValue.ACCESS}=${key}` : url;
     }
 
   committeeFilePagePathById = new Map<string, string>();
@@ -114,7 +135,7 @@ export class EmailComposerDocumentsService {
         const before = this.committeeFileResolution(ids);
         await this.resolveCommitteeFiles(ids);
         const after = this.committeeFileResolution(ids);
-        if (after.some((resolved, index) => resolved.file !== before[index].file || resolved.pagePath !== before[index].pagePath)) {
+        if (after.some((resolved, index) => resolved.file !== before[index].file || resolved.pagePath !== before[index].pagePath || resolved.emailedAccessKey !== before[index].emailedAccessKey)) {
           this.session.contentChanged.next();
         }
       }
@@ -130,8 +151,8 @@ export class EmailComposerDocumentsService {
       }
     }
 
-  private committeeFileResolution(ids: string[]): {file: CommitteeFile | undefined; pagePath: string | undefined}[] {
-      return ids.map(id => ({file: this.committeeFiles.get(id), pagePath: this.committeeFilePagePathById.get(id)}));
+  private committeeFileResolution(ids: string[]): {file: CommitteeFile | undefined; pagePath: string | undefined; emailedAccessKey: string | undefined}[] {
+      return ids.map(id => ({file: this.committeeFiles.get(id), pagePath: this.committeeFilePagePathById.get(id), emailedAccessKey: this.emailedAccessKeyById.get(id)}));
     }
 
   allFragmentCommitteeFileIds(): string[] {
@@ -219,9 +240,9 @@ export class EmailComposerDocumentsService {
       return {callToAction: null, image: null, subject, text: ""};
     }
 
-  committeeFileDownloadLabel(file: CommitteeFile): string {
+  committeeFileLinkLabel(file: CommitteeFile): string {
       const fileType = (file.fileType ?? "").trim();
-      const action = this.committeeDisplayService.isComposedDocument(file) ? "View" : "Download";
+      const action = this.committeeDisplayService.fileUrlDownloads(file) ? "Download" : "View";
       return fileType ? `${action} ${fileType}` : action;
     }
 

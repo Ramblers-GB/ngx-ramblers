@@ -20,7 +20,7 @@ import { StringUtilsService } from "../../services/string-utils.service";
 import { UrlService } from "../../services/url.service";
 import { RamblersEventType } from "../../models/ramblers-walks-manager.model";
 import { ExtendedGroupEvent } from "../../models/group-event.model";
-import { committeeDocumentSlug, committeeFileByReference, committeeFileReference, meetingMinutesDocumentSlug } from "../../functions/committee-documents-page";
+import { committeeDocumentSlug, committeeFileByReference, committeeFileReference, committeeFileReferences, meetingMinutesDocumentSlug } from "../../functions/committee-documents-page";
 import { MEETING_MINUTES_TEMPLATE_ID } from "../../models/video-meeting.model";
 import { officeViewerEmbedUrl, officeViewerUrl } from "../../functions/office-viewer";
 
@@ -38,6 +38,8 @@ export class CommitteeDisplayService {
   private contentMetadataService = inject(ContentMetadataService);
   private committeeConfig = inject(CommitteeConfigService);
   public committeeFileBaseUrl = this.contentMetadataService.baseUrl("committeeFiles");
+  private referenceFilesSource: CommitteeFile[] | null = null;
+  private referencesById = new Map<string, string>();
   public committeeReferenceData: CommitteeReferenceData;
   public confirm: Confirm = new Confirm();
 
@@ -128,8 +130,16 @@ export class CommitteeDisplayService {
     return url ? `${url}&print=true` : "";
   }
 
+  fileUrlOpensDocumentPage(committeeFile: CommitteeFile): boolean {
+    return this.isComposedDocument(committeeFile) || !this.committeeReferenceData?.isPublic(committeeFile.fileType);
+  }
+
+  fileUrlDownloads(committeeFile: CommitteeFile): boolean {
+    return !this.fileUrlOpensDocumentPage(committeeFile) && !this.urlService.isRemoteUrl(committeeFile?.fileNameData?.awsFileName);
+  }
+
   fileUrl(committeeFile: CommitteeFile, sourcePagePath?: string) {
-    if (this.isComposedDocument(committeeFile) || !this.committeeReferenceData?.isPublic(committeeFile.fileType)) {
+    if (this.fileUrlOpensDocumentPage(committeeFile)) {
       return this.documentPageUrl(committeeFile, sourcePagePath);
     } else {
       return this.committeeFileUrl(committeeFile, FileServeDisposition.DOWNLOAD);
@@ -200,11 +210,39 @@ export class CommitteeDisplayService {
 
   committeeFileSlug(committeeFile: CommitteeFile): string {
     const slug = this.legacyCommitteeFileSlug(committeeFile);
-    return this.isRoomMinutes(committeeFile) ? slug : committeeFileReference(slug, committeeFile?.id ?? null);
+    const readable = this.readableReference(committeeFile);
+    if (this.isRoomMinutes(committeeFile)) {
+      return slug;
+    } else if (readable) {
+      return readable;
+    } else {
+      return committeeFileReference(slug, committeeFile?.id ?? null);
+    }
+  }
+
+  async committeeFileSlugWhenReady(committeeFile: CommitteeFile): Promise<string> {
+    await this.committeeFileService.loadReferenceFiles();
+    return this.committeeFileSlug(committeeFile);
+  }
+
+  private readableReference(committeeFile: CommitteeFile): string | null {
+    const files = this.committeeFileService.knownReferenceFiles();
+    if (!files || !committeeFile?.id) {
+      return null;
+    } else {
+      if (files !== this.referenceFilesSource) {
+        this.referenceFilesSource = files;
+        this.referencesById = committeeFileReferences(files, file => this.legacyCommitteeFileSlug(file));
+      }
+      return this.referencesById.get(committeeFile.id) ?? null;
+    }
   }
 
   committeeFileMatchingSlug(files: CommitteeFile[], slug: string | null): CommitteeFile | null {
-    return committeeFileByReference(files, slug, file => this.legacyCommitteeFileSlug(file));
+    const reference = this.committeeFileService.knownReferenceFiles() || files;
+    const matched = committeeFileByReference(reference, slug, file => this.legacyCommitteeFileSlug(file));
+    const matchedInFiles = matched ? files.find(file => file.id === matched.id) : null;
+    return matchedInFiles ?? committeeFileByReference(files, slug, file => this.legacyCommitteeFileSlug(file));
   }
 
   private isRoomMinutes(file: CommitteeFile): boolean {

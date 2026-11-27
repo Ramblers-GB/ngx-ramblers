@@ -140,7 +140,7 @@ export class MemberResourcesReferenceDataService {
       id,
       description: ACCESS_LEVEL_DEFINITIONS[id].description,
       includeAccessLevelIds: ACCESS_LEVEL_DEFINITIONS[id].includeAccessLevelIds,
-      filter: () => this.siteEditService.active() || accessLevelPermitted(id, this.memberLoginService.loggedInMember(), this.platformAdminEnabled)
+      filter: () => this.siteEditService.active() || accessLevelPermitted(id, this.memberLoginService.loggedInMember(), this.platformAdminEnabled, this.memberLoginService.emailedAccessActive())
     }));
   }
 

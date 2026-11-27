@@ -24,6 +24,7 @@ class MarkdownEditorStub {
 class DocumentViewStub {
   @Input() committeeFile: CommitteeFile;
   @Input() layout: string;
+  @Input() paginated: boolean;
 }
 
 describe("shared committee document editing", () => {
@@ -64,6 +65,22 @@ describe("shared committee document editing", () => {
     expect(host.querySelector("app-committee-document-view")).not.toBeNull();
   });
 
+  it("shows the preview as one continuous document and switches to page view on request", () => {
+    const fixture = TestBed.createComponent(CommitteeDocumentEditor);
+    fixture.componentRef.setInput("committeeFile", file);
+    fixture.componentRef.setInput("editable", false);
+    fixture.detectChanges();
+    const host: HTMLElement = fixture.nativeElement;
+    const view = () => fixture.debugElement.query(debug => debug.name === "app-committee-document-view").componentInstance as DocumentViewStub;
+    const toggle = () => Array.from(host.querySelectorAll<HTMLButtonElement>("button")).find(button => /Page view|Continuous view/.test(button.textContent));
+    expect(view().paginated).toBe(false);
+    expect(toggle().textContent).toContain("Page view");
+    toggle().click();
+    fixture.detectChanges();
+    expect(view().paginated).toBe(true);
+    expect(toggle().textContent).toContain("Continuous view");
+  });
+
   it("uses the same print service for read-only documents and reports printing failures", async () => {
     const fixture = TestBed.createComponent(CommitteeDocumentEditor);
     fixture.componentRef.setInput("committeeFile", file);
@@ -71,7 +88,7 @@ describe("shared committee document editing", () => {
     fixture.detectChanges();
     const host: HTMLElement = fixture.nativeElement;
     expect(host.querySelector("app-tiptap-markdown-editor")).toBeNull();
-    expect(host.querySelectorAll("button")).toHaveLength(2);
+    expect(host.querySelectorAll("button")).toHaveLength(3);
     await fixture.componentInstance.print();
     expect(printer.print).toHaveBeenCalledWith(host.querySelector("app-committee-document-view").parentElement, "Winter programme", "A4");
     printer.print.mockRejectedValueOnce(new Error("Printer unavailable"));

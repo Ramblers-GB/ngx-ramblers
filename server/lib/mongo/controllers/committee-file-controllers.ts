@@ -12,6 +12,7 @@ import { queryKey } from "./config";
 import { parseQueryStringParameters } from "./transforms";
 import committeeFile from "../models/committee-file";
 import * as crudController from "./crud-controller";
+import { emailedAccessFileIds } from "./committee-file-emailed-access";
 
 const REMOTE_ATTACHMENT_TIMEOUT_MS = 20000;
 const controller = crudController.create(committeeFile);
@@ -27,10 +28,13 @@ export async function visibleCommitteeFileCriteria(req: Request): Promise<object
   const member = req.user as MemberCookie || null;
   const platformAdminEnabled = booleanOf(process.env[Environment.PLATFORM_ADMIN_ENABLED]);
   const fileTypes = config?.fileTypes || [];
-  const visibleTypes = {fileType: {$in: fileTypes.filter(fileType => committeeFileVisible(fileType, member, platformAdminEnabled)).map(fileType => fileType.description)}};
-  return committeeFileVisible(null, member, platformAdminEnabled)
-    ? {$or: [visibleTypes, {fileType: {$nin: fileTypes.map(fileType => fileType.description)}}]}
-    : visibleTypes;
+  const emailedFileIds = await emailedAccessFileIds(req);
+  const emailedAccess = emailedFileIds.length > 0;
+  const visibleTypes = {fileType: {$in: fileTypes.filter(fileType => committeeFileVisible(fileType, member, platformAdminEnabled, emailedAccess)).map(fileType => fileType.description)}};
+  const untypedFiles = committeeFileVisible(null, member, platformAdminEnabled, emailedAccess) ? [{fileType: {$nin: fileTypes.map(fileType => fileType.description)}}] : [];
+  const emailedFiles = emailedAccess ? [{_id: {$in: emailedFileIds}}] : [];
+  const clauses = [visibleTypes, ...untypedFiles, ...emailedFiles];
+  return clauses.length === 1 ? visibleTypes : {$or: clauses};
 }
 
 export async function restrictCommitteeFileQuery(req: Request, res: Response, next: NextFunction): Promise<void> {

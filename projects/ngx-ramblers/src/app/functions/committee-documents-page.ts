@@ -12,6 +12,30 @@ export function committeeFileReference(slug: string, id: string | null): string 
   return id ? `${slug}${COMMITTEE_FILE_REFERENCE_SEPARATOR}${id}` : slug;
 }
 
+const NUMBERED_REFERENCE = /^(.+)-(\d+)$/;
+
+function filesInCreationOrder(files: CommitteeFile[]): CommitteeFile[] {
+  return [...files].sort((first, second) => (first.id || "").localeCompare(second.id || ""));
+}
+
+function filesWithSlug(files: CommitteeFile[], slug: string, legacySlug: (file: CommitteeFile) => string): CommitteeFile[] {
+  return filesInCreationOrder(files.filter(file => legacySlug(file) === slug));
+}
+
+export function committeeFileReferences(
+  files: CommitteeFile[],
+  legacySlug: (file: CommitteeFile) => string
+): Map<string, string> {
+  const slugById = new Map(files.filter(file => file.id).map((file): [string, string] => [`${file.id}`, legacySlug(file)]));
+  const groups = Array.from(slugById.entries()).reduce((grouped, [id, slug]) => {
+    grouped.set(slug, [...(grouped.get(slug) || []), id]);
+    return grouped;
+  }, new Map<string, string[]>());
+  return new Map(Array.from(groups.entries()).flatMap(([slug, ids]) => [...ids]
+    .sort((first, second) => first.localeCompare(second))
+    .map((id, index): [string, string] => [id, index === 0 ? slug : `${slug}-${index + 1}`])));
+}
+
 export function committeeFileByReference(
   files: CommitteeFile[],
   reference: string | null,
@@ -23,8 +47,15 @@ export function committeeFileByReference(
     const id = reference.split(COMMITTEE_FILE_REFERENCE_SEPARATOR).at(-1);
     return id ? files.find(file => file.id === id) ?? null : null;
   } else {
-    const matches = files.filter(file => legacySlug(file) === reference);
-    return matches.length === 1 ? matches[0] : null;
+    const exact = filesWithSlug(files, reference, legacySlug);
+    const numbered = reference.match(NUMBERED_REFERENCE);
+    if (exact.length > 0) {
+      return exact[0];
+    } else if (numbered) {
+      return filesWithSlug(files, numbered[1], legacySlug)[Number(numbered[2]) - 1] ?? null;
+    } else {
+      return null;
+    }
   }
 }
 

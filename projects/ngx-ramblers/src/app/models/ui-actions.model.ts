@@ -22,6 +22,7 @@ export enum EditMode {
 }
 
 export enum StoredValue {
+  ACCESS = "access",
   ACCESSIBILITY = "accessibility",
   ADD_PHOTOS = "add-photos",
   ADVANCED_SEARCH = "advanced-search",

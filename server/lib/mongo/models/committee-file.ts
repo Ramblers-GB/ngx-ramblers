@@ -7,6 +7,7 @@ const committeeFileSchema = new mongoose.Schema({
   eventDate: { type: Number },
   postcode: { type: String },
   fileType: { type: String },
+  emailedAccessVersion: { type: Number },
   fileNameData: {
     rootFolder: { type: String },
     originalFileName: { type: String },

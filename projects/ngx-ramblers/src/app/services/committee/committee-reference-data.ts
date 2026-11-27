@@ -132,7 +132,7 @@ export class CommitteeReferenceData {
 
   isVisible(fileTypeDescription: string, platformAdminEnabled = false): boolean {
     const fileType = this.fileTypes()?.find(candidate => candidate.description === fileTypeDescription);
-    return committeeFileVisible(fileType, this.memberLoginService.loggedInMember(), platformAdminEnabled);
+    return committeeFileVisible(fileType, this.memberLoginService.loggedInMember(), platformAdminEnabled, this.memberLoginService.emailedAccessActive());
   }
 
   isPublic(fileTypeDescription: string): boolean {

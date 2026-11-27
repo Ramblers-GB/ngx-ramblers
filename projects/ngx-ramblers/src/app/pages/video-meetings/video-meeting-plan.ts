@@ -945,7 +945,7 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
           name: recipient.name
         }));
         this.editingCommitteePath = file ? await this.committeeFileService.documentsPagePathFor(file) : null;
-        this.editingCommitteeSlug = file ? this.committeeDisplayService.committeeFileSlug(file) : null;
+        this.editingCommitteeSlug = file ? await this.committeeDisplayService.committeeFileSlugWhenReady(file) : null;
         this.editingComposedDocument = !!(file && this.committeeDisplayService.isComposedDocument(file));
         this.existingReady = true;
       }
@@ -1179,7 +1179,7 @@ export class VideoMeetingPlanComponent implements OnInit, AfterViewInit, OnDestr
         attachments: persisted.committeeFileId
           ? [{name: "meeting.ics", url: this.videoMeetingsService.calendarUrl(persisted.committeeFileId)}]
           : [],
-        committeeFileSlug: persisted.savedFile ? this.committeeDisplayService.committeeFileSlug(persisted.savedFile) : undefined,
+        committeeFileSlug: persisted.savedFile ? await this.committeeDisplayService.committeeFileSlugWhenReady(persisted.savedFile) : undefined,
         committeePagePath: persisted.committeePagePath || undefined
       };
     }

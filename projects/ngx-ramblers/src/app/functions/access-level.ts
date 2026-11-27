@@ -5,9 +5,10 @@ export function accessLevelAllowed(level: AccessLevel, context: AccessLevelConte
   return ACCESS_LEVEL_DEFINITIONS[level]?.permitted?.(context) ?? false;
 }
 
-export function accessLevelPermitted(level: AccessLevel, member: Partial<MemberCookie> | null, platformAdminEnabled = false): boolean {
+export function accessLevelPermitted(level: AccessLevel, member: Partial<MemberCookie> | null, platformAdminEnabled = false, emailedAccess = false): boolean {
   return accessLevelAllowed(level, {
     loggedIn: !!member?.memberId,
+    emailedAccess,
     committee: !!member?.committee,
     memberAdmin: !!member?.memberAdmin,
     environmentAdmin: platformAdminEnabled && !!member?.committee,

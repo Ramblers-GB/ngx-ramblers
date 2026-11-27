@@ -5,7 +5,7 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { NgxLoggerLevel } from "ngx-logger";
 import { Subscription } from "rxjs";
 import { first, last } from "es-toolkit/compat";
-import { faAdd, faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faFileImport, faPrint, faEye, faCalendarDays } from "@fortawesome/free-solid-svg-icons";
+import { faAdd, faEdit, faEnvelope, faTrash, faCheck, faBan, faDownload, faUpRightFromSquare, faFileImport, faPrint, faEye, faCalendarDays, faLinkSlash } from "@fortawesome/free-solid-svg-icons";
 import { AuthService } from "../../../auth/auth.service";
 import { CommitteeDocumentEditMode, CommitteeFileAction, CommitteeFile, CommitteeFileEmailAction } from "../../../models/committee.model";
 import { ButtonDropdownComponent } from "../button-dropdown/button-dropdown";
@@ -566,6 +566,7 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
       {id: CommitteeFileAction.EDIT, label: "Edit", icon: faEdit, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file)},
       {id: CommitteeFileAction.SEND_EMAIL, label: this.canSendMeetingInvite(file) ? "Write an email" : "Send Email", icon: faEnvelope, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file)},
       {id: CommitteeFileAction.SEND_INVITE, label: "Send a meeting invite", icon: faCalendarDays, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file) || !this.canSendMeetingInvite(file)},
+      {id: CommitteeFileAction.REVOKE_EMAILED_ACCESS, label: "Switch off emailed links", icon: faLinkSlash, hidden: !this.allowFileActions(file) || !this.display.allowEditCommitteeFile(file) || !this.display.fileUrlOpensDocumentPage(file)},
       {id: CommitteeFileAction.DELETE, label: "Delete", icon: faTrash, danger: true, itemClass: "d-sm-none", hidden: !this.allowFileActions(file) || !this.display.allowDeleteCommitteeFile(file)}
     ];
   }
@@ -586,9 +587,20 @@ export class CommitteeDocumentsRow implements OnInit, OnDestroy {
       this.sendNotification(file);
     } else if (action === CommitteeFileAction.SEND_INVITE) {
       this.sendMeetingInvite(file);
+    } else if (action === CommitteeFileAction.REVOKE_EMAILED_ACCESS) {
+      this.revokeEmailedAccess(file);
     } else if (action === CommitteeFileAction.DELETE) {
       this.requestDeleteCommitteeFile(file);
     }
+  }
+
+  private revokeEmailedAccess(file: CommitteeFile): void {
+    this.committeeFileService.revokeEmailedAccess(file)
+      .then(() => this.notify.success({title: "Emailed links switched off", message: `Links already emailed for ${this.display.fileTitle(file)} no longer open it for people who are not logged in.`}))
+      .catch(error => {
+        this.logger.error("could not switch off emailed links", error);
+        this.notify.error({title: "Emailed links not switched off", message: error?.error?.error || error?.message || "An unexpected error occurred"});
+      });
   }
 
   sendEmailItems(committeeFile: CommitteeFile): ButtonDropdownItem[] {

@@ -221,6 +221,14 @@
     margin-left: 0
     margin-right: 0
 
+.committee-document-sheet.committee-document-sheet-continuous,
+.committee-document-sheet.committee-document-sheet-continuous[data-layout]
+  height: auto
+  min-height: 0
+  .committee-document-page-body
+    flex: none
+    overflow: visible
+
 .committee-document-sheet-footer
   flex-shrink: 0
   margin-top: auto
@@ -354,6 +362,11 @@
   overflow-x: auto
   .btn + .btn
     margin-left: 0
+  .btn
+    flex: 1 1 auto
+    white-space: nowrap
+  .committee-file-editor-action-group
+    display: contents
   app-section-toggle
     flex: 0 0 auto
 

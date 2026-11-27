@@ -7,6 +7,7 @@ import { UrlService } from "../url.service";
 import { MemberCookie } from "../../models/member.model";
 import { volunteerAdminAllowed } from "../../functions/volunteer-management";
 import { ViewAsService } from "./view-as.service";
+import { EmailedAccessService } from "../committee/emailed-access.service";
 import { emailComposerAllowed } from "../../functions/member-send-eligibility";
 
 @Injectable({
@@ -19,6 +20,11 @@ export class MemberLoginService {
   private authService = inject(AuthService);
   private urlService = inject(UrlService);
   private viewAsService = inject(ViewAsService);
+  private emailedAccessService = inject(EmailedAccessService);
+
+  emailedAccessActive(): boolean {
+    return this.emailedAccessService.active();
+  }
 
   loggedInMember(): MemberCookie {
     const viewed = this.viewAsService.viewedCookie();

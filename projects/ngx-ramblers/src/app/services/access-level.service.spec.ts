@@ -5,12 +5,13 @@ import { AccessLevelService } from "./access-level.service";
 import { MemberLoginService } from "./member/member-login.service";
 
 describe("AccessLevelService", () => {
-  const loginState = {loggedIn: false, committee: false, memberAdmin: false};
+  const loginState = {loggedIn: false, committee: false, memberAdmin: false, emailedAccess: false};
 
   beforeEach(() => {
     loginState.loggedIn = false;
     loginState.committee = false;
     loginState.memberAdmin = false;
+    loginState.emailedAccess = false;
     TestBed.configureTestingModule({
       providers: [
         AccessLevelService,
@@ -20,6 +21,7 @@ describe("AccessLevelService", () => {
           useValue: {
             loggedInMember: () => loginState.loggedIn ? {memberId: "member-1", committee: loginState.committee, memberAdmin: loginState.memberAdmin} : null,
             memberLoggedIn: () => loginState.loggedIn,
+            emailedAccessActive: () => loginState.emailedAccess,
             allowCommittee: () => loginState.committee,
             allowMemberAdminEdits: () => loginState.memberAdmin
           }
@@ -47,5 +49,13 @@ describe("AccessLevelService", () => {
     expect(service.hasAccessLevel(AccessLevel.LOGGED_IN_MEMBER)).toBe(false);
     loginState.loggedIn = true;
     expect(service.hasAccessLevel(AccessLevel.LOGGED_IN_MEMBER)).toBe(true);
+  });
+
+  it("shows logged-in-member items, but not committee items, to someone who opened an emailed document link", () => {
+    const service = TestBed.inject(AccessLevelService);
+    loginState.emailedAccess = true;
+    expect(service.hasAccessLevel(AccessLevel.LOGGED_IN_MEMBER)).toBe(true);
+    expect(service.hasAccessLevel(AccessLevel.COMMITTEE)).toBe(false);
+    expect(service.hasAccessLevel(AccessLevel.NOT_LOGGED_IN)).toBe(true);
   });
 });

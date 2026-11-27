@@ -2,6 +2,7 @@ import { accessLevelPermitted } from "../../../../projects/ngx-ramblers/src/app/
 import { Environment } from "../../../../projects/ngx-ramblers/src/app/models/environment.model";
 import { booleanOf } from "../../shared/string-utils";
 import { Request, Response } from "express";
+import { emailedAccessFileIds } from "./committee-file-emailed-access";
 import debug from "debug";
 import { envConfig } from "../../env-config/env-config";
 import { createErrorDebugLog } from "../../shared/error-debug-log";
@@ -75,8 +76,9 @@ let searchIndexCache: SearchIndex | null = null;
 let searchIndexBuilding: Promise<SearchIndex | null> | null = null;
 let searchIndexFailedAt: number | null = null;
 
-function accessibleLevels(user: any): AccessLevel[] {
-  return generalAccessLevels().filter(level => accessLevelPermitted(level, user, booleanOf(process.env[Environment.PLATFORM_ADMIN_ENABLED])));
+async function accessibleLevels(req: Request): Promise<AccessLevel[]> {
+  const emailedAccess = (await emailedAccessFileIds(req)).length > 0;
+  return generalAccessLevels().filter(level => accessLevelPermitted(level, (req as any).user, booleanOf(process.env[Environment.PLATFORM_ADMIN_ENABLED]), emailedAccess));
 }
 
 function pageVisible(entry: PageEntry, levels: AccessLevel[]): boolean {
@@ -312,8 +314,8 @@ export async function publicSitePaths(): Promise<string[] | null> {
   return Array.from(new Set(pagePaths.concat(eventPaths)));
 }
 
-export function siteMapPages(req: Request, res: Response): void {
-  const levels = accessibleLevels((req as any).user);
+export async function siteMapPages(req: Request, res: Response): Promise<void> {
+  const levels = await accessibleLevels(req);
   const index = ensureSearchIndex();
   if (!index) {
     res.status(200).json({action: ApiAction.QUERY, response: [], indexing: true});
@@ -335,7 +337,7 @@ export async function search(req: Request, res: Response): Promise<void> {
   const matchQuery = exact && !isQuoted(rawQuery) ? `"${rawQuery}"` : rawQuery;
   const startedAt = dateTimeNowAsValue();
   try {
-    const levels = accessibleLevels((req as any).user);
+    const levels = await accessibleLevels(req);
     const index = req.query.wait === "1" ? await ensureSearchIndexReady() : ensureSearchIndex();
     if (!index) {
       const failed = !searchIndexBuilding && !!searchIndexFailedAt;

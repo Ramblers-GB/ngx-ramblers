@@ -4,7 +4,7 @@ import { inject, Injectable } from "@angular/core";
 import { NgxLoggerLevel } from "ngx-logger";
 import { firstValueFrom, Observable, Subject } from "rxjs";
 import { DataQueryOptions } from "../../models/api-request.model";
-import { CommitteeAttachmentLinkResponse, CommitteeFile, CommitteeFileApiResponse } from "../../models/committee.model";
+import { CommitteeAttachmentLinkResponse, CommitteeEmailedAccessKeyResponse, CommitteeFile, CommitteeFileApiResponse } from "../../models/committee.model";
 import { CommitteeDocumentsPageChoice, PageContent, PageContentType } from "../../models/content-text.model";
 import {
   addCommitteeFileIdToPage,
@@ -31,9 +31,50 @@ export class CommitteeFileService {
   private dateUtils = inject(DateUtilsService);
   private BASE_URL = "/api/database/committee-file";
   private committeeFileNotifications = new Subject<CommitteeFileApiResponse>();
+  private referenceFiles: CommitteeFile[] | null = null;
+  private referenceFilesRequest: Promise<CommitteeFile[]> | null = null;
 
   notifications(): Observable<CommitteeFileApiResponse> {
     return this.committeeFileNotifications.asObservable();
+  }
+
+  knownReferenceFiles(): CommitteeFile[] | null {
+    if (!this.referenceFiles) {
+      void this.loadReferenceFiles();
+    }
+    return this.referenceFiles;
+  }
+
+  loadReferenceFiles(): Promise<CommitteeFile[]> {
+    if (!this.referenceFilesRequest) {
+      this.referenceFilesRequest = this.all()
+        .then(files => {
+          this.referenceFiles = files;
+          return files;
+        })
+        .catch(error => {
+          this.logger.error("loadReferenceFiles:failed", error);
+          this.referenceFilesRequest = null;
+          return [];
+        });
+    }
+    return this.referenceFilesRequest;
+  }
+
+  private refreshReferenceFiles(): void {
+    this.referenceFilesRequest = null;
+    if (this.referenceFiles) {
+      void this.loadReferenceFiles();
+    }
+  }
+
+  async emailedAccessKey(file: CommitteeFile): Promise<string> {
+    const result = await firstValueFrom(this.http.get<CommitteeEmailedAccessKeyResponse>(`${this.BASE_URL}/${file.id}/emailed-access-key`));
+    return result.response.key;
+  }
+
+  async revokeEmailedAccess(file: CommitteeFile): Promise<void> {
+    await firstValueFrom(this.http.post(`${this.BASE_URL}/${file.id}/revoke-emailed-access`, {}));
   }
 
   async attachmentLink(file: CommitteeFile): Promise<string> {
@@ -85,6 +126,7 @@ export class CommitteeFileService {
     this.logger.debug("updating", committeeFile);
     const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.put<CommitteeFileApiResponse>(this.BASE_URL + "/" + committeeFile.id, committeeFile), this.committeeFileNotifications);
     this.logger.debug("updated", committeeFile, "- received", apiResponse);
+    this.refreshReferenceFiles();
     return apiResponse.response as CommitteeFile;
   }
 
@@ -92,6 +134,7 @@ export class CommitteeFileService {
     this.logger.debug("creating", committeeFile);
     const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.post<CommitteeFileApiResponse>(this.BASE_URL, committeeFile), this.committeeFileNotifications);
     this.logger.debug("created", committeeFile, "- received", apiResponse);
+    this.refreshReferenceFiles();
     return apiResponse.response as CommitteeFile;
   }
 
@@ -99,6 +142,7 @@ export class CommitteeFileService {
     this.logger.debug("deleting", committeeFile);
     const apiResponse = await this.commonDataService.responseFrom(this.logger, this.http.delete<CommitteeFileApiResponse>(this.BASE_URL + "/" + committeeFile.id), this.committeeFileNotifications);
     this.logger.debug("deleted", committeeFile, "- received", apiResponse);
+    this.refreshReferenceFiles();
     return apiResponse.response as CommitteeFile;
   }
 

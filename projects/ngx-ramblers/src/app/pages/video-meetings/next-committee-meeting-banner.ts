@@ -187,7 +187,7 @@ export class NextCommitteeMeetingBannerComponent implements OnInit, OnDestroy {
       return {
         ...meeting,
         committeePath: path,
-        committeeSlug: this.committeeDisplay.committeeFileSlug(file),
+        committeeSlug: await this.committeeDisplay.committeeFileSlugWhenReady(file),
         composedDocument: this.committeeDisplay.isComposedDocument(file),
         room: meeting.room || file.meeting?.room
       };

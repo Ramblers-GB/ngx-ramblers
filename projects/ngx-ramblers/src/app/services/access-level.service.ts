@@ -18,6 +18,6 @@ export class AccessLevelService {
   }
 
   hasAccessLevel(accessLevel: AccessLevel): boolean {
-    return accessLevelPermitted(accessLevel || AccessLevel.PUBLIC, this.memberLoginService.loggedInMember(), this.memberResourcesReferenceData.platformAdminOn());
+    return accessLevelPermitted(accessLevel || AccessLevel.PUBLIC, this.memberLoginService.loggedInMember(), this.memberResourcesReferenceData.platformAdminOn(), this.memberLoginService.emailedAccessActive());
   }
 }

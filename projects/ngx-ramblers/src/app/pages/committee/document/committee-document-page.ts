@@ -1,6 +1,7 @@
 import { officeViewerEmbedUrl, officeViewerUrl } from "../../../functions/office-viewer";
 import { AuthService } from "../../../auth/auth.service";
 import { MemberResourcesReferenceDataService } from "../../../services/member/member-resources-reference-data.service";
+import { EmailedAccessService } from "../../../services/committee/emailed-access.service";
 import { Component, inject, NgZone, OnDestroy, OnInit, Renderer2, ViewChild } from "@angular/core";
 import { DOCUMENT } from "@angular/common";
 import { ActivatedRoute, Router } from "@angular/router";
@@ -116,6 +117,7 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   private sanitizer = inject(DomSanitizer);
   private committeeFileService = inject(CommitteeFileService);
   private memberResourcesReferenceData = inject(MemberResourcesReferenceDataService);
+  private emailedAccess = inject(EmailedAccessService);
   private videoMeetingsService = inject(VideoMeetingsService);
   display = inject(CommitteeDisplayService);
   private subscriptions: Subscription[] = [];
@@ -212,6 +214,7 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   }
 
   private loadCommitteeFile(slug: string, expectComposed: boolean): void {
+    this.emailedAccess.captureKeyFromAddress();
     const sequence = ++this.fileLoadSequence;
     this.committeeFile = null;
     this.allowViewing = false;
@@ -292,7 +295,8 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
 
   private refreshVisibility(): void {
     if (this.committeeFile && this.committeeReferenceData) {
-      this.allowViewing = this.committeeReferenceData.isVisible(this.committeeFile.fileType, this.memberResourcesReferenceData.platformAdminOn());
+      this.allowViewing = this.committeeReferenceData.isVisible(this.committeeFile.fileType, this.memberResourcesReferenceData.platformAdminOn())
+        || this.emailedAccess.grantsFile(this.committeeFile.id);
       this.notFound = !this.allowViewing;
       if (this.allowViewing && !this.autoPrintTriggered
         && this.display.isComposedDocument(this.committeeFile)
@@ -310,7 +314,7 @@ export class CommitteeDocumentPage implements OnInit, OnDestroy {
   navigateBack(): void {
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: {[StoredValue.DOCUMENT]: null, [StoredValue.FILE]: null, print: null},
+      queryParams: {[StoredValue.DOCUMENT]: null, [StoredValue.FILE]: null, [StoredValue.ACCESS]: null, print: null},
       queryParamsHandling: "merge"
     });
   }

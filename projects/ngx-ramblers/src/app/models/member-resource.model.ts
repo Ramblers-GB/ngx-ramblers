@@ -21,6 +21,7 @@ export const EVENT_ACTION_ACCESS_LEVELS: AccessLevel[] = [AccessLevel.HIDDEN, Ac
 
 export interface AccessLevelContext {
   loggedIn: boolean;
+  emailedAccess: boolean;
   committee: boolean;
   memberAdmin: boolean;
   environmentAdmin: boolean;
@@ -50,7 +51,7 @@ export const ACCESS_LEVEL_DEFINITIONS: Record<AccessLevel, AccessLevelDefinition
     description: "Committee", permitted: context => context.committee,
     includeAccessLevelIds: [AccessLevel.COMMITTEE, AccessLevel.LOGGED_IN_MEMBER, AccessLevel.PUBLIC, AccessLevel.HIDDEN]
   },
-  [AccessLevel.LOGGED_IN_MEMBER]: {description: "Logged-in member", permitted: context => context.loggedIn, includeAccessLevelIds: [AccessLevel.LOGGED_IN_MEMBER]},
+  [AccessLevel.LOGGED_IN_MEMBER]: {description: "Logged-in member", permitted: context => context.loggedIn || context.emailedAccess, includeAccessLevelIds: [AccessLevel.LOGGED_IN_MEMBER]},
   [AccessLevel.NOT_LOGGED_IN]: {description: "Not logged in", permitted: context => !context.loggedIn, includeAccessLevelIds: [AccessLevel.NOT_LOGGED_IN]},
   [AccessLevel.PUBLIC]: {description: "Public", permitted: () => true, includeAccessLevelIds: [AccessLevel.PUBLIC]}
 };

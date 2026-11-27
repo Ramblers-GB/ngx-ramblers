@@ -55,6 +55,7 @@ export interface CommitteeFile extends Identifiable {
   fileNameData?: FileNameData;
   document?: CommitteeDocument;
   meeting?: CommitteeFileMeeting;
+  emailedAccessVersion?: number;
 }
 
 export enum CommitteeMeetingFormat {
@@ -772,6 +773,7 @@ export enum CommitteeFileAction {
   EDIT = "edit",
   SEND_EMAIL = "send-email",
   SEND_INVITE = "send-invite",
+  REVOKE_EMAILED_ACCESS = "revoke-emailed-access",
   DELETE = "delete"
 }
 
@@ -784,7 +786,29 @@ export enum CommitteeFileTypeField {
 }
 
 export enum CommitteeAttachmentPurpose {
-  PREVIEW = "committee-attachment-preview"
+  PREVIEW = "committee-attachment-preview",
+  EMAILED_ACCESS = "committee-emailed-access"
+}
+
+export const EMAILED_ACCESS_COOKIE = "ngx-emailed-access";
+export const EMAILED_ACCESS_KEY_SEPARATOR = "~";
+export const EMAILED_ACCESS_MAX_KEYS = 10;
+export const EMAILED_ACCESS_KEY_EXPIRY_SECONDS = 365 * 24 * 60 * 60;
+
+export interface EmailedAccessKeyPayload {
+  purpose: CommitteeAttachmentPurpose;
+  committeeFileId: string;
+  version: number;
+  exp?: number;
+}
+
+export interface EmailedAccessKey {
+  key: string;
+  payload: EmailedAccessKeyPayload;
+}
+
+export interface CommitteeEmailedAccessKeyResponse extends ApiResponse {
+  response: {key: string};
 }
 
 export interface CommitteeAttachmentLinkResponse extends ApiResponse {

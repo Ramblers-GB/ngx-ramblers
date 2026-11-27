@@ -31,13 +31,25 @@ import { committeeFileForSave } from "../../../functions/committee-file-save";
 @Component({
   selector: "app-committee-file-editor",
   host: {
-    "attr.data-sticky-offset-root": ""
+    "attr.data-sticky-offset-root": "",
+    "class": "d-block"
   },
   template: `
-    <app-section-toggle
-      [tabs]="kindTabs"
-      [selectedTab]="kind"
-      (selectedTabChange)="selectKind($event)"/>
+    <div class="d-flex flex-wrap align-items-end gap-3 pt-1">
+      <div class="form-group mb-0 flex-grow-1">
+        <label for="fileType">File Type</label>
+        <select [(ngModel)]="committeeFile.fileType" id="fileType" class="form-control input-md">
+          @for (fileType of display.fileTypes(); track fileType) {
+            <option [ngValue]="fileType.description"
+                    [textContent]="fileType.description">
+          }
+        </select>
+      </div>
+      <app-section-toggle
+        [tabs]="kindTabs"
+        [selectedTab]="kind"
+        (selectedTabChange)="selectKind($event)"/>
+    </div>
     <div class="row mb-3 mt-3">
       <div class="col-md-12">
         <app-labelled-field-row>
@@ -69,28 +81,13 @@ import { committeeFileForSave } from "../../../functions/committee-file-save";
         </app-labelled-field-row>
       </div>
     </div>
-    <div class="row mb-3">
-      <div class="col-md-6">
-        <div class="form-group">
-          <label for="fileType">File Type</label>
-          <select [(ngModel)]="committeeFile.fileType" id="fileType" class="form-control input-md">
-            @for (fileType of display.fileTypes(); track fileType) {
-              <option [ngValue]="fileType.description"
-                      [textContent]="fileType.description">
-            }
-          </select>
-        </div>
-      </div>
-    </div>
     @if (kind === CommitteeFileKind.ATTACHMENT) {
-      <div class="row">
-        <div class="col-md-6">
+      <div class="row gx-2">
+        <div class="col-md-6 mb-3 d-flex flex-column gap-2">
           <input type="submit" [disabled]="notifyTarget.busy"
                  value="Browse for attachment"
                  (click)="browseToFile(fileElement)"
-                 class="btn btn-primary w-100">
-        </div>
-        <div class="col-md-6">
+                 class="btn btn-primary w-100 flex-grow-1">
           @if (committeeFile?.fileNameData) {
             <input [disabled]="notifyTarget.busy" type="submit"
                    value="Remove attachment" (click)="removeAttachment()"
@@ -100,12 +97,12 @@ import { committeeFileForSave } from "../../../functions/committee-file-save";
                  type="file"
                  ng2FileSelect (onFileSelected)="onFileSelect($event)" [uploader]="uploader">
         </div>
-        <div class="col-md-12 mb-3">
+        <div class="col-md-6 mb-3">
           <div ng2FileDrop [ngClass]="{'file-over': hasFileOver}"
                (fileOver)="fileOver($event)"
                (onFileDrop)="fileDropped($event)"
                [uploader]="uploader"
-               class="drop-zone">Or drop file here
+               class="drop-zone mt-0 h-100 d-flex align-items-center justify-content-center">Or drop file here
           </div>
         </div>
         <div class="col-md-12 mb-3">
@@ -136,7 +133,7 @@ import { committeeFileForSave } from "../../../functions/committee-file-save";
                                      [disabled]="notifyTarget.busy"
                                      (previewingChange)="setPreviewing($event)"
                                      (valueChange)="markdownChanged($event)">
-        <div class="d-flex gap-2 flex-wrap">
+        <div class="committee-file-editor-action-group">
           <button type="button" class="btn btn-primary" [disabled]="notifyTarget.busy" (click)="save()">
             <fa-icon [icon]="faSave" class="me-2"/>Save File
           </button>

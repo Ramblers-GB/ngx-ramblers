@@ -7,8 +7,8 @@ export function committeeFileAccessLevel(fileType: CommitteeFileType): AccessLev
   return fileType?.accessLevel ?? (fileType?.public ? AccessLevel.PUBLIC : AccessLevel.COMMITTEE);
 }
 
-export function committeeFileVisible(fileType: CommitteeFileType | null, member: Partial<MemberCookie> | null, platformAdminEnabled = false): boolean {
-  return !!member?.fileAdmin || accessLevelPermitted(committeeFileAccessLevel(fileType), member, platformAdminEnabled);
+export function committeeFileVisible(fileType: CommitteeFileType | null, member: Partial<MemberCookie> | null, platformAdminEnabled = false, emailedAccess = false): boolean {
+  return !!member?.fileAdmin || accessLevelPermitted(committeeFileAccessLevel(fileType), member, platformAdminEnabled, emailedAccess);
 }
 
 export function mapCommitteeFileTypeAccessLevels(fileTypes: CommitteeFileType[]): CommitteeFileType[] {
